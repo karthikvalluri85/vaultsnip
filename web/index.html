@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VaultSnip</title>
+<meta name="description" content="Turn sensitive report snips into client-safe replicas. Sensitive text is masked on your device. Nothing is stored.">
+<style>
+:root{
+  --bg:#f3f4f6;--surface:#fff;--sunken:#eceef2;--ink:#14181e;--muted:#5a6370;--line:#d9dde4;
+  --accent:#0d6b5d;--accent-ink:#fff;--accent-soft:#dcefeb;--warn:#a55d00;--warn-soft:#fff2df;--bad:#b03c38;--bad-soft:#fde8e7;--good:#2f7d3e;--good-soft:#e3f3e6;
+  --f:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f1215;--surface:#181c21;--sunken:#12161a;--ink:#eef1f4;--muted:#a3acb9;--line:#2b3139;
+  --accent:#43b8a5;--accent-ink:#0b1412;--accent-soft:#16312d;--warn:#f0b35c;--warn-soft:#33270f;--bad:#ec7a75;--bad-soft:#3a1d1c;--good:#5cbf6e;--good-soft:#16301b;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f);font-size:15px;line-height:1.5}
+button{font:inherit}
+.top{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:30}
+.brand{font-weight:700;letter-spacing:-.01em}
+.pill{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:600}
+.top .sp{flex:1}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.big{padding:14px 22px;font-size:16px;border-radius:10px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding:24px 20px 60px}
+[hidden]{display:none!important}
+h1{font-size:clamp(26px,3.6vw,38px);line-height:1.15;letter-spacing:-.02em;margin:8px 0 10px;text-wrap:balance}
+.lede{color:var(--muted);font-size:17px;max-width:62ch;margin:0}
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start;margin-top:12px}
+@media (max-width:900px){.hero{grid-template-columns:minmax(0,1fr)}}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+.promise{display:grid;gap:8px;margin-top:22px;font-size:14px;color:var(--muted)}
+.promise b{color:var(--ink)}
+.drop{border:2px dashed var(--line);border-radius:12px;background:var(--surface);padding:28px;text-align:center;cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop p{margin:6px 0;color:var(--muted)}
+.samples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:22px}
+@media (max-width:900px){.samples{grid-template-columns:minmax(0,1fr)}}
+.sample{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.sample h3{margin:0;font-size:16px}
+.sample p{margin:0;color:var(--muted);font-size:13.5px;flex:1}
+.sample .tag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:18px;align-items:start}
+@media (max-width:980px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.panel h3{margin:0 0 10px;font-size:14px}
+.panel + .panel{margin-top:12px}
+.canvaswrap{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px}
+.canvaswrap canvas{display:block;width:100%;height:auto;border-radius:6px;cursor:crosshair;touch-action:none}
+.viewtabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:10px}
+.viewtabs button{border:0;background:transparent;color:var(--muted);padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer}
+.viewtabs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.hint{font-size:12.5px;color:var(--muted)}
+.status{font-size:13.5px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+.types{display:grid;gap:6px;font-size:13.5px}
+.types div{display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center}
+.sw{width:12px;height:12px;border-radius:3px}
+.gate{border-radius:8px;padding:12px;font-size:14px;display:grid;gap:4px}
+.gate b{font-size:15px}
+.gate.pass{background:var(--good-soft);color:var(--good)}
+.gate.review{background:var(--warn-soft);color:var(--warn)}
+.gate.blocked{background:var(--bad-soft);color:var(--bad)}
+.gate.pending{background:var(--sunken);color:var(--muted)}
+.gate span{color:var(--ink);font-size:13px}
+.flags{display:grid;gap:6px;margin-top:10px;max-height:220px;overflow:auto}
+.flag{display:flex;gap:8px;align-items:center;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+.flag code{font-family:var(--mono);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.flag button{font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+label.f{display:grid;gap:4px;font-size:13px;font-weight:600;margin-top:10px}
+label.f span{font-weight:400;color:var(--muted);font-size:12px}
+input[type=text],input[type=password]{font:inherit;font-size:14px;padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:100%}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;color:var(--muted);padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:14px}
+.modehelp{font-size:13px;color:var(--muted);margin:0 0 12px;max-width:80ch}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:0;max-width:min(760px,94vw);width:100%}
+dialog::backdrop{background:rgb(0 0 0/.45)}
+.dlg{padding:20px;display:grid;gap:12px}
+.dlg h2{margin:0;font-size:19px}
+.dlg img{width:100%;border:1px solid var(--line);border-radius:6px;max-height:42vh;object-fit:contain;background:#fff}
+.facts{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:13.5px}
+.facts dt{color:var(--muted)} .facts dd{margin:0}
+.keybox{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--sunken)}
+.err{color:var(--bad);font-size:13.5px}
+.crop{position:relative;display:inline-block;max-width:100%}
+.note{font-size:12.5px;color:var(--muted)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand"><img src="icons/logo.svg" alt="" width="22" height="22" style="vertical-align:-5px;margin-right:8px">VaultSnip</span>
+  <span class="pill">Runs in your browser · nothing stored</span>
+  <span class="sp"></span>
+  <a href="privacy.html" style="font-size:13px;margin-right:6px">Privacy</a>
+  <button class="btn" id="btn-key" type="button">Claude key</button>
+</header>
+
+<main class="wrap">
+  <!-- Screen 1 -->
+  <section id="s-drop">
+    <div class="hero">
+      <div>
+        <h1>Turn sensitive report snips into client-safe replicas</h1>
+        <p class="lede">Sensitive text is masked on your device before anything is sent. The replica runs on generated data, keeps the layout and the shape of the original, and carries a watermark.</p>
+        <div class="ctas">
+          <button class="btn primary big" id="btn-try" type="button">Try with sample dashboards</button>
+        </div>
+        <div class="promise">
+          <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
+          <div><b>You approve what leaves.</b> Only the masked image goes to Claude, after you see it.</div>
+          <div><b>Your own key.</b> Needed only for your own images; samples work without one.</div>
+        </div>
+      </div>
+      <div>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload or paste a screenshot">
+          <strong>Use your own screenshot</strong>
+          <p>Drop a PNG or JPG here, click to choose, or paste with Ctrl+V / ⌘V</p>
+          <p class="note">Any source: BI tools, Excel, PDF report pages, web analytics, SaaS apps</p>
+          <input type="file" id="file" accept="image/png,image/jpeg" hidden>
+        </div>
+      </div>
+    </div>
+    <div class="samples" id="samples" hidden></div>
+  </section>
+
+  <!-- Crop (extension snips) -->
+  <section id="s-crop" hidden>
+    <div class="toolbar"><strong>Drag over the part of the tab to convert</strong><span class="sp"></span>
+      <button class="btn" id="crop-all" type="button">Use the whole tab</button>
+      <button class="btn primary" id="crop-use" type="button" disabled>Use selection</button></div>
+    <div class="canvaswrap"><canvas id="crop-canvas"></canvas></div>
+  </section>
+
+  <!-- Screen 2 -->
+  <section id="s-review" hidden>
+    <div class="grid2">
+      <div>
+        <div class="toolbar">
+          <div class="viewtabs" role="group" aria-label="View">
+            <button type="button" id="v-orig" aria-pressed="true">Original with boxes</button>
+            <button type="button" id="v-mask" aria-pressed="false">Masked (what is sent)</button>
+          </div>
+          <span class="hint">Click a box to turn its mask on or off. Drag to add a mask.</span>
+        </div>
+        <div class="canvaswrap"><canvas id="review-canvas"></canvas></div>
+      </div>
+      <div>
+        <div class="panel">
+          <div class="status" id="status"><span class="spinner"></span><span id="status-text">Preparing…</span></div>
+        </div>
+        <div class="panel">
+          <h3>Detected, by type</h3>
+          <div class="types" id="types"></div>
+        </div>
+        <div class="panel">
+          <h3>Pre-flight check</h3>
+          <div class="gate pending" id="gate"><b>Not run yet</b><span>The check re-reads the masked image on this device.</span></div>
+          <div class="flags" id="flags"></div>
+          <div class="row">
+            <button class="btn" id="btn-recheck" type="button" disabled>Re-run check</button>
+            <button class="btn primary" id="btn-send" type="button" disabled>Preview what is sent</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Redaction policy</h3>
+          <label class="f" for="client-names">Names to always mask <span>Client, company or product names, comma separated. Not saved.</span>
+            <input type="text" id="client-names" placeholder="e.g. Acme, Project Falcon"></label>
+          <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
+            <input type="text" id="extra-allow" placeholder="e.g. Pipeline, Bookings"></label>
+          <div class="row"><button class="btn" id="btn-reapply" type="button" disabled>Re-apply policy</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screen 3 -->
+  <section id="s-replica" hidden>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Privacy mode" id="modes">
+        <button type="button" data-mode="shape" aria-pressed="true">Shape-preserving</button>
+        <button type="button" data-mode="structure" aria-pressed="false">Structure-only</button>
+        <button type="button" data-mode="generic" aria-pressed="false">Generic</button>
+      </div>
+      <button class="btn" id="btn-regen" type="button">Regenerate data</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="btn" id="btn-restart" type="button">Start over</button>
+      <button class="btn primary" id="btn-export" type="button">Export HTML</button>
+    </div>
+    <p class="modehelp" id="modehelp"></p>
+    <div id="replica"></div>
+    <p class="note" id="export-note"></p>
+  </section>
+</main>
+
+<dialog id="dlg-send">
+  <form method="dialog" class="dlg" id="send-form">
+    <h2>This is everything that will be sent</h2>
+    <img id="payload-img" alt="The masked image that will be sent">
+    <dl class="facts">
+      <dt>Destination</dt><dd id="pf-dest">api.anthropic.com, using your key</dd>
+      <dt>Contents</dt><dd>The masked image above and fixed instructions. No original image, no OCR text.</dd>
+      <dt>Size</dt><dd id="pf-size"></dd>
+    </dl>
+    <div class="keybox" id="keybox" hidden>
+      <strong>Add your Claude API key</strong>
+      <p class="note">It stays in this tab's memory and goes only to Anthropic. Get one at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> (about 2 minutes).</p>
+      <label class="f" for="key-in">API key<input type="password" id="key-in" autocomplete="off" placeholder="sk-ant-…"></label>
+      <label class="f" for="model-in">Model<input type="text" id="model-in" value="claude-sonnet-5-5"></label>
+      <label class="note"><input type="checkbox" id="key-remember"> Remember the key on this device</label>
+    </div>
+    <p class="err" id="send-err" hidden></p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn primary" id="btn-confirm" type="button">Send and build replica</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-key">
+  <form method="dialog" class="dlg">
+    <h2>Claude API key</h2>
+    <p class="note">Used only when you convert your own images. Held in memory unless you choose to remember it on this device.</p>
+    <label class="f" for="key-in2">API key<input type="password" id="key-in2" autocomplete="off" placeholder="sk-ant-…"></label>
+    <label class="f" for="model-in2">Model<input type="text" id="model-in2" value="claude-sonnet-5-5"></label>
+    <label class="note"><input type="checkbox" id="key-remember2"> Remember the key on this device</label>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" id="key-clear" type="button">Forget key</button>
+      <button class="btn primary" id="key-save" type="submit" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="config.js"></script>
+<script src="lib/tesseract.min.js"></script>
+<script src="lib/echarts.min.js"></script>
+<script src="replica.js"></script>
+<script src="samples.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
