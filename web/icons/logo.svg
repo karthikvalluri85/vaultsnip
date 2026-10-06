@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="VaultSnip">
-  <rect width="128" height="128" rx="28" fill="#0d6b5d"/>
-  <g fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M30 50V30h20"/><path d="M78 30h20v20"/><path d="M98 78v20H78"/><path d="M50 98H30V78"/>
-  </g>
-  <rect x="40" y="56" width="48" height="16" rx="5" fill="#ffffff"/>
-</svg>
