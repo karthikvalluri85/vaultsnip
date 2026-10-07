@@ -5,7 +5,7 @@ Thanks for helping. VaultSnip is a static, browser-only app: no build step, no b
 ## Ground rules
 
 1. **No real data, ever.** Code, tests, fixtures, issues and screenshots use fictional or public material only.
-2. **No new data flows.** Do not add analytics, trackers, error-reporting services or calls to any server other than Anthropic (with the user's own key). Discuss first in an issue if you think one is needed.
+2. **No new data flows.** Do not add analytics, trackers, error-reporting services or calls to any server other than the AI provider the user chose (with the user's own key). Discuss first in an issue if you think one is needed.
 3. **Mask by default.** Changes to OCR or masking must keep the "mask unless allowlisted" rule and the independent re-scan gate.
 
 ## Run it locally
@@ -33,7 +33,8 @@ Both run automatically on every pull request.
 | Path | What it is |
 |---|---|
 | `web/` | The app, published as-is to Cloudflare Pages |
-| `web/app.js` | Pipeline: OCR, masking, gate, review, Claude call, export |
+| `web/app.js` | Pipeline: OCR, masking, gate, review, AI call, export |
+| `web/llm.js` | AI providers (Claude, OpenAI). Add a provider here; it must send only the approved masked image |
 | `web/replica.js` | Replica engine (also embedded in every export) |
 | `web/feedback.js` | In-app feedback and error reporting |
 | `web/maps/` | Map outlines, rebuilt by `tools/maps/build_maps.py` |

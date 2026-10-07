@@ -5,7 +5,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.3.0';
   const REPO = 'https://github.com/karthikvalluri85/vaultsnip';
   const EMAIL = ['karthikvalluri', 'gmail.com'].join('@'); // assembled at runtime to keep it away from scrapers
 
@@ -19,7 +19,7 @@
 
   let lastError = '';
   const scrub = s => String(s == null ? '' : s)
-    .replace(/sk-ant-[\w-]+/g, '[key removed]')
+    .replace(/sk-[\w-]{8,}/g, '[key removed]')
     .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email removed]')
     .replace(/https?:\/\/[^\s)]+/g, u => /anthropic\.com|vaultsnip|localhost|chrome-extension/.test(u) ? u : '[link removed]')
     .slice(0, 400);
@@ -55,13 +55,13 @@
     const S = global.__DSC || {};
     return {
       version: VERSION, channel: channel(), browser: browser(), step: step(),
-      mode: S.mode || '', source: S.sample ? 'Bundled sample: ' + S.sample.name : (S.spec || S.img ? 'Own screenshot' : ''),
+      ai: S.key ? (S.provider === 'openai' ? 'OpenAI' : 'Claude') + ' · ' + (S.model || '') : '', mode: S.mode || '', source: S.sample ? 'Bundled sample: ' + S.sample.name : (S.spec || S.img ? 'Own screenshot' : ''),
       visuals: visuals(), error: scrub(lastError)
     };
   }
   function diagnostics(c) {
     return [`VaultSnip ${c.version} · ${c.channel} · ${c.browser}`, `Step: ${c.step}${c.mode ? ' · mode: ' + c.mode : ''}${c.source ? ' · ' + c.source : ''}`,
-      c.visuals ? 'Visual types: ' + c.visuals : '', c.error ? 'Last error: ' + c.error : ''].filter(Boolean).join('\n');
+      c.ai ? 'AI: ' + c.ai : '', c.visuals ? 'Visual types: ' + c.visuals : '', c.error ? 'Last error: ' + c.error : ''].filter(Boolean).join('\n');
   }
 
   /* ---------- dialog ---------- */
@@ -139,6 +139,7 @@
     q.set('what', String(text || '').trim()); q.set('version', c.version); q.set('channel', c.channel); q.set('browser', c.browser);
     q.set('step', [c.step, c.mode && 'mode: ' + c.mode, c.source].filter(Boolean).join(' · '));
     if (c.visuals) q.set('visuals', c.visuals);
+    if (c.ai) q.set('step', q.get('step') + ' · AI: ' + c.ai);
     if (c.error) q.set('error', c.error);
     return REPO + '/issues/new?' + q.toString();
   }

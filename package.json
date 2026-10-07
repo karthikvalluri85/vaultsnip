@@ -1,6 +1,6 @@
 {
   "name": "vaultsnip",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Turn sensitive report snips into client-safe replicas. Browser-only: masks sensitive text on your device and rebuilds dashboards with synthetic data.",
   "homepage": "https://vaultsnip.pages.dev",
@@ -39,6 +39,6 @@
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
-    "playwright": "1.56.0"
+    "playwright": "1.63.0"
   }
 }

@@ -1,6 +1,6 @@
 /* VaultSnip: app pipeline.
    capture -> local OCR -> mask everything except an allowlist -> independent re-scan gate
-   -> human approval of the exact payload -> Claude spec (your key) -> synthetic replica -> export.
+   -> human approval of the exact payload -> layout spec from Claude or OpenAI (your key) -> synthetic replica -> export.
    Nothing is persisted except, optionally, your API key (only if you tick "remember"). */
 (function () {
   'use strict';
@@ -17,10 +17,75 @@
     sample: null,         // sample object when running a sample
     spec: null, mode: 'shape', seed: 4127,
     view: 'orig',
-    key: null, model: 'claude-sonnet-5-5',
+    provider: 'anthropic', key: null, model: 'claude-sonnet-5-5',
     sessionAllow: new Set()
   };
-  try { const k = localStorage.getItem('dsc-key'); if (k) S.key = k; const m = localStorage.getItem('dsc-model'); if (m) S.model = m; } catch (e) { /* storage unavailable */ }
+  try {
+    const k = localStorage.getItem('dsc-key'), m = localStorage.getItem('dsc-model'), p = localStorage.getItem('dsc-provider');
+    if (k) { S.key = k; S.provider = (p && VSLLM.PROVIDERS[p]) ? p : (VSLLM.detect(k) || 'anthropic'); S.model = m || VSLLM.PROVIDERS[S.provider].defaultModel; }
+  } catch (e) { /* storage unavailable */ }
+  const providerName = () => VSLLM.PROVIDERS[S.provider].short;
+  function remember(on) {
+    try {
+      if (on && S.key) { localStorage.setItem('dsc-key', S.key); localStorage.setItem('dsc-model', S.model); localStorage.setItem('dsc-provider', S.provider); }
+      else if (!on) ['dsc-key', 'dsc-model', 'dsc-provider'].forEach(k => localStorage.removeItem(k));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  /* ---------------- AI key panel (shared by the send dialog and the key dialog) ---------------- */
+  function keyPanel(host, id) {
+    const P = VSLLM.PROVIDERS;
+    host.className = 'kp';
+    host.innerHTML = `
+      <label class="f" for="${id}-p">AI provider<select id="${id}-p">${Object.keys(P).map(k => `<option value="${k}">${P[k].name}</option>`).join('')}</select></label>
+      <label class="f" for="${id}-k">API key<input type="password" id="${id}-k" autocomplete="off" spellcheck="false"></label>
+      <div class="kp-row"><label class="f" for="${id}-m">Model<input type="text" id="${id}-m" list="${id}-ml" autocomplete="off" spellcheck="false"><datalist id="${id}-ml"></datalist></label>
+        <button class="btn" type="button" id="${id}-c">Check key</button></div>
+      <p class="note" id="${id}-s" role="status" aria-live="polite"></p>
+      <p class="note" id="${id}-h"></p>
+      <label class="note"><input type="checkbox" id="${id}-r"> Remember the key on this device</label>`;
+    const el = n => document.getElementById(id + '-' + n);
+    const show = () => {
+      const p = P[el('p').value];
+      el('k').placeholder = p.keyHint;
+      el('h').innerHTML = `The key goes only to <b>${p.host}</b>. No key yet? <a href="${p.keyUrl}" target="_blank" rel="noopener">Create one</a> (about 2 minutes).`;
+    };
+    let typedModel = false;
+    el('m').addEventListener('input', () => { typedModel = true; });
+    el('p').addEventListener('change', () => { el('m').value = P[el('p').value].defaultModel; el('ml').innerHTML = ''; el('s').textContent = ''; typedModel = false; show(); });
+    el('k').addEventListener('input', () => {
+      const d = VSLLM.detect(el('k').value);
+      if (d && d !== el('p').value) { el('p').value = d; if (!typedModel) el('m').value = P[d].defaultModel; el('ml').innerHTML = ''; show(); el('s').textContent = 'This looks like ' + P[d].name + ' key.'; }
+    });
+    async function check() {
+      const key = el('k').value.trim(), prov = el('p').value;
+      if (!key) { el('s').textContent = 'Paste a key first.'; return false; }
+      el('s').textContent = 'Checking the key with ' + P[prov].host + '…'; el('c').disabled = true;
+      try {
+        const r = await VSLLM.models(prov, key);
+        el('ml').innerHTML = r.ids.map(i => `<option value="${i}"></option>`).join('');
+        if (!r.ids.includes(el('m').value.trim())) el('m').value = r.suggested;
+        el('s').innerHTML = `<span class="ok">✓ Key works.</span> ${r.ids.length} models available; using <b>${el('m').value}</b>.`;
+        return true;
+      } catch (e) { el('s').textContent = e.message; return false; }
+      finally { el('c').disabled = false; }
+    }
+    el('c').onclick = check;
+    return {
+      fill() {
+        el('p').value = S.provider; el('k').value = S.key || ''; el('m').value = S.model; el('s').textContent = ''; typedModel = false; show();
+        try { el('r').checked = !!localStorage.getItem('dsc-key'); } catch (e) { el('r').checked = false; }
+      },
+      read() {
+        const key = el('k').value.trim();
+        return { provider: el('p').value, key: key || null, model: el('m').value.trim() || P[el('p').value].defaultModel, remember: el('r').checked };
+      },
+      check
+    };
+  }
+  const kpSend = keyPanel($('kp-send'), 'kps'), kpDlg = keyPanel($('kp-dlg'), 'kpd');
+  // From the key dialog, unticking "remember" also forgets a previously remembered key.
+  function applyKey(v, fromDialog) { S.provider = v.provider; S.key = v.key; S.model = v.model; if (v.remember) remember(true); else if (fromDialog) remember(false); }
 
   /* ---------------- allowlist: everything else is masked ---------------- */
   const ALLOW = new Set((`
@@ -358,9 +423,9 @@ as of data source sources updated last refreshed prepared confidential internal 
     $('payload-img').src = url;
     $('pf-size').textContent = Math.round(url.length * 0.75 / 1024) + ' KB';
     const isSample = !!S.sample;
-    $('pf-dest').textContent = isSample ? 'Nothing is sent: this sample uses a bundled spec' : 'api.anthropic.com, using your key';
+    $('pf-dest').textContent = isSample ? 'Nothing is sent: this sample uses a bundled spec' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'The AI provider you choose below, using your key');
     $('keybox').hidden = isSample || !!S.key;
-    $('model-in').value = S.model;
+    kpSend.fill();
     $('send-err').hidden = true;
     $('btn-confirm').disabled = false;
     $('btn-confirm').textContent = isSample ? 'Build replica' : 'Send and build replica';
@@ -370,20 +435,21 @@ as of data source sources updated last refreshed prepared confidential internal 
     const err = $('send-err'); err.hidden = true;
     if (S.sample) { $('dlg-send').close(); S.spec = S.sample.spec; S.seed = 4127; showReplica(); return; }
     if (!S.key) {
-      const k = $('key-in').value.trim();
-      if (!k) { err.textContent = 'Add your Claude API key to continue, or try a sample instead.'; err.hidden = false; return; }
-      S.key = k; S.model = $('model-in').value.trim() || S.model;
-      if ($('key-remember').checked) { try { localStorage.setItem('dsc-key', k); localStorage.setItem('dsc-model', S.model); } catch (e) { /* ignore */ } }
+      const v = kpSend.read();
+      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key to continue, or try a sample instead.'; err.hidden = false; return; }
+      applyKey(v);
+      $('pf-dest').textContent = VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key';
     }
-    $('btn-confirm').disabled = true; $('btn-confirm').textContent = 'Asking Claude for the layout…';
+    $('btn-confirm').disabled = true; $('btn-confirm').textContent = 'Asking ' + providerName() + ' for the layout…';
     try {
-      S.spec = await askClaude(S.payload);
+      S.spec = await askModel(S.payload);
       S.seed = 1000 + Math.floor(Math.random() * 9000);
       $('dlg-send').close();
       showReplica();
     } catch (e) {
       err.textContent = e.message || String(e); err.hidden = false;
-      if (window.VSFeedback) { VSFeedback.note(e, 'Claude request'); err.insertAdjacentHTML('beforeend', ' <button type="button" class="linkbtn" data-feedback="bug">Report this</button>'); }
+      if (e.status === 401) { S.key = null; $('keybox').hidden = false; kpSend.fill(); }
+      if (window.VSFeedback) { VSFeedback.note(e, providerName() + ' request (' + S.model + ')'); err.insertAdjacentHTML('beforeend', ' <button type="button" class="linkbtn" data-feedback="bug">Report this</button>'); }
       $('btn-confirm').disabled = false; $('btn-confirm').textContent = 'Try again';
     }
   };
@@ -415,28 +481,13 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 - Shapes: estimate each mark's relative size from the visible geometry, largest = 100. For lines use relative height within the plot. Do not read numbers.
 - Keep the visual order and approximate widths of the original. Use at most 20 visuals.`;
 
-  async function askClaude(dataUrl, retryNote) {
-    const b64 = dataUrl.split(',')[1];
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': S.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({
-        model: S.model, max_tokens: 6000, system: SYSTEM,
-        messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } }, { type: 'text', text: retryNote || 'Return the JSON spec for this masked screenshot.' }] }]
-      })
-    });
-    if (!res.ok) {
-      let msg = res.status + ' ' + res.statusText;
-      try { const j = await res.json(); msg = (j.error && j.error.message) || msg; } catch (e) { /* ignore */ }
-      if (res.status === 401) { S.key = null; msg = 'Claude rejected the key. Check it and try again.'; }
-      throw new Error('Claude request failed: ' + msg);
-    }
-    const j = await res.json();
-    const text = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+  // Sends only the approved, masked image to the provider the user chose (see llm.js).
+  async function askModel(dataUrl, retryNote) {
+    const text = await VSLLM.ask({ provider: S.provider, key: S.key, model: S.model, system: SYSTEM, prompt: retryNote || 'Return the JSON spec for this masked screenshot.', imageDataUrl: dataUrl });
     const spec = parseSpec(text);
     if (!spec) {
-      if (retryNote) throw new Error('Claude returned a layout that could not be read. Try again.');
-      return askClaude(dataUrl, 'Your previous answer was not valid JSON in the required shape. Return only the JSON object.');
+      if (retryNote) throw new Error(providerName() + ' returned a layout that could not be read. Try again, or pick a stronger model.');
+      return askModel(dataUrl, 'Your previous answer was not valid JSON in the required shape. Return only the JSON object.');
     }
     return spec;
   }
@@ -487,12 +538,9 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   };
 
   /* ---------------- key dialog ---------------- */
-  $('btn-key').onclick = () => { $('key-in2').value = S.key || ''; $('model-in2').value = S.model; $('dlg-key').showModal(); };
-  $('key-save').onclick = () => {
-    S.key = $('key-in2').value.trim() || null; S.model = $('model-in2').value.trim() || S.model;
-    try { if ($('key-remember2').checked && S.key) { localStorage.setItem('dsc-key', S.key); localStorage.setItem('dsc-model', S.model); } } catch (e) { /* ignore */ }
-  };
-  $('key-clear').onclick = () => { S.key = null; try { localStorage.removeItem('dsc-key'); } catch (e) { /* ignore */ } $('key-in2').value = ''; $('dlg-key').close(); };
+  $('btn-key').onclick = () => { kpDlg.fill(); $('dlg-key').showModal(); };
+  $('key-save').onclick = () => applyKey(kpDlg.read(), true);
+  $('key-clear').onclick = () => { S.key = null; remember(false); kpDlg.fill(); $('dlg-key').close(); };
 
   /* ---------------- extension snip + crop ---------------- */
   const cc = $('crop-canvas'); let cropImg = null, sel = null;

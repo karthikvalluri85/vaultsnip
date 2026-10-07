@@ -13,7 +13,7 @@ VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF re
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
-        → you approve the exact payload → Claude returns a layout spec (your key)
+        → you approve the exact payload → Claude or OpenAI returns a layout spec (your key)
         → synthetic replica (3 privacy modes) → one self-contained HTML export
 ```
 
@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 *Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes).*
 
-## Features (v0.2.0)
+## Features (v0.3.0)
 
 | Area | Status |
 |---|---|
@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ 2× zoom + inverted re-read of the masked image |
 | Review: click to toggle, drag to add masks | ✅ |
 | Exact-payload preview before anything is sent | ✅ |
-| Bring-your-own Claude key, direct browser call | ✅ held in memory unless you tick "remember" |
+| Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
 | Replica: KPI, bar, column, stacked, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, table | ✅ Apache ECharts |
 | Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 ## Privacy
 
-No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. The only thing that ever leaves the device is the masked image you approved, sent straight to Anthropic with your key. The browser stores only the OCR model (an app asset) and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
+No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. The only thing that ever leaves the device is the masked image you approved, sent straight to the AI provider you chose (Anthropic or OpenAI) with your own key. The browser stores only the OCR model (an app asset) and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
 
 ## Feedback and support
 
@@ -90,7 +90,8 @@ Store builds download the model from the live site on first launch: `./build.sh 
 ```
 web/              the app (static, no build step), published as-is
   index.html      screens and styles
-  app.js          pipeline: OCR, masking, gate, review, Claude call, export
+  app.js          pipeline: OCR, masking, gate, review, AI call, export
+  llm.js          AI providers (Claude, OpenAI): the only code that calls an AI service
   replica.js      replica engine, also inlined into every export
   feedback.js     in-app feedback and error reporting
   samples.js      bundled fictional samples

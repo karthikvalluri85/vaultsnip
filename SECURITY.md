@@ -7,7 +7,7 @@ VaultSnip's core promise is that sensitive text never leaves the user's device u
 - Sensitive text (names, numbers, IDs, emails) left readable in the image that is sent, or in an exported replica
 - The pre-flight check passing when readable text is still present
 - Any network request that sends data the user did not approve, or that stores user data
-- An API key exposed beyond the user's own browser and Anthropic
+- An API key exposed beyond the user's own browser and the AI provider it belongs to
 - Code injection through a crafted screenshot, spec or exported file
 
 ## How to report

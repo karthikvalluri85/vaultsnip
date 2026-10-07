@@ -94,6 +94,9 @@ dialog::backdrop{background:rgb(0 0 0/.45)}
 .facts dt{color:var(--muted)} .facts dd{margin:0}
 .keybox{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--sunken)}
 .err{color:var(--bad);font-size:13.5px}
+.kp select,.kp input[type=text],.kp input[type=password]{width:100%;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);margin-top:4px}
+.kp .kp-row{display:flex;gap:8px;align-items:flex-end}.kp .kp-row>label{flex:1}
+.kp .ok{color:var(--good)}
 .crop{position:relative;display:inline-block;max-width:100%}
 .note{font-size:12.5px;color:var(--muted)}
 a{color:var(--accent)}
@@ -106,7 +109,7 @@ a{color:var(--accent)}
   <span class="sp"></span>
   <button type="button" class="linkbtn" data-feedback="bug" style="font-size:13px;margin-right:6px">Feedback</button>
   <a href="privacy.html" style="font-size:13px;margin-right:6px">Privacy</a>
-  <button class="btn" id="btn-key" type="button">Claude key</button>
+  <button class="btn" id="btn-key" type="button">AI key</button>
 </header>
 
 <main class="wrap">
@@ -121,7 +124,7 @@ a{color:var(--accent)}
         </div>
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
-          <div><b>You approve what leaves.</b> Only the masked image goes to Claude, after you see it.</div>
+          <div><b>You approve what leaves.</b> Only the masked image goes to the AI you choose (Claude or OpenAI), after you see it.</div>
           <div><b>Your own key.</b> Needed only for your own images; samples work without one.</div>
         </div>
       </div>
@@ -216,11 +219,8 @@ a{color:var(--accent)}
       <dt>Size</dt><dd id="pf-size"></dd>
     </dl>
     <div class="keybox" id="keybox" hidden>
-      <strong>Add your Claude API key</strong>
-      <p class="note">It stays in this tab's memory and goes only to Anthropic. Get one at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> (about 2 minutes).</p>
-      <label class="f" for="key-in">API key<input type="password" id="key-in" autocomplete="off" placeholder="sk-ant-…"></label>
-      <label class="f" for="model-in">Model<input type="text" id="model-in" value="claude-sonnet-5-5"></label>
-      <label class="note"><input type="checkbox" id="key-remember"> Remember the key on this device</label>
+      <strong>Add your AI key</strong>
+      <div id="kp-send"></div>
     </div>
     <p class="err" id="send-err" hidden></p>
     <div class="row" style="justify-content:flex-end">
@@ -232,11 +232,9 @@ a{color:var(--accent)}
 
 <dialog id="dlg-key">
   <form method="dialog" class="dlg">
-    <h2>Claude API key</h2>
-    <p class="note">Used only when you convert your own images. Held in memory unless you choose to remember it on this device.</p>
-    <label class="f" for="key-in2">API key<input type="password" id="key-in2" autocomplete="off" placeholder="sk-ant-…"></label>
-    <label class="f" for="model-in2">Model<input type="text" id="model-in2" value="claude-sonnet-5-5"></label>
-    <label class="note"><input type="checkbox" id="key-remember2"> Remember the key on this device</label>
+    <h2>AI key</h2>
+    <p class="note">Used only when you convert your own images. Bring your own key from Anthropic (Claude) or OpenAI. It is held in this tab's memory unless you choose to remember it on this device.</p>
+    <div id="kp-dlg"></div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn" id="key-clear" type="button">Forget key</button>
       <button class="btn primary" id="key-save" type="submit" value="save">Save</button>
@@ -245,6 +243,7 @@ a{color:var(--accent)}
 </dialog>
 
 <script src="feedback.js"></script>
+<script src="llm.js"></script>
 <script src="config.js"></script>
 <script src="lib/tesseract.min.js"></script>
 <script src="lib/echarts.min.js"></script>
