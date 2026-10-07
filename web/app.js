@@ -292,7 +292,8 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       for (let i = 1; i < col.length; i++) {
         const gap = col[i].y - col[i - 1].y;
         if (gap <= 0) continue;
-        const ok = gap <= rowH * 3.2 * 2 && (!step || (gap <= step * 2.2 && gap >= step * 0.6));
+        // the row step is the smallest gap seen; a gap may be up to ~2 rows (one skipped number) either way
+        const ok = gap <= rowH * 3.2 * 2 && (!step || (gap <= step * 2.2 && gap * 2.2 >= step));
         if (ok) { if (!step || gap < step) step = gap; run.push(col[i]); } else { flush(); run = [col[i]]; step = 0; }
       }
       flush();
@@ -316,6 +317,11 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   async function verify() {
     S.gate = 'running'; renderGate();
     setStatus('Checking the masked image again (five independent passes)…', true);
+    // numbers masked after an earlier check (score badges, single digits) can complete a table column too
+    const numeric = S.masks.filter(m => m.on && (m.type === 'Number or money' || (m.type === 'Added after check' && /\d/.test(m.text || ''))) && m.text !== '(table column)');
+    const extra = columnFill(numeric.map(m => Object.assign({}, m, { type: 'Number or money' })))
+      .filter(f => !S.masks.some(m => m.on && m.x <= f.x + 1 && m.y <= f.y + 1 && m.x + m.w >= f.x + f.w - 1 && m.y + m.h >= f.y + f.h - 1));
+    if (extra.length) { S.masks.push(...extra); renderTypes(); draw(); }
     const m2 = maskedCanvas(1);
     const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')]]);
     const active = S.masks.filter(m => m.on);
