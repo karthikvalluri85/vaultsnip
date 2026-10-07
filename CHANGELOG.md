@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-07
+
+From a product-owner, tester and BI review of eight sample screens (`test-samples/`, kept off GitHub).
+
+### Added
+- **Mask-only download.** After the pre-flight check, download the masked screenshot as a PNG. No AI key and no network needed, for forum posts, bug reports and slides. An optional small "masked with VaultSnip" tag is on by default.
+- **Share links.** "Share link" packs the replica into the link itself (`#r=…`, compressed). Nothing is uploaded or stored. The sharer picks what the link keeps: Shape-preserving (labels and chart shapes), Structure-only (labels, no shapes) or Generic (layout only, all text replaced). Whoever opens the link cannot switch to a less private mode, re-sharing cannot widen it, and a hand-edited link is cut back to the level it claims.
+- **Synthetic data download (CSV).** One row per data point (visual, dimension, member, series, value, format), read from what is on screen, so filters and the privacy mode apply. Opens directly in Excel, Power BI, Tableau, Looker Studio and Sheets. Also in the footer of exported and shared replicas.
+- Review screen: Zoom 2×, a keyboard-friendly list of every mask, and a list of words kept as safe that masks any of them in one click.
+- Replica: ratio KPIs ("4.52 / 5"), durations with units ("38 min"), "lower is better" measures (a fall shows green), a second axis for combo charts, box plots that follow the measured boxes, and empty cohort cells that stay empty.
+
+### Fixed
+- **Masking:** numbers could stay readable after the check passed. The reader and the check now add an "ink" pass that isolates text beside coloured bars, on tinted cells and in coloured deltas, keep low-confidence digits, ignore "1111" readings of bars, and mask a whole table column when a number between masked ones was skipped.
+- **Untrusted labels:** chart labels could inject markup into tooltips and exported files. Every label from the AI is now stripped of markup and escaped.
+- **Generic and Structure-only exports** embedded the original titles, labels and shapes in the file's source. Exports now carry only what their mode shows.
+- Typing a name to mask after the check left "Pass" in place; sending is now blocked until the policy is re-applied.
+- "Safe to keep" choices carried over to the next screenshot.
+- A rejected key stayed remembered on the device.
+- Wrong file types used a pop-up; WebP, GIF and BMP screenshots were refused.
+- Exports and downloads are named after the dashboard (never in Generic mode).
+- The header wrapped onto several lines on phones.
+
+### Changed
+- "Preview what is sent" is now "Preview masked image". Nothing can be downloaded or sent until you tick "I have looked over the masked image".
+- Table dates are recent rather than fixed to 2026.
+
 ## [0.3.2] - 2026-10-07
 
 Tested against four product-owner screens (app health, pricing spreadsheet, voice of customer, support operations).
