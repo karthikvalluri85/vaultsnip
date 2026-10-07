@@ -290,6 +290,7 @@ as of data source sources updated last refreshed prepared confidential internal 
     } catch (err) {
       console.error(err);
       setStatus('The on-device reader could not start: ' + (err && err.message || err), false);
+      if (window.VSFeedback) VSFeedback.problem(err, 'On-device reader');
     }
   }
 
@@ -382,6 +383,7 @@ as of data source sources updated last refreshed prepared confidential internal 
       showReplica();
     } catch (e) {
       err.textContent = e.message || String(e); err.hidden = false;
+      if (window.VSFeedback) { VSFeedback.note(e, 'Claude request'); err.insertAdjacentHTML('beforeend', ' <button type="button" class="linkbtn" data-feedback="bug">Report this</button>'); }
       $('btn-confirm').disabled = false; $('btn-confirm').textContent = 'Try again';
     }
   };
@@ -480,6 +482,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
       $('export-note').textContent = 'Exported. The file works offline and contains only generated values.';
     } catch (e) {
       $('export-note').textContent = 'Export needs the app to be served over http(s), not opened as a local file.';
+      if (window.VSFeedback) VSFeedback.problem(e, 'Export');
     }
   };
 

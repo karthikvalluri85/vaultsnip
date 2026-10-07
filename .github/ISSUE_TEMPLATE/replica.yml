@@ -1,0 +1,72 @@
+name: Replica looks wrong
+description: The rebuilt dashboard does not match the original (chart types, layout, labels, filtering).
+title: "[Replica] "
+labels: ["replica"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Replica issues are easiest to fix with a **fictional or public** example. Please do not upload a real dashboard, even masked.
+  - type: textarea
+    id: what
+    attributes:
+      label: What looks wrong?
+      placeholder: The source had a filled map of US states; the replica shows a bar chart instead.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Privacy mode
+      options:
+        - Shape-preserving
+        - Structure-only
+        - Generic
+        - Not sure
+  - type: input
+    id: visuals
+    attributes:
+      label: Visual types involved
+      placeholder: map, stacked column, KPI
+  - type: input
+    id: version
+    attributes:
+      label: VaultSnip version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Where were you using it?
+      options:
+        - Web app
+        - Chrome extension
+        - Edge extension
+        - Hugging Face Space
+        - Local copy
+        - Exported replica file
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+  - type: input
+    id: step
+    attributes:
+      label: Screen or step
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message (if any)
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: Any image I attach is fictional or public, and this report contains no client data or API keys.
+          required: true

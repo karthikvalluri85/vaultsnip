@@ -244,6 +244,8 @@ def build_country(file, title, iso, dissolve, pct):
             props = {'name': name, 'a': list(dict.fromkeys(al))}
         else:
             name = p['name']
+            if not name:  # unnamed islets (e.g. Natural Earth MX-X01)
+                continue
             al = adm1_aliases(p) + [fold(x) for x in extra.get(name, [])]
             props = {'name': name, 'a': list(dict.fromkeys(al)), 'cp': [round(p['longitude'], 2), round(p['latitude'], 2)] if p.get('longitude') is not None else None}
             if p.get('region') and iso in ('USA', 'CAN', 'IND', 'CHN', 'JPN'):

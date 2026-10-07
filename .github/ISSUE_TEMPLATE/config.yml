@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sensitive text was left unmasked (private)
+    url: https://github.com/karthikvalluri85/vaultsnip/security/advisories/new
+    about: Masking misses are treated as security issues and reported privately. Never post them publicly.
+  - name: Ideas and feature requests
+    url: https://github.com/karthikvalluri85/vaultsnip/discussions/new?category=ideas
+    about: Suggest improvements or vote on others' ideas.
+  - name: Questions and help
+    url: https://github.com/karthikvalluri85/vaultsnip/discussions/new?category=q-a
+    about: Ask how something works.

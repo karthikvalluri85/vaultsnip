@@ -9,6 +9,9 @@
 - **What your browser keeps.** The OCR language model (an app file, cached so it downloads once) and, only if you tick "remember", your API key. You can remove the key at any time from "Claude key" → "Forget key".
 - **Extension permissions.** `activeTab` only: the extension can capture the tab you are on, and only when you click its icon.
 - **Exports** are files saved to your computer. They contain generated data, a watermark and a link to VaultSnip. They make no network calls by themselves.
-- **No analytics, cookies or tracking** in this version.
+- **Feedback is your choice.** The Feedback button prepares a report (VaultSnip version, browser, the step you were on, chart types and any error message, never your screenshot or dashboard text). Nothing is sent until you choose to continue on GitHub, where it is posted under your GitHub account, or to email it from your own mail app. GitHub's or your email provider's terms apply.
+- **No analytics, cookies or tracking.**
 
-Contact: open an issue or discussion on the GitHub repository.
+_Last updated: 7 October 2026._
+
+Contact: use **Feedback** in the app, open an issue or discussion on [GitHub](https://github.com/karthikvalluri85/vaultsnip), or report security concerns privately as described in [SECURITY.md](SECURITY.md).
