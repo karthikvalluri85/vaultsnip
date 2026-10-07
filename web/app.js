@@ -175,11 +175,34 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   function prep(src, scale, kind) {
     const c = document.createElement('canvas');
     c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
-    const x = c.getContext('2d');
+    const pixels = kind === 'ink' || kind === 'delta';
+    const x = c.getContext('2d', { willReadFrequently: pixels });
     x.imageSmoothingQuality = 'high';
-    x.filter = FILTERS[kind] || FILTERS.normal;
+    x.filter = pixels ? 'none' : (FILTERS[kind] || FILTERS.normal);
     x.drawImage(src, 0, 0, c.width, c.height);
+    if (pixels) inkOnly(x, c.width, c.height, kind);
     return c;
+  }
+  // "ink": keeps only text-coloured pixels and draws them black on white. Text is grey, black, white or a
+  // muted green/red; bars, tracks, pills and map fills are saturated or pale. This is what makes a label
+  // right beside a coloured bar, or a delta under a KPI, readable when the other passes miss it.
+  // "delta": keeps only green and red text, the colours of KPI changes ("▲ 1.2 pts"), which on dark themes are
+  // too dim and too colourful for every other pass.
+  function inkOnly(x, w, h, kind) {
+    const im = x.getImageData(0, 0, w, h), d = im.data;
+    let sum = 0, n = 0;
+    const magenta = (r, g, b) => r > 200 && b > 200 && g < 70;   // the re-scan's mask colour: background, never ink
+    for (let i = 0; i < d.length; i += 4 * 97) { if (magenta(d[i], d[i + 1], d[i + 2])) continue; sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+    const darkBg = n > 0 && sum / n < 110;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2], lum = (r + g + b) / 3, chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      if (magenta(r, g, b)) { d[i] = d[i + 1] = d[i + 2] = 255; continue; }
+      // on dark backgrounds text is bright in at least one channel (white, or a green/red delta)
+      const ink = kind === 'delta' ? ((g > r + 35 && g > b + 15 && g > 80) || (r > g + 50 && r > b + 40 && r > 110))
+        : darkBg ? (Math.max(r, g, b) > 120 && chroma < 150) : (lum < 140 && chroma < 130);
+      d[i] = d[i + 1] = d[i + 2] = ink ? 0 : 255;
+    }
+    x.putImageData(im, 0, 0);
   }
   async function ocr(src, scale, kind) {
     kind = kind === true ? 'inverted' : (kind || 'normal');
@@ -194,7 +217,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       const c = line.split('\t');
       if (c.length < 12 || c[0] !== '5') return;
       const text = c.slice(11).join('\t').trim(); const conf = parseFloat(c[10]);
-      if (!text || conf < 30) return;
+      if (!text || conf < (/\d/.test(text) ? 12 : 30)) return;   // digits are the costliest leak: keep unsure ones
       out.push({ text, conf, x: +c[6] / scale, y: +c[7] / scale, w: +c[8] / scale, h: +c[9] / scale, line: `${c[2]}-${c[3]}-${c[4]}`, inv: invert, pass: kind });
     });
     return out;
@@ -202,9 +225,10 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   // Several passes, merged: a word found by a later pass is kept only if no earlier pass found it.
   async function readAll(src, passes) {
     let all = [];
-    for (const [scale, kind] of passes) {
-      const got = await ocr(src, scale, kind);
-      all = all.concat(got.filter(w => !all.some(v => overlap(v, w) > 0.3)));
+    for (const [scale, kind, own] of passes) {
+      const got = await ocr(own || src, scale, kind);
+      // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
+      all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
     }
     return plausible(all);
   }
@@ -215,6 +239,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     const hs = words.map(w => w.h).sort((a, b) => a - b);
     const med = hs.length ? hs[Math.floor(hs.length / 2)] : 10;
     return words.filter(w => {
+      if (/^[1Il|!\[\]{}()]{3,}$/.test(w.text.replace(/\s/g, ''))) return false;     // bars and gridlines read as "1111"
       const tall = w.h / med, hasDigit = /\d/.test(w.text), letters = (w.text.match(/[A-Za-z]/g) || []).length;
       if (tall > 8 && !(hasDigit && w.conf >= 90)) return false;
       if (tall > 3 && !hasDigit && (w.conf < 80 || letters < 3)) return false;
@@ -279,10 +304,15 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   // A comment line starts with an opening quote, or reads as a sentence (7+ words, mostly lower case, with punctuation),
   // or continues the comment on the line above.
+  // The extra passes sometimes read part of a clear word as a stray number ("16" over "shipments").
+  // Such a reading is a ghost when it sits on top of a confidently read word.
+  const alphaSure = w => w.conf >= 85 && !/\d/.test(w.text) && (w.text.match(/\p{L}/gu) || []).length >= 1;
+  const ghostOf = (w, words) => /\d/.test(w.text) && (w.text.match(/\p{L}/gu) || []).length < 3 && words.some(v => v !== w && alphaSure(v) && overlap(v, w) > 0.3);
   function findComments(words) {
-    words.forEach(w => { delete w.cmStart; delete w.inCm; });
+    words.forEach(w => { delete w.cmStart; delete w.inCm; delete w.ghost; });
+    const ghosts = words.filter(w => ghostOf(w, words));
     const out = []; let blocks = 0;
-    textLines(words).forEach(l => {
+    textLines(words.filter(w => !ghosts.includes(w))).forEach(l => {
       const toks = l.words.map(w => w.text), cores = toks.map(core).filter(Boolean);
       if (!cores.length) return;
       const lowers = cores.filter(lowerWord).length;
@@ -299,9 +329,12 @@ customer service staff agent team people everyone nobody someone something nothi
       out.push(l);
     });
     out.blocks = blocks;
+    // a ghost on comment wording that is kept is not a number to mask
+    ghosts.forEach(w => { const cx = w.x + w.w / 2, cy = w.y + w.h / 2; if (out.some(l => cx >= l.left - 4 && cx <= l.right + 4 && cy >= l.top - 4 && cy <= l.bottom + 4)) { w.inCm = true; w.ghost = true; } });
     return out;
   }
   function commentType(w) {
+    if (w.ghost) return null;
     const t = classify(w.text), c = core(w.text);
     if (t && t !== 'Text not on allowlist') return t;           // names you listed, emails, IDs, numbers and money
     if (!t || !c || lowerWord(c) || /^I(['’]\w+)?$/.test(c)) return null;
@@ -335,6 +368,8 @@ customer service staff agent team people everyone nobody someone something nothi
   function buildMasks(words) {
     const keep = S.keepComments;
     S.commentVocab = new Set();
+    // kept comment words read with good confidence: the check does not second-guess re-readings of these pixels
+    S.keptBoxes = keep ? words.filter(w => w.inCm && !w.ghost && w.conf >= 80 && !commentType(w)) : [];
     const flagged = words.map(w => {
       const type = keep && w.inCm ? commentType(w) : classify(w.text);
       if (keep && w.inCm && !type && normW(w.text)) S.commentVocab.add(normW(w.text));
@@ -350,15 +385,57 @@ customer service staff agent team people everyone nobody someone something nothi
         g.text += ' ' + w.text; g.w = x2 - g.x; g.y = y1; g.h = y2 - y1;
       } else groups.push({ x: w.x, y: w.y, w: w.w, h: w.h, type: w.type, text: w.text, on: true, src: 'auto' });
     });
-    return groups.map(g => { const p = Math.max(3, g.h * 0.18); return Object.assign(g, { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }); });
+    const out = groups.map(g => { const p = Math.max(3, g.h * 0.18); return Object.assign(g, { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }); });
+    return out.concat(columnFill(out));
   }
-  function maskedCanvas(scale) {
+  // Table columns: when three or more number masks stack in one column, the whole column is masked, so
+  // a single digit the reader skipped between them ("5", "8" story points) cannot stay readable.
+  function columnFill(masks) {
+    const nums = masks.filter(m => m.type === 'Number or money' && m.w < 260);
+    const used = new Set(), fills = [];
+    nums.forEach(a => {
+      if (used.has(a)) return;
+      const col = nums.filter(b => {
+        const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+        return ix > 0.5 * Math.min(a.w, b.w) && Math.abs(b.h - a.h) < Math.max(a.h, b.h) * 0.35;
+      }).sort((p, q) => p.y - q.y);
+      if (col.length < 3) return;
+      // only table rows: split into runs with a steady row step (about 1.2-3 text heights apart);
+      // a gap of more than two rows ends the run, so separate sections are never joined
+      const rowH = Math.min(...col.map(m => m.h));
+      let run = [col[0]];
+      const flush = () => {
+        if (run.length >= 3) {
+          const x1 = Math.min(...run.map(m => m.x)), x2 = Math.max(...run.map(m => m.x + m.w));
+          const widest = Math.max(...run.map(m => m.w));
+          if (x2 - x1 <= widest * 1.4 + rowH) {      // narrow cells: allow for padding differences
+            run.forEach(m => used.add(m));
+            const y1 = run[0].y, y2 = run[run.length - 1].y + run[run.length - 1].h;
+            fills.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1, type: 'Number or money', text: '(table column)', on: true, src: 'auto' });
+          }
+        }
+      };
+      let step = 0;
+      for (let i = 1; i < col.length; i++) {
+        const gap = col[i].y - col[i - 1].y;
+        if (gap <= 0) continue;
+        // the row step is the smallest gap seen; a gap may be up to ~2 rows (one skipped number) either way
+        const ok = step ? (gap <= step * 2.2 && gap * 2.2 >= step) : gap <= rowH * 4;
+        if (ok) { if (!step || gap < step) step = gap; run.push(col[i]); } else { flush(); run = [col[i]]; step = 0; }
+      }
+      flush();
+    });
+    return fills;
+  }
+  // fill: the colour of the masks. The re-scan's "ink" pass uses magenta, which it treats as background,
+  // so a label right beside a mask is not swallowed into one dark blob with it.
+  function maskedCanvas(scale, fill) {
     scale = scale || 1;
     const c = document.createElement('canvas');
     c.width = Math.round(S.img.width * scale); c.height = Math.round(S.img.height * scale);
     const x = c.getContext('2d');
     x.drawImage(S.img, 0, 0, c.width, c.height);
-    x.fillStyle = '#787c82';
+    x.fillStyle = fill || '#787c82';
     S.masks.filter(m => m.on).forEach(m => x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale));
     return c;
   }
@@ -366,17 +443,23 @@ customer service staff agent team people everyone nobody someone something nothi
   /* ---------------- verification gate (independent re-scan) ---------------- */
   async function verify() {
     S.gate = 'running'; renderGate();
-    setStatus('Checking the masked image again (four independent passes)…', true);
+    setStatus('Checking the masked image again (six independent passes)…', true);
+    // numbers masked after an earlier check (score badges, single digits) can complete a table column too
+    const numeric = S.masks.filter(m => m.on && (m.type === 'Number or money' || (m.type === 'Added after check' && /\d/.test(m.text || ''))) && m.text !== '(table column)');
+    const extra = columnFill(numeric.map(m => Object.assign({}, m, { type: 'Number or money' })))
+      .filter(f => !S.masks.some(m => m.on && m.x <= f.x + 1 && m.y <= f.y + 1 && m.x + m.w >= f.x + f.w - 1 && m.y + m.h >= f.y + f.h - 1));
+    if (extra.length) { S.masks.push(...extra); renderTypes(); draw(); }
     const m2 = maskedCanvas(1);
-    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block']]);
+    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')], [2, 'delta']]);
     const active = S.masks.filter(m => m.on);
     const flags = [];
     all.forEach(w => {
-      if (w.conf < 45) return;
+      if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
       const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
       const t = classify(w.text);
       if (!t) return;
+      if (S.keepComments && inComment(w) && (S.keptBoxes || []).some(k => overlap(k, w) > 0.5)) return;   // a re-reading of kept comment wording
       if (t === 'Text not on allowlist' && S.keepComments && inComment(w)) {
         const c = core(w.text);
         if (lowerWord(c) || S.commentVocab.has(normW(c))) { S.commentVocab.add(normW(c)); return; }   // ordinary comment wording you chose to keep
@@ -401,6 +484,7 @@ customer service staff agent team people everyone nobody someone something nothi
       pending: ['pending', 'Not run yet', 'The check re-reads the masked image on this device.'],
       running: ['pending', 'Checking…', 'Re-reading the masked image on this device.'],
       dirty: ['pending', 'Masks changed', 'Re-run the check before sending.'],
+      policy: ['pending', 'Policy changed', 'Click "Re-apply policy" so the new names and words take effect. The check then runs again.'],
       pass: ['pass', 'Pass', S.flags.length ? 'Every finding is resolved. You can preview what is sent.' : 'Nothing readable is left outside the masks.'],
       review: ['review', 'Review needed', 'Unlisted words are still readable. Mask them or mark them safe.'],
       blocked: ['blocked', 'Blocked', 'Numbers or IDs are still readable. Mask them before sending.']
@@ -457,10 +541,47 @@ customer service staff agent team people everyone nobody someone something nothi
     x.setLineDash([]);
     if (drag && drag.moved) { x.lineWidth = lw; x.strokeStyle = '#14181e'; x.setLineDash([6, 4]); x.strokeRect(drag.x0, drag.y0, drag.x1 - drag.x0, drag.y1 - drag.y0); x.setLineDash([]); }
   }
-  function renderTypes() {
+  function renderCounts() {
     const counts = {};
     S.masks.filter(m => m.on).forEach(m => counts[m.type] = (counts[m.type] || 0) + 1);
     $('types').innerHTML = Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${t}</span><b>${counts[t]}</b></div>`).join('') || '<div class="hint">Nothing masked yet.</div>';
+  }
+  function renderTypes() { renderCounts(); renderMaskList(); }
+  // The same masks as a list of checkboxes: works with a keyboard and a screen reader, unlike the canvas.
+  function renderMaskList() {
+    const box = $('mask-items'); box.innerHTML = '';
+    $('mask-n').textContent = S.masks.length;
+    S.masks.forEach((m, i) => {
+      const l = document.createElement('label');
+      l.innerHTML = `<input type="checkbox"><span class="sw"></span><code></code>`;
+      l.querySelector('.sw').style.background = TYPES[m.type] || '#14181e';
+      l.querySelector('code').textContent = `${i + 1}. ${m.type}${m.text && m.src !== 'manual' ? ': ' + m.text : ''}`;
+      const cb = l.querySelector('input'); cb.checked = m.on;
+      cb.onchange = () => { m.on = cb.checked; S.gate = 'dirty'; renderGate(); renderCounts(); draw(); };
+      box.appendChild(l);
+    });
+  }
+  // Words kept because they are on the safe list. A client called "Target" or "Delta" would otherwise
+  // stay readable, so the user can mask any of them in one click.
+  function renderKept() {
+    const seen = new Map();
+    (S.words || []).forEach(w => {
+      const t = w.text.replace(/^[^\w]+|[^\w]+$/g, '');
+      if (!/[A-Za-z]{3,}/.test(t) || /\d/.test(t) || classify(w.text)) return;
+      if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+    });
+    const box = $('kept-words'); box.innerHTML = '';
+    $('kept-n').textContent = seen.size;
+    [...seen.values()].sort((a, b) => a.localeCompare(b)).forEach(t => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = t; b.title = 'Mask "' + t + '" everywhere';
+      b.onclick = () => {
+        const cur = $('client-names').value.trim();
+        $('client-names').value = cur ? cur + ', ' + t : t;
+        S.sessionAllow.delete(t.toLowerCase());
+        $('btn-reapply').click();
+      };
+      box.appendChild(b);
+    });
   }
   let drag = null;
   function pt(e) { const r = rc.getBoundingClientRect(); return { x: (e.clientX - r.left) * rc.width / r.width, y: (e.clientY - r.top) * rc.height / r.height }; }
@@ -498,18 +619,19 @@ customer service staff agent team people everyone nobody someone something nothi
   }
 
   async function startReview(canvas) {
-    S.img = canvas; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.spec = null;
+    // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.spec = null; S.sessionAllow = new Set();
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
-    show('s-review'); renderGate(); renderTypes(); draw();
+    show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
     $('btn-reapply').disabled = true;
     try {
       setStatus('Loading the on-device text reader…', true);
-      S.words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast']]);
+      S.words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']]);
       S.comments = findComments(S.words);
       S.masks = buildMasks(S.words);
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
-      renderTypes(); draw();
+      renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
       $('btn-reapply').disabled = false;
       await verify();
@@ -529,6 +651,7 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   $('v-orig').onclick = () => setView('orig');
   $('v-mask').onclick = () => setView('mask');
+  $('v-zoom').onclick = () => { const on = $('review-wrap').classList.toggle('zoom'); $('v-zoom').setAttribute('aria-pressed', String(on)); };
   $('btn-recheck').onclick = () => verify();
   $('keep-comments').onchange = async e => {
     S.keepComments = e.target.checked;
@@ -539,8 +662,13 @@ customer service staff agent team people everyone nobody someone something nothi
   $('btn-reapply').onclick = async () => {
     const manual = S.masks.filter(m => m.src !== 'auto');
     S.masks = buildMasks(S.words).concat(manual);
-    S.gate = 'dirty'; renderTypes(); draw(); await verify();
+    S.gate = 'dirty'; renderTypes(); renderKept(); draw(); await verify();
   };
+  // Typing a name to mask does nothing until it is applied, so sending is blocked until then.
+  ['client-names', 'extra-allow'].forEach(id => $(id).addEventListener('input', () => {
+    if (!S.img || S.gate === 'running' || !(S.words && S.words.length)) return;
+    S.gate = 'policy'; renderGate();
+  }));
 
   /* ---------------- Screen 1 ---------------- */
   $('btn-try').onclick = () => {
@@ -563,7 +691,7 @@ customer service staff agent team people everyone nobody someone something nothi
       $('client-names').value = s.clientNames || '';
       await startReview(await loadImage(s.image));
     } else {
-      S.spec = s.spec; S.seed = 4127; showReplica();
+      S.spec = s.spec; S.seed = 4127; fresh(); showReplica();
     }
   }
   const drop = $('drop'), file = $('file');
@@ -574,15 +702,31 @@ customer service staff agent team people everyone nobody someone something nothi
   drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) useFile(f); };
   file.onchange = () => { if (file.files[0]) useFile(file.files[0]); file.value = ''; };
   window.addEventListener('paste', e => { if ($('s-drop').hidden) return; const it = [...(e.clipboardData || {}).items || []].find(i => i.type.startsWith('image/')); if (it) useFile(it.getAsFile()); });
+  function dropError(msg) { const e = $('drop-err'); e.textContent = msg || ''; e.hidden = !msg; }
   async function useFile(f) {
-    if (!/^image\/(png|jpeg)$/.test(f.type)) { alert('Please use a PNG or JPG image.'); return; }
-    if (f.size > 10 * 1024 * 1024) { alert('Please use an image under 10 MB.'); return; }
+    dropError('');
+    if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(f.type)) { dropError('That file is not an image VaultSnip can read. Use a PNG, JPG or WebP screenshot.'); return; }
+    if (f.size > 10 * 1024 * 1024) { dropError('That image is over 10 MB. Crop it, or save it as JPG, and try again.'); return; }
     S.sample = null; $('client-names').value = '';
+    S.fileBase = slug(String(f.name || '').replace(/\.[^.]+$/, '')) || 'screenshot';
     const url = URL.createObjectURL(f);
-    try { await startReview(await loadImage(url)); } finally { URL.revokeObjectURL(url); }
+    try { await startReview(await loadImage(url)); }
+    catch (e) { show('s-drop'); dropError(e.message || 'That image could not be read.'); }
+    finally { URL.revokeObjectURL(url); }
   }
 
-  /* ---------------- payload preview + send ---------------- */
+  /* ---------------- files ---------------- */
+  const slug = s => String(s || '').normalize('NFKD').replace(/[^\w\s-]/g, '').trim().toLowerCase().replace(/[\s_-]+/g, '-').slice(0, 60).replace(/^-|-$/g, '');
+  function saveFile(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  // Base name for files made from the replica. Generic mode never puts the original title in a file name.
+  const replicaBase = () => (S.mode === 'generic' ? '' : slug((S.spec && S.spec.title || '').replace(/\[client\]/ig, ''))) || 'dashboard';
+
+  /* ---------------- payload preview: download it, or send it ---------------- */
   $('btn-send').onclick = () => {
     const c = maskedCanvas(1);
     const url = c.toDataURL('image/png');
@@ -591,20 +735,40 @@ customer service staff agent team people everyone nobody someone something nothi
     $('pf-contents').textContent = 'The masked image above and fixed instructions. No original image, no OCR text.' + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
     $('pf-size').textContent = Math.round(url.length * 0.75 / 1024) + ' KB';
     const isSample = !!S.sample;
-    $('pf-dest').textContent = isSample ? 'Nothing is sent: this sample uses a bundled spec' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'The AI provider you choose below, using your key');
+    $('pf-dest').textContent = isSample ? 'Nothing is sent: this sample uses a bundled spec' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'Only if you click Send: the AI provider you choose below, with your key');
     $('keybox').hidden = isSample || !!S.key;
     kpSend.fill();
     $('send-err').hidden = true;
-    $('btn-confirm').disabled = false;
+    // the user confirms they looked: the reader cannot promise it caught everything
+    $('pf-ok').checked = false;
+    $('btn-confirm').disabled = true; $('btn-dl-masked').disabled = true;
     $('btn-confirm').textContent = isSample ? 'Build replica' : 'Send and build replica';
     $('dlg-send').showModal();
   };
+  $('pf-ok').onchange = () => { $('btn-confirm').disabled = $('btn-dl-masked').disabled = !$('pf-ok').checked; };
+  // Mask-only: the masked image as a PNG, no key and no network. Optionally tagged so others can find the tool.
+  $('btn-dl-masked').onclick = async () => {
+    if (!$('pf-ok').checked) return;
+    const c = maskedCanvas(1);
+    if ($('pf-credit').checked) creditTag(c);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    saveFile(blob, (S.sample ? 'sample' : (S.fileBase || 'screenshot')) + '-masked.png');
+    const err = $('send-err'); err.hidden = false; err.className = 'note'; err.textContent = 'Saved. The file holds exactly the image above.';
+  };
+  function creditTag(c) {
+    const x = c.getContext('2d'), fs = Math.max(11, Math.round(c.width / 120)), text = 'masked with vaultsnip.pages.dev';
+    x.font = `600 ${fs}px system-ui, sans-serif`;
+    const w = x.measureText(text).width + fs, h = fs * 1.7;
+    x.fillStyle = 'rgba(20,24,30,.82)'; x.fillRect(c.width - w - 6, c.height - h - 6, w, h);
+    x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.fillText(text, c.width - w - 6 + fs / 2, c.height - 6 - h / 2);
+  }
   $('btn-confirm').onclick = async () => {
-    const err = $('send-err'); err.hidden = true;
-    if (S.sample) { $('dlg-send').close(); S.spec = S.sample.spec; S.seed = 4127; showReplica(); return; }
+    const err = $('send-err'); err.hidden = true; err.className = 'err';
+    if (!$('pf-ok').checked) return;
+    if (S.sample) { $('dlg-send').close(); S.spec = S.sample.spec; S.seed = 4127; fresh(); showReplica(); return; }
     if (!S.key) {
       const v = kpSend.read();
-      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key to continue, or try a sample instead.'; err.hidden = false; return; }
+      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key to build a replica, or click "Download masked image" (no key needed).'; err.hidden = false; return; }
       applyKey(v);
       $('pf-dest').textContent = VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key';
     }
@@ -613,10 +777,11 @@ customer service staff agent team people everyone nobody someone something nothi
       S.spec = scrubVerbatims(await askModel(S.payload));
       S.seed = 1000 + Math.floor(Math.random() * 9000);
       $('dlg-send').close();
-      showReplica();
+      fresh(); showReplica();
     } catch (e) {
       err.textContent = e.message || String(e); err.hidden = false;
-      if (e.status === 401) { S.key = null; $('keybox').hidden = false; kpSend.fill(); }
+      // a rejected key is forgotten everywhere, including a copy remembered on this device
+      if (e.status === 401) { S.key = null; remember(false); $('keybox').hidden = false; kpSend.fill(); }
       if (window.VSFeedback) { VSFeedback.note(e, providerName() + ' request (' + S.model + ')'); err.insertAdjacentHTML('beforeend', ' <button type="button" class="linkbtn" data-feedback="bug">Report this</button>'); }
       $('btn-confirm').disabled = false; $('btn-confirm').textContent = 'Try again';
     }
@@ -630,13 +795,16 @@ Rules:
  "filters":[{"label":string,"members":[string]}],
  "rows":[{"height":"s"|"m"|"l","visuals":[VISUAL]}]}
 VISUAL fields: "id", "type", "span" (1-12 grid columns; a row's spans sum to 12), "title",
- "measure":{"name":string,"format":"currency"|"number"|"percent"|"integer","currency":"$"|"€"|"£"|"₹"|"","scaleHint":number (optional: a plausible typical magnitude for this kind of measure, e.g. 40 for days, 900 for headcount; never copy a visible value)},
- "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line"}],
+ "measure":{"name":string,"format":"currency"|"number"|"percent"|"integer"|"ratio"|"duration","currency":"$"|"€"|"£"|"₹"|"","unit":string (optional suffix such as "min", "h", "days", "pts", "ms"),"outOf":number (ratio only: the scale maximum, e.g. 5 for "4.5 / 5"),"scaleHint":number (optional: a plausible typical magnitude for this kind of measure, e.g. 40 for days, 900 for headcount; never copy a visible value),"higherIsBetter":bool (false when a rise is bad: error, crash, ANR, bounce, churn, cost, response time, backlog)},
+ "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line","measure":{…} (only on a combo series that uses its own axis, e.g. a % line over $ bars)}],
  "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool.
+ kpi: "shapeValue":0-100 for percentages (where the value sits on 0-100). Use format "ratio" with "outOf" for scores like "4.52 / 5", "duration" with a unit for times like "38 min", "integer" with unit "pts" for points.
 Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, gantt, table, text, map, placeholder.
  Orientation: "column" = vertical bars rising from the x-axis (categories along the bottom). "bar" = horizontal bars (categories down the left side) and must have "horizontal":true. Never send "column" with "horizontal":true.
  Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item.
- heatmap: "rows":{"name","members"},"columns":{"name","members"},"matrix":[[0-100]].
+ heatmap: "rows":{"name","members"},"columns":{"name","members"},"matrix":[[0-100 or null]] with null for an empty cell (for example the blank triangle of a cohort table).
+ boxplot: "boxes":[[min,q1,median,q3,max] each 0-100, one per member] measured from the drawing.
+ Several small gauges or KPI tiles in a group: one visual each. Commentary, bullet lists or notes: type "text" with "content" holding only words that are visible and not covered.
  scatter/bubble: "xMeasure","yMeasure","points":[[x0-100,y0-100,size0-100]].
  gauge: "shapeValue":0-100 (needle or arc position), plus "min" and "max" when the scale is not 0-100 (for example -100 and 100 for NPS). waterfall: series shape signed -100..100, last member is the total (0).
  sankey: "nodes":[string],"links":[{"source":index,"target":index,"shape":0-100}].
@@ -680,29 +848,80 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     structure: 'Keeps the layout and labels. Values and trends are random. Use when sharing with vendors or prospects.',
     generic: 'Keeps only the layout. Titles, labels and metric names are replaced too. Use for public demos.'
   };
+  // A replica built here starts unrestricted; one opened from a share link keeps the sharer's privacy level.
+  S.minMode = 'shape'; S.shared = false;
+  function fresh() { S.minMode = 'shape'; S.shared = false; if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname + location.search); }
+  const rankOf = m => VSShare.rank(m);
   function showReplica() {
+    if (rankOf(S.mode) < rankOf(S.minMode)) S.mode = S.minMode;
     show('s-replica');
-    $('modehelp').textContent = MODE_HELP[S.mode];
-    document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode)));
+    $('shared-banner').hidden = !S.shared;
+    $('modehelp').textContent = MODE_HELP[S.mode] + (S.shared && S.minMode !== 'shape' ? ' This link was shared as ' + MODE_NAMES[S.minMode] + ', so less private modes are not available.' : '');
+    document.querySelectorAll('#modes button').forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode));
+      b.disabled = rankOf(b.dataset.mode) < rankOf(S.minMode);
+    });
     DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, resetSelection: true });
     $('export-note').textContent = '';
   }
-  $('modes').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.mode = b.dataset.mode; showReplica(); };
+  const MODE_NAMES = { shape: 'Shape-preserving', structure: 'Structure-only', generic: 'Generic' };
+  $('modes').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; S.mode = b.dataset.mode; showReplica(); };
   $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed }); };
-  $('btn-restart').onclick = () => { S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; show('s-drop'); };
+  function startOver() { S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; fresh(); show('s-drop'); }
+  $('btn-restart').onclick = startOver;
+  $('btn-own').onclick = startOver;
+
+  /* ---------------- synthetic data download ---------------- */
+  $('btn-csv').onclick = () => {
+    const csv = DSCReplica.toCsv($('replica'));
+    saveFile(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }), replicaBase() + '-synthetic-data.csv');
+    $('export-note').textContent = 'Downloaded. One row per data point, exactly the generated values on screen (filters included). Opens in Excel, Power BI, Tableau, Looker Studio and Sheets.';
+  };
+
+  /* ---------------- share links ---------------- */
+  const shareLevel = () => (document.querySelector('input[name=share-level]:checked') || {}).value || S.mode;
+  async function buildShare() {
+    $('share-note').textContent = 'Packing the link…'; $('share-url').value = '';
+    try {
+      const url = await VSShare.link(S.spec, { level: shareLevel(), mode: S.mode, seed: S.seed });
+      $('share-url').value = url;
+      $('share-note').textContent = `${(url.length / 1024).toFixed(1)} KB link.` + (url.length > 8000 ? ' Some chat apps cut very long links; a Structure-only or Generic link is shorter.' : '');
+    } catch (e) { $('share-note').textContent = 'This browser could not make a link: ' + (e.message || e); }
+  }
+  $('btn-share').onclick = () => {
+    document.querySelectorAll('input[name=share-level]').forEach(r => { r.disabled = rankOf(r.value) < rankOf(S.minMode); r.checked = r.value === (rankOf(S.mode) < rankOf(S.minMode) ? S.minMode : S.mode); });
+    $('share-lock').hidden = S.minMode === 'shape';
+    $('share-lock').textContent = 'This replica was opened from a ' + MODE_NAMES[S.minMode] + ' link, so a link made from it cannot keep more.';
+    $('dlg-share').showModal(); buildShare();
+  };
+  document.querySelectorAll('input[name=share-level]').forEach(r => r.addEventListener('change', buildShare));
+  $('share-copy').onclick = async () => {
+    const v = $('share-url').value; if (!v) return;
+    try { await navigator.clipboard.writeText(v); $('share-note').textContent = 'Link copied.'; }
+    catch (e) { $('share-url').select(); $('share-note').textContent = 'Copy did not work here; the link is selected, press Ctrl+C / ⌘C.'; }
+  };
+  async function openShared() {
+    const code = VSShare.fromHash(location.hash);
+    if (!code) return;
+    try {
+      const r = await VSShare.unpack(code);
+      S.sample = null; S.img = null; S.spec = r.spec; S.seed = r.seed; S.mode = r.mode; S.minMode = r.level; S.shared = true;
+      showReplica();
+    } catch (e) {
+      show('s-drop'); dropError('This share link could not be opened. ' + (e && e.message && !/JSON|atob|decompress|Invalid/i.test(e.message) ? e.message : 'It may have been cut off when it was copied.'));
+    }
+  }
+  if (!isExt) { openShared(); window.addEventListener('hashchange', openShared); }
+
   $('btn-export').onclick = async () => {
     try {
       const mapNames = DSCReplica.mapsUsed(S.spec);
       const [echartsSrc, replicaSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text())]
         .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
       const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
-      const html = DSCReplica.exportHtml(S.spec, { mode: S.mode, seed: S.seed }, { echarts: echartsSrc, replica: replicaSrc, maps });
-      const blob = new Blob([html], { type: 'text/html' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'dashboard-replica-synthetic.html';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      // the file carries only what its mode shows: no original labels in Generic, no shapes in Structure-only
+      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed }, { echarts: echartsSrc, replica: replicaSrc, maps });
+      saveFile(new Blob([html], { type: 'text/html' }), replicaBase() + '-replica-synthetic.html');
       $('export-note').textContent = 'Exported. The file works offline and contains only generated values.';
     } catch (e) {
       $('export-note').textContent = 'Export needs the app to be served over http(s), not opened as a local file.';
@@ -739,5 +958,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { classify, plausible, findComments, commentType, scrubQuote, buildMasks };
+  S.test = { classify, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks };
 })();

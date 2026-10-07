@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 *Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes).*
 
-## Features (v0.4.0)
+## Features (v0.5.0)
 
 | Area | Status |
 |---|---|
@@ -41,7 +41,10 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
 | Privacy modes: Shape-preserving, Structure-only, Generic | ✅ |
 | Watermark + synthetic banner + `synthetic-data` meta | ✅ cannot be turned off |
-| Export: one offline HTML file | ✅ no network calls |
+| Export: one offline HTML file | ✅ no network calls; carries only what its mode shows |
+| **Mask-only download** (no key) | ✅ masked PNG for forums, bug reports and slides |
+| **Share links** | ✅ the replica lives in the link itself; the sharer picks Shape, Structure or Generic and the receiver cannot unlock more |
+| **Synthetic data download** | ✅ tidy CSV of every generated data point, for Excel, Power BI, Tableau, Looker Studio |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
 | In-app feedback with a private route for masking misses | ✅ |
 | Pixel-measured shapes, PDF/PPTX input | ⏳ planned |

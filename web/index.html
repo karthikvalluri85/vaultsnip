@@ -101,12 +101,30 @@ dialog::backdrop{background:rgb(0 0 0/.45)}
 .crop{position:relative;display:inline-block;max-width:100%}
 .note{font-size:12.5px;color:var(--muted)}
 a{color:var(--accent)}
+@media (max-width:600px){.hide-sm{display:none}.top{gap:8px;padding:10px 14px}}
+.canvaswrap.zoom{overflow:auto;max-height:78vh}.canvaswrap.zoom canvas{width:200%;max-width:none}
+details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;color:var(--muted);font-weight:600}
+.masklist{display:grid;gap:4px;max-height:220px;overflow:auto;margin-top:6px}
+.masklist label{display:flex;gap:8px;align-items:center;font-size:12.5px}.masklist code{font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font:inherit;font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.chip:hover{border-color:var(--bad);color:var(--bad)}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;font-weight:600}
+.check input{margin-top:3px}
+.banner{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.levels{display:grid;gap:8px}
+.levels label{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
+.levels label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.levels label:has(input:disabled){opacity:.5;cursor:not-allowed}
+.levels b{display:block;font-size:14px}.levels span{font-size:12.5px;color:var(--muted)}
+.linkbox{font-family:var(--mono);font-size:12px;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken);color:var(--ink)}
 </style>
 </head>
 <body>
 <header class="top">
   <span class="brand"><img src="icons/icon128.png" alt="" width="30" height="30" style="vertical-align:-9px;margin-right:8px">VaultSnip</span>
-  <span class="pill">Runs in your browser · nothing stored</span>
+  <span class="pill hide-sm">Runs in your browser · nothing stored</span>
   <span class="sp"></span>
   <button type="button" class="linkbtn" data-feedback="bug" style="font-size:13px;margin-right:6px">Feedback</button>
   <a href="privacy.html" style="font-size:13px;margin-right:6px">Privacy</a>
@@ -126,16 +144,17 @@ a{color:var(--accent)}
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
           <div><b>You approve what leaves.</b> Only the masked image goes to the AI you choose (Claude or OpenAI), after you see it.</div>
-          <div><b>Your own key.</b> Needed only for your own images; samples work without one.</div>
+          <div><b>Mask without a key.</b> Download the masked screenshot for a forum post, a bug report or a slide. A key is needed only to build a replica of your own image.</div>
         </div>
       </div>
       <div>
         <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload or paste a screenshot">
           <strong>Use your own screenshot</strong>
-          <p>Drop a PNG or JPG here, click to choose, or paste with Ctrl+V / ⌘V</p>
+          <p>Drop a PNG, JPG or WebP here, click to choose, or paste with Ctrl+V / ⌘V</p>
           <p class="note">Any source: BI tools, Excel, PDF report pages, web analytics, SaaS apps</p>
-          <input type="file" id="file" accept="image/png,image/jpeg" hidden>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
         </div>
+        <p class="err" id="drop-err" role="alert" hidden></p>
       </div>
     </div>
     <div class="samples" id="samples" hidden></div>
@@ -158,9 +177,10 @@ a{color:var(--accent)}
             <button type="button" id="v-orig" aria-pressed="true">Original with boxes</button>
             <button type="button" id="v-mask" aria-pressed="false">Masked (what is sent)</button>
           </div>
+          <button type="button" class="btn" id="v-zoom" aria-pressed="false">Zoom 2×</button>
           <span class="hint">Click a box to turn its mask on or off. Drag to add a mask.</span>
         </div>
-        <div class="canvaswrap"><canvas id="review-canvas"></canvas></div>
+        <div class="canvaswrap" id="review-wrap"><canvas id="review-canvas" role="img" aria-label="The screenshot with mask boxes. Use the list of masks beside it to turn masks on or off with the keyboard."></canvas></div>
       </div>
       <div>
         <div class="panel">
@@ -169,6 +189,7 @@ a{color:var(--accent)}
         <div class="panel">
           <h3>Detected, by type</h3>
           <div class="types" id="types"></div>
+          <details class="more" id="mask-list"><summary>All masks (<span id="mask-n">0</span>), on or off</summary><div class="masklist" id="mask-items"></div></details>
         </div>
         <div class="panel" id="cm-panel" hidden>
           <h3>Customer comments</h3>
@@ -181,7 +202,7 @@ a{color:var(--accent)}
           <div class="flags" id="flags"></div>
           <div class="row">
             <button class="btn" id="btn-recheck" type="button" disabled>Re-run check</button>
-            <button class="btn primary" id="btn-send" type="button" disabled>Preview what is sent</button>
+            <button class="btn primary" id="btn-send" type="button" disabled>Preview masked image</button>
           </div>
         </div>
         <div class="panel">
@@ -191,6 +212,9 @@ a{color:var(--accent)}
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
             <input type="text" id="extra-allow" placeholder="e.g. Pipeline, Bookings"></label>
           <div class="row"><button class="btn" id="btn-reapply" type="button" disabled>Re-apply policy</button></div>
+          <details class="more" id="kept"><summary>Words kept as safe (<span id="kept-n">0</span>)</summary>
+            <p class="note">Common report words are kept so the layout stays readable. If any of these is a client, product or person name, click it to mask it.</p>
+            <div class="chips" id="kept-words"></div></details>
         </div>
       </div>
     </div>
@@ -198,6 +222,10 @@ a{color:var(--accent)}
 
   <!-- Screen 3 -->
   <section id="s-replica" hidden>
+    <div class="banner" id="shared-banner" hidden>
+      <span><b>Shared replica.</b> Every value is generated; the person who shared it chose what the link keeps.</span>
+      <button class="btn primary" id="btn-own" type="button">Make one from your own screenshot</button>
+    </div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="Privacy mode" id="modes">
         <button type="button" data-mode="shape" aria-pressed="true">Shape-preserving</button>
@@ -207,6 +235,8 @@ a{color:var(--accent)}
       <button class="btn" id="btn-regen" type="button">Regenerate data</button>
       <span class="sp" style="flex:1"></span>
       <button class="btn" id="btn-restart" type="button">Start over</button>
+      <button class="btn" id="btn-csv" type="button">Download data (CSV)</button>
+      <button class="btn" id="btn-share" type="button">Share link</button>
       <button class="btn primary" id="btn-export" type="button">Export HTML</button>
     </div>
     <p class="modehelp" id="modehelp"></p>
@@ -217,7 +247,7 @@ a{color:var(--accent)}
 
 <dialog id="dlg-send">
   <form method="dialog" class="dlg" id="send-form">
-    <h2>This is everything that will be sent</h2>
+    <h2>The masked image</h2>
     <img id="payload-img" alt="The masked image that will be sent">
     <dl class="facts">
       <dt>Destination</dt><dd id="pf-dest">api.anthropic.com, using your key</dd>
@@ -225,14 +255,36 @@ a{color:var(--accent)}
       <dt>Size</dt><dd id="pf-size"></dd>
     </dl>
     <p class="note" id="pf-warn"><b>Look over the image before sending.</b> The on-device reader can miss very small numbers beside bars or inside coloured badges, and cannot read slanted or vertical labels (for example rotated axis labels). Close this, then drag a box over anything still readable.</p>
+    <label class="check"><input type="checkbox" id="pf-ok"> I have looked over the masked image and nothing sensitive is readable.</label>
     <div class="keybox" id="keybox" hidden>
       <strong>Add your AI key</strong>
       <div id="kp-send"></div>
     </div>
     <p class="err" id="send-err" hidden></p>
     <div class="row" style="justify-content:flex-end">
+      <label class="note" style="margin-right:auto;align-self:center"><input type="checkbox" id="pf-credit" checked> Add a small "masked with VaultSnip" tag</label>
       <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn" id="btn-dl-masked" type="button">Download masked image</button>
       <button class="btn primary" id="btn-confirm" type="button">Send and build replica</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-share" aria-labelledby="share-title">
+  <form method="dialog" class="dlg">
+    <h2 id="share-title">Share a link to this replica</h2>
+    <p class="note">The replica is packed into the link itself. Nothing is uploaded and VaultSnip stores nothing; anyone with the link can open it. A link never contains the screenshot or any real value.</p>
+    <div class="levels" role="radiogroup" aria-label="What the link keeps">
+      <label><input type="radio" name="share-level" value="shape"><div><b>Shape-preserving</b><span>Titles, labels and the ups and downs of each chart.</span></div></label>
+      <label><input type="radio" name="share-level" value="structure"><div><b>Structure-only</b><span>Titles and labels. Chart shapes are removed, so trends and rankings are random.</span></div></label>
+      <label><input type="radio" name="share-level" value="generic"><div><b>Generic</b><span>Layout and chart types only. All text is replaced too.</span></div></label>
+    </div>
+    <p class="note" id="share-lock" hidden></p>
+    <input class="linkbox" id="share-url" readonly aria-label="Share link">
+    <p class="note" id="share-note" role="status" aria-live="polite"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" value="cancel" type="submit">Close</button>
+      <button class="btn primary" id="share-copy" type="button">Copy link</button>
     </div>
   </form>
 </dialog>
@@ -256,6 +308,7 @@ a{color:var(--accent)}
 <script src="lib/echarts.min.js"></script>
 <script src="replica.js"></script>
 <script src="samples.js"></script>
+<script src="share.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

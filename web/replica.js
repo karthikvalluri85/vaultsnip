@@ -39,11 +39,15 @@
     v = num(v);
     if (!Number.isFinite(v)) return '–';
     const f = (measure && measure.format) || 'number';
+    const unit = measure && measure.unit && !generic ? ' ' + String(measure.unit) : '';
     if (f === 'percent') return v.toFixed(1) + (generic ? '' : '%');
     if (f === 'currency') return (generic ? '' : (measure.currency || '$')) + abbr(v);
-    if (f === 'integer') return Math.round(v).toLocaleString('en-US');
-    return abbr(v);
+    if (f === 'ratio') { const o = num(measure.outOf); return v.toFixed(2) + (o > 0 && !generic ? ' / ' + o : ''); }
+    if (f === 'integer' || f === 'duration') return Math.round(v).toLocaleString('en-US') + unit;
+    return abbr(v) + unit;
   }
+  // Typical size of a duration by its unit, so "38 min" does not come out as "4,200 min".
+  const DURATION = { ms: 900, s: 40, sec: 40, secs: 40, seconds: 40, min: 40, mins: 40, minutes: 40, h: 10, hr: 10, hrs: 10, hours: 10, d: 12, day: 12, days: 12, wk: 4, weeks: 4 };
 
   /* ---------- synthetic data ---------- */
   // Each measure gets a hidden scale unrelated to the source. Shapes (0..100) come from the spec.
@@ -62,6 +66,8 @@
     if (hint > 0) return hint * 1.6 * (0.8 + r() * 0.4);
     const f = (measure && measure.format) || 'number';
     if (f === 'percent') return 100;
+    if (f === 'ratio') return num(measure.outOf) > 0 ? num(measure.outOf) : 5;
+    if (f === 'duration') return (DURATION[String(measure.unit || '').toLowerCase()] || 30) * (0.7 + r() * 0.6);
     if (f === 'currency') return Math.pow(10, 4 + r() * 3);
     if (f === 'integer') return Math.pow(10, 1.5 + r() * 2.5);
     return Math.pow(10, 2 + r() * 4);
@@ -331,7 +337,9 @@
       else if (F.members(k).some(m => seriesList.some(s => s.name === m))) seriesKeys.push(k);
     });
     const isTrend = ['line', 'area', 'combo'].includes(v.type) || /month|week|day|date|year|quarter|period|time/i.test(dimName);
-    let vals = seriesList.map(s => shapeArray(s.shape, n, mode, r, isTrend ? 'trend' : 'cat').map(x => x / 100 * scale));
+    // a combo series with its own measure (a % line over $ bars) gets its own scale and, below, its own axis
+    const ownMeas = s => (v.type === 'combo' && s && s.measure && measureKey(s.measure) !== measureKey(meas)) ? s.measure : null;
+    let vals = seriesList.map(s => shapeArray(s.shape, n, mode, r, isTrend ? 'trend' : 'cat').map(x => x / 100 * (ownMeas(s) ? scaleFor(ownMeas(s), r) : scale)));
     // cross-filtering: other dimensions' selections scale this visual; its own dimension's selection keeps only chosen members
     const filterable = ['bar', 'column', 'histogram', 'line', 'area', 'combo', 'pie', 'donut', 'treemap', 'funnel', 'boxplot'].includes(v.type);
     const sel = filterable ? F.sel(dimKey) : null;
@@ -357,14 +365,17 @@
         const lab = catLabels(v, members, t, horizontal); if (lab) cat.axisLabel = lab;
         const val = Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } });
         if (v.type === 'line' || v.type === 'area') val.scale = !v.zeroBased;
+        const second = !horizontal && seriesList.map(ownMeas).find(Boolean);
         const series = seriesList.map((s, si) => {
           const kind = v.type === 'combo' ? (s.kind || (si === 0 ? 'bar' : 'line')) : (v.type === 'line' || v.type === 'area' ? 'line' : 'bar');
+          const sm = (second && ownMeas(s)) || meas;
           return {
+            yAxisIndex: second && ownMeas(s) ? 1 : 0, tooltip: { valueFormatter: x => fmt(x, sm, generic) },
             name: L.meas(s.name || meas.name), type: kind, stack: v.stacked ? 'total' : undefined,
             areaStyle: v.type === 'area' ? { opacity: v.stacked ? 0.7 : 0.18 } : undefined,
             smooth: false, symbolSize: 7, barMaxWidth: 46, barGap: '15%',
             itemStyle: { borderRadius: v.stacked ? 0 : (horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]) },
-            label: { show: !!v.valueLabels && seriesList.length === 1 && n <= 12, position: horizontal ? 'right' : 'top', color: t.ink, fontSize: 11, formatter: p => fmt(p.value, meas, generic) },
+            label: { show: !!v.valueLabels && seriesList.length === 1 && n <= 12, position: horizontal ? 'right' : 'top', color: t.ink, fontSize: 11, formatter: p => fmt(p.value, sm, generic) },
             data: vals[si].map((x, i) => ({ value: x, itemStyle: { opacity: dimOpacity(members[i]) } }))
           };
         });
@@ -373,13 +384,14 @@
           tooltip: Object.assign({}, tooltip, { trigger: 'axis' }),
           legend: seriesList.length > 1 ? legend : undefined,
           grid: { left: 8, right: 16, top: seriesList.length > 1 ? 32 : (v.valueLabels ? 24 : 12), bottom: 8, containLabel: true },
-          xAxis: horizontal ? val : cat, yAxis: horizontal ? Object.assign(cat, { inverse: true }) : val, series
+          xAxis: horizontal ? val : cat,
+          yAxis: horizontal ? Object.assign(cat, { inverse: true }) : (second ? [val, Object.assign(axisBase(t), { type: 'value', splitLine: { show: false }, axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, second, generic) } })] : val), series
         });
       }
       case 'pie': case 'donut': {
         const data = members.map((m, i) => ({ name: m, value: vals[0][i], itemStyle: { opacity: dimOpacity(m) } }));
         return Object.assign(base, { _meta: meta,
-          tooltip: Object.assign({}, tooltip, { formatter: p => `${p.name}<br><b>${fmt(p.value, meas, generic)}</b> · ${p.percent}%` }),
+          tooltip: Object.assign({}, tooltip, { formatter: p => `${escH(p.name)}<br><b>${fmt(p.value, meas, generic)}</b> · ${Math.round(p.percent)}%` }),
           legend: Object.assign({}, legend, { type: 'plain', bottom: 0, top: 'auto', itemGap: 8, itemWidth: 12, itemHeight: 8 }),
           series: [{ type: 'pie', radius: v.type === 'donut' ? ['44%', '66%'] : [0, '66%'], center: ['50%', n > 4 ? '40%' : '44%'], itemStyle: { borderColor: t.surface, borderWidth: 2 },
             label: (num(v.span) || 6) <= 3
@@ -414,7 +426,7 @@
           else { run += x; helper.push(run); up.push('-'); down.push(-x); }
         });
         return Object.assign(base, { _meta: meta,
-          tooltip: Object.assign({}, tooltip, { trigger: 'axis', valueFormatter: undefined, formatter: ps => { const p = ps.find(q => q.seriesIndex > 0 && Number.isFinite(num(q.value))); return p ? `${p.name}<br><b>${(p.seriesIndex === 2 ? '−' : '')}${fmt(p.value, meas, generic)}</b>` : ''; } }),
+          tooltip: Object.assign({}, tooltip, { trigger: 'axis', valueFormatter: undefined, formatter: ps => { const p = ps.find(q => q.seriesIndex > 0 && Number.isFinite(num(q.value))); return p ? `${escH(p.name)}<br><b>${(p.seriesIndex === 2 ? '−' : '')}${fmt(p.value, meas, generic)}</b>` : ''; } }),
           grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: members }, catLabels(v, members, t) ? { axisLabel: catLabels(v, members, t) } : {}),
           yAxis: Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } }),
@@ -435,7 +447,7 @@
         const psel = F.sel(ptKey); if (psel && psel.length) data = data.filter(d => psel.includes(d.name));
         meta = { pairs: p => p && p.name ? [[ptKey, p.name]] : [] };
         return Object.assign(base, { _meta: meta,
-          tooltip: Object.assign({}, tooltip, { formatter: p => `${p.name}<br>${L.meas(xM.name)}: <b>${fmt(p.value[0], xM, generic)}</b><br>${L.meas(yM.name)}: <b>${fmt(p.value[1], yM, generic)}</b>` }),
+          tooltip: Object.assign({}, tooltip, { formatter: p => `${escH(p.name)}<br>${escH(L.meas(xM.name))}: <b>${fmt(p.value[0], xM, generic)}</b><br>${escH(L.meas(yM.name))}: <b>${fmt(p.value[1], yM, generic)}</b>` }),
           grid: { left: 8, right: 20, top: 24, bottom: 8, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'value', scale: true, name: L.meas(xM.name), nameLocation: 'middle', nameGap: 26, axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, xM, generic) } }),
           yAxis: Object.assign(axisBase(t), { type: 'value', scale: true, name: L.meas(yM.name), axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, yM, generic) } }),
@@ -452,10 +464,10 @@
         const cIdx = colsD.members.map((m, i) => i).filter(i => !(cs && cs.length) || selHas(cs, colsD.members[i]));
         const rm = rIdx.map(i => L.member(rowsD.name, rowsD.members[i], i)), cm = cIdx.map(i => L.member(colsD.name, colsD.members[i], i));
         const data = []; let mx = 0;
-        rIdx.forEach((ri, a) => cIdx.forEach((ci, b) => { const val = (Number((fullGrid[ri] || [])[ci]) || 0) / 100 * scale * (0.95 + r() * 0.1) * F.factor(v.id, [rk, ck], ri * 31 + ci); mx = Math.max(mx, val); data.push([b, a, val]); }));
+        rIdx.forEach((ri, a) => cIdx.forEach((ci, b) => { const cell = (fullGrid[ri] || [])[ci]; if (mode === 'shape' && fullGrid === v.matrix && (cell === null || cell === undefined || cell === '')) return; const val = (Number(cell) || 0) / 100 * scale * (0.95 + r() * 0.1) * F.factor(v.id, [rk, ck], ri * 31 + ci); mx = Math.max(mx, val); data.push([b, a, val]); }));
         meta = { pairs: p => p && p.value ? [[rk, rowsD.members[rIdx[p.value[1]]]], [ck, colsD.members[cIdx[p.value[0]]]]] : [] };
         return Object.assign(base, { _meta: meta,
-          tooltip: Object.assign({}, tooltip, { formatter: p => `${rm[p.value[1]]} · ${cm[p.value[0]]}<br><b>${fmt(p.value[2], meas, generic)}</b>` }),
+          tooltip: Object.assign({}, tooltip, { formatter: p => `${escH(rm[p.value[1]])} · ${escH(cm[p.value[0]])}<br><b>${fmt(p.value[2], meas, generic)}</b>` }),
           grid: { left: 8, right: 8, top: 8, bottom: 44, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: cm, splitArea: { show: false } }),
           yAxis: Object.assign(axisBase(t), { type: 'category', data: rm, inverse: true, splitArea: { show: false } }),
@@ -479,7 +491,14 @@
         });
       }
       case 'boxplot': {
-        const data = members.map((m, i) => { const f = F.factor(v.id, [dimKey], i); const q = [r() * 20, 20 + r() * 20, 40 + r() * 20, 60 + r() * 20, 80 + r() * 20].map(x => x / 100 * scale * (0.7 + 0.3 * f)); return q; });
+        // shape mode follows the measured boxes ([min, q1, median, q3, max], 0-100); otherwise random quartiles
+        const boxes = mode === 'shape' && Array.isArray(v.boxes) && v.boxes.length === membersRaw.length ? v.boxes : null;
+        const data = members.map((m, i) => {
+          const f = F.factor(v.id, [dimKey], i), src = boxes && boxes[keep.length ? keep[i] : i];
+          const q0 = Array.isArray(src) && src.length === 5 && src.every(x => Number.isFinite(num(x))) ? src.map(num).sort((a, b) => a - b).map(x => Math.max(0, x) * (0.97 + r() * 0.06))
+            : [r() * 20, 20 + r() * 20, 40 + r() * 20, 60 + r() * 20, 80 + r() * 20];
+          return q0.sort((a, b) => a - b).map(x => x / 100 * scale * (0.7 + 0.3 * f));
+        });
         return Object.assign(base, { _meta: meta,
           tooltip, grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: members }, catLabels(v, members, t) ? { axisLabel: catLabels(v, members, t) } : {}),
@@ -596,7 +615,7 @@
 .rp-kpi .k{font-size:12.5px;color:var(--rp-muted)}
 .rp-kpi .v{font-size:clamp(20px,2.4vw,28px);font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
 .rp-kpi .d{font-size:12px;font-variant-numeric:tabular-nums}
-.rp-kpi .d.up{color:var(--rp-good)} .rp-kpi .d.down{color:var(--rp-bad)}
+.rp-kpi .d.good{color:var(--rp-good)} .rp-kpi .d.bad{color:var(--rp-bad)}
 .rp-kpi svg{display:block;width:100%;height:28px;margin-top:6px}
 .rp-table{overflow-x:auto}
 .rp-table table{border-collapse:collapse;width:100%;font-size:12.5px}
@@ -620,14 +639,22 @@
 .rp-note{font-size:11.5px;color:var(--rp-muted);margin-top:4px}
 .rp-text{color:var(--rp-muted);font-size:13px}
 .rp-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;padding:10px 18px;border-top:1px solid var(--rp-line);font-size:11.5px;color:var(--rp-muted);background:var(--rp-surface);position:relative;z-index:21}
-.rp-foot a{color:var(--rp-muted);text-decoration:underline;text-underline-offset:2px}
+.rp-foot a,.rp-foot .rp-csv{color:var(--rp-muted);text-decoration:underline;text-underline-offset:2px}
+.rp-foot .rp-csv{background:none;border:0;padding:0;font:inherit;cursor:pointer}
 @media (max-width:760px){.rp-card{grid-column:span 12 !important}}
 `;
 
   const MODE_NAME = { shape: 'Shape-preserving', structure: 'Structure-only', generic: 'Generic' };
 
+  // Labels come from an AI reading a screenshot, so they are treated as untrusted: no markup survives.
+  const CLEAN = typeof Symbol === 'function' ? Symbol('clean') : '__clean';
+  const cleanAll = o => typeof o === 'string' ? o.replace(/[<>]/g, '') : Array.isArray(o) ? o.map(cleanAll) : (o && typeof o === 'object') ? Object.keys(o).reduce((a, k) => { a[k] = cleanAll(o[k]); return a; }, {}) : o;
+  function cleanSpec(spec) { if (spec && spec[CLEAN]) return spec; const c = cleanAll(spec || {}); Object.defineProperty(c, CLEAN, { value: true }); return c; }
+
   function render(root, spec, opts) {
+    spec = cleanSpec(spec);
     opts = opts || {};
+    const rows = root._rows = [];
     const mode = opts.mode || 'shape';
     const seed = opts.seed || 4127;
     const L = labelsFor(spec, mode);
@@ -734,7 +761,7 @@
       <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span>${activeNote}</div>
       ${filterBar ? `<div class="rp-filters">${filterBar}</div>` : ''}
       <div class="rp-grid"></div>
-      <div class="rp-foot"><span>${esc(footNote)}</span><a href="${PRODUCT_URL}?ref=export" target="_blank" rel="noopener">${FOOTER_TEXT}</a></div>`;
+      <div class="rp-foot"><span>${esc(footNote)} · <button type="button" class="rp-csv">Download data (CSV)</button></span><a href="${PRODUCT_URL}?ref=export" target="_blank" rel="noopener">${FOOTER_TEXT}</a></div>`;
     root.setAttribute('data-synthetic', 'true');
     const grid = root.querySelector('.rp-grid');
     const t = themeVars(root);
@@ -755,16 +782,24 @@
         const fk = F.factor(v.id, [], 0);
         const hint = num(meas.scaleHint) > 0 ? num(meas.scaleHint) : HINTS[measureKey(meas)];
         const shapeV = num(v.shapeValue);
+        const outOf = num(meas.outOf) > 0 ? num(meas.outOf) : 5;
         const base = meas.format === 'percent' ? (mode === 'shape' && Number.isFinite(shapeV) ? Math.max(0, Math.min(100, shapeV)) : 15 + r() * 60)
-          : hint > 0 ? hint * (0.85 + r() * 0.3) : scaleFor(meas, r) * (3 + r() * 4);
-        const val = meas.format === 'percent' ? Math.max(0, Math.min(100, base + (active.length ? (rng(hashStr(v.id + '|' + active.map(k => state.filters[k].join(',')).join(';')))() - 0.5) * 8 : 0))) : base * fk;
+          : meas.format === 'ratio' ? outOf * (mode === 'shape' && Number.isFinite(shapeV) ? Math.max(0.05, Math.min(1, shapeV / 100)) : 0.72 + r() * 0.22)
+          : hint > 0 ? hint * (0.85 + r() * 0.3)
+          : meas.format === 'duration' ? scaleFor(meas, r) * (0.7 + r() * 0.6) : scaleFor(meas, r) * (3 + r() * 4);
+        const val = meas.format === 'percent' ? Math.max(0, Math.min(100, base + (active.length ? (rng(hashStr(v.id + '|' + active.map(k => state.filters[k].join(',')).join(';')))() - 0.5) * 8 : 0)))
+          : meas.format === 'ratio' ? Math.min(outOf, base * (0.96 + 0.04 * fk)) : base * fk;
         // a percent change cannot move past 0 or 100, so the swing shrinks near the ends (99% moves by tenths, not 6 points)
         const room = meas.format === 'percent' ? Math.max(0.2, Math.min(val, 100 - val)) : 100;
         const swing = meas.format === 'percent' ? Math.min(8, room * 0.6) : 20;
         const d0 = (r() - 0.35) * swing; const d = F.key ? (rng(hashStr(v.id + '|d|' + F.key))() - 0.4) * swing * 1.1 : d0; const up = d >= 0;
         const spark = v.sparkline ? (() => { const a = shapeArray(v.sparkShape, 12, mode, F.key ? rng(hashStr(v.id + '|s|' + F.key)) : r, 'trend'); const mx = Math.max(...a), mn = Math.min(...a); return `<svg viewBox="0 0 120 28" preserveAspectRatio="none"><polyline fill="none" stroke="${colors[0]}" stroke-width="1.5" points="${a.map((x, i) => `${i * 120 / 11},${26 - (x - mn) / (mx - mn || 1) * 24}`).join(' ')}"/></svg>`; })() : '';
         card.classList.add('rp-kpi');
-        card.innerHTML = `<div class="k">${esc(L.meas(v.title || meas.name))}</div><div class="v">${fmt(val, meas, L.generic)}</div>${v.delta === false ? '' : `<div class="d ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}${meas.format === 'percent' ? ' pts' : '%'} vs prior</div>`}${spark}`;
+        // green means good: for "lower is better" measures (errors, response time, churn) a fall is good news
+        const good = up === (meas.higherIsBetter !== false && v.higherIsBetter !== false);
+        const dTxt = meas.format === 'ratio' ? (Math.abs(d) / 100 * outOf).toFixed(2) : Math.abs(d).toFixed(1) + (meas.format === 'percent' ? ' pts' : '%');
+        card.innerHTML = `<div class="k">${esc(L.meas(v.title || meas.name))}</div><div class="v">${esc(fmt(val, meas, L.generic))}</div>${v.delta === false ? '' : `<div class="d ${good ? 'good' : 'bad'}">${up ? '▲' : '▼'} ${dTxt} vs prior</div>`}${spark}`;
+        rows.push({ v, member: '', series: L.meas(v.title || meas.name), value: val, format: meas.format });
         return;
       }
       if (v.type === 'table') {
@@ -793,30 +828,31 @@
           if (c.kind !== 'percent' && !(m.lo < 0)) x *= tf;
           return { x, m };
         };
+        const csvCell = (c, ri, o) => rows.push({ v, dim: 'Row', member: String(ri + 1), series: L.generic ? L.dim(c.name) : c.name, value: o.text, format: c.kind || 'text' });
         const cellOf = (c, ci, ri) => {
           const k = c.kind || 'text';
           const cats = c.members && c.members.length ? c.members : null;
           let cell;
           if (isVerbatim(c)) {
             const q = Array.isArray(c.values) && !L.generic ? c.values[ri] : null;
-            return q != null && String(q).trim() ? { html: quoteHtml(q), cls: 'q', k: 'verbatim' } : { html: esc('Comment ' + String(ri + 1).padStart(2, '0')), cls: '', k: 'verbatim' };
+            return q != null && String(q).trim() ? { html: quoteHtml(q), text: String(q), cls: 'q', k: 'verbatim' } : { html: esc('Comment ' + String(ri + 1).padStart(2, '0')), text: 'Comment ' + String(ri + 1).padStart(2, '0'), cls: '', k: 'verbatim' };
           }
           let x = null;
           if (k === 'person') cell = (L.generic ? 'Owner ' : 'Person ') + (1 + ((ri * 7 + ci) % 9));
           else if (k === 'org' || k === 'text') cell = (L.generic ? 'Entity ' : (c.placeholder || (k === 'org' ? 'Company' : 'Item')) + ' ') + String(ri + 1).padStart(2, '0');
           else if (k === 'id') cell = (L.generic ? 'ID-' : 'TKN-') + ids[ri];
           else if (k === 'category') { if (cats) { const m = c === rowCat ? rowLabels[ri] : pick(c, ri); cell = L.member(c.name, m, cats.map(String).indexOf(String(m))); } else cell = 'Group ' + 'ABC'[Math.floor(r() * 3)]; }
-          else if (k === 'date') cell = '2026-' + String(1 + Math.floor(r() * 12)).padStart(2, '0') + '-' + String(1 + Math.floor(r() * 28)).padStart(2, '0');
+          else if (k === 'date') cell = new Date(Date.now() - Math.floor(r() * 120) * 864e5).toISOString().slice(0, 10);
           else if (k === 'percent') { const o = colVal(c, ci, ri); x = o.x; cell = (o.m.signed && x > 0 ? '+' : '') + x.toFixed(1) + (L.generic ? '' : '%'); }
           else if (k === 'currency') { const o = colVal(c, ci, ri); x = o.x; cell = o.m.dp === 2 && x < 1000 ? (L.generic ? '' : (c.currency || (v.measure && v.measure.currency) || '$')) + x.toFixed(2) : fmt(x, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic); }
           else { const o = colVal(c, ci, ri); x = o.x; cell = o.m.dp === 1 ? x.toFixed(1) : (o.m.lo < 0 && x > 0 ? '+' : '') + (o.m.dp === 0 && Math.abs(x) < 1e4 ? Math.round(x).toLocaleString('en-US') : abbr(x)); }
           const isNum = ['number', 'currency', 'percent'].includes(k);
-          return { html: esc(cell), cls: isNum ? 'n' : '', k, x, max: isNum ? columnModel(c, k).hi : null };
+          return { html: esc(cell), text: cell, cls: isNum ? 'n' : '', k, x, max: isNum ? columnModel(c, k).hi : null };
         };
         // A narrow list of customer comments reads like the source: who said it, the quote, and the score badge.
         if (vcol && (num(v.span) || 6) <= 6) {
           const items = Array.from({ length: rowsN }, (_, ri) => {
-            const cs = cols.map((c, ci) => cellOf(c, ci, ri));
+            const cs = cols.map((c, ci) => { const o = cellOf(c, ci, ri); csvCell(c, ri, o); return o; });
             const meta = cs.filter(o => !o.cls && o.k !== 'verbatim').map((o, i) => i === 0 ? `<b>${o.html}</b>` : o.html).join(' · ');
             const quote = cs.filter(o => o.k === 'verbatim').map(o => `<p>${o.html}</p>`).join('');
             const badges = cs.filter(o => o.cls === 'n').map(o => {
@@ -830,7 +866,7 @@
           return;
         }
         const rowsHtml = Array.from({ length: rowsN }, (_, ri) => (rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(rowLabels[ri])}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
-          const o = cellOf(c, ci, ri);
+          const o = cellOf(c, ci, ri); csvCell(c, ri, o);
           return `<td class="${o.cls}">${o.html}</td>`;
         }).join('') + '</tr>').join('');
         card.insertAdjacentHTML('beforeend', `<div class="rp-table"><table><thead><tr>${cols.map(c => `<th>${esc(L.generic ? L.dim(c.name) : c.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`);
@@ -849,13 +885,85 @@
       chart.setOption(Object.assign({}, opt, { _meta: undefined, _note: undefined }));
       const meta = opt._meta; delete opt._meta;
       if (opt._note) card.insertAdjacentHTML('beforeend', `<div class="rp-note">${esc(opt._note)}</div>`);
+      chartRows(v, opt, L).forEach(x => rows.push(x));
       if (meta && meta.pairs) chart.on('click', p => { const pairs = meta.pairs(p).filter(x => x[0] && x[1] != null); if (pairs.length) toggleMany(pairs); });
       root._charts.push(chart);
     });
 
     root.querySelectorAll('.rp-chip[data-dim], .rp-row').forEach(b => b.addEventListener('click', () => toggle(b.getAttribute('data-dim'), b.getAttribute('data-raw'))));
     const clr = root.querySelector('.rp-clear'); if (clr) clr.addEventListener('click', () => { state.filters = {}; render(root, spec, reopts); });
+    const csvBtn = root.querySelector('.rp-csv'); if (csvBtn) csvBtn.addEventListener('click', () => downloadCsv(root));
+    root._title = L.generic ? '' : (spec.title || ''); root._generic = L.generic;
     if (!root._ro && global.ResizeObserver) { root._ro = new ResizeObserver(() => (root._charts || []).forEach(c => c.resize())); root._ro.observe(root); }
+  }
+
+  /* ---------- synthetic data as CSV ---------- */
+  // One row per data point, read from what is drawn (so filters and the privacy mode apply), in a long
+  // "tidy" layout that Excel, Power BI, Tableau, Looker Studio and Sheets all pivot directly.
+  function chartRows(v, opt, L) {
+    const out = [], S = Array.isArray(opt.series) ? opt.series : [];
+    const measName = L.meas((v.measure && v.measure.name) || v.title || 'Value'), fmtName = (v.measure && v.measure.format) || 'number';
+    const dimName = L.dim((v.dimension && v.dimension.name) || 'Category');
+    const add = (dim, member, series, value, dim2, member2, format) => out.push({ v, dim, member, dim2, member2, series, value, format: format || fmtName });
+    const val = d => d == null ? NaN : (typeof d === 'object' && !Array.isArray(d) ? d.value : d);
+    const axes = [].concat(opt.xAxis || [], opt.yAxis || []);
+    const cats = (axes.find(a => a && a.type === 'category') || {}).data || [];
+    switch (v.type) {
+      case 'bar': case 'column': case 'histogram': case 'line': case 'area': case 'combo':
+        S.forEach(s => (s.data || []).forEach((d, i) => add(dimName, cats[i], s.name, val(d)))); break;
+      case 'pie': case 'donut': case 'treemap': case 'funnel':
+        ((S[0] || {}).data || []).forEach(d => add(dimName, d.name, measName, d.value)); break;
+      case 'waterfall': {
+        const up = (S[1] || {}).data || [], down = (S[2] || {}).data || [];
+        cats.forEach((c, i) => add(dimName, c, measName, up[i] !== '-' && up[i] != null ? up[i] : -down[i])); break;
+      }
+      case 'scatter': case 'bubble': {
+        const xa = [].concat(opt.xAxis || [])[0] || {}, ya = [].concat(opt.yAxis || [])[0] || {};
+        ((S[0] || {}).data || []).forEach(d => { add('Point', d.name, xa.name || 'X', d.value[0], '', '', (v.xMeasure || {}).format); add('Point', d.name, ya.name || 'Y', d.value[1], '', '', (v.yMeasure || v.measure || {}).format); if (v.type === 'bubble') add('Point', d.name, 'Size', d.value[2], '', '', 'number'); });
+        break;
+      }
+      case 'heatmap': {
+        const xs = ([].concat(opt.xAxis || [])[0] || {}).data || [], ys = ([].concat(opt.yAxis || [])[0] || {}).data || [];
+        ((S[0] || {}).data || []).forEach(d => add(L.dim((v.rows || {}).name || 'Row'), ys[d[1]], measName, d[2], L.dim((v.columns || {}).name || 'Column'), xs[d[0]]));
+        break;
+      }
+      case 'gauge': add('', '', measName, val(((S[0] || {}).data || [])[0])); break;
+      case 'boxplot':
+        ((S[0] || {}).data || []).forEach((q, i) => ['Min', 'Q1', 'Median', 'Q3', 'Max'].forEach((nm, j) => add(dimName, cats[i], measName + ' · ' + nm, q[j]))); break;
+      case 'sankey':
+        ((S[0] || {}).links || []).forEach(l => add('Source', l.source, measName, l.value, 'Target', l.target)); break;
+      case 'gantt': {
+        const st = (S[0] || {}).data || [], len = (S[1] || {}).data || [];
+        cats.forEach((c, i) => { add('Task', c, 'Start (% of timeline)', st[i], '', '', 'number'); add('Task', c, 'End (% of timeline)', num(st[i]) + num(val(len[i])), '', '', 'number'); });
+        break;
+      }
+      case 'map':
+        S.forEach(s => (s.type === 'map' || s.type === 'scatter' || s.type === 'lines') && (s.data || []).forEach(d => { if (d && d.v != null) add(L.dim(mapDimName(v)), d.label || d.name, measName, d.v, s.type === 'map' && d.label !== d.name && !L.generic ? 'Region' : '', s.type === 'map' && d.label !== d.name && !L.generic ? d.name : ''); }));
+        break;
+    }
+    return out;
+  }
+  function toCsv(root) {
+    const cell = x => {
+      if (typeof x === 'number') return Number.isFinite(x) ? String(Math.abs(x) >= 1000 ? Math.round(x) : Math.round(x * 100) / 100) : '';
+      let s = String(x == null ? '' : x);
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;          // never a formula when opened in a spreadsheet
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const head = ['visual', 'visual_type', 'dimension', 'member', 'dimension_2', 'member_2', 'series', 'value', 'format', 'synthetic'];
+    const idx = new Map(); let n = 0;
+    const lines = (root._rows || []).map(r => {
+      if (!idx.has(r.v)) idx.set(r.v, ++n);
+      const title = !root._generic && r.v.title ? r.v.title : 'Visual ' + idx.get(r.v);
+      return [title, r.v.type, r.dim || '', r.member == null ? '' : r.member, r.dim2 || '', r.member2 || '', r.series || '', r.value, r.format || '', 'TRUE'].map(cell).join(',');
+    });
+    return [head.join(',')].concat(lines).join('\r\n') + '\r\n';
+  }
+  function downloadCsv(root) {
+    const name = (String(root._title || '').replace(/\[client\]/ig, '').normalize('NFKD').replace(/[^\w\s-]/g, '').trim().toLowerCase().replace(/[\s_-]+/g, '-').slice(0, 60).replace(/^-|-$/g, '') || 'dashboard') + '-synthetic-data.csv';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\ufeff' + toCsv(root)], { type: 'text/csv;charset=utf-8' })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
 
   /* ---------- export: one self-contained file ---------- */
@@ -869,9 +977,9 @@
 <script>${safe(libs.echarts)}</script>
 <script>${safe(libs.replica)}</script>
 ${Object.keys(libs.maps || {}).map(n => `<script>DSCReplica.addMap(${JSON.stringify(n)},${safe(libs.maps[n])});</script>`).join('\n')}
-<script>window.DSC_SPEC=${safe(JSON.stringify(spec))};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed })});</script>
+<script>window.DSC_SPEC=${JSON.stringify(cleanSpec(spec)).replace(/</g, '\\u003c')};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed })});</script>
 </body></html>`;
   }
 
-  global.DSCReplica = { render, exportHtml, addMap, loadMap, mapsUsed, MAP_LIST, PRODUCT_NAME, PRODUCT_URL };
+  global.DSCReplica = { render, exportHtml, addMap, loadMap, mapsUsed, toCsv, downloadCsv, MAP_LIST, PRODUCT_NAME, PRODUCT_URL };
 })(window);

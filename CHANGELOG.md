@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-10-07
+## [0.5.0] - 2026-10-07
+
+Brings together two lines of work that both started from 0.3.2: the 0.4.0 release (mask-only download, share links, CSV, ink pass) and customer comments.
 
 ### Added
 - **Keep customer comments.** On voice-of-customer, support and review screens, VaultSnip finds quotes and free-text feedback and offers to keep their wording. Names, companies, emails, numbers and IDs inside the comments stay masked; everything else in the screen is masked as before. Off by default; the send dialog says when comments are included.
@@ -15,6 +17,36 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 - 0-10 survey scores are whole numbers. Organisation columns read "Company 01" instead of "Item 01".
 - Extension packages for the Chrome Web Store and Edge Add-ons include the OCR model, so the extension works offline and makes no network request until an approved image is sent.
+- Generic exports and share links never carry comment wording.
+
+### Fixed
+- With comments kept, the new ink pass could read stray numbers on top of comment words and mask them. Such readings are now ignored inside kept comments, and the check does not re-flag kept wording it reads again.
+
+## [0.4.0] - 2026-10-07
+
+From a product-owner, tester and BI review of eight sample screens (`test-samples/`, kept off GitHub).
+
+### Added
+- **Mask-only download.** After the pre-flight check, download the masked screenshot as a PNG. No AI key and no network needed, for forum posts, bug reports and slides. An optional small "masked with VaultSnip" tag is on by default.
+- **Share links.** "Share link" packs the replica into the link itself (`#r=…`, compressed). Nothing is uploaded or stored. The sharer picks what the link keeps: Shape-preserving (labels and chart shapes), Structure-only (labels, no shapes) or Generic (layout only, all text replaced). Whoever opens the link cannot switch to a less private mode, re-sharing cannot widen it, and a hand-edited link is cut back to the level it claims.
+- **Synthetic data download (CSV).** One row per data point (visual, dimension, member, series, value, format), read from what is on screen, so filters and the privacy mode apply. Opens directly in Excel, Power BI, Tableau, Looker Studio and Sheets. Also in the footer of exported and shared replicas.
+- Review screen: Zoom 2×, a keyboard-friendly list of every mask, and a list of words kept as safe that masks any of them in one click.
+- Replica: ratio KPIs ("4.52 / 5"), durations with units ("38 min"), "lower is better" measures (a fall shows green), a second axis for combo charts, box plots that follow the measured boxes, and empty cohort cells that stay empty.
+
+### Fixed
+- **Masking:** numbers could stay readable after the check passed. The reader and the check now add an "ink" pass that isolates text beside coloured bars, on tinted cells and in coloured deltas, keep low-confidence digits, ignore "1111" readings of bars, and mask a whole table column when a number between masked ones was skipped.
+- **Untrusted labels:** chart labels could inject markup into tooltips and exported files. Every label from the AI is now stripped of markup and escaped.
+- **Generic and Structure-only exports** embedded the original titles, labels and shapes in the file's source. Exports now carry only what their mode shows.
+- Typing a name to mask after the check left "Pass" in place; sending is now blocked until the policy is re-applied.
+- "Safe to keep" choices carried over to the next screenshot.
+- A rejected key stayed remembered on the device.
+- Wrong file types used a pop-up; WebP, GIF and BMP screenshots were refused.
+- Exports and downloads are named after the dashboard (never in Generic mode).
+- The header wrapped onto several lines on phones.
+
+### Changed
+- "Preview what is sent" is now "Preview masked image". Nothing can be downloaded or sent until you tick "I have looked over the masked image".
+- Table dates are recent rather than fixed to 2026.
 
 ## [0.3.2] - 2026-10-07
 
@@ -72,7 +104,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.0...v0.3.1
