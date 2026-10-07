@@ -95,7 +95,8 @@
   }
 
   function buildOption(v, ctx) {
-    const { L, mode, r, t, colors, selected } = ctx;
+    const { L, mode, r, t, colors } = ctx;
+    const F = ctx.filter || { sel: () => null, factor: () => 1, dk: x => x };
     const generic = L.generic;
     const meas = v.measure || { name: 'Value', format: 'number' };
     const scale = scaleFor(meas, r);
@@ -103,13 +104,31 @@
     const legend = { top: 0, textStyle: { color: t.muted, fontSize: 11 }, type: 'scroll' };
     const dimName = v.dimension && v.dimension.name || 'Category';
     const membersRaw = (v.dimension && v.dimension.members && v.dimension.members.length) ? v.dimension.members : ['A', 'B', 'C', 'D', 'E'];
-    const members = membersRaw.map((m, i) => L.member(dimName, m, i));
-    const n = members.length;
-    const dimOpacity = m => (selected && members.includes(selected) && m !== selected) ? 0.25 : 1;
-    const seriesList = (v.series && v.series.length) ? v.series : [{ name: meas.name, shape: null }];
+    let members = membersRaw.map((m, i) => L.member(dimName, m, i));
+    let n = members.length;
+    const dimOpacity = () => 1;
+    const dimKey = F.dk(dimName);
+    const rawByLabel = {}; members.forEach((m, i) => { rawByLabel[m] = membersRaw[i]; });
+    let seriesList = (v.series && v.series.length) ? v.series : [{ name: meas.name, shape: null }];
+    const seriesKeys = [];
+    if (seriesList.length > 1 && F.active) F.active.forEach(k => {
+      const selS = F.sel(k) || [];
+      const hit = seriesList.filter(s => selS.includes(s.name));
+      if (hit.length) { seriesList = hit; seriesKeys.push(k); }
+      else if (F.members(k).some(m => seriesList.some(s => s.name === m))) seriesKeys.push(k);
+    });
     const isTrend = ['line', 'area', 'combo'].includes(v.type) || /month|week|day|date|year|quarter|period|time/i.test(dimName);
-    const vals = seriesList.map(s => shapeArray(s.shape, n, mode, r, isTrend ? 'trend' : 'cat').map(x => x / 100 * scale));
-    const base = { color: colors, animationDuration: 300, textStyle: { fontFamily: 'inherit' } };
+    let vals = seriesList.map(s => shapeArray(s.shape, n, mode, r, isTrend ? 'trend' : 'cat').map(x => x / 100 * scale));
+    // cross-filtering: other dimensions' selections scale this visual; its own dimension's selection keeps only chosen members
+    vals = vals.map(a => a.map((x, i) => x * F.factor(v.id, [dimKey].concat(seriesKeys), i)));
+    const filterable = ['bar', 'column', 'histogram', 'line', 'area', 'combo', 'pie', 'donut', 'treemap', 'funnel', 'boxplot'].includes(v.type);
+    const sel = filterable ? F.sel(dimKey) : null;
+    if (sel && sel.length) {
+      const keep = membersRaw.map((m, i) => i).filter(i => sel.includes(membersRaw[i]));
+      if (keep.length) { members = keep.map(i => members[i]); vals = vals.map(a => keep.map(i => a[i])); n = members.length; }
+    }
+    let meta = { pairs: p => (p && p.name != null && rawByLabel[p.name] != null) ? [[dimKey, rawByLabel[p.name]]] : [] };
+    const base = { color: colors, animation: !ctx.quiet, animationDuration: 300, textStyle: { fontFamily: 'inherit' } };
 
     switch (v.type) {
       case 'bar': case 'column': case 'histogram': case 'line': case 'area': case 'combo': {
@@ -130,7 +149,7 @@
           };
         });
         if (v.stackedPercent) series.forEach((s, si) => { s.data = s.data.map((d, i) => { const tot = vals.reduce((a, arr) => a + arr[i], 0); return { value: vals[si][i] / tot * 100, itemStyle: d.itemStyle }; }); });
-        return Object.assign(base, {
+        return Object.assign(base, { _meta: meta,
           tooltip: Object.assign({}, tooltip, { trigger: 'axis' }),
           legend: seriesList.length > 1 ? legend : undefined,
           grid: { left: 8, right: 16, top: seriesList.length > 1 ? 32 : (v.valueLabels ? 24 : 12), bottom: 8, containLabel: true },
@@ -139,14 +158,14 @@
       }
       case 'pie': case 'donut': {
         const data = members.map((m, i) => ({ name: m, value: vals[0][i], itemStyle: { opacity: dimOpacity(m) } }));
-        return Object.assign(base, {
+        return Object.assign(base, { _meta: meta,
           tooltip: Object.assign({}, tooltip, { formatter: p => `${p.name}<br><b>${fmt(p.value, meas, generic)}</b> · ${p.percent}%` }),
           legend: Object.assign({}, legend, { bottom: 0, top: 'auto' }),
           series: [{ type: 'pie', radius: v.type === 'donut' ? ['48%', '72%'] : [0, '72%'], center: ['50%', '45%'], itemStyle: { borderColor: t.surface, borderWidth: 2 }, label: { color: t.ink, fontSize: 11, formatter: '{d}%' }, data }]
         });
       }
       case 'treemap': {
-        return Object.assign(base, {
+        return Object.assign(base, { _meta: meta,
           tooltip,
           series: [{ type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false }, width: '100%', height: '100%', top: 0, left: 0,
             label: { color: '#fff', fontSize: 11, formatter: p => `${p.name}\n${fmt(p.value, meas, generic)}` }, itemStyle: { borderColor: t.surface, borderWidth: 2, gapWidth: 2 },
@@ -155,7 +174,7 @@
       }
       case 'funnel': {
         const sorted = vals[0].slice().sort((a, b) => b - a);
-        return Object.assign(base, {
+        return Object.assign(base, { _meta: meta,
           tooltip,
           series: [{ type: 'funnel', sort: 'none', left: '8%', width: '84%', top: 8, bottom: 8, gap: 2, label: { color: t.ink, fontSize: 11, position: 'inside', formatter: p => `${p.name}  ${fmt(p.value, meas, generic)}` },
             itemStyle: { borderColor: t.surface }, data: members.map((m, i) => ({ name: m, value: mode === 'shape' ? vals[0][i] : sorted[i] })) }]
@@ -165,12 +184,12 @@
         const shape = (seriesList[0].shape && seriesList[0].shape.length === n && mode === 'shape') ? seriesList[0].shape : members.map((_, i) => i === 0 ? 100 : (i === n - 1 ? 0 : (r() - 0.6) * 40));
         let run = 0; const helper = [], up = [], down = [];
         shape.forEach((sv, i) => {
-          const x = Number(sv) / 100 * scale * (0.96 + r() * 0.08);
+          const x = Number(sv) / 100 * scale * (0.96 + r() * 0.08) * F.factor(v.id, [dimKey], i);
           if (i === n - 1 && v.lastIsTotal !== false) { helper.push(0); up.push(run); down.push('-'); return; }
           if (i === 0 || x >= 0) { helper.push(run); up.push(Math.abs(x)); down.push('-'); run += Math.abs(x); }
           else { run += x; helper.push(run); up.push('-'); down.push(-x); }
         });
-        return Object.assign(base, {
+        return Object.assign(base, { _meta: meta,
           tooltip: Object.assign({}, tooltip, { trigger: 'axis', formatter: ps => { const p = ps.find(q => q.seriesIndex > 0 && q.value !== '-'); return p ? `${p.name}<br><b>${(p.seriesIndex === 2 ? '−' : '')}${fmt(p.value, meas, generic)}</b>` : ''; } }),
           grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: members }),
@@ -186,23 +205,32 @@
         const xM = v.xMeasure || { name: 'X', format: 'number' }, yM = v.yMeasure || meas;
         const xs = scaleFor(xM, r), ys = scaleFor(yM, r), ss = 1;
         const pts = (mode === 'shape' && Array.isArray(v.points) && v.points.length) ? v.points : Array.from({ length: v.pointCount || 24 }, () => [r() * 100, r() * 100, 20 + r() * 80]);
-        const data = pts.map(p => [p[0] / 100 * xs * (0.97 + r() * 0.06), p[1] / 100 * ys * (0.97 + r() * 0.06), (p[2] || 40) * ss]);
-        return Object.assign(base, {
-          tooltip: Object.assign({}, tooltip, { formatter: p => `${L.meas(xM.name)}: <b>${fmt(p.value[0], xM, generic)}</b><br>${L.meas(yM.name)}: <b>${fmt(p.value[1], yM, generic)}</b>` }),
+        const ptKey = F.dk('point · ' + (v.title || v.id));
+        const fk = F.factor(v.id, [ptKey], 0); const keepN = Math.max(3, Math.ceil(pts.length * Math.min(1, fk * 1.15)));
+        let data = pts.slice(0, keepN).map((p, i) => ({ name: (v.pointLabel || 'Point') + ' ' + (i + 1), value: [p[0] / 100 * xs * (0.97 + r() * 0.06) * (0.9 + 0.2 * fk), p[1] / 100 * ys * (0.97 + r() * 0.06), (p[2] || 40) * ss] }));
+        const psel = F.sel(ptKey); if (psel && psel.length) data = data.filter(d => psel.includes(d.name));
+        meta = { pairs: p => p && p.name ? [[ptKey, p.name]] : [] };
+        return Object.assign(base, { _meta: meta,
+          tooltip: Object.assign({}, tooltip, { formatter: p => `${p.name}<br>${L.meas(xM.name)}: <b>${fmt(p.value[0], xM, generic)}</b><br>${L.meas(yM.name)}: <b>${fmt(p.value[1], yM, generic)}</b>` }),
           grid: { left: 8, right: 20, top: 24, bottom: 8, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'value', scale: true, name: L.meas(xM.name), nameLocation: 'middle', nameGap: 26, axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, xM, generic) } }),
           yAxis: Object.assign(axisBase(t), { type: 'value', scale: true, name: L.meas(yM.name), axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, yM, generic) } }),
-          series: [{ type: 'scatter', data, symbolSize: d => v.type === 'bubble' ? 6 + Math.sqrt(d[2]) * 3.2 : 9, itemStyle: { color: colors[0], opacity: 0.75, borderColor: t.surface, borderWidth: 1 } }]
+          series: [{ type: 'scatter', data, symbolSize: d => v.type === 'bubble' ? 6 + Math.sqrt(d[2]) * 3.2 : 10, itemStyle: { color: colors[0], opacity: 0.75, borderColor: t.surface, borderWidth: 1 } }]
         });
       }
       case 'heatmap': {
         const rowsD = v.rows || { name: 'Row', members: ['R1', 'R2', 'R3', 'R4'] };
         const colsD = v.columns || { name: 'Column', members: ['C1', 'C2', 'C3', 'C4', 'C5'] };
-        const rm = rowsD.members.map((m, i) => L.member(rowsD.name, m, i)), cm = colsD.members.map((m, i) => L.member(colsD.name, m, i));
-        const grid = (mode === 'shape' && Array.isArray(v.matrix) && v.matrix.length === rm.length) ? v.matrix : rm.map(() => cm.map(() => r() * 100));
+        const rk = F.dk(rowsD.name), ck = F.dk(colsD.name);
+        const fullGrid = (mode === 'shape' && Array.isArray(v.matrix) && v.matrix.length === rowsD.members.length) ? v.matrix : rowsD.members.map(() => colsD.members.map(() => r() * 100));
+        const rs = F.sel(rk), cs = F.sel(ck);
+        const rIdx = rowsD.members.map((m, i) => i).filter(i => !(rs && rs.length) || rs.includes(rowsD.members[i]));
+        const cIdx = colsD.members.map((m, i) => i).filter(i => !(cs && cs.length) || cs.includes(colsD.members[i]));
+        const rm = rIdx.map(i => L.member(rowsD.name, rowsD.members[i], i)), cm = cIdx.map(i => L.member(colsD.name, colsD.members[i], i));
         const data = []; let mx = 0;
-        rm.forEach((_, ri) => cm.forEach((_, ci) => { const val = (Number((grid[ri] || [])[ci]) || 0) / 100 * scale * (0.95 + r() * 0.1); mx = Math.max(mx, val); data.push([ci, ri, val]); }));
-        return Object.assign(base, {
+        rIdx.forEach((ri, a) => cIdx.forEach((ci, b) => { const val = (Number((fullGrid[ri] || [])[ci]) || 0) / 100 * scale * (0.95 + r() * 0.1) * F.factor(v.id, [rk, ck], ri * 31 + ci); mx = Math.max(mx, val); data.push([b, a, val]); }));
+        meta = { pairs: p => p && p.value ? [[rk, rowsD.members[rIdx[p.value[1]]]], [ck, colsD.members[cIdx[p.value[0]]]]] : [] };
+        return Object.assign(base, { _meta: meta,
           tooltip: Object.assign({}, tooltip, { formatter: p => `${rm[p.value[1]]} · ${cm[p.value[0]]}<br><b>${fmt(p.value[2], meas, generic)}</b>` }),
           grid: { left: 8, right: 8, top: 8, bottom: 44, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: cm, splitArea: { show: false } }),
@@ -212,16 +240,17 @@
         });
       }
       case 'gauge': {
-        const pct = mode === 'shape' && typeof v.shapeValue === 'number' ? v.shapeValue * (0.97 + r() * 0.06) : 30 + r() * 65;
-        return Object.assign(base, {
+        const pct0 = mode === 'shape' && typeof v.shapeValue === 'number' ? v.shapeValue * (0.97 + r() * 0.06) : 30 + r() * 65;
+        const pct = F.key ? Math.max(3, Math.min(100, pct0 * (0.8 + 0.4 * rng(hashStr(v.id + '|' + F.key))()))) : pct0;
+        return Object.assign(base, { _meta: meta,
           series: [{ type: 'gauge', min: 0, max: 100, progress: { show: true, width: 14, itemStyle: { color: colors[0] } }, axisLine: { lineStyle: { width: 14, color: [[1, t.grid]] } },
             axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false }, pointer: { show: false }, anchor: { show: false },
             title: { show: false }, detail: { valueAnimation: true, fontSize: 26, fontWeight: 700, color: t.ink, offsetCenter: [0, '10%'], formatter: x => x.toFixed(0) + (generic ? '' : '%') }, data: [{ value: pct }] }]
         });
       }
       case 'boxplot': {
-        const data = members.map(() => { const q = [r() * 20, 20 + r() * 20, 40 + r() * 20, 60 + r() * 20, 80 + r() * 20].map(x => x / 100 * scale); return q; });
-        return Object.assign(base, {
+        const data = members.map((m, i) => { const f = F.factor(v.id, [dimKey], i); const q = [r() * 20, 20 + r() * 20, 40 + r() * 20, 60 + r() * 20, 80 + r() * 20].map(x => x / 100 * scale * (0.7 + 0.3 * f)); return q; });
+        return Object.assign(base, { _meta: meta,
           tooltip, grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: members }),
           yAxis: Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } }),
@@ -229,11 +258,16 @@
         });
       }
       case 'sankey': {
-        const nodes = (v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y']).map((nm, i) => L.member('Node', nm, i));
+        const rawNodes = v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y'];
+        const nk = F.dk('node · ' + (v.title || v.id));
+        const nodes = rawNodes.map((nm, i) => L.member('Node', nm, i));
+        const nodeRaw = {}; nodes.forEach((nm, i) => { nodeRaw[nm] = rawNodes[i]; });
+        const nsel = F.sel(nk);
+        meta = { pairs: p => p && p.dataType === 'node' ? [[nk, nodeRaw[p.name]]] : [] };
         const links = (v.links && v.links.length ? v.links : [{ source: 0, target: 2 }, { source: 1, target: 2 }, { source: 2, target: 3 }, { source: 2, target: 4 }])
-          .map(l => ({ source: nodes[typeof l.source === 'number' ? l.source : (v.nodes || []).indexOf(l.source)], target: nodes[typeof l.target === 'number' ? l.target : (v.nodes || []).indexOf(l.target)], value: ((mode === 'shape' && l.shape) ? l.shape : 20 + r() * 80) / 100 * scale }))
-          .filter(l => l.source && l.target);
-        return Object.assign(base, { tooltip, series: [{ type: 'sankey', left: 8, right: 90, top: 8, bottom: 8, data: nodes.map(nm => ({ name: nm })), links, lineStyle: { color: 'gradient', opacity: 0.35 }, label: { color: t.ink, fontSize: 11 } }] });
+          .map(l => ({ source: nodes[typeof l.source === 'number' ? l.source : (v.nodes || []).indexOf(l.source)], target: nodes[typeof l.target === 'number' ? l.target : (v.nodes || []).indexOf(l.target)], value: ((mode === 'shape' && l.shape) ? l.shape : 20 + r() * 80) / 100 * scale * F.factor(v.id, [nk], 0) }))
+          .filter(l => l.source && l.target && (!(nsel && nsel.length) || nsel.includes(nodeRaw[l.source]) || nsel.includes(nodeRaw[l.target])));
+        return Object.assign(base, { _meta: meta, tooltip, series: [{ type: 'sankey', left: 8, right: 90, top: 8, bottom: 8, data: nodes.filter(nm => links.some(l => l.source === nm || l.target === nm)).map(nm => ({ name: nm })), links, lineStyle: { color: 'gradient', opacity: 0.35 }, label: { color: t.ink, fontSize: 11 } }] });
       }
       default: return null;
     }
@@ -273,6 +307,9 @@
 .rp-table th,.rp-table td{padding:6px 8px;border-bottom:1px solid var(--rp-line);text-align:left;white-space:nowrap}
 .rp-table th{background:var(--rp-bg);font-weight:600}
 .rp-table td.n{text-align:right;font-variant-numeric:tabular-nums}
+.rp-row{cursor:pointer}.rp-row:hover td{background:var(--rp-bg)}
+.rp-pill{background:#e8f1fb;border-color:#2a78d6;color:#14181e}
+.rp-clear{border-style:dashed}
 .rp-ph{display:grid;place-items:center;height:var(--h,200px);border:1px dashed var(--rp-line);border-radius:6px;color:var(--rp-muted);font-size:12.5px;text-align:center;padding:12px}
 .rp-text{color:var(--rp-muted);font-size:13px}
 .rp-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;padding:10px 18px;border-top:1px solid var(--rp-line);font-size:11.5px;color:var(--rp-muted);background:var(--rp-surface);position:relative;z-index:21}
@@ -291,24 +328,81 @@
     if (!document.getElementById('rp-style')) { const st = document.createElement('style'); st.id = 'rp-style'; st.textContent = CSS; document.head.appendChild(st); }
     (root._charts || []).forEach(c => c.dispose());
     root._charts = [];
-    const state = root._state = root._state || { selected: null };
-    if (opts.resetSelection) state.selected = null;
+    const state = root._state = root._state || { filters: {} };
+    if (opts.resetSelection) state.filters = {};
+    const reopts = Object.assign({}, opts, { resetSelection: false, _quiet: true });
     const colors = [(spec.theme && spec.theme.primary) || PALETTE[0], (spec.theme && spec.theme.secondary) || PALETTE[1]].concat(PALETTE.slice(2));
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     const visuals = [];
     (spec.rows || []).forEach(row => (row.visuals || []).forEach(v => visuals.push(Object.assign({ _h: row.height }, v))));
 
-    // filters: members shown as chips that highlight across visuals
-    const filterHtml = (spec.filters || []).filter(f => f.members && f.members.length).map((f, fi) =>
-      `<span class="lbl">${esc(L.dim(f.label))}</span>` + f.members.map((m, i) => { const lab = L.member(f.label, m, i); return `<button type="button" class="rp-chip" data-sel="${esc(lab)}" aria-pressed="${state.selected === lab}">${esc(lab)}</button>`; }).join('')
-    ).join('');
+    // ---- filter model: each member of a dimension owns a share of the total; selecting members
+    // keeps only those members in visuals on that dimension and scales every other visual by their share
+    const dk = x => String(x || '').trim().toLowerCase();
+    const shares = {};
+    const setShares = (name, list, shape) => {
+      const k = dk(name); if (shares[k] || !list || !list.length) return;
+      const rr = rng(seed ^ hashStr('share|' + k));
+      const arr = (mode === 'shape' && shape && shape.length === list.length) ? shape.map(x => Math.max(0.5, Math.abs(+x) || 0)) : list.map(() => 15 + rr() * 85);
+      const tot = arr.reduce((a, b) => a + b, 0); shares[k] = {}; list.forEach((m, i) => { shares[k][m] = arr[i] / tot; });
+    };
+    visuals.forEach(v => { if (v.dimension) setShares(v.dimension.name, v.dimension.members, v.series && v.series[0] && v.series[0].shape); });
+    (spec.filters || []).forEach(f => setShares(f.label, f.members));
+    visuals.forEach(v => (Array.isArray(v.columns) ? v.columns : []).forEach(c => { if (c.kind === 'category') setShares(c.name, c.members); }));
+    visuals.forEach(v => {
+      if (v.type === 'heatmap' && v.rows && v.columns) {
+        const m = Array.isArray(v.matrix) ? v.matrix : null;
+        setShares(v.rows.name, v.rows.members, m && m.length === v.rows.members.length ? m.map(row => row.reduce((a, b) => a + (+b || 0), 0)) : null);
+        setShares(v.columns.name, v.columns.members, m && m[0] && m[0].length === v.columns.members.length ? v.columns.members.map((_, ci) => m.reduce((a, row) => a + (+row[ci] || 0), 0)) : null);
+      }
+      if (v.type === 'scatter' || v.type === 'bubble') { const n = (v.points && v.points.length) || v.pointCount || 24; setShares('point · ' + (v.title || v.id), Array.from({ length: n }, (_, i) => (v.pointLabel || 'Point') + ' ' + (i + 1))); }
+      if (v.type === 'sankey') setShares('node · ' + (v.title || v.id), v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y']);
+    });
+    Object.keys(state.filters).forEach(k => { if (!state.filters[k] || !state.filters[k].length) delete state.filters[k]; });
+    const active = Object.keys(state.filters);
+    const F = {
+      active: Object.keys(state.filters).filter(k => state.filters[k] && state.filters[k].length),
+      members: k => Object.keys(shares[k] || {}),
+      dk, key: Object.keys(state.filters).filter(k => state.filters[k] && state.filters[k].length).sort().map(k => k + '=' + state.filters[k].join(',')).join(';'),
+      sel: k => state.filters[k] || null,
+      factor(vid, ownKeys, i) {
+        let f = 1;
+        active.forEach(k => {
+          if (ownKeys.includes(k)) return;
+          const sh = shares[k] || {};
+          const part = state.filters[k].reduce((a, m) => a + (sh[m] || 0), 0) || 0.1;
+          const rr = rng(hashStr(vid + '|' + k + '|' + state.filters[k].join(',') + '|' + i));
+          f *= Math.min(1, part * (0.85 + 0.3 * rr()));
+        });
+        return f;
+      }
+    };
+    const toggleMany = pairs => {
+      pairs.forEach(([k, raw]) => {
+        if (!k || raw == null) return;
+        const cur = state.filters[k] ? state.filters[k].slice() : [];
+        const at = cur.indexOf(raw); if (at >= 0) cur.splice(at, 1); else cur.push(raw);
+        state.filters[k] = cur;
+      });
+      render(root, spec, reopts);
+    };
+    const toggle = (k, raw) => toggleMany([[k, raw]]);
+    root._toggle = toggleMany;
+    const filterHtml = (spec.filters || []).filter(f => f.members && f.members.length).map(f => {
+      const k = dk(f.label), on = state.filters[k] || [];
+      return `<span class="lbl">${esc(L.dim(f.label))}</span>` + f.members.map((m, i) => `<button type="button" class="rp-chip" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="${on.includes(m)}">${esc(L.member(f.label, m, i))}</button>`).join('');
+    }).join('');
+    const chipDims = (spec.filters || []).map(f => dk(f.label));
+    const pills = active.filter(k => !chipDims.includes(k)).map(k => state.filters[k].map(m => `<button type="button" class="rp-chip rp-pill" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="true" title="Remove this filter">${esc(L.generic ? 'Filter' : k)}: ${esc(L.generic ? '•' : m)} ✕</button>`).join('')).join('');
+    const filterBar = filterHtml + pills + (active.length ? `<button type="button" class="rp-chip rp-clear">Clear all filters</button>` : '');
+    const activeNote = active.length ? `<span>Filtered: ${active.map(k => esc(k) + ' (' + state.filters[k].length + ')').join(', ')}</span>` : '';
 
     root.className = 'rp';
     root.innerHTML = `
       <div class="rp-head"><h2>${esc(L.generic ? 'Dashboard 1' : (spec.title || 'Dashboard'))}</h2><span>${esc(L.generic ? '' : (spec.subtitle || ''))}</span></div>
-      <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span></div>
-      ${filterHtml ? `<div class="rp-filters">${filterHtml}</div>` : ''}
+      <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span>${activeNote}</div>
+      ${filterBar ? `<div class="rp-filters">${filterBar}</div>` : ''}
       <div class="rp-grid"></div>
       <div class="rp-foot"><span>Synthetic replica · no source values included</span><a href="${PRODUCT_URL}?ref=export" target="_blank" rel="noopener">${FOOTER_TEXT}</a></div>`;
     root.setAttribute('data-synthetic', 'true');
@@ -328,9 +422,11 @@
 
       if (v.type === 'kpi') {
         const meas = v.measure || { name: v.title || 'Value', format: 'number' };
-        const val = meas.format === 'percent' ? (mode === 'shape' && typeof v.shapeValue === 'number' ? v.shapeValue : 15 + r() * 60) : scaleFor(meas, r) * (meas.scaleHint ? 0.7 + r() * 0.3 : 3 + r() * 4);
-        const d = (r() - 0.35) * 20; const up = d >= 0;
-        const spark = v.sparkline ? (() => { const a = shapeArray(v.sparkShape, 12, mode, r, 'trend'); const mx = Math.max(...a), mn = Math.min(...a); return `<svg viewBox="0 0 120 28" preserveAspectRatio="none"><polyline fill="none" stroke="${colors[0]}" stroke-width="1.5" points="${a.map((x, i) => `${i * 120 / 11},${26 - (x - mn) / (mx - mn || 1) * 24}`).join(' ')}"/></svg>`; })() : '';
+        const fk = F.factor(v.id, [], 0);
+        const base = meas.format === 'percent' ? (mode === 'shape' && typeof v.shapeValue === 'number' ? v.shapeValue : 15 + r() * 60) : scaleFor(meas, r) * (meas.scaleHint ? 0.7 + r() * 0.3 : 3 + r() * 4);
+        const val = meas.format === 'percent' ? Math.max(0, Math.min(100, base + (active.length ? (rng(hashStr(v.id + '|' + active.map(k => state.filters[k].join(',')).join(';')))() - 0.5) * 8 : 0))) : base * fk;
+        const d0 = (r() - 0.35) * 20; const d = F.key ? (rng(hashStr(v.id + '|d|' + F.key))() - 0.4) * 22 : d0; const up = d >= 0;
+        const spark = v.sparkline ? (() => { const a = shapeArray(v.sparkShape, 12, mode, F.key ? rng(hashStr(v.id + '|s|' + F.key)) : r, 'trend'); const mx = Math.max(...a), mn = Math.min(...a); return `<svg viewBox="0 0 120 28" preserveAspectRatio="none"><polyline fill="none" stroke="${colors[0]}" stroke-width="1.5" points="${a.map((x, i) => `${i * 120 / 11},${26 - (x - mn) / (mx - mn || 1) * 24}`).join(' ')}"/></svg>`; })() : '';
         card.classList.add('rp-kpi');
         card.innerHTML = `<div class="k">${esc(L.meas(v.title || meas.name))}</div><div class="v">${fmt(val, meas, L.generic)}</div>${v.delta === false ? '' : `<div class="d ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}${meas.format === 'percent' ? ' pts' : '%'} vs prior</div>`}${spark}`;
         return;
@@ -338,21 +434,26 @@
       if (v.type === 'table') {
         const cols = (v.columns && v.columns.length) ? v.columns : [{ name: 'Item', kind: 'text' }, { name: 'Value', kind: 'number' }];
         const nRows = Math.min(v.rowCount || 5, 25);
+        const catCols = cols.filter(c => c.kind === 'category' && c.members && c.members.length);
+        const ownKeys = catCols.map(c => dk(c.name));
+        const tf = F.factor(v.id, ownKeys, 0);
+        const pick = (c, ri) => { const k = dk(c.name), allowed = state.filters[k] && state.filters[k].length ? c.members.filter(m => state.filters[k].includes(m)) : c.members; const pool = allowed.length ? allowed : c.members; return pool[Math.floor(rng(hashStr(v.id + '|' + c.name + '|' + ri + '|' + pool.join(',')))() * pool.length)]; };
         const mScale = scaleFor({ format: 'currency' }, r);
         const ids = Array.from({ length: nRows }, () => Math.floor(r() * 65536).toString(16).toUpperCase().padStart(4, '0'));
         const desc = Array.from({ length: nRows }, () => r()).sort((a, b) => b - a);
-        const rowsHtml = Array.from({ length: nRows }, (_, ri) => '<tr>' + cols.map((c, ci) => {
+        const rowCat = catCols[0];
+        const rowsHtml = Array.from({ length: nRows }, (_, ri) => (rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(pick(rowCat, ri))}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
           const k = c.kind || 'text';
           const cats = c.members && c.members.length ? c.members : null;
           let cell;
           if (k === 'person') cell = (L.generic ? 'Owner ' : 'Person ') + (1 + ((ri * 7 + ci) % 9));
           else if (k === 'org' || k === 'text') cell = (L.generic ? 'Entity ' : (c.placeholder || 'Item') + ' ') + String(ri + 1).padStart(2, '0');
           else if (k === 'id') cell = (L.generic ? 'ID-' : 'TKN-') + ids[ri];
-          else if (k === 'category') cell = cats ? L.member(c.name, cats[Math.floor(r() * cats.length)], cats.indexOf(cats[0])) : 'Group ' + 'ABC'[Math.floor(r() * 3)];
+          else if (k === 'category') { if (cats) { const m = pick(c, ri); cell = L.member(c.name, m, cats.indexOf(m)); } else cell = 'Group ' + 'ABC'[Math.floor(r() * 3)]; }
           else if (k === 'date') cell = '2026-' + String(1 + Math.floor(r() * 12)).padStart(2, '0') + '-' + String(1 + Math.floor(r() * 28)).padStart(2, '0');
           else if (k === 'percent') cell = (r() * 100).toFixed(1) + (L.generic ? '' : '%');
-          else if (k === 'currency') cell = fmt(desc[ri] * mScale, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic);
-          else cell = abbr((v.sorted ? desc[ri] : r()) * mScale);
+          else if (k === 'currency') cell = fmt(desc[ri] * mScale * tf, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic);
+          else cell = abbr((v.sorted ? desc[ri] : r()) * mScale * tf);
           const num = ['number', 'currency', 'percent'].includes(k);
           return `<td class="${num ? 'n' : ''}">${esc(cell)}</td>`;
         }).join('') + '</tr>').join('');
@@ -360,7 +461,7 @@
         return;
       }
       if (v.type === 'text') { card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(L.generic ? 'Text block' : (v.content || 'Text block (content masked)'))}</p>`); return; }
-      const opt = buildOption(v, { L, mode, r, t, colors, selected: state.selected });
+      const opt = buildOption(v, { L, mode, r, t, colors, filter: F, quiet: !!opts._quiet });
       if (!opt) {
         card.insertAdjacentHTML('beforeend', `<div class="rp-ph" style="--h:${h}px">${esc(v.type === 'map' ? 'Map visual recognised. Map rendering arrives in the next release.' : 'Visual type "' + (v.originalType || v.type) + '" recognised; shown as a placeholder.')}</div>`);
         return;
@@ -369,12 +470,14 @@
       el.className = 'rp-chart'; el.style.setProperty('--h', h + 'px');
       card.appendChild(el);
       const chart = global.echarts.init(el, null, { renderer: 'svg' });
-      chart.setOption(opt);
-      chart.on('click', p => { if (!p.name) return; state.selected = state.selected === p.name ? null : p.name; render(root, spec, opts); });
+      chart.setOption(Object.assign({}, opt, { _meta: undefined }));
+      const meta = opt._meta; delete opt._meta;
+      if (meta && meta.pairs) chart.on('click', p => { const pairs = meta.pairs(p).filter(x => x[0] && x[1] != null); if (pairs.length) toggleMany(pairs); });
       root._charts.push(chart);
     });
 
-    root.querySelectorAll('.rp-chip').forEach(b => b.addEventListener('click', () => { const s = b.getAttribute('data-sel'); state.selected = state.selected === s ? null : s; render(root, spec, opts); }));
+    root.querySelectorAll('.rp-chip[data-dim], .rp-row').forEach(b => b.addEventListener('click', () => toggle(b.getAttribute('data-dim'), b.getAttribute('data-raw'))));
+    const clr = root.querySelector('.rp-clear'); if (clr) clr.addEventListener('click', () => { state.filters = {}; render(root, spec, reopts); });
     if (!root._ro && global.ResizeObserver) { root._ro = new ResizeObserver(() => (root._charts || []).forEach(c => c.resize())); root._ro.observe(root); }
   }
 
