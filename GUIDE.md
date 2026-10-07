@@ -104,7 +104,7 @@ Check: the first run shows "Loading the on-device text reader (first run only)",
 ### 6b. Publish to the Chrome Web Store
 1. Register at https://chrome.google.com/webstore/devconsole (one-time registration fee, US$5 at the time of writing; check the current amount there).
 2. **New item** → upload `dist/vaultsnip-extension.zip`.
-3. Fill in the listing (copy-paste text below), upload the 128 px icon (`web/icons/icon128.png`) and at least one 1280×800 screenshot (`docs/store/`).
+3. Fill in the listing (copy-paste text below), upload the 128 px icon (`web/icons/icon128.png`) and at least one 1280×800 screenshot (from `vaultsnip-docs-backup.zip` → `docs/store/`; the docs folder is kept off GitHub).
 4. **Privacy practices** tab:
    - Single purpose: *Converts a screenshot of the current tab into a redacted, interactive replica.*
    - `activeTab` justification: *Captures the visible tab only when the user clicks the toolbar icon, so they can choose the area to convert.*
@@ -140,7 +140,7 @@ Check: the first run shows "Loading the on-device text reader (first run only)",
 Check: the Space page shows the VaultSnip app and the sample demo runs.
 
 ## Step 8. Blog post and launch
-1. `docs/blog-launch.md` is your launch post. Paste it into the blog editor on karthik.datagunner.com; upload the images from `docs/images/` where the post marks them.
+1. The launch post and its images are in `vaultsnip-docs-backup.zip` (`docs/blog-launch.md`, `docs/images/`), kept off GitHub. Paste the post into the blog editor on karthik.datagunner.com and upload the images where the post marks them.
 2. Replace the `[link]` placeholders with your Cloudflare, store, Space and GitHub links.
 3. Share on LinkedIn with a 20–30 second screen recording: snip → boxes → Blocked → mask → replica → export.
 
