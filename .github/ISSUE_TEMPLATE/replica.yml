@@ -39,17 +39,12 @@ body:
       placeholder: "0.2.0"
     validations:
       required: true
-  - type: dropdown
+  - type: input
     id: channel
     attributes:
       label: Where were you using it?
-      options:
-        - Web app
-        - Chrome extension
-        - Edge extension
-        - Hugging Face Space
-        - Local copy
-        - Exported replica file
+      description: Web app, Chrome extension, Edge extension, Hugging Face Space, local copy or an exported replica file
+      placeholder: Web app
   - type: input
     id: browser
     attributes:
