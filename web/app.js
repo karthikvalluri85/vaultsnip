@@ -173,17 +173,20 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   function prep(src, scale, kind) {
     const c = document.createElement('canvas');
     c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
-    const x = c.getContext('2d', { willReadFrequently: kind === 'ink' });
+    const pixels = kind === 'ink' || kind === 'delta';
+    const x = c.getContext('2d', { willReadFrequently: pixels });
     x.imageSmoothingQuality = 'high';
-    x.filter = kind === 'ink' ? 'none' : (FILTERS[kind] || FILTERS.normal);
+    x.filter = pixels ? 'none' : (FILTERS[kind] || FILTERS.normal);
     x.drawImage(src, 0, 0, c.width, c.height);
-    if (kind === 'ink') inkOnly(x, c.width, c.height);
+    if (pixels) inkOnly(x, c.width, c.height, kind);
     return c;
   }
   // "ink": keeps only text-coloured pixels and draws them black on white. Text is grey, black, white or a
   // muted green/red; bars, tracks, pills and map fills are saturated or pale. This is what makes a label
   // right beside a coloured bar, or a delta under a KPI, readable when the other passes miss it.
-  function inkOnly(x, w, h) {
+  // "delta": keeps only green and red text, the colours of KPI changes ("▲ 1.2 pts"), which on dark themes are
+  // too dim and too colourful for every other pass.
+  function inkOnly(x, w, h, kind) {
     const im = x.getImageData(0, 0, w, h), d = im.data;
     let sum = 0, n = 0;
     const magenta = (r, g, b) => r > 200 && b > 200 && g < 70;   // the re-scan's mask colour: background, never ink
@@ -192,7 +195,9 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], b = d[i + 2], lum = (r + g + b) / 3, chroma = Math.max(r, g, b) - Math.min(r, g, b);
       if (magenta(r, g, b)) { d[i] = d[i + 1] = d[i + 2] = 255; continue; }
-      const ink = darkBg ? (lum > 105 && chroma < 140) : (lum < 140 && chroma < 130);
+      // on dark backgrounds text is bright in at least one channel (white, or a green/red delta)
+      const ink = kind === 'delta' ? ((g > r + 35 && g > b + 15 && g > 80) || (r > g + 50 && r > b + 40 && r > 110))
+        : darkBg ? (Math.max(r, g, b) > 120 && chroma < 150) : (lum < 140 && chroma < 130);
       d[i] = d[i + 1] = d[i + 2] = ink ? 0 : 255;
     }
     x.putImageData(im, 0, 0);
@@ -220,7 +225,8 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     let all = [];
     for (const [scale, kind, own] of passes) {
       const got = await ocr(own || src, scale, kind);
-      all = all.concat(got.filter(w => !all.some(v => overlap(v, w) > 0.3)));
+      // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
+      all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
     }
     return plausible(all);
   }
@@ -318,14 +324,14 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   /* ---------------- verification gate (independent re-scan) ---------------- */
   async function verify() {
     S.gate = 'running'; renderGate();
-    setStatus('Checking the masked image again (five independent passes)…', true);
+    setStatus('Checking the masked image again (six independent passes)…', true);
     // numbers masked after an earlier check (score badges, single digits) can complete a table column too
     const numeric = S.masks.filter(m => m.on && (m.type === 'Number or money' || (m.type === 'Added after check' && /\d/.test(m.text || ''))) && m.text !== '(table column)');
     const extra = columnFill(numeric.map(m => Object.assign({}, m, { type: 'Number or money' })))
       .filter(f => !S.masks.some(m => m.on && m.x <= f.x + 1 && m.y <= f.y + 1 && m.x + m.w >= f.x + f.w - 1 && m.y + m.h >= f.y + f.h - 1));
     if (extra.length) { S.masks.push(...extra); renderTypes(); draw(); }
     const m2 = maskedCanvas(1);
-    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')]]);
+    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')], [2, 'delta']]);
     const active = S.masks.filter(m => m.on);
     const flags = [];
     all.forEach(w => {
@@ -815,5 +821,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { classify, plausible, columnFill };
+  S.test = { classify, plausible, columnFill, ocr, prep };
 })();
