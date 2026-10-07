@@ -47,6 +47,10 @@ Both run automatically on every pull request.
 - Keep files self-contained: `replica.js` must work inside an offline exported file.
 - Commit messages: short imperative summary line, e.g. `Maps: match UK and United Kingdom`.
 
+## Upgrading vendored libraries
+
+`web/lib` holds copies of tesseract.js and Apache ECharts, so the app needs no build step. To upgrade one, update `package.json`, run `npm install`, copy the new files into `web/lib`, and run `npm run e2e`. Dependabot is told not to propose these upgrades for that reason.
+
 ## Releasing (maintainer)
 
 1. Update the version in `package.json`, `extension/manifest.json` and `web/feedback.js` (`npm run check` verifies they match).

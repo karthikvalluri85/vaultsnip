@@ -9,3 +9,9 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    ignore:
+      # Vendored into web/lib and upgraded by hand, because a new OCR engine or chart
+      # library must be re-tested against the masking and replica checks first.
+      - dependency-name: "tesseract.js"
+      - dependency-name: "@tesseract.js-data/*"
+      - dependency-name: "echarts"
