@@ -109,6 +109,15 @@ operations ops finance hr legal marketing technology engineering it procurement 
 cash flow ebitda ebit opex capex cogs arr mrr ltv cac nps csat headcount fte hiring attrition
 filter filters select selected show hide all none more less other others yes no n/a na unknown
 as of data source sources updated last refreshed prepared confidential internal only use
+crash crashes free install installs uninstalls download downloads rating ratings review reviews release releases version versions build builds device devices
+app apps android ios web mobile desktop tablet platform platforms browser health quality issue issues cluster clusters error errors uptime latency usage
+daily weekly stickiness adoption feature features cohort cohorts signup signups trial trials paid activation activated retained engagement engaged
+flow flows first response responses resolution resolved solved handle handling tier tiers agent agents leaderboard queue queues reason reasons contact contacts volume
+score scores distribution promoter promoters passive passives detractor detractors survey surveys theme themes comment comments verbatim verbatims voice feedback
+pricing price prices model models seat seats discount discounts scenario scenarios assumption assumptions list scope roadmap
+sprint sprints story stories points velocity burndown committed completed carry over bug bugs task tasks spike done blocked progress todo epic epics
+experiment experiments variant variants control treatment lift interval significant significance confidence
+median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second sec secs ms
 `).split(/\s+/).filter(Boolean));
 
   const TYPES = {
@@ -130,7 +139,7 @@ as of data source sources updated last refreshed prepared confidential internal 
     if (!clean) return null;
     const low = clean.toLowerCase();
     if (clientNames().some(n => n && (low.includes(n) || n.split(/\s+/).includes(low)))) return 'Client name';
-    if (/@/.test(raw) && /\./.test(raw)) return 'Email';
+    if (/\w@\w/.test(raw) || (/@/.test(raw) && /\./.test(raw))) return 'Email';
     if (/^(19|20)\d{2}$/.test(clean) || /^(q[1-4]|h[12]|fy\d{2,4}|w\d{1,2}|p\d{1,2})$/i.test(clean)) return null;
     if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return 'Identifier';
     if (/[\d€$£¥₹%]/.test(clean)) return 'Number or money';
@@ -158,27 +167,60 @@ as of data source sources updated last refreshed prepared confidential internal 
     if (/recognizing/i.test(s)) return 'Reading text on this device…';
     return s;
   }
-  function prep(src, scale, invert) {
+  // Image filters per pass. "contrast" finds short, isolated tokens ("0%", "$1M", single digits in coloured pills)
+  // that the plain passes miss; "block" (page segmentation 6) reads tight table rows and badges.
+  const FILTERS = { normal: 'grayscale(1)', inverted: 'invert(1) grayscale(1)', contrast: 'grayscale(1) contrast(2.2)', block: 'grayscale(1) contrast(2.2)' };
+  function prep(src, scale, kind) {
     const c = document.createElement('canvas');
     c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
     const x = c.getContext('2d');
     x.imageSmoothingQuality = 'high';
-    if (invert) x.filter = 'invert(1) grayscale(1)'; else x.filter = 'grayscale(1)';
+    x.filter = FILTERS[kind] || FILTERS.normal;
     x.drawImage(src, 0, 0, c.width, c.height);
     return c;
   }
-  async function ocr(src, scale, invert) {
+  async function ocr(src, scale, kind) {
+    kind = kind === true ? 'inverted' : (kind || 'normal');
+    const invert = kind === 'inverted';
     const w = await worker();
-    const { data } = await w.recognize(prep(src, scale, invert), {}, { tsv: true, text: false, blocks: false, hocr: false });
+    if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
+    let data;
+    try { ({ data } = await w.recognize(prep(src, scale, kind), {}, { tsv: true, text: false, blocks: false, hocr: false })); }
+    finally { if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '11' }); }
     const out = [];
     (data.tsv || '').split('\n').forEach(line => {
       const c = line.split('\t');
       if (c.length < 12 || c[0] !== '5') return;
       const text = c.slice(11).join('\t').trim(); const conf = parseFloat(c[10]);
       if (!text || conf < 30) return;
-      out.push({ text, conf, x: +c[6] / scale, y: +c[7] / scale, w: +c[8] / scale, h: +c[9] / scale, line: `${c[2]}-${c[3]}-${c[4]}`, inv: invert });
+      out.push({ text, conf, x: +c[6] / scale, y: +c[7] / scale, w: +c[8] / scale, h: +c[9] / scale, line: `${c[2]}-${c[3]}-${c[4]}`, inv: invert, pass: kind });
     });
     return out;
+  }
+  // Several passes, merged: a word found by a later pass is kept only if no earlier pass found it.
+  async function readAll(src, passes) {
+    let all = [];
+    for (const [scale, kind] of passes) {
+      const got = await ocr(src, scale, kind);
+      all = all.concat(got.filter(w => !all.some(v => overlap(v, w) > 0.3)));
+    }
+    return plausible(all);
+  }
+  // C: the reader sometimes sees chart graphics as giant "words" (10-25x taller than real text, low confidence).
+  // Masking those would hide whole charts, so they are dropped. Real large text (KPI numbers, titles) is kept:
+  // it contains digits, or is read with high confidence at a sensible size.
+  function plausible(words) {
+    const hs = words.map(w => w.h).sort((a, b) => a - b);
+    const med = hs.length ? hs[Math.floor(hs.length / 2)] : 10;
+    return words.filter(w => {
+      const tall = w.h / med, hasDigit = /\d/.test(w.text), letters = (w.text.match(/[A-Za-z]/g) || []).length;
+      if (tall > 8 && !(hasDigit && w.conf >= 90)) return false;
+      if (tall > 3 && !hasDigit && (w.conf < 80 || letters < 3)) return false;
+      if (tall > 4 && w.conf < 70) return false;                                   // tall, unsure "digits" drawn by chart shapes
+      const chars = Math.max(1, w.text.replace(/\s/g, '').length);
+      if (w.w > w.h * chars * 2.5 && w.w > med * 12 && w.conf < 85) return false;   // far too wide for its few characters
+      return true;
+    });
   }
   const overlap = (a, b) => {
     const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
@@ -215,11 +257,9 @@ as of data source sources updated last refreshed prepared confidential internal 
   /* ---------------- verification gate (independent re-scan) ---------------- */
   async function verify() {
     S.gate = 'running'; renderGate();
-    setStatus('Checking the masked image again (2× zoom, normal and inverted)…', true);
+    setStatus('Checking the masked image again (four independent passes)…', true);
     const m2 = maskedCanvas(1);
-    const a = await ocr(m2, 2, false);
-    const b = await ocr(m2, 1.5, true);
-    const all = a.concat(b.filter(w => !a.some(v => overlap(v, w) > 0.3)));
+    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block']]);
     const active = S.masks.filter(m => m.on);
     const flags = [];
     all.forEach(w => {
@@ -228,6 +268,7 @@ as of data source sources updated last refreshed prepared confidential internal 
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
       const t = classify(w.text);
       if (!t) return;
+      if (t === 'Text not on allowlist' && (w.text.match(/[A-Za-z]/g) || []).length <= 2 && !/\d/.test(w.text)) return; // fragments like "El", "oy" carry no information
       if (flags.some(f => overlap(f, w) > 0.3)) return;
       flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false });
     });
@@ -257,6 +298,12 @@ as of data source sources updated last refreshed prepared confidential internal 
     $('btn-recheck').disabled = S.gate === 'running';
     const fl = $('flags');
     fl.innerHTML = '';
+    const openFlags = S.flags.filter(f => !f.resolved);
+    if (openFlags.length > 1) {
+      const all = document.createElement('button'); all.type = 'button'; all.className = 'btn'; all.textContent = `Mask all ${openFlags.length} findings`;
+      all.onclick = () => { openFlags.forEach(f => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Added after check', text: f.text, on: true, src: 'check' }); f.resolved = true; }); updateGate(); renderTypes(); draw(); };
+      fl.appendChild(all);
+    }
     S.flags.forEach((f, i) => {
       const d = document.createElement('div');
       d.className = 'flag';
@@ -343,10 +390,7 @@ as of data source sources updated last refreshed prepared confidential internal 
     $('btn-reapply').disabled = true;
     try {
       setStatus('Loading the on-device text reader…', true);
-      const a = await ocr(canvas, 1.5, false);
-      setStatus('Reading light text on dark areas…', true);
-      const b = await ocr(canvas, 1.5, true);
-      S.words = a.concat(b.filter(w => !a.some(v => overlap(v, w) > 0.3)));
+      S.words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast']]);
       S.masks = buildMasks(S.words);
       renderTypes(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
@@ -470,7 +514,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
  Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item.
  heatmap: "rows":{"name","members"},"columns":{"name","members"},"matrix":[[0-100]].
  scatter/bubble: "xMeasure","yMeasure","points":[[x0-100,y0-100,size0-100]].
- gauge: "shapeValue":0-100. waterfall: series shape signed -100..100, last member is the total (0).
+ gauge: "shapeValue":0-100 (needle or arc position), plus "min" and "max" when the scale is not 0-100 (for example -100 and 100 for NPS). waterfall: series shape signed -100..100, last member is the total (0).
  sankey: "nodes":[string],"links":[{"source":index,"target":index,"shape":0-100}].
  gantt (also roadmaps and timelines): "tasks":[{"name":string,"start":0-100,"end":0-100}] in top-to-bottom order, positions measured along the time axis; "timeLabels":[string] for the visible time-axis labels, left to right.
  map: "basemap":"world"|"europe"|"usa"|"canada"|"mexico"|"brazil"|"uk"|"france"|"germany"|"italy"|"spain"|"india"|"china"|"japan"|"australia"|"south-africa" (the closest outline to what is shown),
@@ -478,7 +522,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   bubble/density: "points":[{"name":string,"lat":number,"lon":number,"shape":0-100}] for each marker or hotspot, placed by where it sits on the map (if its label is masked, name it "Location N").
   flow: "points" for the endpoints plus "flows":[{"from":name,"to":name,"shape":0-100}].
   Recognise shaded regions from the geography itself and use their standard English names (country, state or province), even when labels are masked; region names are not sensitive.
- table: "columns":[{"name":string,"kind":"text"|"org"|"person"|"id"|"category"|"date"|"number"|"currency"|"percent","members":[string]}],"rowCount":int,"sorted":bool.
+ table: "columns":[{"name":string,"kind":"text"|"org"|"person"|"id"|"category"|"date"|"number"|"currency"|"percent","members":[string],"scaleHint":number (optional, a plausible typical value for that column, e.g. 4.5 for a 5-point rating, 50 for a price per seat)}],"rowCount":int,"sorted":bool. Put the column that labels each row first, as kind "category" with its members in row order.
  placeholder: "originalType":string for anything else.
 - Titles and labels: copy only text that is visible and not covered. If part of a title is covered, write [Client] for it. If axis or legend labels are covered, use "Item 1", "Item 2"…
 - Shapes: estimate each mark's relative size from the visible geometry, largest = 100. For lines use relative height within the plot. Do not read numbers.
@@ -569,4 +613,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
+  S.test = { classify, plausible };
 })();

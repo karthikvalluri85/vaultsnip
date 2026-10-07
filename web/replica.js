@@ -47,16 +47,19 @@
 
   /* ---------- synthetic data ---------- */
   // Each measure gets a hidden scale unrelated to the source. Shapes (0..100) come from the spec.
-  let SCALES = {};
+  let SCALES = {}, HINTS = {};
+  const measureKey = m => m ? (String(m.name || '').toLowerCase() + '|' + (m.format || '')) : '';
   function scaleFor(measure, r) {
-    const key = measure ? (String(measure.name || '').toLowerCase() + '|' + (measure.format || '')) : '';
+    const key = measureKey(measure);
     if (key && SCALES[key]) return SCALES[key];
+    if (measure && !(num(measure.scaleHint) > 0) && HINTS[key]) measure = Object.assign({}, measure, { scaleHint: HINTS[key] });
     const v = rawScale(measure, r);
     if (key) SCALES[key] = v;
     return v;
   }
   function rawScale(measure, r) {
-    if (measure && measure.scaleHint) return measure.scaleHint * 1.6 * (0.8 + r() * 0.4);
+    const hint = measure ? num(measure.scaleHint) : NaN;
+    if (hint > 0) return hint * 1.6 * (0.8 + r() * 0.4);
     const f = (measure && measure.format) || 'number';
     if (f === 'percent') return 100;
     if (f === 'currency') return Math.pow(10, 4 + r() * 3);
@@ -339,12 +342,19 @@
     let meta = { pairs: p => (p && p.name != null && rawByLabel[p.name] != null) ? [[dimKey, rawByLabel[p.name]]] : [] };
     const base = { color: colors, animation: !ctx.quiet, animationDuration: 300, textStyle: { fontFamily: 'inherit' } };
 
+    // every category label shown; about 95 px per grid column, long labels in narrow slots rotate rather than overlap
+    function catLabels(v, members, t, horizontal) {
+      const n = members.length; if (n > 12) return null;
+      const slot = Math.max(1, (num(v.span) || 6)) * 95 / n, longest = Math.max(...members.map(m => String(m).length));
+      const crowded = !horizontal && longest * 6.5 > slot;
+      return { color: t.muted, fontSize: 11, interval: 0, hideOverlap: false, rotate: crowded ? 35 : 0, width: crowded ? 90 : Math.max(40, slot - 6), overflow: 'truncate' };
+    }
     switch (v.type) {
       case 'bar': case 'column': case 'histogram': case 'line': case 'area': case 'combo': {
         // A "column" is vertical by definition; only a "bar" can run horizontally (the AI sometimes sends both).
         const horizontal = v.type === 'bar' && v.horizontal !== false && v.horizontal !== 'false';
         const cat = Object.assign(axisBase(t), { type: 'category', data: members, name: '' });
-        if (n <= 8) cat.axisLabel = { color: t.muted, fontSize: 11, interval: 0, hideOverlap: false, width: 80, overflow: 'truncate' };
+        const lab = catLabels(v, members, t, horizontal); if (lab) cat.axisLabel = lab;
         const val = Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } });
         if (v.type === 'line' || v.type === 'area') val.scale = !v.zeroBased;
         const series = seriesList.map((s, si) => {
@@ -370,8 +380,12 @@
         const data = members.map((m, i) => ({ name: m, value: vals[0][i], itemStyle: { opacity: dimOpacity(m) } }));
         return Object.assign(base, { _meta: meta,
           tooltip: Object.assign({}, tooltip, { formatter: p => `${p.name}<br><b>${fmt(p.value, meas, generic)}</b> · ${p.percent}%` }),
-          legend: Object.assign({}, legend, { bottom: 0, top: 'auto' }),
-          series: [{ type: 'pie', radius: v.type === 'donut' ? ['48%', '72%'] : [0, '72%'], center: ['50%', '45%'], itemStyle: { borderColor: t.surface, borderWidth: 2 }, label: { color: t.ink, fontSize: 11, formatter: '{d}%' }, data }]
+          legend: Object.assign({}, legend, { type: 'plain', bottom: 0, top: 'auto', itemGap: 8, itemWidth: 12, itemHeight: 8 }),
+          series: [{ type: 'pie', radius: v.type === 'donut' ? ['44%', '66%'] : [0, '66%'], center: ['50%', n > 4 ? '40%' : '44%'], itemStyle: { borderColor: t.surface, borderWidth: 2 },
+            label: (num(v.span) || 6) <= 3
+              ? { position: 'inside', color: '#fff', fontSize: 10, fontWeight: 600, formatter: p => p.percent >= 6 ? Math.round(p.percent) + '%' : '' }
+              : { color: t.ink, fontSize: 11, formatter: p => p.percent >= 4 ? Math.round(p.percent) + '%' : '' },
+            labelLine: { show: (num(v.span) || 6) > 3, length: 6, length2: 6 }, data }]
         });
       }
       case 'treemap': {
@@ -402,7 +416,7 @@
         return Object.assign(base, { _meta: meta,
           tooltip: Object.assign({}, tooltip, { trigger: 'axis', valueFormatter: undefined, formatter: ps => { const p = ps.find(q => q.seriesIndex > 0 && Number.isFinite(num(q.value))); return p ? `${p.name}<br><b>${(p.seriesIndex === 2 ? '−' : '')}${fmt(p.value, meas, generic)}</b>` : ''; } }),
           grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
-          xAxis: Object.assign(axisBase(t), { type: 'category', data: members }),
+          xAxis: Object.assign(axisBase(t), { type: 'category', data: members }, catLabels(v, members, t) ? { axisLabel: catLabels(v, members, t) } : {}),
           yAxis: Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } }),
           series: [
             { type: 'bar', stack: 'w', itemStyle: { color: 'transparent' }, emphasis: { disabled: true }, data: helper },
@@ -444,7 +458,7 @@
           tooltip: Object.assign({}, tooltip, { formatter: p => `${rm[p.value[1]]} · ${cm[p.value[0]]}<br><b>${fmt(p.value[2], meas, generic)}</b>` }),
           grid: { left: 8, right: 8, top: 8, bottom: 44, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: cm, splitArea: { show: false } }),
-          yAxis: Object.assign(axisBase(t), { type: 'category', data: rm, splitArea: { show: false } }),
+          yAxis: Object.assign(axisBase(t), { type: 'category', data: rm, inverse: true, splitArea: { show: false } }),
           visualMap: { min: 0, max: mx, calculable: false, orient: 'horizontal', left: 'center', bottom: 0, itemHeight: 120, textStyle: { color: t.muted, fontSize: 10 }, inRange: { color: ['#e8f1fb', '#2a78d6', '#123a6b'] }, formatter: x => fmt(x, meas, generic) },
           series: [{ type: 'heatmap', data, itemStyle: { borderColor: t.surface, borderWidth: 1 } }]
         });
@@ -452,17 +466,23 @@
       case 'gauge': {
         const pct0 = mode === 'shape' && typeof v.shapeValue === 'number' ? v.shapeValue * (0.97 + r() * 0.06) : 30 + r() * 65;
         const pct = F.key ? Math.max(3, Math.min(100, pct0 * (0.8 + 0.4 * rng(hashStr(v.id + '|' + F.key))()))) : pct0;
+        // the arc position is 0-100; min/max (e.g. -100..100 for NPS) set what that position means
+        let gmin = num(v.min), gmax = num(v.max);
+        if (!Number.isFinite(gmin)) gmin = 0;
+        if (!Number.isFinite(gmax) || gmax <= gmin) gmax = meas.format === 'percent' || !(gmin < 0) ? Math.max(gmin + 1, 100) : -gmin;
+        const gval = gmin + pct / 100 * (gmax - gmin);
+        const gfmt = x => meas.format === 'percent' || (!v.measure && gmin === 0 && gmax === 100) ? Math.round(x) + (generic ? '' : '%') : (gmin < 0 && x > 0 ? '+' : '') + fmt(x, meas, generic);
         return Object.assign(base, { _meta: meta,
-          series: [{ type: 'gauge', min: 0, max: 100, progress: { show: true, width: 14, itemStyle: { color: colors[0] } }, axisLine: { lineStyle: { width: 14, color: [[1, t.grid]] } },
+          series: [{ type: 'gauge', min: gmin, max: gmax, progress: { show: true, width: 14, itemStyle: { color: colors[0] } }, axisLine: { lineStyle: { width: 14, color: [[1, t.grid]] } },
             axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false }, pointer: { show: false }, anchor: { show: false },
-            title: { show: false }, detail: { valueAnimation: true, fontSize: 26, fontWeight: 700, color: t.ink, offsetCenter: [0, '10%'], formatter: x => x.toFixed(0) + (generic ? '' : '%') }, data: [{ value: pct }] }]
+            title: { show: false }, detail: { valueAnimation: true, fontSize: 26, fontWeight: 700, color: t.ink, offsetCenter: [0, '10%'], formatter: gfmt }, data: [{ value: gval }] }]
         });
       }
       case 'boxplot': {
         const data = members.map((m, i) => { const f = F.factor(v.id, [dimKey], i); const q = [r() * 20, 20 + r() * 20, 40 + r() * 20, 60 + r() * 20, 80 + r() * 20].map(x => x / 100 * scale * (0.7 + 0.3 * f)); return q; });
         return Object.assign(base, { _meta: meta,
           tooltip, grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
-          xAxis: Object.assign(axisBase(t), { type: 'category', data: members }),
+          xAxis: Object.assign(axisBase(t), { type: 'category', data: members }, catLabels(v, members, t) ? { axisLabel: catLabels(v, members, t) } : {}),
           yAxis: Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } }),
           series: [{ type: 'boxplot', data, itemStyle: { color: 'transparent', borderColor: colors[0], borderWidth: 1.5 } }]
         });
@@ -514,6 +534,32 @@
       }
       default: return null;
     }
+  }
+
+  /* ---------- table columns: a plausible range per column, from the AI's hint or the column name ---------- */
+  function columnModel(c, kind) {
+    const n = fold(c.name), hint = num(c.scaleHint);
+    if (kind === 'percent') {
+      if (/change|vs|delta|lift|growth|yoy|mom|wow|diff/.test(n)) return { lo: -15, hi: 20, signed: true };
+      if (/margin/.test(n)) return { lo: 40, hi: 85 };
+      if (/sla|uptime|attain|retention|crash free|success|availability/.test(n)) return { lo: 82, hi: 99.5 };
+      if (/discount|churn|bounce|rate|share|conversion|error|fail/.test(n)) return { lo: 0.5, hi: 35 };
+      return { lo: 5, hi: 95 };
+    }
+    if (hint > 0) return { lo: hint * 0.35, hi: hint * 1.4 };
+    if (/csat|rating|stars/.test(n)) return { lo: 3.6, hi: 4.9, dp: 1 };
+    if (/nps/.test(n)) return { lo: -20, hi: 70, dp: 0 };
+    if (/score/.test(n)) return { lo: 0, hi: 10, dp: 0 };
+    if (kind === 'currency') {
+      if (/price|per seat|per user|per unit|seat|unit|fee|rate/.test(n)) return { lo: 8, hi: 120, dp: 2 };
+      if (/arr|annual|revenue|sales|bookings|pipeline|budget|spend/.test(n)) return { lo: 4e5, hi: 5e6 };
+      if (/mrr|monthly/.test(n)) return { lo: 3e4, hi: 4e5 };
+      return { lo: 2e3, hi: 2e5 };
+    }
+    if (/day|days|hour|hours|minute|minutes|time|age|duration|sla/.test(n)) return { lo: 1, hi: 60, dp: 0 };
+    if (/solved|ticket|case|bug|issue|order|point|pts|count|deal|lead|crash/.test(n)) return { lo: 20, hi: 400, dp: 0 };
+    if (/user|seat|install|session|visitor|view|download|customer|account|member|subscriber/.test(n)) return { lo: 500, hi: 50000, dp: 0 };
+    return { lo: 50, hi: 5000, dp: 0 };
   }
 
   /* ---------- page ---------- */
@@ -568,7 +614,10 @@
     const mode = opts.mode || 'shape';
     const seed = opts.seed || 4127;
     const L = labelsFor(spec, mode);
-    SCALES = {};
+    SCALES = {}; HINTS = {};
+    (spec.rows || []).forEach(row => (row.visuals || []).forEach(v => [v && v.measure, v && v.xMeasure, v && v.yMeasure].forEach(m => {
+      const h = m ? num(m.scaleHint) : NaN; if (h > 0 && !HINTS[measureKey(m)]) HINTS[measureKey(m)] = h;
+    })));
     if (!document.getElementById('rp-style')) { const st = document.createElement('style'); st.id = 'rp-style'; st.textContent = CSS; document.head.appendChild(st); }
     (root._charts || []).forEach(c => c.dispose());
     root._charts = [];
@@ -685,9 +734,15 @@
       if (v.type === 'kpi') {
         const meas = v.measure || { name: v.title || 'Value', format: 'number' };
         const fk = F.factor(v.id, [], 0);
-        const base = meas.format === 'percent' ? (mode === 'shape' && typeof v.shapeValue === 'number' ? v.shapeValue : 15 + r() * 60) : scaleFor(meas, r) * (meas.scaleHint ? 0.7 + r() * 0.3 : 3 + r() * 4);
+        const hint = num(meas.scaleHint) > 0 ? num(meas.scaleHint) : HINTS[measureKey(meas)];
+        const shapeV = num(v.shapeValue);
+        const base = meas.format === 'percent' ? (mode === 'shape' && Number.isFinite(shapeV) ? Math.max(0, Math.min(100, shapeV)) : 15 + r() * 60)
+          : hint > 0 ? hint * (0.85 + r() * 0.3) : scaleFor(meas, r) * (3 + r() * 4);
         const val = meas.format === 'percent' ? Math.max(0, Math.min(100, base + (active.length ? (rng(hashStr(v.id + '|' + active.map(k => state.filters[k].join(',')).join(';')))() - 0.5) * 8 : 0))) : base * fk;
-        const d0 = (r() - 0.35) * 20; const d = F.key ? (rng(hashStr(v.id + '|d|' + F.key))() - 0.4) * 22 : d0; const up = d >= 0;
+        // a percent change cannot move past 0 or 100, so the swing shrinks near the ends (99% moves by tenths, not 6 points)
+        const room = meas.format === 'percent' ? Math.max(0.2, Math.min(val, 100 - val)) : 100;
+        const swing = meas.format === 'percent' ? Math.min(8, room * 0.6) : 20;
+        const d0 = (r() - 0.35) * swing; const d = F.key ? (rng(hashStr(v.id + '|d|' + F.key))() - 0.4) * swing * 1.1 : d0; const up = d >= 0;
         const spark = v.sparkline ? (() => { const a = shapeArray(v.sparkShape, 12, mode, F.key ? rng(hashStr(v.id + '|s|' + F.key)) : r, 'trend'); const mx = Math.max(...a), mn = Math.min(...a); return `<svg viewBox="0 0 120 28" preserveAspectRatio="none"><polyline fill="none" stroke="${colors[0]}" stroke-width="1.5" points="${a.map((x, i) => `${i * 120 / 11},${26 - (x - mn) / (mx - mn || 1) * 24}`).join(' ')}"/></svg>`; })() : '';
         card.classList.add('rp-kpi');
         card.innerHTML = `<div class="k">${esc(L.meas(v.title || meas.name))}</div><div class="v">${fmt(val, meas, L.generic)}</div>${v.delta === false ? '' : `<div class="d ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}${meas.format === 'percent' ? ' pts' : '%'} vs prior</div>`}${spark}`;
@@ -699,23 +754,35 @@
         const catCols = cols.filter(c => c.kind === 'category' && c.members && c.members.length);
         const ownKeys = catCols.map(c => dk(c.name));
         const tf = F.factor(v.id, ownKeys, 0);
-        const pick = (c, ri) => { const k = dk(c.name), allowed = state.filters[k] && state.filters[k].length ? c.members.filter(m => selHas(state.filters[k], m)) : c.members; const pool = allowed.length ? allowed : c.members; return pool[Math.floor(rng(hashStr(v.id + '|' + c.name + '|' + ri + '|' + pool.join(',')))() * pool.length)]; };
-        const mScale = scaleFor({ format: 'currency' }, r);
-        const ids = Array.from({ length: nRows }, () => Math.floor(r() * 65536).toString(16).toUpperCase().padStart(4, '0'));
-        const desc = Array.from({ length: nRows }, () => r()).sort((a, b) => b - a);
+        const pool = c => { const k = dk(c.name), allowed = state.filters[k] && state.filters[k].length ? c.members.filter(m => selHas(state.filters[k], m)) : c.members; return allowed.length ? allowed : c.members; };
+        const pick = (c, ri) => { const p = pool(c); return p[Math.floor(rng(hashStr(v.id + '|' + c.name + '|' + ri + '|' + p.join(',')))() * p.length)]; };
         const rowCat = catCols[0];
-        const rowsHtml = Array.from({ length: nRows }, (_, ri) => (rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(pick(rowCat, ri))}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
+        // the row-label column lists its members in order, without repeats, with any "Total" row last
+        const rowLabels = rowCat ? (() => { const p = pool(rowCat).map(String); const tot = p.filter(m => /^(grand )?totals?$/i.test(m.trim())); return p.filter(m => !tot.includes(m)).concat(tot); })() : [];
+        const rowsN = rowCat ? Math.min(nRows, rowLabels.length) : nRows;
+        const ids = Array.from({ length: rowsN }, () => Math.floor(r() * 65536).toString(16).toUpperCase().padStart(4, '0'));
+        const desc = Array.from({ length: rowsN }, () => r()).sort((a, b) => b - a);
+        // every numeric column gets its own stream and range; the first one follows the table's sort order
+        const firstNum = cols.findIndex(c => ['number', 'currency'].includes(c.kind));
+        const colVal = (c, ci, ri) => {
+          const m = columnModel(c, c.kind), rr = rng(hashStr(v.id + '|' + c.name + '|' + ci + '|' + ri + '|' + mode));
+          const u = (v.sorted && ci === firstNum) ? desc[ri] : rr();
+          let x = m.lo + u * (m.hi - m.lo);
+          if (c.kind !== 'percent' && !(m.lo < 0)) x *= tf;
+          return { x, m };
+        };
+        const rowsHtml = Array.from({ length: rowsN }, (_, ri) => (rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(rowLabels[ri])}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
           const k = c.kind || 'text';
           const cats = c.members && c.members.length ? c.members : null;
           let cell;
           if (k === 'person') cell = (L.generic ? 'Owner ' : 'Person ') + (1 + ((ri * 7 + ci) % 9));
           else if (k === 'org' || k === 'text') cell = (L.generic ? 'Entity ' : (c.placeholder || 'Item') + ' ') + String(ri + 1).padStart(2, '0');
           else if (k === 'id') cell = (L.generic ? 'ID-' : 'TKN-') + ids[ri];
-          else if (k === 'category') { if (cats) { const m = pick(c, ri); cell = L.member(c.name, m, cats.indexOf(m)); } else cell = 'Group ' + 'ABC'[Math.floor(r() * 3)]; }
+          else if (k === 'category') { if (cats) { const m = c === rowCat ? rowLabels[ri] : pick(c, ri); cell = L.member(c.name, m, cats.map(String).indexOf(String(m))); } else cell = 'Group ' + 'ABC'[Math.floor(r() * 3)]; }
           else if (k === 'date') cell = '2026-' + String(1 + Math.floor(r() * 12)).padStart(2, '0') + '-' + String(1 + Math.floor(r() * 28)).padStart(2, '0');
-          else if (k === 'percent') cell = (r() * 100).toFixed(1) + (L.generic ? '' : '%');
-          else if (k === 'currency') cell = fmt(desc[ri] * mScale * tf, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic);
-          else cell = abbr((v.sorted ? desc[ri] : r()) * mScale * tf);
+          else if (k === 'percent') { const { x, m } = colVal(c, ci, ri); cell = (m.signed && x > 0 ? '+' : '') + x.toFixed(1) + (L.generic ? '' : '%'); }
+          else if (k === 'currency') { const { x, m } = colVal(c, ci, ri); cell = m.dp === 2 && x < 1000 ? (L.generic ? '' : (c.currency || (v.measure && v.measure.currency) || '$')) + x.toFixed(2) : fmt(x, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic); }
+          else { const { x, m } = colVal(c, ci, ri); cell = m.dp === 1 ? x.toFixed(1) : (m.lo < 0 && x > 0 ? '+' : '') + (m.dp === 0 && Math.abs(x) < 1e4 ? Math.round(x).toLocaleString('en-US') : abbr(x)); }
           const num = ['number', 'currency', 'percent'].includes(k);
           return `<td class="${num ? 'n' : ''}">${esc(cell)}</td>`;
         }).join('') + '</tr>').join('');

@@ -79,6 +79,31 @@ try {
   check(shaped.placeholders === 0 && shaped.gantts === 2, 'Gantt, timeline and "placeholder: gantt" all render as a Gantt');
   check(!/NaN|undefined/.test(shaped.kpi), `odd numbers from the AI never show as NaN (${shaped.kpi})`);
 
+  // #12-#14: values a product owner would believe
+  const real = await page.evaluate(() => {
+    const root = document.getElementById('replica');
+    DSCReplica.render(root, { title: 't', rows: [{ height: 'm', visuals: [
+      { id: 'k1', type: 'kpi', span: 3, title: 'Crash-free', measure: { name: 'Crash-free users', format: 'percent' }, shapeValue: 99 },
+      { id: 'k2', type: 'kpi', span: 3, title: 'CSAT', measure: { name: 'CSAT', format: 'number', scaleHint: 4.5 } },
+      { id: 'g', type: 'gauge', span: 3, title: 'NPS', min: -100, max: 100, measure: { name: 'NPS', format: 'number' }, shapeValue: 70 },
+      { id: 'h', type: 'heatmap', span: 3, title: 'h', rows: { name: 'Day', members: ['Sun', 'Mon'] }, columns: { name: 'Hour', members: ['1', '2'] }, matrix: [[1, 2], [3, 4]] },
+      { id: 't', type: 'table', span: 12, title: 't', rowCount: 4, columns: [{ name: 'Plan', kind: 'category', members: ['A', 'B', 'C', 'Total'] }, { name: 'Price / seat', kind: 'currency' }, { name: 'Discount', kind: 'percent' }, { name: 'Price change', kind: 'percent' }, { name: 'CSAT', kind: 'number' }] }] }] }, { resetSelection: true });
+    const kv = [...root.querySelectorAll('.rp-kpi')].map(k => ({ v: k.querySelector('.v').textContent, d: (k.querySelector('.d') || {}).textContent || '' }));
+    const o = root._charts.map(c => c.getOption());
+    const gauge = o.find(x => x.series && x.series[0] && x.series[0].type === 'gauge').series[0];
+    const heat = o.find(x => x.series && x.series[0] && x.series[0].type === 'heatmap');
+    const rows = [...root.querySelectorAll('.rp-table tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim()));
+    return { kv, gmin: gauge.min, gmax: gauge.max, gv: gauge.data[0].value, heatInverse: heat.yAxis[0].inverse, rows };
+  });
+  const pct = s => parseFloat(String(s).replace(/[^\d.\-−+]/g, '').replace('−', '-'));
+  check(pct(real.kv[0].v) <= 100 && Math.abs(pct(real.kv[0].d)) <= 1.5, `a 99% KPI stays at or below 100% with a small delta (${real.kv[0].v}, ${real.kv[0].d})`);
+  check(pct(real.kv[1].v) >= 3 && pct(real.kv[1].v) <= 5, `CSAT stays on a 1-5 scale (${real.kv[1].v})`);
+  check(real.gmin === -100 && real.gmax === 100 && real.gv >= -100 && real.gv <= 100, `the gauge honours min/max (${real.gv.toFixed(1)} on −100..100)`);
+  check(real.heatInverse === true, 'heatmap rows read top to bottom in the order given');
+  check(real.rows.length === 4 && real.rows[3][0] === 'Total', 'table row labels keep their order with Total last');
+  check(real.rows.every(r => pct(r[2]) >= 0 && pct(r[2]) <= 60 && pct(r[4]) >= 1 && pct(r[4]) <= 5 && pct(r[1]) > 0 && pct(r[1]) < 1000), `table columns get believable values (${real.rows.map(r => r.slice(1).join(' ')).join(' | ')})`);
+  check(real.rows.some(r => /[−+-]/.test(r[3])), 'a "change" column can go negative or show a sign');
+
   console.log('Export');
   await page.goto(base); await page.click('#btn-try'); await page.locator('#samples .sample button').nth(1).click();
   await page.waitForFunction(() => document.querySelectorAll('#replica .rp-chart').length >= 8); await wait(2500);
@@ -118,6 +143,15 @@ try {
   const gate = (await page.locator('.gate').textContent()).replace(/\s+/g, ' ').trim();
   check(/Blocked|Review/.test(gate), `pre-flight check catches readable text (${gate.slice(0, 40)}…)`);
   check(await page.evaluate(() => (window.__DSC.masks || []).length > 20), 'sensitive text is masked');
+  const unit = await page.evaluate(() => {
+    const { classify, plausible } = window.__DSC.test;
+    const w = (text, h, conf, ww) => ({ text, x: 0, y: 0, w: ww || h * text.length * 0.6, h, conf });
+    const kept = plausible([w('Revenue', 12, 95), w('Orders', 12, 95), w('Users', 12, 93), w('$4.2M', 30, 96), w('ffi', 180, 40), w('Il', 120, 55)]).map(x => x.text);
+    return { email: classify('ana@nor'), email2: classify('@example.com'), small: classify('9'), kept };
+  });
+  check(unit.email === 'Email' && unit.email2 === 'Email', 'partial email addresses are still masked (#8)');
+  check(unit.small === 'Number or money', 'single-digit numbers are masked (#8)');
+  check(unit.kept.includes('$4.2M') && !unit.kept.includes('ffi') && !unit.kept.includes('Il'), `chart shapes read as giant "words" are dropped, big KPI numbers kept (#9: ${unit.kept.join(', ')})`);
 
   console.log('AI providers (mocked Claude and OpenAI endpoints)');
   const spec = await page.evaluate(() => JSON.stringify(window.DSC_SAMPLES[1].spec));

@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-07
+
+Tested against four product-owner screens (app health, pricing spreadsheet, voice of customer, support operations).
+
+### Fixed
+- Masking missed single digits, small numbers in pills and partial email addresses ([#8](https://github.com/karthikvalluri85/vaultsnip/issues/8)). The reader now also runs a high-contrast pass, and the pre-flight check adds a block-layout pass.
+- Chart shapes read as giant "words" produced huge masks over charts ([#9](https://github.com/karthikvalluri85/vaultsnip/issues/9)). Implausible readings are now ignored; large KPI numbers are kept.
+- The pre-flight check could keep flagging 1–2 letter fragments, there was no way to mask every finding at once, and common product words were masked ([#10](https://github.com/karthikvalluri85/vaultsnip/issues/10)). Added **Mask all N findings** and about 80 everyday product, support, finance and survey words to the allowlist.
+- Table columns all had the same kind of numbers ([#12](https://github.com/karthikvalluri85/vaultsnip/issues/12)). Each column now gets values that fit its name (price, discount, margin, CSAT, NPS, change, ARR…), row labels keep their order and Total stays last.
+- Implausible KPI, gauge and axis values, such as CSAT above 5 or a 99% KPI moving by 12% ([#13](https://github.com/karthikvalluri85/vaultsnip/issues/13)). A scale hint on one visual now applies to the same measure everywhere; gauges support min/max (for example NPS −100 to 100).
+- Layout fidelity: heatmap rows were upside down, legends ran off the tile, crowded category labels were hidden ([#14](https://github.com/karthikvalluri85/vaultsnip/issues/14)). Labels now rotate instead of disappearing, narrow donuts label inside the ring.
+
+### Known limits
+- Slanted or vertical labels may not be read and so not masked ([#11](https://github.com/karthikvalluri85/vaultsnip/issues/11)). The send dialog now warns about them; check the preview and drag a mask over any you see.
+- Masking takes about 20–25 seconds per screen (was about 11) because of the extra passes.
+
 ## [0.3.1] - 2026-10-07
 
 ### Fixed
@@ -44,7 +60,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.1.0...v0.2.0
