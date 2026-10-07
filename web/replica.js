@@ -154,16 +154,47 @@
     return [];
   }
 
+  // Dimension names that mean the same thing ("Countries", "Country/Region", "Country name") share one filter key.
+  function canonDim(x) {
+    const f = fold(x).replace(/\b(name|names|code|codes|label)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!f) return String(x || '').trim().toLowerCase();
+    if (/\bcountr(y|ies)\b|\bnations?\b/.test(f)) return 'country';
+    if (/^(us )?(states?|provinces?|state province|states provinces)$/.test(f)) return 'state';
+    if (/^(cit(y|ies)|metros?|towns?)$/.test(f)) return 'city';
+    return f.split(' ').map(w => w.length > 3 ? w.replace(/ies$/, 'y').replace(/([^s])s$/, '$1') : w).join(' ');
+  }
+  // Members match when they are the same text or the same place ("UK" and "United Kingdom").
+  function geoKey(x) {
+    const f = fold(x); if (!f) return null;
+    for (const n of ['world'].concat(Object.keys(MAPS).filter(k => k !== 'world'))) { const M = MAPS[n]; if (M && M.idx[f]) return n + ':' + M.idx[f]; }
+    return null;
+  }
+  function sameMember(a, b) {
+    if (a === b) return true;
+    const fa = fold(a), fb = fold(b);
+    if (fa && fa === fb) return true;
+    const ga = geoKey(a); return !!ga && ga === geoKey(b);
+  }
+  const selHas = (sel, m) => !!sel && sel.some(x => sameMember(x, m));
+
   function mapOption(v, ctx, base, tooltip, meas, scale) {
     const { L, mode, r, t, colors } = ctx;
     const F = ctx.filter;
     const name = mapName(v.basemap);
     if (!MAPS[name]) return { _placeholder: MAP_FAILED[name] ? 'The map outline could not be loaded. Open the app over http(s) rather than as a local file.' : 'Loading map outline…' };
     const M = MAPS[name], generic = L.generic, kind = mapKind(v);
-    const dimName = mapDimName(v), dimKey = F.dk(dimName);
+    let dimName = mapDimName(v), dimKey = F.dk(dimName);
     const pts = (Array.isArray(v.points) ? v.points : []).filter(p => p && typeof p === 'object' && !Array.isArray(p));
-    const raws = mapMembers(v);
-    const seriesShape = v.series && v.series[0] && Array.isArray(v.series[0].shape) ? v.series[0].shape : [];
+    let raws = mapMembers(v);
+    let seriesShape = v.series && v.series[0] && Array.isArray(v.series[0].shape) ? v.series[0].shape : [];
+    // When the map's own labels were masked or are missing, borrow the places the rest of the dashboard uses
+    // (filters, bars, tables), so the map and the other visuals filter each other.
+    const placed = list => list.filter(m => resolveRegions(M, m).length).length;
+    if (!pts.length && placed(raws) < Math.max(1, Math.ceil(raws.length / 2))) {
+      const cands = (F.dims || []).map(d => ({ d, hit: placed(d.members) })).filter(c => c.hit >= 2 && c.hit >= c.d.members.length * 0.6)
+        .sort((a, b) => ((b.d.key === dimKey) - (a.d.key === dimKey)) || (b.hit - a.hit));
+      if (cands.length) { const d = cands[0].d; dimName = d.name; dimKey = d.key; raws = d.members; seriesShape = d.shape || []; }
+    }
     let locs = raws.map((raw, i) => {
       const p = kind !== 'filled' && pts.length ? pts[i] : null;
       const l = { raw, shape: p ? p.shape : seriesShape[i], regions: resolveRegions(M, raw), coord: null };
@@ -182,10 +213,13 @@
     }
     const n = locs.length;
     const allShapes = locs.every(l => typeof l.shape === 'number') ? locs.map(l => l.shape) : null;
-    const vals0 = shapeArray(allShapes, n, mode, r, 'cat').map(x => x / 100 * scale);
-    const vals = vals0.map((x, i) => x * F.factor(v.id, [dimKey], i));
     const sel = F.sel(dimKey);
-    const isOn = l => !(sel && sel.length) || sel.includes(l.raw);
+    const selRegions = new Set(); (sel || []).forEach(x => resolveRegions(M, x).forEach(rn => selRegions.add(rn)));
+    const matchesSel = l => selHas(sel, l.raw) || l.regions.some(rn => selRegions.has(rn));
+    const ownMatch = !!(sel && sel.length) && locs.some(matchesSel);
+    const isOn = l => !ownMatch || matchesSel(l);
+    const vals0 = shapeArray(allShapes, n, mode, r, 'cat').map(x => x / 100 * scale);
+    const vals = vals0.map((x, i) => x * F.factor(v.id, ownMatch ? [dimKey] : [], i));
     const label = i => L.member(dimName, locs[i].raw, i);
     const mx = Math.max(1e-9, ...vals0); // unfiltered maximum, so filters elsewhere visibly lighten and shrink the map
     const note = (!generic && unmatched.length && unmatched.length < locs.length) ? 'Not on this map: ' + unmatched.map(l => l.raw).join(', ') : '';
@@ -238,7 +272,7 @@
     if (!flows.length) flows = locs.slice(1).map((_, i) => ({ a: 0, b: i + 1 }));
     const fShape = flows.every(f => typeof f.shape === 'number') ? flows.map(f => f.shape) : null;
     const fv0 = shapeArray(fShape, flows.length, mode, r, 'cat').map(x => x / 100 * scale);
-    const fv = fv0.map((x, i) => x * F.factor(v.id, [dimKey], i + 100));
+    const fv = fv0.map((x, i) => x * F.factor(v.id, ownMatch ? [dimKey] : [], i + 100));
     const fmx = Math.max(1e-9, ...fv0);
     const lines = flows.filter(f => locs[f.a].coord && locs[f.b].coord).map((f, i) => {
       const on = isOn(locs[f.a]) || isOn(locs[f.b]);
@@ -290,13 +324,12 @@
     const isTrend = ['line', 'area', 'combo'].includes(v.type) || /month|week|day|date|year|quarter|period|time/i.test(dimName);
     let vals = seriesList.map(s => shapeArray(s.shape, n, mode, r, isTrend ? 'trend' : 'cat').map(x => x / 100 * scale));
     // cross-filtering: other dimensions' selections scale this visual; its own dimension's selection keeps only chosen members
-    vals = vals.map(a => a.map((x, i) => x * F.factor(v.id, [dimKey].concat(seriesKeys), i)));
     const filterable = ['bar', 'column', 'histogram', 'line', 'area', 'combo', 'pie', 'donut', 'treemap', 'funnel', 'boxplot'].includes(v.type);
     const sel = filterable ? F.sel(dimKey) : null;
-    if (sel && sel.length) {
-      const keep = membersRaw.map((m, i) => i).filter(i => sel.includes(membersRaw[i]));
-      if (keep.length) { members = keep.map(i => members[i]); vals = vals.map(a => keep.map(i => a[i])); n = members.length; }
-    }
+    const keep = (sel && sel.length) ? membersRaw.map((m, i) => i).filter(i => selHas(sel, membersRaw[i])) : [];
+    // a selection on this visual's own dimension that matches none of its members scales it like any other filter
+    vals = vals.map(a => a.map((x, i) => x * F.factor(v.id, (keep.length || !(F.sel(dimKey) || []).length ? [dimKey] : []).concat(seriesKeys), i)));
+    if (keep.length) { members = keep.map(i => members[i]); vals = vals.map(a => keep.map(i => a[i])); n = members.length; }
     let meta = { pairs: p => (p && p.name != null && rawByLabel[p.name] != null) ? [[dimKey, rawByLabel[p.name]]] : [] };
     const base = { color: colors, animation: !ctx.quiet, animationDuration: 300, textStyle: { fontFamily: 'inherit' } };
 
@@ -394,8 +427,8 @@
         const rk = F.dk(rowsD.name), ck = F.dk(colsD.name);
         const fullGrid = (mode === 'shape' && Array.isArray(v.matrix) && v.matrix.length === rowsD.members.length) ? v.matrix : rowsD.members.map(() => colsD.members.map(() => r() * 100));
         const rs = F.sel(rk), cs = F.sel(ck);
-        const rIdx = rowsD.members.map((m, i) => i).filter(i => !(rs && rs.length) || rs.includes(rowsD.members[i]));
-        const cIdx = colsD.members.map((m, i) => i).filter(i => !(cs && cs.length) || cs.includes(colsD.members[i]));
+        const rIdx = rowsD.members.map((m, i) => i).filter(i => !(rs && rs.length) || selHas(rs, rowsD.members[i]));
+        const cIdx = colsD.members.map((m, i) => i).filter(i => !(cs && cs.length) || selHas(cs, colsD.members[i]));
         const rm = rIdx.map(i => L.member(rowsD.name, rowsD.members[i], i)), cm = cIdx.map(i => L.member(colsD.name, colsD.members[i], i));
         const data = []; let mx = 0;
         rIdx.forEach((ri, a) => cIdx.forEach((ci, b) => { const val = (Number((fullGrid[ri] || [])[ci]) || 0) / 100 * scale * (0.95 + r() * 0.1) * F.factor(v.id, [rk, ck], ri * 31 + ci); mx = Math.max(mx, val); data.push([b, a, val]); }));
@@ -515,7 +548,7 @@
 
     // ---- filter model: each member of a dimension owns a share of the total; selecting members
     // keeps only those members in visuals on that dimension and scales every other visual by their share
-    const dk = x => String(x || '').trim().toLowerCase();
+    const dk = canonDim;
     const shares = {};
     const setShares = (name, list, shape) => {
       const k = dk(name); if (shares[k] || !list || !list.length) return;
@@ -543,12 +576,15 @@
       members: k => Object.keys(shares[k] || {}),
       dk, key: Object.keys(state.filters).filter(k => state.filters[k] && state.filters[k].length).sort().map(k => k + '=' + state.filters[k].join(',')).join(';'),
       sel: k => state.filters[k] || null,
+      dims: (spec.filters || []).filter(f => f.members && f.members.length).map(f => ({ key: dk(f.label), name: f.label, members: f.members }))
+        .concat(visuals.filter(v => v.type !== 'map' && v.dimension && v.dimension.members && v.dimension.members.length).map(v => ({ key: dk(v.dimension.name), name: v.dimension.name, members: v.dimension.members, shape: v.series && v.series[0] && v.series[0].shape })))
+        .concat([].concat(...visuals.map(v => (Array.isArray(v.columns) ? v.columns : []).filter(c => c.kind === 'category' && c.members && c.members.length).map(c => ({ key: dk(c.name), name: c.name, members: c.members }))))),
       factor(vid, ownKeys, i) {
         let f = 1;
         active.forEach(k => {
           if (ownKeys.includes(k)) return;
           const sh = shares[k] || {};
-          const part = state.filters[k].reduce((a, m) => a + (sh[m] || 0), 0) || 0.1;
+          const part = Object.keys(sh).filter(m => selHas(state.filters[k], m)).reduce((a, m) => a + sh[m], 0) || 0.1;
           const rr = rng(hashStr(vid + '|' + k + '|' + state.filters[k].join(',') + '|' + i));
           f *= Math.min(1, part * (0.85 + 0.3 * rr()));
         });
@@ -558,8 +594,8 @@
     const toggleMany = pairs => {
       pairs.forEach(([k, raw]) => {
         if (!k || raw == null) return;
-        const cur = state.filters[k] ? state.filters[k].slice() : [];
-        const at = cur.indexOf(raw); if (at >= 0) cur.splice(at, 1); else cur.push(raw);
+        let cur = state.filters[k] ? state.filters[k].slice() : [];
+        if (cur.some(x => sameMember(x, raw))) cur = cur.filter(x => !sameMember(x, raw)); else cur.push(raw);
         state.filters[k] = cur;
       });
       render(root, spec, reopts);
@@ -568,10 +604,11 @@
     root._toggle = toggleMany;
     const filterHtml = (spec.filters || []).filter(f => f.members && f.members.length).map(f => {
       const k = dk(f.label), on = state.filters[k] || [];
-      return `<span class="lbl">${esc(L.dim(f.label))}</span>` + f.members.map((m, i) => `<button type="button" class="rp-chip" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="${on.includes(m)}">${esc(L.member(f.label, m, i))}</button>`).join('');
+      return `<span class="lbl">${esc(L.dim(f.label))}</span>` + f.members.map((m, i) => `<button type="button" class="rp-chip" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="${selHas(on, m)}">${esc(L.member(f.label, m, i))}</button>`).join('');
     }).join('');
     const chipDims = (spec.filters || []).map(f => dk(f.label));
-    const pills = active.filter(k => !chipDims.includes(k)).map(k => state.filters[k].map(m => `<button type="button" class="rp-chip rp-pill" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="true" title="Remove this filter">${esc(L.generic ? 'Filter' : k)}: ${esc(L.generic ? '•' : m)} ✕</button>`).join('')).join('');
+    const chipHas = (k, m) => (spec.filters || []).some(f => dk(f.label) === k && (f.members || []).some(x => sameMember(x, m)));
+    const pills = active.map(k => state.filters[k].filter(m => !(chipDims.includes(k) && chipHas(k, m))).map(m => `<button type="button" class="rp-chip rp-pill" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="true" title="Remove this filter">${esc(L.generic ? 'Filter' : k)}: ${esc(L.generic ? '•' : m)} ✕</button>`).join('')).join('');
     const filterBar = filterHtml + pills + (active.length ? `<button type="button" class="rp-chip rp-clear">Clear all filters</button>` : '');
     const activeNote = active.length ? `<span>Filtered: ${active.map(k => esc(k) + ' (' + state.filters[k].length + ')').join(', ')}</span>` : '';
 
@@ -614,7 +651,7 @@
         const catCols = cols.filter(c => c.kind === 'category' && c.members && c.members.length);
         const ownKeys = catCols.map(c => dk(c.name));
         const tf = F.factor(v.id, ownKeys, 0);
-        const pick = (c, ri) => { const k = dk(c.name), allowed = state.filters[k] && state.filters[k].length ? c.members.filter(m => state.filters[k].includes(m)) : c.members; const pool = allowed.length ? allowed : c.members; return pool[Math.floor(rng(hashStr(v.id + '|' + c.name + '|' + ri + '|' + pool.join(',')))() * pool.length)]; };
+        const pick = (c, ri) => { const k = dk(c.name), allowed = state.filters[k] && state.filters[k].length ? c.members.filter(m => selHas(state.filters[k], m)) : c.members; const pool = allowed.length ? allowed : c.members; return pool[Math.floor(rng(hashStr(v.id + '|' + c.name + '|' + ri + '|' + pool.join(',')))() * pool.length)]; };
         const mScale = scaleFor({ format: 'currency' }, r);
         const ids = Array.from({ length: nRows }, () => Math.floor(r() * 65536).toString(16).toUpperCase().padStart(4, '0'));
         const desc = Array.from({ length: nRows }, () => r()).sort((a, b) => b - a);
