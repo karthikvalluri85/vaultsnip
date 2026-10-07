@@ -28,7 +28,7 @@ Every replica carries a watermark and a "synthetic data" banner that can't be sw
 
 ![The replica in shape-preserving mode](images/replica-sales.png)
 
-It handles far more than bar charts: KPI cards, stacked columns, lines and areas, pie and donut, treemap, funnel, waterfall, scatter and bubble, heatmaps, gauges, box plots, Sankey diagrams and tables.
+It handles far more than bar charts: KPI cards, stacked columns, lines and areas, pie and donut, treemap, funnel, waterfall, scatter and bubble, heatmaps, gauges, box plots, Sankey diagrams, tables, and maps (filled, bubble, density and flow) for the world, Europe and 14 countries. Click any bar, slice, row or map region and every number on the page changes.
 
 ![A finance report replica](images/replica-finance.png)
 
@@ -41,7 +41,7 @@ It handles far more than bar charts: KPI cards, stacked columns, lines and areas
 
 ## What's next
 
-Maps with bundled region outlines, shapes measured directly from pixels, PDF and PowerPoint input, and turning the layout spec into user stories and Tableau or Power BI build plans.
+Shapes measured directly from pixels, more map outlines, PDF and PowerPoint input, and turning the layout spec into user stories and Tableau or Power BI build plans.
 
 ## Try it
 

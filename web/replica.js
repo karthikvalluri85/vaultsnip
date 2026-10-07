@@ -79,6 +79,176 @@
     function dimShort(n) { if (!dimMap.has(n)) dimMap.set(n, 'Dimension ' + (++dimCount)); return dimMap.get(n).replace('Dimension ', 'Item ').replace(/ \d+$/, ''); }
   }
 
+  /* ---------- maps ---------- */
+  // Region outlines live in maps/<name>.json (Natural Earth, simplified; see tools/maps). They load on first use
+  // and are embedded in exports. Each feature has name, a (aliases), cp (label point), bb (main landmass bbox).
+  const MAPS = {}, MAP_LOADING = {}, MAP_FAILED = {};
+  const MAP_LIST = ['world', 'europe', 'usa', 'canada', 'mexico', 'brazil', 'uk', 'france', 'germany', 'italy', 'spain', 'india', 'china', 'japan', 'australia', 'south-africa'];
+  const MAP_ALIAS = { 'us': 'usa', 'u s': 'usa', 'united states': 'usa', 'united states of america': 'usa', 'america': 'usa', 'united kingdom': 'uk', 'great britain': 'uk', 'britain': 'uk', 'gb': 'uk', 'england': 'uk',
+    'south africa': 'south-africa', 'za': 'south-africa', 'countries': 'world', 'global': 'world', 'worldwide': 'world', 'emea': 'world', 'apac': 'world', 'eu': 'europe', 'deutschland': 'germany', 'bharat': 'india' };
+  let MAP_BASE = 'maps/';
+  try { const cs = document.currentScript; if (cs && cs.src) MAP_BASE = new URL('maps/', cs.src).href; } catch (e) { /* inline copy: maps are embedded */ }
+  const fold = s => String(s == null ? '' : s).normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9& ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const escH = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function mapName(b) {
+    const f = fold(b || 'world'), g = f.replace(/ (states|state|provinces|regions|counties|prefectures|countries|map)$/, '');
+    for (const x of [f, g]) { if (MAP_LIST.includes(x.replace(/ /g, '-'))) return x.replace(/ /g, '-'); if (MAP_ALIAS[x]) return MAP_ALIAS[x]; }
+    return 'world';
+  }
+  function addMap(name, fc) {
+    if (typeof fc === 'string') fc = JSON.parse(fc);
+    const idx = {}, feats = {};
+    fc.features.forEach(f => { feats[f.properties.name] = f.properties; idx[fold(f.properties.name)] = f.properties.name; });
+    fc.features.forEach(f => (f.properties.a || []).forEach(a => { if (!(a in idx)) idx[a] = f.properties.name; }));
+    let bb = [180, 90, -180, -90];
+    Object.values(feats).forEach(p => { if (p.bb) bb = [Math.min(bb[0], p.bb[0]), Math.min(bb[1], p.bb[1]), Math.max(bb[2], p.bb[2]), Math.max(bb[3], p.bb[3])]; });
+    const groups = {}; const g0 = (fc.vs && fc.vs.groups) || {}; Object.keys(g0).forEach(g => { groups[fold(g)] = g0[g]; });
+    global.echarts.registerMap('vs-' + name, fc);
+    MAPS[name] = { idx, feats, groups, moves: (fc.vs && fc.vs.moves) || [], bb: name === 'world' ? [-170, -56, 180, 84] : bb, names: Object.keys(feats) };
+  }
+  function loadMap(name) {
+    if (MAPS[name]) return Promise.resolve();
+    if (!MAP_LOADING[name]) {
+      MAP_LOADING[name] = fetch(MAP_BASE + name + '.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(fc => addMap(name, fc)).catch(() => { MAP_FAILED[name] = true; });
+    }
+    return MAP_LOADING[name];
+  }
+  function mapsUsed(spec) {
+    const s = new Set();
+    (spec.rows || []).forEach(r => (r.visuals || []).forEach(v => { if (v && v.type === 'map') s.add(mapName(v.basemap)); }));
+    return Array.from(s);
+  }
+  function resolveRegions(M, raw) {
+    const f = fold(raw); if (!f) return [];
+    const tries = [f, f.replace(/ & /g, ' and '), f.replace(/^the /, ''), f.replace(/ (state|province|region|territory|county|prefecture|district)$/, ''), f.replace(/^(state|province|region|county) of /, ''), f.replace(/\bst\b/g, 'saint')];
+    for (const t of tries) { if (M.idx[t]) return [M.idx[t]]; if (M.groups[t]) return M.groups[t].filter(n => M.feats[n]); }
+    return [];
+  }
+  function movePoint(M, c) {
+    for (const m of M.moves) { const b = m.box; if (c[0] >= b[0] && c[0] <= b[2] && c[1] >= b[1] && c[1] <= b[3]) return [m.to[0] + (c[0] - m.from[0]) * m.k, m.to[1] + (c[1] - m.from[1]) * m.k]; }
+    return c;
+  }
+  function centroid(M, names) {
+    const cps = names.map(n => M.feats[n] && M.feats[n].cp).filter(Boolean);
+    if (!cps.length) return null;
+    return [cps.reduce((a, c) => a + c[0], 0) / cps.length, cps.reduce((a, c) => a + c[1], 0) / cps.length];
+  }
+  function mapKind(v) {
+    const k = fold(v.mapKind || '');
+    if (/bubble|symbol|point|pin|marker|proportional|dot/.test(k)) return 'bubble';
+    if (/density|heat/.test(k)) return 'density';
+    if (/flow|path|line|route|origin|spider|connection/.test(k)) return 'flow';
+    if (k) return 'filled';
+    if (Array.isArray(v.flows) && v.flows.length) return 'flow';
+    if (Array.isArray(v.points) && v.points.length) return 'bubble';
+    return 'filled';
+  }
+  const mapDimName = v => (v.dimension && v.dimension.name) || (mapKind(v) === 'filled' ? 'Region' : 'Location');
+  function mapMembers(v) {
+    const pts = (Array.isArray(v.points) ? v.points : []).filter(p => p && typeof p === 'object' && !Array.isArray(p));
+    if (mapKind(v) !== 'filled' && pts.length) return pts.map((p, i) => p.name || ('Location ' + (i + 1)));
+    const m = (v.dimension && v.dimension.members) || [];
+    if (m.length) return m;
+    if (Array.isArray(v.flows)) { const s = []; v.flows.forEach(f => [f.from, f.to].forEach(x => { if (x != null && !s.includes(String(x))) s.push(String(x)); })); return s; }
+    return [];
+  }
+
+  function mapOption(v, ctx, base, tooltip, meas, scale) {
+    const { L, mode, r, t, colors } = ctx;
+    const F = ctx.filter;
+    const name = mapName(v.basemap);
+    if (!MAPS[name]) return { _placeholder: MAP_FAILED[name] ? 'The map outline could not be loaded. Open the app over http(s) rather than as a local file.' : 'Loading map outline…' };
+    const M = MAPS[name], generic = L.generic, kind = mapKind(v);
+    const dimName = mapDimName(v), dimKey = F.dk(dimName);
+    const pts = (Array.isArray(v.points) ? v.points : []).filter(p => p && typeof p === 'object' && !Array.isArray(p));
+    const raws = mapMembers(v);
+    const seriesShape = v.series && v.series[0] && Array.isArray(v.series[0].shape) ? v.series[0].shape : [];
+    let locs = raws.map((raw, i) => {
+      const p = kind !== 'filled' && pts.length ? pts[i] : null;
+      const l = { raw, shape: p ? p.shape : seriesShape[i], regions: resolveRegions(M, raw), coord: null };
+      if (p && isFinite(p.lon) && isFinite(p.lat) && p.lon !== null && p.lat !== null) l.coord = movePoint(M, [+p.lon, +p.lat]);
+      else if (l.regions.length) l.coord = centroid(M, l.regions);
+      return l;
+    });
+    if (!locs.length) locs = Array.from({ length: 8 }, (_, i) => ({ raw: 'Location ' + (i + 1), regions: [], coord: null }));
+    // Generic mode, or names that match nothing on this map: place each member on a seeded random region instead.
+    const unmatched = locs.filter(l => kind === 'filled' ? !l.regions.length : !l.coord);
+    if (generic || unmatched.length === locs.length) {
+      const rr = rng(hashStr(v.id + '|' + name + '|' + (generic ? 'g' : 's')));
+      const area = n => { const b = M.feats[n].bb || [0, 0, 0, 0]; return (b[2] - b[0]) * (b[3] - b[1]); };
+      const pool = M.names.slice().sort((a, b) => area(b) - area(a)).slice(0, Math.max(locs.length, Math.ceil(M.names.length * (name === 'world' ? 0.45 : 0.8))));
+      locs.forEach(l => { const n = pool.splice(Math.floor(rr() * pool.length), 1)[0]; l.regions = n ? [n] : []; l.coord = n ? M.feats[n].cp : null; });
+    }
+    const n = locs.length;
+    const allShapes = locs.every(l => typeof l.shape === 'number') ? locs.map(l => l.shape) : null;
+    const vals0 = shapeArray(allShapes, n, mode, r, 'cat').map(x => x / 100 * scale);
+    const vals = vals0.map((x, i) => x * F.factor(v.id, [dimKey], i));
+    const sel = F.sel(dimKey);
+    const isOn = l => !(sel && sel.length) || sel.includes(l.raw);
+    const label = i => L.member(dimName, locs[i].raw, i);
+    const mx = Math.max(1e-9, ...vals0); // unfiltered maximum, so filters elsewhere visibly lighten and shrink the map
+    const note = (!generic && unmatched.length && unmatched.length < locs.length) ? 'Not on this map: ' + unmatched.map(l => l.raw).join(', ') : '';
+
+    // Zoom world and Europe maps to the part that holds data, like BI tools do.
+    const view = (() => {
+      if (!['world', 'europe'].includes(name)) return {};
+      let b = null;
+      const add = q => { if (!q) return; b = b ? [Math.min(b[0], q[0]), Math.min(b[1], q[1]), Math.max(b[2], q[2]), Math.max(b[3], q[3])] : q.slice(); };
+      locs.forEach(l => { if (kind === 'filled') l.regions.forEach(rn => add(M.feats[rn] && M.feats[rn].bb)); else if (l.coord) add([l.coord[0], l.coord[1], l.coord[0], l.coord[1]]); });
+      if (!b) return {};
+      const w = Math.max(10, b[2] - b[0]), h = Math.max(7, b[3] - b[1]), cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
+      const full = M.bb, z = Math.min((full[2] - full[0]) / (w * 1.25), (full[3] - full[1]) / (h * 1.25));
+      return z < 1.3 ? {} : { center: [cx, cy], zoom: Math.min(z, 9) };
+    })();
+    const midLat = view.center ? view.center[1] : (M.bb[1] + M.bb[3]) / 2;
+    const aspectScale = name === 'world' && !view.center ? 0.75 : Math.max(0.55, Math.min(1, Math.cos(midLat * Math.PI / 180)));
+    const area = { map: 'vs-' + name, roam: false, aspectScale, top: 6, bottom: kind === 'filled' ? 30 : 6, left: 6, right: 6, label: { show: false } };
+    const geo = Object.assign({}, area, view, { silent: true, itemStyle: { areaColor: t.grid, borderColor: t.surface, borderWidth: 0.6 } });
+    const meta = { pairs: p => (p && p.data && p.data.member != null) ? [[dimKey, p.data.member]] : [] };
+    const tipLoc = p => p.data ? `${escH(p.data.label)}<br><b>${fmt(p.data.v, meas, generic)}</b>` : '';
+
+    if (kind === 'filled') {
+      const data = [];
+      locs.forEach((l, i) => l.regions.forEach(rn => data.push({ name: rn, value: vals[i], v: vals[i], member: l.raw, label: label(i) + (!generic && l.regions.length > 1 ? ' · ' + rn : ''), itemStyle: isOn(l) ? undefined : { opacity: 0.22 } })));
+      return Object.assign(base, { _meta: meta, _note: note,
+        tooltip: Object.assign({}, tooltip, { formatter: p => p.data ? tipLoc(p) : (generic ? '' : escH(p.name)) }),
+        visualMap: { seriesIndex: 0, min: 0, max: mx, calculable: false, orient: 'horizontal', left: 4, bottom: 2, itemHeight: 110, itemWidth: 9, text: [fmt(mx, meas, generic), fmt(0, meas, generic)], textGap: 6, textStyle: { color: t.muted, fontSize: 10 }, inRange: { color: ['#dbe8f8', colors[0], '#13355f'] }, formatter: x => fmt(x, meas, generic) },
+        series: [Object.assign({ type: 'map', selectedMode: false, itemStyle: { areaColor: t.grid, borderColor: t.surface, borderWidth: 0.6 }, emphasis: { label: { show: false }, itemStyle: { areaColor: colors[1], borderColor: t.ink, borderWidth: 0.8 } }, data }, area, view)]
+      });
+    }
+    const points = locs.map((l, i) => l.coord ? { name: label(i), label: label(i), value: [l.coord[0], l.coord[1], vals[i]], v: vals[i], member: l.raw, itemStyle: { opacity: isOn(l) ? 0.82 : 0.14 } } : null).filter(Boolean);
+    const dots = (size, color) => ({ type: 'scatter', coordinateSystem: 'geo', data: points, symbolSize: size, itemStyle: { color, borderColor: t.surface, borderWidth: 1 }, emphasis: { scale: 1.2 }, tooltip: { formatter: tipLoc } });
+
+    if (kind === 'bubble') {
+      return Object.assign(base, { _meta: meta, _note: note, tooltip: Object.assign({}, tooltip), geo,
+        series: [dots(d => 7 + Math.sqrt(d[2] / mx) * 26, colors[0])] });
+    }
+    if (kind === 'density') {
+      const heat = [], spread = Math.max(0.15, (M.bb[2] - M.bb[0]) / 70) / Math.max(1, view.zoom || 1);
+      const gauss = () => Math.sqrt(-2 * Math.log(r() || 1e-9)) * Math.cos(2 * Math.PI * r());
+      locs.forEach((l, i) => { if (!l.coord || !isOn(l)) return; const k = 14 + Math.round(30 * vals[i] / mx); for (let j = 0; j < k; j++) heat.push([l.coord[0] + gauss() * spread, l.coord[1] + gauss() * spread * 0.75, 0.4 + r()]); });
+      return Object.assign(base, { _meta: meta, _note: note, tooltip: Object.assign({}, tooltip), geo,
+        visualMap: { show: false, seriesIndex: 0, min: 0, max: 4, inRange: { color: ['rgba(255,214,102,0)', '#f6c344', '#eb6834', '#b3262b'] } },
+        series: [{ type: 'heatmap', coordinateSystem: 'geo', data: heat, pointSize: 9, blurSize: 16, silent: true }, dots(16, 'rgba(0,0,0,0)')] });
+    }
+    // flow: origin → destination lines
+    const byRaw = {}; locs.forEach((l, i) => { byRaw[fold(l.raw)] = i; });
+    let flows = (Array.isArray(v.flows) ? v.flows : []).map(f => ({ a: byRaw[fold(f.from)], b: byRaw[fold(f.to)], shape: f.shape })).filter(f => f.a != null && f.b != null && f.a !== f.b);
+    if (!flows.length) flows = locs.slice(1).map((_, i) => ({ a: 0, b: i + 1 }));
+    const fShape = flows.every(f => typeof f.shape === 'number') ? flows.map(f => f.shape) : null;
+    const fv0 = shapeArray(fShape, flows.length, mode, r, 'cat').map(x => x / 100 * scale);
+    const fv = fv0.map((x, i) => x * F.factor(v.id, [dimKey], i + 100));
+    const fmx = Math.max(1e-9, ...fv0);
+    const lines = flows.filter(f => locs[f.a].coord && locs[f.b].coord).map((f, i) => {
+      const on = isOn(locs[f.a]) || isOn(locs[f.b]);
+      return { coords: [locs[f.a].coord, locs[f.b].coord], v: fv[i], member: locs[f.a].raw, label: label(f.a) + ' → ' + label(f.b), lineStyle: { width: 1 + 5 * fv[i] / fmx, opacity: on ? 0.75 : 0.1 } };
+    });
+    return Object.assign(base, { _meta: meta, _note: note, tooltip: Object.assign({}, tooltip), geo,
+      series: [{ type: 'lines', coordinateSystem: 'geo', data: lines, lineStyle: { color: colors[0], curveness: 0.25 }, effect: { show: true, period: 5, trailLength: 0, symbol: 'circle', symbolSize: 4, color: colors[1] }, tooltip: { formatter: tipLoc } },
+        dots(9, colors[1])] });
+  }
+
   /* ---------- visual builders ---------- */
   function themeVars(root) {
     const cs = getComputedStyle(root);
@@ -257,6 +427,7 @@
           series: [{ type: 'boxplot', data, itemStyle: { color: 'transparent', borderColor: colors[0], borderWidth: 1.5 } }]
         });
       }
+      case 'map': return mapOption(v, ctx, base, tooltip, meas, scale);
       case 'sankey': {
         const rawNodes = v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y'];
         const nk = F.dk('node · ' + (v.title || v.id));
@@ -311,6 +482,7 @@
 .rp-pill{background:#e8f1fb;border-color:#2a78d6;color:#14181e}
 .rp-clear{border-style:dashed}
 .rp-ph{display:grid;place-items:center;height:var(--h,200px);border:1px dashed var(--rp-line);border-radius:6px;color:var(--rp-muted);font-size:12.5px;text-align:center;padding:12px}
+.rp-note{font-size:11.5px;color:var(--rp-muted);margin-top:4px}
 .rp-text{color:var(--rp-muted);font-size:13px}
 .rp-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;padding:10px 18px;border-top:1px solid var(--rp-line);font-size:11.5px;color:var(--rp-muted);background:var(--rp-surface);position:relative;z-index:21}
 .rp-foot a{color:var(--rp-muted);text-decoration:underline;text-underline-offset:2px}
@@ -336,6 +508,10 @@
 
     const visuals = [];
     (spec.rows || []).forEach(row => (row.visuals || []).forEach(v => visuals.push(Object.assign({ _h: row.height }, v))));
+    // map outlines load on first use; the page re-renders once they arrive
+    root._spec = spec;
+    const missing = mapsUsed(spec).filter(n => !MAPS[n] && !MAP_FAILED[n]);
+    if (missing.length && global.fetch) Promise.all(missing.map(loadMap)).then(() => { if (root._spec === spec) render(root, spec, reopts); });
 
     // ---- filter model: each member of a dimension owns a share of the total; selecting members
     // keeps only those members in visuals on that dimension and scales every other visual by their share
@@ -347,7 +523,7 @@
       const arr = (mode === 'shape' && shape && shape.length === list.length) ? shape.map(x => Math.max(0.5, Math.abs(+x) || 0)) : list.map(() => 15 + rr() * 85);
       const tot = arr.reduce((a, b) => a + b, 0); shares[k] = {}; list.forEach((m, i) => { shares[k][m] = arr[i] / tot; });
     };
-    visuals.forEach(v => { if (v.dimension) setShares(v.dimension.name, v.dimension.members, v.series && v.series[0] && v.series[0].shape); });
+    visuals.forEach(v => { if (v.dimension && v.type !== 'map') setShares(v.dimension.name, v.dimension.members, v.series && v.series[0] && v.series[0].shape); });
     (spec.filters || []).forEach(f => setShares(f.label, f.members));
     visuals.forEach(v => (Array.isArray(v.columns) ? v.columns : []).forEach(c => { if (c.kind === 'category') setShares(c.name, c.members); }));
     visuals.forEach(v => {
@@ -357,6 +533,7 @@
         setShares(v.columns.name, v.columns.members, m && m[0] && m[0].length === v.columns.members.length ? v.columns.members.map((_, ci) => m.reduce((a, row) => a + (+row[ci] || 0), 0)) : null);
       }
       if (v.type === 'scatter' || v.type === 'bubble') { const n = (v.points && v.points.length) || v.pointCount || 24; setShares('point · ' + (v.title || v.id), Array.from({ length: n }, (_, i) => (v.pointLabel || 'Point') + ' ' + (i + 1))); }
+      if (v.type === 'map') setShares(mapDimName(v), mapMembers(v), (v.points && v.points.length ? v.points.map(p => p && p.shape) : (v.series && v.series[0] && v.series[0].shape)));
       if (v.type === 'sankey') setShares('node · ' + (v.title || v.id), v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y']);
     });
     Object.keys(state.filters).forEach(k => { if (!state.filters[k] || !state.filters[k].length) delete state.filters[k]; });
@@ -462,16 +639,17 @@
       }
       if (v.type === 'text') { card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(L.generic ? 'Text block' : (v.content || 'Text block (content masked)'))}</p>`); return; }
       const opt = buildOption(v, { L, mode, r, t, colors, filter: F, quiet: !!opts._quiet });
-      if (!opt) {
-        card.insertAdjacentHTML('beforeend', `<div class="rp-ph" style="--h:${h}px">${esc(v.type === 'map' ? 'Map visual recognised. Map rendering arrives in the next release.' : 'Visual type "' + (v.originalType || v.type) + '" recognised; shown as a placeholder.')}</div>`);
+      if (!opt || opt._placeholder) {
+        card.insertAdjacentHTML('beforeend', `<div class="rp-ph" style="--h:${h}px">${esc(opt ? opt._placeholder : 'Visual type "' + (v.originalType || v.type) + '" recognised; shown as a placeholder.')}</div>`);
         return;
       }
       const el = document.createElement('div');
       el.className = 'rp-chart'; el.style.setProperty('--h', h + 'px');
       card.appendChild(el);
       const chart = global.echarts.init(el, null, { renderer: 'svg' });
-      chart.setOption(Object.assign({}, opt, { _meta: undefined }));
+      chart.setOption(Object.assign({}, opt, { _meta: undefined, _note: undefined }));
       const meta = opt._meta; delete opt._meta;
+      if (opt._note) card.insertAdjacentHTML('beforeend', `<div class="rp-note">${esc(opt._note)}</div>`);
       if (meta && meta.pairs) chart.on('click', p => { const pairs = meta.pairs(p).filter(x => x[0] && x[1] != null); if (pairs.length) toggleMany(pairs); });
       root._charts.push(chart);
     });
@@ -491,9 +669,10 @@
 </head><body><div id="app"></div>
 <script>${safe(libs.echarts)}</script>
 <script>${safe(libs.replica)}</script>
+${Object.keys(libs.maps || {}).map(n => `<script>DSCReplica.addMap(${JSON.stringify(n)},${safe(libs.maps[n])});</script>`).join('\n')}
 <script>window.DSC_SPEC=${safe(JSON.stringify(spec))};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed })});</script>
 </body></html>`;
   }
 
-  global.DSCReplica = { render, exportHtml, PRODUCT_NAME, PRODUCT_URL };
+  global.DSCReplica = { render, exportHtml, addMap, loadMap, mapsUsed, MAP_LIST, PRODUCT_NAME, PRODUCT_URL };
 })(window);

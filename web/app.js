@@ -402,6 +402,11 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
  scatter/bubble: "xMeasure","yMeasure","points":[[x0-100,y0-100,size0-100]].
  gauge: "shapeValue":0-100. waterfall: series shape signed -100..100, last member is the total (0).
  sankey: "nodes":[string],"links":[{"source":index,"target":index,"shape":0-100}].
+ map: "basemap":"world"|"europe"|"usa"|"canada"|"mexico"|"brazil"|"uk"|"france"|"germany"|"italy"|"spain"|"india"|"china"|"japan"|"australia"|"south-africa" (the closest outline to what is shown),
+  "mapKind":"filled"|"bubble"|"density"|"flow". filled: "dimension":{"name","members":[regions that are shaded]} with series shape = relative colour intensity.
+  bubble/density: "points":[{"name":string,"lat":number,"lon":number,"shape":0-100}] for each marker or hotspot, placed by where it sits on the map (if its label is masked, name it "Location N").
+  flow: "points" for the endpoints plus "flows":[{"from":name,"to":name,"shape":0-100}].
+  Recognise shaded regions from the geography itself and use their standard English names (country, state or province), even when labels are masked; region names are not sensitive.
  table: "columns":[{"name":string,"kind":"text"|"org"|"person"|"id"|"category"|"date"|"number"|"currency"|"percent","members":[string]}],"rowCount":int,"sorted":bool.
  placeholder: "originalType":string for anything else.
 - Titles and labels: copy only text that is visible and not covered. If part of a title is covered, write [Client] for it. If axis or legend labels are covered, use "Item 1", "Item 2"…
@@ -461,8 +466,11 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   $('btn-restart').onclick = () => { S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; show('s-drop'); };
   $('btn-export').onclick = async () => {
     try {
-      const [echartsSrc, replicaSrc] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text())]);
-      const html = DSCReplica.exportHtml(S.spec, { mode: S.mode, seed: S.seed }, { echarts: echartsSrc, replica: replicaSrc });
+      const mapNames = DSCReplica.mapsUsed(S.spec);
+      const [echartsSrc, replicaSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text())]
+        .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
+      const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
+      const html = DSCReplica.exportHtml(S.spec, { mode: S.mode, seed: S.seed }, { echarts: echartsSrc, replica: replicaSrc, maps });
       const blob = new Blob([html], { type: 'text/html' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

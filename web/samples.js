@@ -35,7 +35,7 @@ window.DSC_SAMPLES = [
   {
     id: 'web',
     name: 'Web analytics overview',
-    blurb: 'Opens the replica straight away: trend lines, donut, ranked bars, day-by-hour heatmap and a funnel.',
+    blurb: 'Opens the replica straight away: trend lines, donut, ranked bars, heatmap, funnel, plus world, city and density maps.',
     spec: {
       title: '[Client] | Website Performance', subtitle: 'Last 12 weeks',
       filters: [{ label: 'Channel', members: ['Organic', 'Paid search', 'Direct', 'Social', 'Email', 'Referral'] }],
@@ -63,14 +63,28 @@ window.DSC_SAMPLES = [
             matrix: [[5, 3, 12, 70, 85, 80, 55, 25], [6, 3, 14, 75, 90, 84, 58, 27], [5, 2, 13, 78, 95, 88, 60, 28], [6, 3, 12, 74, 92, 86, 57, 26], [7, 4, 11, 66, 80, 70, 45, 30], [12, 6, 8, 30, 45, 50, 48, 35], [10, 5, 7, 25, 40, 46, 50, 32]] },
           { id: 'f1', type: 'funnel', span: 3, title: 'Checkout funnel',
             dimension: { name: 'Step', members: ['Visit', 'Product view', 'Add to cart', 'Checkout', 'Purchase'] },
-            measure: { name: 'Users', format: 'number' }, series: [{ name: 'Users', shape: [100, 64, 28, 16, 9] }] }] }
+            measure: { name: 'Users', format: 'number' }, series: [{ name: 'Users', shape: [100, 64, 28, 16, 9] }] }] },
+        { height: 'l', visuals: [
+          { id: 'm1', type: 'map', basemap: 'world', mapKind: 'filled', span: 5, title: 'Sessions by country',
+            dimension: { name: 'Country', members: ['United States', 'United Kingdom', 'Germany', 'India', 'Canada', 'France', 'Australia', 'Brazil', 'Japan', 'Netherlands', 'Nordics'] },
+            measure: { name: 'Sessions', format: 'number' }, series: [{ name: 'Sessions', shape: [100, 46, 41, 38, 27, 24, 18, 15, 13, 11, 9] }] },
+          { id: 'm2', type: 'map', basemap: 'europe', mapKind: 'bubble', span: 4, title: 'Sessions by city (Europe)', dimension: { name: 'City' },
+            measure: { name: 'Sessions', format: 'number' }, points: [
+              { name: 'London', lat: 51.5, lon: -0.13, shape: 100 }, { name: 'Paris', lat: 48.86, lon: 2.35, shape: 64 }, { name: 'Berlin', lat: 52.52, lon: 13.4, shape: 58 },
+              { name: 'Madrid', lat: 40.42, lon: -3.7, shape: 41 }, { name: 'Milan', lat: 45.46, lon: 9.19, shape: 33 }, { name: 'Amsterdam', lat: 52.37, lon: 4.9, shape: 37 },
+              { name: 'Stockholm', lat: 59.33, lon: 18.07, shape: 22 }, { name: 'Warsaw', lat: 52.23, lon: 21.01, shape: 19 }, { name: 'Dublin', lat: 53.35, lon: -6.26, shape: 26 }] },
+          { id: 'm3', type: 'map', basemap: 'india', mapKind: 'density', span: 3, title: 'App opens (India)', dimension: { name: 'Metro' },
+            measure: { name: 'App opens', format: 'number' }, points: [
+              { name: 'Bengaluru', lat: 12.97, lon: 77.59, shape: 100 }, { name: 'Mumbai', lat: 19.08, lon: 72.88, shape: 86 }, { name: 'Delhi', lat: 28.61, lon: 77.21, shape: 90 },
+              { name: 'Hyderabad', lat: 17.39, lon: 78.49, shape: 62 }, { name: 'Chennai', lat: 13.08, lon: 80.27, shape: 55 }, { name: 'Pune', lat: 18.52, lon: 73.86, shape: 48 },
+              { name: 'Kolkata', lat: 22.57, lon: 88.36, shape: 40 }, { name: 'Ahmedabad', lat: 23.02, lon: 72.57, shape: 30 }] }] }
       ]
     }
   },
   {
     id: 'finance',
     name: 'Finance and operations report',
-    blurb: 'A non-BI style report: waterfall, treemap, bubble, gauge, stacked columns, box plot, Sankey and a table.',
+    blurb: 'A non-BI style report: waterfall, treemap, bubble, gauge, box plot, Sankey, a table, a US state map and a flow map.',
     spec: {
       title: '[Client] | Monthly Finance & Operations Review', subtitle: 'FY26, period 6',
       filters: [{ label: 'Segment', members: ['Retail', 'Wholesale', 'Online'] }],
@@ -101,7 +115,21 @@ window.DSC_SAMPLES = [
             links: [{ source: 0, target: 1, shape: 60 }, { source: 0, target: 2, shape: 40 }, { source: 1, target: 3, shape: 45 }, { source: 1, target: 4, shape: 15 }, { source: 2, target: 5, shape: 25 }, { source: 2, target: 6, shape: 15 }] },
           { id: 'tb', type: 'table', span: 6, title: 'Open purchase orders', rowCount: 6, sorted: true, columns: [
             { name: 'PO number', kind: 'id' }, { name: 'Supplier', kind: 'org', placeholder: 'Supplier' }, { name: 'Owner', kind: 'person' },
-            { name: 'Due', kind: 'date' }, { name: 'Amount', kind: 'currency', currency: '$' }] }] }
+            { name: 'Due', kind: 'date' }, { name: 'Amount', kind: 'currency', currency: '$' }] }] },
+        { height: 'l', visuals: [
+          { id: 'mu', type: 'map', basemap: 'usa', mapKind: 'filled', span: 6, title: 'Revenue by state',
+            dimension: { name: 'State', members: ['California', 'Texas', 'New York', 'Florida', 'Illinois', 'Washington', 'Georgia', 'Ohio', 'Arizona', 'Colorado', 'Massachusetts', 'North Carolina', 'Alaska', 'Hawaii'] },
+            measure: { name: 'Revenue', format: 'currency', currency: '$' }, series: [{ name: 'Revenue', shape: [100, 84, 72, 61, 44, 38, 33, 30, 26, 24, 22, 28, 6, 9] }] },
+          { id: 'mf', type: 'map', basemap: 'usa', mapKind: 'flow', span: 6, title: 'Shipments from distribution centres', dimension: { name: 'Site' },
+            measure: { name: 'Shipments', format: 'integer', scaleHint: 1200 }, points: [
+              { name: 'Memphis DC', lat: 35.15, lon: -90.05 }, { name: 'Reno DC', lat: 39.53, lon: -119.81 }, { name: 'Allentown DC', lat: 40.6, lon: -75.49 },
+              { name: 'Seattle', lat: 47.61, lon: -122.33 }, { name: 'Los Angeles', lat: 34.05, lon: -118.24 }, { name: 'Denver', lat: 39.74, lon: -104.99 },
+              { name: 'Dallas', lat: 32.78, lon: -96.8 }, { name: 'Chicago', lat: 41.88, lon: -87.63 }, { name: 'Atlanta', lat: 33.75, lon: -84.39 },
+              { name: 'Miami', lat: 25.76, lon: -80.19 }, { name: 'New York', lat: 40.71, lon: -74.01 }, { name: 'Boston', lat: 42.36, lon: -71.06 }],
+            flows: [
+              { from: 'Reno DC', to: 'Seattle', shape: 55 }, { from: 'Reno DC', to: 'Los Angeles', shape: 100 }, { from: 'Reno DC', to: 'Denver', shape: 35 },
+              { from: 'Memphis DC', to: 'Dallas', shape: 70 }, { from: 'Memphis DC', to: 'Chicago', shape: 80 }, { from: 'Memphis DC', to: 'Atlanta', shape: 60 }, { from: 'Memphis DC', to: 'Miami', shape: 45 },
+              { from: 'Allentown DC', to: 'New York', shape: 90 }, { from: 'Allentown DC', to: 'Boston', shape: 40 }, { from: 'Allentown DC', to: 'Chicago', shape: 25 }] }] }
       ]
     }
   }

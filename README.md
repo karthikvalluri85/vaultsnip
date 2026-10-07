@@ -33,7 +33,7 @@ capture → local OCR → mask everything except an allowlist → independent re
 | Watermark + synthetic banner + `synthetic-data` meta | ✅ cannot be turned off |
 | Export: one offline HTML file with footer link | ✅ no automatic network calls |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
-| Maps | ⏳ recognised, shown as placeholder (needs bundled region outlines) |
+| Maps: filled (choropleth), bubble/symbol, density and flow | ✅ 16 bundled outlines: world, Europe, USA, Canada, Mexico, Brazil, UK, France, Germany, Italy, Spain, India, China, Japan, Australia, South Africa. Region names, ISO/postal codes and groups (Nordics, DACH, EMEA, England…) match; click a region to filter |
 | Pixel-measured shapes | ⏳ Claude estimates shapes from the masked image for now |
 | Model hash check, anonymous counters, PDF/PPTX | ⏳ next |
 
