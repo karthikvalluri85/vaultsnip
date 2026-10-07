@@ -12,9 +12,9 @@ capture → local OCR → mask everything except an allowlist → independent re
 
 ## See it in action
 
-[![VaultSnip demo: sample dashboard, on-device masking, re-scan gate, approved payload, interactive replica with cross-filtering](docs/video/vaultsnip-demo.gif)](docs/video/vaultsnip-demo.mp4)
+https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
-*Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes). Click the preview for the full 57-second video.*
+*Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes). Also in the repo: [MP4](docs/video/vaultsnip-demo.mp4) · [animated preview](docs/video/vaultsnip-demo.gif).*
 
 ## What's in this MVP (v0.1.0)
 
