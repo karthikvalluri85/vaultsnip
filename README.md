@@ -71,20 +71,20 @@ Open http://localhost:8080 and click **Try with sample dashboards**. Opening `in
 ## Load the extension (Chrome or Edge)
 
 ```bash
-./build.sh --bundle-models        # local testing: model packed inside the extension
+./build.sh --bundle-models        # model packed inside the extension (local testing and store uploads)
 ```
 
 1. Open `chrome://extensions` (or `edge://extensions`) and switch on **Developer mode**.
 2. **Load unpacked** → choose `dist/extension`.
 3. Open any dashboard tab, click the VaultSnip toolbar icon, drag over the area, and go.
 
-Store builds download the model from the live site on first launch: `./build.sh --model-url https://vaultsnip.pages.dev/lang`. Tagged releases attach ready-made packages automatically.
+Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: the OCR model ships inside the extension (about 7 MB zipped), so it works offline and makes no network request until you send an approved image to your AI provider. Tagged releases attach ready-made packages automatically.
 
 ## Deploy
 
 - **Web app:** Cloudflare Pages, connected to this repo. Build command: none. Output directory: `web`. Every push to `main` deploys.
 - **Hugging Face Space:** create a *Static* Space and upload the contents of `dist/hf-space`.
-- **Chrome Web Store / Edge Add-ons:** upload `dist/vaultsnip-extension.zip`; privacy disclosures in [PRIVACY.md](PRIVACY.md).
+- **Chrome Web Store / Edge Add-ons:** run `./build.sh --bundle-models`, then upload `dist/vaultsnip-extension.zip`; privacy disclosures in [PRIVACY.md](PRIVACY.md).
 
 ## Project layout
 

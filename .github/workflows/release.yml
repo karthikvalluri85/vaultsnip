@@ -18,7 +18,7 @@ jobs:
       - run: node tools/check.mjs
       - name: Check the tag matches the version
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      - run: bash build.sh --model-url https://vaultsnip.pages.dev/lang
+      - run: bash build.sh --bundle-models
       - name: Release notes from CHANGELOG
         run: |
           v="${GITHUB_REF_NAME#v}"
