@@ -23,7 +23,11 @@
   const hashStr = s => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 
   /* ---------- formatting ---------- */
+  // Formatters never throw: a value that is not a finite number shows as a dash (issue #7).
+  const num = v => (typeof v === 'number' ? v : (v == null || v === '' || v === '-' ? NaN : Number(v)));
   function abbr(v, d) {
+    v = num(v);
+    if (!Number.isFinite(v)) return '–';
     const a = Math.abs(v);
     if (a >= 1e9) return (v / 1e9).toFixed(d ?? 1) + 'B';
     if (a >= 1e6) return (v / 1e6).toFixed(d ?? 1) + 'M';
@@ -32,6 +36,8 @@
     return v.toFixed(d ?? (a < 10 ? 1 : 0));
   }
   function fmt(v, measure, generic) {
+    v = num(v);
+    if (!Number.isFinite(v)) return '–';
     const f = (measure && measure.format) || 'number';
     if (f === 'percent') return v.toFixed(1) + (generic ? '' : '%');
     if (f === 'currency') return (generic ? '' : (measure.currency || '$')) + abbr(v);
@@ -116,7 +122,7 @@
   }
   function mapsUsed(spec) {
     const s = new Set();
-    (spec.rows || []).forEach(r => (r.visuals || []).forEach(v => { if (v && v.type === 'map') s.add(mapName(v.basemap)); }));
+    (spec.rows || []).forEach(r => (r.visuals || []).forEach(v => { if (v && /^(map|choropleth|filled map)$/i.test(String(v.type || '').trim())) s.add(mapName(v.basemap)); }));
     return Array.from(s);
   }
   function resolveRegions(M, raw) {
@@ -240,13 +246,13 @@
     const area = { map: 'vs-' + name, roam: false, aspectScale, top: 6, bottom: kind === 'filled' ? 30 : 6, left: 6, right: 6, label: { show: false } };
     const geo = Object.assign({}, area, view, { silent: true, itemStyle: { areaColor: t.grid, borderColor: t.surface, borderWidth: 0.6 } });
     const meta = { pairs: p => (p && p.data && p.data.member != null) ? [[dimKey, p.data.member]] : [] };
-    const tipLoc = p => p.data ? `${escH(p.data.label)}<br><b>${fmt(p.data.v, meas, generic)}</b>` : '';
+    const tipLoc = p => (p.data && p.data.v != null) ? `${escH(p.data.label)}<br><b>${fmt(p.data.v, meas, generic)}</b>` : '';
 
     if (kind === 'filled') {
       const data = [];
       locs.forEach((l, i) => l.regions.forEach(rn => data.push({ name: rn, value: vals[i], v: vals[i], member: l.raw, label: label(i) + (!generic && l.regions.length > 1 ? ' · ' + rn : ''), itemStyle: isOn(l) ? undefined : { opacity: 0.22 } })));
       return Object.assign(base, { _meta: meta, _note: note,
-        tooltip: Object.assign({}, tooltip, { formatter: p => p.data ? tipLoc(p) : (generic ? '' : escH(p.name)) }),
+        tooltip: Object.assign({}, tooltip, { formatter: p => (p.data && p.data.v != null) ? tipLoc(p) : (generic ? '' : escH(p.name)) }),
         visualMap: { seriesIndex: 0, min: 0, max: mx, calculable: false, orient: 'horizontal', left: 4, bottom: 2, itemHeight: 110, itemWidth: 9, text: [fmt(mx, meas, generic), fmt(0, meas, generic)], textGap: 6, textStyle: { color: t.muted, fontSize: 10 }, inRange: { color: ['#dbe8f8', colors[0], '#13355f'] }, formatter: x => fmt(x, meas, generic) },
         series: [Object.assign({ type: 'map', selectedMode: false, itemStyle: { areaColor: t.grid, borderColor: t.surface, borderWidth: 0.6 }, emphasis: { label: { show: false }, itemStyle: { areaColor: colors[1], borderColor: t.ink, borderWidth: 0.8 } }, data }, area, view)]
       });
@@ -335,7 +341,8 @@
 
     switch (v.type) {
       case 'bar': case 'column': case 'histogram': case 'line': case 'area': case 'combo': {
-        const horizontal = !!v.horizontal;
+        // A "column" is vertical by definition; only a "bar" can run horizontally (the AI sometimes sends both).
+        const horizontal = v.type === 'bar' && v.horizontal !== false && v.horizontal !== 'false';
         const cat = Object.assign(axisBase(t), { type: 'category', data: members, name: '' });
         if (n <= 8) cat.axisLabel = { color: t.muted, fontSize: 11, interval: 0, hideOverlap: false, width: 80, overflow: 'truncate' };
         const val = Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } });
@@ -393,7 +400,7 @@
           else { run += x; helper.push(run); up.push('-'); down.push(-x); }
         });
         return Object.assign(base, { _meta: meta,
-          tooltip: Object.assign({}, tooltip, { trigger: 'axis', formatter: ps => { const p = ps.find(q => q.seriesIndex > 0 && q.value !== '-'); return p ? `${p.name}<br><b>${(p.seriesIndex === 2 ? '−' : '')}${fmt(p.value, meas, generic)}</b>` : ''; } }),
+          tooltip: Object.assign({}, tooltip, { trigger: 'axis', valueFormatter: undefined, formatter: ps => { const p = ps.find(q => q.seriesIndex > 0 && Number.isFinite(num(q.value))); return p ? `${p.name}<br><b>${(p.seriesIndex === 2 ? '−' : '')}${fmt(p.value, meas, generic)}</b>` : ''; } }),
           grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
           xAxis: Object.assign(axisBase(t), { type: 'category', data: members }),
           yAxis: Object.assign(axisBase(t), { type: 'value', axisLabel: { color: t.muted, fontSize: 11, formatter: x => fmt(x, meas, generic) } }),
@@ -461,6 +468,38 @@
         });
       }
       case 'map': return mapOption(v, ctx, base, tooltip, meas, scale);
+      case 'gantt': {
+        // Timeline / Gantt: each task is a bar from start to end on a 0-100 time scale.
+        const rawTasks = (Array.isArray(v.tasks) && v.tasks.length ? v.tasks : Array.from({ length: 5 }, (_, i) => ({ name: 'Task ' + (i + 1) })))
+          .map((tk, i) => typeof tk === 'string' ? { name: tk } : (tk || { name: 'Task ' + (i + 1) }));
+        const tKey = F.dk('task · ' + (v.title || v.id));
+        const labels = (Array.isArray(v.timeLabels) ? v.timeLabels : []).map(String);
+        const names = rawTasks.map((tk, i) => String(tk.name != null ? tk.name : 'Task ' + (i + 1)));
+        const shown = names.map((nm, i) => L.member('Task', nm, i));
+        const tsel = F.sel(tKey);
+        const clamp = x => Math.max(0, Math.min(100, x));
+        const spans = rawTasks.map((tk, i) => {
+          let a = num(tk.start), b = num(tk.end);
+          if (mode !== 'shape' || !Number.isFinite(a) || !Number.isFinite(b) || b <= a) { a = r() * 70; b = a + 8 + r() * 30; }
+          return [clamp(a), clamp(Math.max(b, a + 2))];
+        });
+        const at = x => labels.length ? labels[Math.min(labels.length - 1, Math.round(x / 100 * (labels.length - 1)))] : Math.round(x) + '%';
+        const on = i => !(tsel && tsel.length) || tsel.includes(names[i]);
+        const color = colors[(v.colorIndex || 0) % colors.length];
+        meta = { pairs: p => (p && p.seriesIndex === 1 && names[p.dataIndex] != null) ? [[tKey, names[p.dataIndex]]] : [] };
+        return Object.assign(base, { _meta: meta,
+          tooltip: Object.assign({}, tooltip, { valueFormatter: undefined, formatter: p => p.seriesIndex === 1 ? `${escH(shown[p.dataIndex])}<br>${escH(L.generic ? '' : at(spans[p.dataIndex][0]) + ' → ' + at(spans[p.dataIndex][1]))}` : '' }),
+          grid: { left: 8, right: 16, top: 8, bottom: 8, containLabel: true },
+          xAxis: Object.assign(axisBase(t), { type: 'value', min: 0, max: 100, interval: labels.length > 1 ? 100 / (labels.length - 1) : 25,
+            axisLabel: { color: t.muted, fontSize: 11, formatter: x => L.generic ? '' : at(x) } }),
+          yAxis: Object.assign(axisBase(t), { type: 'category', inverse: true, data: shown, splitLine: { show: false } }),
+          series: [
+            { type: 'bar', stack: 'g', silent: true, itemStyle: { color: 'transparent' }, emphasis: { disabled: true }, data: spans.map(sp => sp[0]) },
+            { type: 'bar', stack: 'g', barMaxWidth: 18, itemStyle: { color, borderRadius: 4 },
+              data: spans.map((sp, i) => ({ value: sp[1] - sp[0], itemStyle: { opacity: on(i) ? 1 : 0.25 } })) }
+          ]
+        });
+      }
       case 'sankey': {
         const rawNodes = v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y'];
         const nk = F.dk('node · ' + (v.title || v.id));
@@ -540,7 +579,14 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     const visuals = [];
-    (spec.rows || []).forEach(row => (row.visuals || []).forEach(v => visuals.push(Object.assign({ _h: row.height }, v))));
+    // Normalise what different models call the same visual.
+    const TYPE_ALIAS = { timeline: 'gantt', roadmap: 'gantt', 'gantt chart': 'gantt', 'stacked bar': 'bar', 'stacked column': 'column', doughnut: 'donut', choropleth: 'map', 'filled map': 'map' };
+    const normType = v => {
+      let ty = String(v.type || '').toLowerCase().trim(); ty = TYPE_ALIAS[ty] || ty;
+      if (ty === 'placeholder' && /gantt|timeline|roadmap/i.test(v.originalType || '')) ty = 'gantt';
+      return ty;
+    };
+    (spec.rows || []).forEach(row => (row.visuals || []).forEach(v => { if (v) visuals.push(Object.assign({ _h: row.height }, v, { type: normType(v) })); }));
     // map outlines load on first use; the page re-renders once they arrive
     root._spec = spec;
     const missing = mapsUsed(spec).filter(n => !MAPS[n] && !MAP_FAILED[n]);
@@ -567,6 +613,7 @@
       }
       if (v.type === 'scatter' || v.type === 'bubble') { const n = (v.points && v.points.length) || v.pointCount || 24; setShares('point · ' + (v.title || v.id), Array.from({ length: n }, (_, i) => (v.pointLabel || 'Point') + ' ' + (i + 1))); }
       if (v.type === 'map') setShares(mapDimName(v), mapMembers(v), (v.points && v.points.length ? v.points.map(p => p && p.shape) : (v.series && v.series[0] && v.series[0].shape)));
+      if (v.type === 'gantt' && Array.isArray(v.tasks)) setShares('task · ' + (v.title || v.id), v.tasks.map((tk, i) => String(tk && typeof tk === 'object' ? (tk.name != null ? tk.name : 'Task ' + (i + 1)) : tk)));
       if (v.type === 'sankey') setShares('node · ' + (v.title || v.id), v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y']);
     });
     Object.keys(state.filters).forEach(k => { if (!state.filters[k] || !state.filters[k].length) delete state.filters[k]; });
@@ -606,11 +653,12 @@
       const k = dk(f.label), on = state.filters[k] || [];
       return `<span class="lbl">${esc(L.dim(f.label))}</span>` + f.members.map((m, i) => `<button type="button" class="rp-chip" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="${selHas(on, m)}">${esc(L.member(f.label, m, i))}</button>`).join('');
     }).join('');
+    const keyLabel = k => { const m = /^(point|node|task) /.exec(k); return m ? m[1][0].toUpperCase() + m[1].slice(1) : k; };
     const chipDims = (spec.filters || []).map(f => dk(f.label));
     const chipHas = (k, m) => (spec.filters || []).some(f => dk(f.label) === k && (f.members || []).some(x => sameMember(x, m)));
-    const pills = active.map(k => state.filters[k].filter(m => !(chipDims.includes(k) && chipHas(k, m))).map(m => `<button type="button" class="rp-chip rp-pill" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="true" title="Remove this filter">${esc(L.generic ? 'Filter' : k)}: ${esc(L.generic ? '•' : m)} ✕</button>`).join('')).join('');
+    const pills = active.map(k => state.filters[k].filter(m => !(chipDims.includes(k) && chipHas(k, m))).map(m => `<button type="button" class="rp-chip rp-pill" data-dim="${esc(k)}" data-raw="${esc(m)}" aria-pressed="true" title="Remove this filter">${esc(L.generic ? 'Filter' : keyLabel(k))}: ${esc(L.generic ? '•' : m)} ✕</button>`).join('')).join('');
     const filterBar = filterHtml + pills + (active.length ? `<button type="button" class="rp-chip rp-clear">Clear all filters</button>` : '');
-    const activeNote = active.length ? `<span>Filtered: ${active.map(k => esc(k) + ' (' + state.filters[k].length + ')').join(', ')}</span>` : '';
+    const activeNote = active.length ? `<span>Filtered: ${active.map(k => esc(L.generic ? 'filter' : keyLabel(k)) + ' (' + state.filters[k].length + ')').join(', ')}</span>` : '';
 
     root.className = 'rp';
     root.innerHTML = `

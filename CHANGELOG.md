@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-07
+
+### Fixed
+- Hovering a waterfall chart, or a map region without data, raised "v.toFixed is not a function" ([#7](https://github.com/karthikvalluri85/vaultsnip/issues/7)). It affected replicas built with either provider. Number formatting now never throws; a value that is not a number shows as "–".
+- A "column" chart is always vertical, even when the AI also sends `horizontal: true`.
+
+### Added
+- Gantt / timeline / roadmap visual: tasks drawn from start to end on the source's time axis, clickable to filter. Older replicas whose Gantt was a placeholder now draw one too.
+- AI instructions now spell out vertical versus horizontal, stacked versus side-by-side, and how to describe a Gantt.
+- Regression tests: hover every chart in both samples, and render AI-shaped edge cases.
+
 ## [0.3.0] - 2026-10-07
 
 ### Added
@@ -33,7 +44,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/karthikvalluri85/vaultsnip/releases/tag/v0.1.0

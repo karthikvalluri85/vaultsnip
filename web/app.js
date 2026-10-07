@@ -465,11 +465,14 @@ VISUAL fields: "id", "type", "span" (1-12 grid columns; a row's spans sum to 12)
  "measure":{"name":string,"format":"currency"|"number"|"percent"|"integer","currency":"$"|"€"|"£"|"₹"|"","scaleHint":number (optional: a plausible typical magnitude for this kind of measure, e.g. 40 for days, 900 for headcount; never copy a visible value)},
  "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line"}],
  "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool.
-Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, table, text, map, placeholder.
+Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, gantt, table, text, map, placeholder.
+ Orientation: "column" = vertical bars rising from the x-axis (categories along the bottom). "bar" = horizontal bars (categories down the left side) and must have "horizontal":true. Never send "column" with "horizontal":true.
+ Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item.
  heatmap: "rows":{"name","members"},"columns":{"name","members"},"matrix":[[0-100]].
  scatter/bubble: "xMeasure","yMeasure","points":[[x0-100,y0-100,size0-100]].
  gauge: "shapeValue":0-100. waterfall: series shape signed -100..100, last member is the total (0).
  sankey: "nodes":[string],"links":[{"source":index,"target":index,"shape":0-100}].
+ gantt (also roadmaps and timelines): "tasks":[{"name":string,"start":0-100,"end":0-100}] in top-to-bottom order, positions measured along the time axis; "timeLabels":[string] for the visible time-axis labels, left to right.
  map: "basemap":"world"|"europe"|"usa"|"canada"|"mexico"|"brazil"|"uk"|"france"|"germany"|"italy"|"spain"|"india"|"china"|"japan"|"australia"|"south-africa" (the closest outline to what is shown),
   "mapKind":"filled"|"bubble"|"density"|"flow". filled: "dimension":{"name","members":[regions that are shaded]} with series shape = relative colour intensity.
   bubble/density: "points":[{"name":string,"lat":number,"lon":number,"shape":0-100}] for each marker or hotspot, placed by where it sits on the map (if its label is masked, name it "Location N").

@@ -49,7 +49,39 @@ try {
   await wait(300);
   check((await kpi()) !== before && /country/i.test(await page.locator('#replica .rp-ribbon').textContent()), `clicking ${clicked} on the map filters the page`);
 
+  console.log('Tooltips and AI-shaped specs (regressions)');
+  // Issue #7: hovering a waterfall or an empty map region threw "v.toFixed is not a function".
+  const hoverAll = async () => {
+    const cards = page.locator('#replica .rp-chart');
+    for (let i = 0; i < await cards.count(); i++) {
+      const c = cards.nth(i); await c.scrollIntoViewIfNeeded(); const b = await c.boundingBox(); if (!b) continue;
+      for (const fy of [0.3, 0.5, 0.7]) for (const fx of [0.1, 0.25, 0.4, 0.55, 0.7, 0.85]) await page.mouse.move(b.x + b.width * fx, b.y + b.height * fy);
+    }
+  };
+  const errsBefore = pageErrors.length;
+  await hoverAll();
+  await page.goto(base); await page.click('#btn-try'); await page.locator('#samples .sample button').nth(2).click();
+  await page.waitForFunction(() => document.querySelectorAll('#replica .rp-chart').length >= 9); await wait(2500);
+  await hoverAll();
+  check(pageErrors.length === errsBefore, 'hovering every chart in both samples raises no errors (#7)' + (pageErrors.length > errsBefore ? ': ' + pageErrors.slice(errsBefore).join(' | ') : ''));
+  const shaped = await page.evaluate(() => {
+    const root = document.getElementById('replica');
+    DSCReplica.render(root, { title: 't', rows: [{ height: 'm', visuals: [
+      { id: 'c', type: 'column', horizontal: true, stacked: true, span: 6, title: 'c', dimension: { name: 'Type', members: ['A', 'B'] }, series: [{ name: 'Done', shape: [80, 40] }, { name: 'To do', shape: [20, 10] }] },
+      { id: 'p', type: 'placeholder', originalType: 'Gantt chart', span: 6, title: 'roadmap' },
+      { id: 'g', type: 'timeline', span: 6, title: 'g', tasks: [{ name: 'Alpha', start: 0, end: 40 }, { name: 'Beta', start: '30', end: '70' }], timeLabels: ['Q1', 'Q2', 'Q3'] },
+      { id: 'w', type: 'waterfall', span: 6, title: 'w', dimension: { name: 'Step', members: ['A', 'B', 'Total'] }, series: [{ name: 'x', shape: ['100', '−30', null] }] },
+      { id: 'k', type: 'kpi', span: 6, title: 'k', measure: { name: 'k', format: 'currency', scaleHint: 'abc' } }] }] }, { resetSelection: true });
+    const o = root._charts.map(c => c.getOption());
+    return { colX: o[0].xAxis[0].type, placeholders: root.querySelectorAll('.rp-ph').length, gantts: o.filter(x => x.yAxis && x.yAxis[0] && x.yAxis[0].inverse && x.xAxis[0].max === 100).length, kpi: root.querySelector('.rp-kpi .v').textContent };
+  });
+  check(shaped.colX === 'category', 'a "column" is always vertical, even if the AI also says horizontal');
+  check(shaped.placeholders === 0 && shaped.gantts === 2, 'Gantt, timeline and "placeholder: gantt" all render as a Gantt');
+  check(!/NaN|undefined/.test(shaped.kpi), `odd numbers from the AI never show as NaN (${shaped.kpi})`);
+
   console.log('Export');
+  await page.goto(base); await page.click('#btn-try'); await page.locator('#samples .sample button').nth(1).click();
+  await page.waitForFunction(() => document.querySelectorAll('#replica .rp-chart').length >= 8); await wait(2500);
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export')]);
   const html = await readFile(await download.path(), 'utf8');
   check(/DSCReplica\.addMap\("world"/.test(html) && /synthetic-data/.test(html), 'export embeds maps and the synthetic-data marker');
