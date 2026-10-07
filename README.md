@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 *Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes).*
 
-## Features (v0.3.2)
+## Features (v0.4.0)
 
 | Area | Status |
 |---|---|
@@ -33,6 +33,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Mask by default, allowlist to keep | ✅ client names, numbers/money, IDs, emails, unlisted text |
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ four independent re-reads of the masked image, plus "Mask all" |
 | Review: click to toggle, drag to add masks | ✅ |
+| Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in; replicas quote only words that were readable in the approved image |
 | Exact-payload preview before anything is sent | ✅ |
 | Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
 | Replica: KPI, bar, column, stacked, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table | ✅ Apache ECharts |

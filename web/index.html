@@ -57,6 +57,7 @@ h1{font-size:clamp(26px,3.6vw,38px);line-height:1.15;letter-spacing:-.02em;margi
 .viewtabs button{border:0;background:transparent;color:var(--muted);padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer}
 .viewtabs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .hint{font-size:12.5px;color:var(--muted)}
+.chk{display:flex;gap:8px;align-items:center;font-size:13.5px;margin:4px 0 6px}
 .status{font-size:13.5px;color:var(--muted);display:flex;gap:8px;align-items:center}
 .spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -169,6 +170,11 @@ a{color:var(--accent)}
           <h3>Detected, by type</h3>
           <div class="types" id="types"></div>
         </div>
+        <div class="panel" id="cm-panel" hidden>
+          <h3>Customer comments</h3>
+          <label class="chk"><input type="checkbox" id="keep-comments"><span>Keep the wording of <b id="cm-count">0 comments</b></span></label>
+          <p class="hint">Found quotes or free-text feedback. Tick to keep what customers said, so the replica shows real verbatims. Names, companies, emails and numbers inside them stay masked (pink boxes). Drag a box over anything else you want hidden.</p>
+        </div>
         <div class="panel">
           <h3>Pre-flight check</h3>
           <div class="gate pending" id="gate"><b>Not run yet</b><span>The check re-reads the masked image on this device.</span></div>
@@ -215,7 +221,7 @@ a{color:var(--accent)}
     <img id="payload-img" alt="The masked image that will be sent">
     <dl class="facts">
       <dt>Destination</dt><dd id="pf-dest">api.anthropic.com, using your key</dd>
-      <dt>Contents</dt><dd>The masked image above and fixed instructions. No original image, no OCR text.</dd>
+      <dt>Contents</dt><dd id="pf-contents">The masked image above and fixed instructions. No original image, no OCR text.</dd>
       <dt>Size</dt><dd id="pf-size"></dd>
     </dl>
     <p class="note" id="pf-warn"><b>Look over the image before sending.</b> The on-device reader can miss very small numbers beside bars or inside coloured badges, and cannot read slanted or vertical labels (for example rotated axis labels). Close this, then drag a box over anything still readable.</p>

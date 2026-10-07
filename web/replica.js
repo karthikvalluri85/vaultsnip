@@ -537,6 +537,13 @@
   }
 
   /* ---------- table columns: a plausible range per column, from the AI's hint or the column name ---------- */
+  // Customer comments kept on the device (names, emails and numbers already removed). "[…]" marks hidden words.
+  const isVerbatim = c => !!c && /^(verbatim|quote|comment)s?$/i.test(String(c.kind || ''));
+  const HIDDEN = /\[(?:…|\.\.\.|hidden|redacted|masked|client|name)\]/gi;
+  function quoteHtml(q) {
+    const t = String(q).replace(/^[\s"“”']+|[\s"“”']+$/g, '').slice(0, 400);
+    return '“' + t.split(HIDDEN).map(escH).join('<span class="rp-redact" role="img" aria-label="hidden"></span>') + '”';
+  }
   function columnModel(c, kind) {
     const n = fold(c.name), hint = num(c.scaleHint);
     if (kind === 'percent') {
@@ -546,10 +553,10 @@
       if (/discount|churn|bounce|rate|share|conversion|error|fail/.test(n)) return { lo: 0.5, hi: 35 };
       return { lo: 5, hi: 95 };
     }
-    if (hint > 0) return { lo: hint * 0.35, hi: hint * 1.4 };
-    if (/csat|rating|stars/.test(n)) return { lo: 3.6, hi: 4.9, dp: 1 };
-    if (/nps/.test(n)) return { lo: -20, hi: 70, dp: 0 };
-    if (/score/.test(n)) return { lo: 0, hi: 10, dp: 0 };
+    if (/csat|rating|stars/.test(n) && !(hint > 5.5)) return { lo: 3.6, hi: 4.9, dp: 1 };
+    if (/nps/.test(n) && !(hint > 100)) return { lo: -20, hi: 70, dp: 0 };
+    if (/score/.test(n) && !(hint > 10.5)) return { lo: 0, hi: 10, dp: 0 };      // a 0-10 survey score is a whole number
+    if (hint > 0) return { lo: hint * 0.35, hi: hint * 1.4, dp: hint < 20 ? 1 : 0 };
     if (kind === 'currency') {
       if (/price|per seat|per user|per unit|seat|unit|fee|rate/.test(n)) return { lo: 8, hi: 120, dp: 2 };
       if (/arr|annual|revenue|sales|bookings|pipeline|budget|spend/.test(n)) return { lo: 4e5, hi: 5e6 };
@@ -596,6 +603,16 @@
 .rp-table th,.rp-table td{padding:6px 8px;border-bottom:1px solid var(--rp-line);text-align:left;white-space:nowrap}
 .rp-table th{background:var(--rp-bg);font-weight:600}
 .rp-table td.n{text-align:right;font-variant-numeric:tabular-nums}
+.rp-table td.q{white-space:normal;min-width:16em;line-height:1.45;color:var(--rp-ink)}
+.rp-feed{display:flex;flex-direction:column}
+.rp-fi{padding:8px 0;border-bottom:1px solid var(--rp-line)}
+.rp-fi .m{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--rp-muted)}
+.rp-fi .m>span:first-child{flex:1;min-width:0}
+.rp-fi .m b{color:var(--rp-ink);font-weight:600}
+.rp-fi p{margin:3px 0 0;font-size:13px;line-height:1.45;color:var(--rp-ink)}
+.rp-badge{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--rp-bg);color:var(--rp-ink);font-variant-numeric:tabular-nums}
+.rp-badge.good{background:#e3f4e8;color:#1d7a3a}.rp-badge.mid{background:#fdf1d8;color:#8a5a00}.rp-badge.bad{background:#fbe3e2;color:#b03c38}
+.rp-redact{display:inline-block;width:3.4em;height:.85em;margin:0 .1em;border-radius:3px;background:var(--rp-muted);opacity:.45;vertical-align:-.05em}
 .rp-row{cursor:pointer}.rp-row:hover td{background:var(--rp-bg)}
 .rp-pill{background:#e8f1fb;border-color:#2a78d6;color:#14181e}
 .rp-clear{border-style:dashed}
@@ -709,13 +726,15 @@
     const filterBar = filterHtml + pills + (active.length ? `<button type="button" class="rp-chip rp-clear">Clear all filters</button>` : '');
     const activeNote = active.length ? `<span>Filtered: ${active.map(k => esc(L.generic ? 'filter' : keyLabel(k)) + ' (' + state.filters[k].length + ')').join(', ')}</span>` : '';
 
+    const quotes = !L.generic && visuals.some(v => v.type === 'table' && (Array.isArray(v.columns) ? v.columns : []).some(c => isVerbatim(c) && Array.isArray(c.values) && c.values.length));
+    const footNote = quotes ? 'Synthetic replica · numbers are generated · customer comments are quoted with personal details hidden' : 'Synthetic replica · no source values included';
     root.className = 'rp';
     root.innerHTML = `
       <div class="rp-head"><h2>${esc(L.generic ? 'Dashboard 1' : (spec.title || 'Dashboard'))}</h2><span>${esc(L.generic ? '' : (spec.subtitle || ''))}</span></div>
       <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span>${activeNote}</div>
       ${filterBar ? `<div class="rp-filters">${filterBar}</div>` : ''}
       <div class="rp-grid"></div>
-      <div class="rp-foot"><span>Synthetic replica · no source values included</span><a href="${PRODUCT_URL}?ref=export" target="_blank" rel="noopener">${FOOTER_TEXT}</a></div>`;
+      <div class="rp-foot"><span>${esc(footNote)}</span><a href="${PRODUCT_URL}?ref=export" target="_blank" rel="noopener">${FOOTER_TEXT}</a></div>`;
     root.setAttribute('data-synthetic', 'true');
     const grid = root.querySelector('.rp-grid');
     const t = themeVars(root);
@@ -759,32 +778,60 @@
         const rowCat = catCols[0];
         // the row-label column lists its members in order, without repeats, with any "Total" row last
         const rowLabels = rowCat ? (() => { const p = pool(rowCat).map(String); const tot = p.filter(m => /^(grand )?totals?$/i.test(m.trim())); return p.filter(m => !tot.includes(m)).concat(tot); })() : [];
-        const rowsN = rowCat ? Math.min(nRows, rowLabels.length) : nRows;
+        const vcol = cols.find(c => isVerbatim(c) && Array.isArray(c.values) && c.values.length);
+        const rowsN = rowCat ? Math.min(nRows, rowLabels.length) : (vcol && !L.generic ? Math.min(25, vcol.values.length) : nRows);
         const ids = Array.from({ length: rowsN }, () => Math.floor(r() * 65536).toString(16).toUpperCase().padStart(4, '0'));
         const desc = Array.from({ length: rowsN }, () => r()).sort((a, b) => b - a);
         // every numeric column gets its own stream and range; the first one follows the table's sort order
         const firstNum = cols.findIndex(c => ['number', 'currency'].includes(c.kind));
         const colVal = (c, ci, ri) => {
           const m = columnModel(c, c.kind), rr = rng(hashStr(v.id + '|' + c.name + '|' + ci + '|' + ri + '|' + mode));
-          const u = (v.sorted && ci === firstNum) ? desc[ri] : rr();
+          // in shape mode a column may carry a 0-100 position per row (read from bar lengths or badge colours)
+          const sh = mode === 'shape' && Array.isArray(c.shape) ? num(c.shape[ri]) : NaN;
+          const u = Number.isFinite(sh) ? Math.max(0, Math.min(1, sh / 100 + (rr() - 0.5) * 0.06)) : (v.sorted && ci === firstNum) ? desc[ri] : rr();
           let x = m.lo + u * (m.hi - m.lo);
           if (c.kind !== 'percent' && !(m.lo < 0)) x *= tf;
           return { x, m };
         };
-        const rowsHtml = Array.from({ length: rowsN }, (_, ri) => (rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(rowLabels[ri])}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
+        const cellOf = (c, ci, ri) => {
           const k = c.kind || 'text';
           const cats = c.members && c.members.length ? c.members : null;
           let cell;
+          if (isVerbatim(c)) {
+            const q = Array.isArray(c.values) && !L.generic ? c.values[ri] : null;
+            return q != null && String(q).trim() ? { html: quoteHtml(q), cls: 'q', k: 'verbatim' } : { html: esc('Comment ' + String(ri + 1).padStart(2, '0')), cls: '', k: 'verbatim' };
+          }
+          let x = null;
           if (k === 'person') cell = (L.generic ? 'Owner ' : 'Person ') + (1 + ((ri * 7 + ci) % 9));
-          else if (k === 'org' || k === 'text') cell = (L.generic ? 'Entity ' : (c.placeholder || 'Item') + ' ') + String(ri + 1).padStart(2, '0');
+          else if (k === 'org' || k === 'text') cell = (L.generic ? 'Entity ' : (c.placeholder || (k === 'org' ? 'Company' : 'Item')) + ' ') + String(ri + 1).padStart(2, '0');
           else if (k === 'id') cell = (L.generic ? 'ID-' : 'TKN-') + ids[ri];
           else if (k === 'category') { if (cats) { const m = c === rowCat ? rowLabels[ri] : pick(c, ri); cell = L.member(c.name, m, cats.map(String).indexOf(String(m))); } else cell = 'Group ' + 'ABC'[Math.floor(r() * 3)]; }
           else if (k === 'date') cell = '2026-' + String(1 + Math.floor(r() * 12)).padStart(2, '0') + '-' + String(1 + Math.floor(r() * 28)).padStart(2, '0');
-          else if (k === 'percent') { const { x, m } = colVal(c, ci, ri); cell = (m.signed && x > 0 ? '+' : '') + x.toFixed(1) + (L.generic ? '' : '%'); }
-          else if (k === 'currency') { const { x, m } = colVal(c, ci, ri); cell = m.dp === 2 && x < 1000 ? (L.generic ? '' : (c.currency || (v.measure && v.measure.currency) || '$')) + x.toFixed(2) : fmt(x, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic); }
-          else { const { x, m } = colVal(c, ci, ri); cell = m.dp === 1 ? x.toFixed(1) : (m.lo < 0 && x > 0 ? '+' : '') + (m.dp === 0 && Math.abs(x) < 1e4 ? Math.round(x).toLocaleString('en-US') : abbr(x)); }
-          const num = ['number', 'currency', 'percent'].includes(k);
-          return `<td class="${num ? 'n' : ''}">${esc(cell)}</td>`;
+          else if (k === 'percent') { const o = colVal(c, ci, ri); x = o.x; cell = (o.m.signed && x > 0 ? '+' : '') + x.toFixed(1) + (L.generic ? '' : '%'); }
+          else if (k === 'currency') { const o = colVal(c, ci, ri); x = o.x; cell = o.m.dp === 2 && x < 1000 ? (L.generic ? '' : (c.currency || (v.measure && v.measure.currency) || '$')) + x.toFixed(2) : fmt(x, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic); }
+          else { const o = colVal(c, ci, ri); x = o.x; cell = o.m.dp === 1 ? x.toFixed(1) : (o.m.lo < 0 && x > 0 ? '+' : '') + (o.m.dp === 0 && Math.abs(x) < 1e4 ? Math.round(x).toLocaleString('en-US') : abbr(x)); }
+          const isNum = ['number', 'currency', 'percent'].includes(k);
+          return { html: esc(cell), cls: isNum ? 'n' : '', k, x, max: isNum ? columnModel(c, k).hi : null };
+        };
+        // A narrow list of customer comments reads like the source: who said it, the quote, and the score badge.
+        if (vcol && (num(v.span) || 6) <= 6) {
+          const items = Array.from({ length: rowsN }, (_, ri) => {
+            const cs = cols.map((c, ci) => cellOf(c, ci, ri));
+            const meta = cs.filter(o => !o.cls && o.k !== 'verbatim').map((o, i) => i === 0 ? `<b>${o.html}</b>` : o.html).join(' · ');
+            const quote = cs.filter(o => o.k === 'verbatim').map(o => `<p>${o.html}</p>`).join('');
+            const badges = cs.filter(o => o.cls === 'n').map(o => {
+              const sx = o.x == null ? null : Math.round(o.x);
+              const tone = o.k === 'number' && o.max <= 10.5 && sx != null ? (sx >= 9 ? 'good' : sx >= 7 ? 'mid' : 'bad') : '';
+              return `<span class="rp-badge ${tone}">${o.html}</span>`;
+            }).join('');
+            return `<div class="rp-fi"><div class="m"><span>${meta}</span>${badges}</div>${quote}</div>`;
+          }).join('');
+          card.insertAdjacentHTML('beforeend', `<div class="rp-feed">${items}</div>`);
+          return;
+        }
+        const rowsHtml = Array.from({ length: rowsN }, (_, ri) => (rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(rowLabels[ri])}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
+          const o = cellOf(c, ci, ri);
+          return `<td class="${o.cls}">${o.html}</td>`;
         }).join('') + '</tr>').join('');
         card.insertAdjacentHTML('beforeend', `<div class="rp-table"><table><thead><tr>${cols.map(c => `<th>${esc(L.generic ? L.dim(c.name) : c.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`);
         return;

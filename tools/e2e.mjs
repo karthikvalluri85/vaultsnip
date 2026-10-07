@@ -103,6 +103,18 @@ try {
   check(real.rows.length === 4 && real.rows[3][0] === 'Total', 'table row labels keep their order with Total last');
   check(real.rows.every(r => pct(r[2]) >= 0 && pct(r[2]) <= 60 && pct(r[4]) >= 1 && pct(r[4]) <= 5 && pct(r[1]) > 0 && pct(r[1]) < 1000), `table columns get believable values (${real.rows.map(r => r.slice(1).join(' ')).join(' | ')})`);
   check(real.rows.some(r => /[−+-]/.test(r[3])), 'a "change" column can go negative or show a sign');
+  const vb = await page.evaluate(() => {
+    const root = document.getElementById('replica');
+    const spec = { title: 't', rows: [{ height: 'l', visuals: [{ id: 'v', type: 'table', span: 4, title: 'Recent verbatims', rowCount: 2, columns: [
+      { name: 'Customer', kind: 'person' }, { name: 'Company', kind: 'org' }, { name: 'Comment', kind: 'verbatim', values: ['Exports keep timing out. <b>x</b>', 'Good product, but […] hurts.'] }, { name: 'Score', kind: 'number', shape: [10, 100] }] }] }] };
+    DSCReplica.render(root, spec, { resetSelection: true, mode: 'shape' });
+    const shape = { quotes: [...root.querySelectorAll('.rp-fi p')].map(p => p.textContent), redact: root.querySelectorAll('.rp-redact').length, bold: root.querySelectorAll('.rp-fi p b').length, badges: [...root.querySelectorAll('.rp-badge')].map(b => b.className + ':' + b.textContent), foot: root.querySelector('.rp-foot span').textContent };
+    DSCReplica.render(root, spec, { resetSelection: true, mode: 'generic' });
+    return { shape, generic: [...root.querySelectorAll('.rp-fi p')].map(p => p.textContent), gfoot: root.querySelector('.rp-foot span').textContent };
+  });
+  check(vb.shape.quotes.length === 2 && /Exports keep timing out/.test(vb.shape.quotes[0]) && vb.shape.redact === 1 && vb.shape.bold === 0, `verbatims are quoted, hidden words show as a redaction bar, and quotes cannot inject markup (${vb.shape.quotes.join(' / ')})`);
+  check(/bad/.test(vb.shape.badges[0]) && /good/.test(vb.shape.badges[1]), `score badges follow the source's colours (${vb.shape.badges.join(', ')})`);
+  check(/customer comments are quoted/.test(vb.shape.foot) && vb.generic.every(q => /^Comment \d+$/.test(q)) && /no source values/.test(vb.gfoot), 'the footer says comments are quoted; Generic mode replaces them');
 
   console.log('Export');
   await page.goto(base); await page.click('#btn-try'); await page.locator('#samples .sample button').nth(1).click();
@@ -152,6 +164,27 @@ try {
   check(unit.email === 'Email' && unit.email2 === 'Email', 'partial email addresses are still masked (#8)');
   check(unit.small === 'Number or money', 'single-digit numbers are masked (#8)');
   check(unit.kept.includes('$4.2M') && !unit.kept.includes('ffi') && !unit.kept.includes('Il'), `chart shapes read as giant "words" are dropped, big KPI numbers kept (#9: ${unit.kept.join(', ')})`);
+  const cm = await page.evaluate(() => {
+    const S = window.__DSC, T = S.test;
+    let x = 0; const line = (y, text) => { x = 10; return text.split(' ').map(t => { const w = { text: t, x, y, w: t.length * 6, h: 11, conf: 95 }; x += t.length * 6 + 5; return w; }); };
+    const words = [].concat(
+      line(10, 'Rachel Whitford - Harbourline Logistics - r.whitford@harbourline.example'),
+      line(30, '“Exports keep timing out on large shipments. We lose 3 days every month-end."'),
+      line(60, '“Support from Priya fixed our integration issue in under an hour. Outstanding."'),
+      line(90, 'Revenue by region and channel'));
+    const saved = { k: S.keepComments, c: S.comments };
+    S.keepComments = true; S.comments = T.findComments(words);
+    const masked = T.buildMasks(words).map(m => m.type + ': ' + m.text);
+    const out = { lines: S.comments.length, blocks: S.comments.blocks, masked,
+      q1: T.scrubQuote('Exports keep timing out on large shipments. We lose 3 days every month-end.'),
+      q2: T.scrubQuote('Support from Priya fixed our integration issue. Call Harbourline on 555 0101.') };
+    S.keepComments = saved.k; S.comments = saved.c;
+    return out;
+  });
+  check(cm.lines === 2 && cm.blocks === 2, `quoted customer comments are found, headings and name lines are not (${cm.lines})`);
+  check(cm.masked.some(m => /^Name in comment: Priya/.test(m)) && cm.masked.some(m => /^Number or money: 3/.test(m)) && cm.masked.some(m => /^Email/.test(m)), `names and numbers inside kept comments stay masked (${cm.masked.join(' | ')})`);
+  check(!cm.masked.some(m => /Exports|keep|timing|Outstanding|integration/.test(m)), 'ordinary comment wording is kept');
+  check(cm.q1 === 'Exports keep timing out on large shipments. We lose […] days every month-end.' && !/Priya|Harbourline|555/.test(cm.q2), `the replica can only quote words that were readable in the approved image (${cm.q2})`);
 
   console.log('AI providers (mocked Claude and OpenAI endpoints)');
   const spec = await page.evaluate(() => JSON.stringify(window.DSC_SAMPLES[1].spec));

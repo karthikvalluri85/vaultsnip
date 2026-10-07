@@ -5,6 +5,7 @@
 - **No accounts, no backend, no database.** VaultSnip is static code that runs in your browser.
 - **Your images stay on your device.** Text recognition (OCR), masking and the safety check run locally in your browser. Images and results are held in memory and disappear when you close the tab.
 - **What leaves your device.** Only when you click send, and only the *masked* image you approved, goes directly from your browser to the AI provider you chose, **Anthropic (Claude)** or **OpenAI**, using your own API key. It never passes through a VaultSnip server. That provider's API terms and data policy apply to the request.
+- **Customer comments (optional).** If you tick *Keep the wording of comments*, the ordinary words of quotes and free-text feedback stay readable in the image you send, and can appear in the replica and its export. Names, companies, emails, numbers and IDs inside them stay masked, and the replica only quotes words that were readable in the image you approved. It is off by default.
 - **Samples** send nothing at all.
 - **What your browser keeps.** The OCR language model (an app file, cached so it downloads once) and, only if you tick "remember", your API key, its provider and the model name. You can remove them at any time from "AI key" → "Forget key". "Check key" asks the provider which models the key can use; it sends only the key.
 - **Extension permissions.** `activeTab` only: the extension can capture the tab you are on, and only when you click its icon.

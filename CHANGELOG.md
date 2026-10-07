@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-07
+
+### Added
+- **Keep customer comments.** On voice-of-customer, support and review screens, VaultSnip finds quotes and free-text feedback and offers to keep their wording. Names, companies, emails, numbers and IDs inside the comments stay masked; everything else in the screen is masked as before. Off by default; the send dialog says when comments are included.
+- Replicas show verbatims as a comment list (who said it, the quote, the score badge), like the source. Hidden words appear as a redaction bar. Generic mode replaces the quotes.
+- The replica can only quote words that were readable in the image you approved; any other word the AI returns becomes a redaction bar.
+- Table number columns can follow the source's visual cues (in-cell bars, green/amber/red badges), so a 2 stays red and a 10 stays green.
+
+### Changed
+- 0-10 survey scores are whole numbers. Organisation columns read "Company 01" instead of "Item 01".
+
 ## [0.3.2] - 2026-10-07
 
 Tested against four product-owner screens (app health, pricing spreadsheet, voice of customer, support operations).
@@ -60,7 +71,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.2.0...v0.3.0
