@@ -2,6 +2,8 @@
 
 **Turn sensitive report snips into client-safe replicas.**
 
+**Try it now:** https://vaultsnip.pages.dev (no sign-up; the sample dashboards need no key)
+
 VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, web analytics, SaaS apps), masks sensitive text **on your device**, and builds a watermarked, interactive replica that runs on **generated data**. Nothing is stored.
 
 ```

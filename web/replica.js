@@ -6,7 +6,7 @@
   'use strict';
 
   const PRODUCT_NAME = 'VaultSnip';
-  const PRODUCT_URL = 'https://github.com/karthikvalluri85/vaultsnip'; // TODO: replace with the live site
+  const PRODUCT_URL = 'https://vaultsnip.pages.dev';
   const FOOTER_TEXT = 'Generated with VaultSnip (Zero-Data BI Replica)';
   const PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
 

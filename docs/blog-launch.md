@@ -45,7 +45,7 @@ Shapes measured directly from pixels, more map outlines, PDF and PowerPoint inpu
 
 ## Try it
 
-- Web app: [link]
+- Web app: https://vaultsnip.pages.dev
 - Chrome extension: [link] · Edge add-on: [link]
 - Hugging Face Space: [link]
 - Source code: https://github.com/karthikvalluri85/vaultsnip
