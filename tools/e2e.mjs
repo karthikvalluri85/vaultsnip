@@ -116,6 +116,91 @@ try {
   check(await p2.locator('.rp-ph').count() === 0, 'exported file renders every visual');
   check(offline.length === 0, 'exported file makes no network requests');
   await p2.close();
+  check(download.suggestedFilename() === 'website-performance-replica-synthetic.html', `export is named after the dashboard (${download.suggestedFilename()})`);
+  await page.locator('#modes button[data-mode="generic"]').click(); await wait(300);
+  const [dlG] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export')]);
+  const htmlG = await readFile(await dlG.path(), 'utf8');
+  check(!/Website Performance|Paid search|Sessions by channel|Bengaluru/.test(htmlG) && dlG.suggestedFilename() === 'dashboard-replica-synthetic.html', 'a Generic export carries none of the original titles or labels, not even in its source');
+
+  console.log('Untrusted labels');
+  const xss = await page.evaluate(async () => {
+    window.__pwned = 0;
+    const root = document.getElementById('replica'), bad = '<img src=x onerror="window.__pwned=1">';
+    DSCReplica.render(root, { title: bad, rows: [{ height: 'm', visuals: [
+      { id: 'p', type: 'pie', span: 4, title: bad, dimension: { name: bad, members: [bad, 'B'] }, series: [{ name: bad, shape: [60, 40] }] },
+      { id: 'h', type: 'heatmap', span: 4, title: 'h', rows: { name: 'R', members: [bad] }, columns: { name: 'C', members: [bad] }, matrix: [[50]] },
+      { id: 'k', type: 'kpi', span: 4, title: 'k', measure: { name: 'k', format: 'number', unit: bad } }] }] }, { resetSelection: true });
+    root._charts.forEach(c => { try { c.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: 0 }); } catch (e) { /* no tooltip */ } });
+    await new Promise(r => setTimeout(r, 500));
+    const html = DSCReplica.exportHtml({ title: '</script><script>window.__p=1</script>', rows: [] }, { mode: 'shape', seed: 1 }, { echarts: '', replica: '', maps: {} });
+    return { pwned: window.__pwned, imgs: document.querySelectorAll('img[src="x"]').length, exportSafe: !html.includes('<script>window.__p=1') };
+  });
+  check(!xss.pwned && !xss.imgs, 'labels from the AI cannot inject markup into the replica or its tooltips');
+  check(xss.exportSafe, 'labels cannot break out of the exported file\'s script');
+
+  console.log('Replica fidelity');
+  const fid = await page.evaluate(() => {
+    const root = document.getElementById('replica');
+    DSCReplica.render(root, { title: 't', rows: [{ height: 'm', visuals: [
+      { id: 'r', type: 'kpi', span: 3, title: 'CSAT', measure: { name: 'CSAT', format: 'ratio', outOf: 5 }, shapeValue: 90 },
+      { id: 'd', type: 'kpi', span: 3, title: 'First response', measure: { name: 'First response', format: 'duration', unit: 'min', higherIsBetter: false } },
+      { id: 'c', type: 'combo', span: 6, title: 'c', dimension: { name: 'Month', members: ['Jan', 'Feb', 'Mar'] }, measure: { name: 'Revenue', format: 'currency' }, series: [{ name: 'Revenue', kind: 'bar', shape: [80, 90, 100] }, { name: 'Margin', kind: 'line', shape: [40, 45, 50], measure: { name: 'Margin', format: 'percent' } }] },
+      { id: 'h', type: 'heatmap', span: 6, title: 'cohort', measure: { name: 'Retention', format: 'percent' }, rows: { name: 'Cohort', members: ['A', 'B', 'C'] }, columns: { name: 'Week', members: ['W0', 'W1', 'W2'] }, matrix: [[100, 50, 40], [100, 48, null], [100, null, null]] },
+      { id: 'b', type: 'boxplot', span: 6, title: 'b', dimension: { name: 'Tier', members: ['T1', 'Eng'] }, measure: { name: 'Minutes', format: 'integer', scaleHint: 100 }, boxes: [[2, 4, 6, 9, 12], [20, 45, 60, 80, 100]] }] }] }, { resetSelection: true });
+    const k = [...root.querySelectorAll('.rp-kpi')].map(x => ({ v: x.querySelector('.v').textContent, d: x.querySelector('.d').className + ' ' + x.querySelector('.d').textContent }));
+    const o = root._charts.map(c => c.getOption());
+    const heat = o.find(x => x.series[0].type === 'heatmap').series[0].data.length;
+    const box = o.find(x => x.series[0].type === 'boxplot').series[0].data.map(q => q[2]);
+    const combo = o.find(x => x.series.length === 2 && x.series[1].type === 'line');
+    return { k, heat, box, axes: combo.yAxis.length, lineAxis: combo.series[1].yAxisIndex };
+  });
+  check(/^\d\.\d\d \/ 5$/.test(fid.k[0].v), `ratio KPIs read like "4.52 / 5" (${fid.k[0].v})`);
+  check(/^\d{1,3} min$/.test(fid.k[1].v), `duration KPIs carry their unit and a believable size (${fid.k[1].v})`);
+  check(/▼/.test(fid.k[1].d) === /good/.test(fid.k[1].d), `for "lower is better" measures a fall is green (${fid.k[1].d})`);
+  check(fid.heat === 6, `empty cohort cells stay empty (${fid.heat} of 9 cells drawn)`);
+  check(fid.box[1] > fid.box[0] * 3, `box plots follow the measured boxes (medians ${fid.box.map(Math.round).join(' vs ')})`);
+  check(fid.axes === 2 && fid.lineAxis === 1, 'a combo with a % line over $ bars gets a second axis');
+
+  console.log('Synthetic data download (CSV)');
+  await page.goto(base); await page.click('#btn-try'); await page.locator('#samples .sample button').nth(2).click();
+  await page.waitForFunction(() => document.querySelectorAll('#replica .rp-chart').length >= 9); await wait(2500);
+  const [dlC] = await Promise.all([page.waitForEvent('download'), page.click('#btn-csv')]);
+  const csv = (await readFile(await dlC.path(), 'utf8')).replace(/^﻿/, '');
+  const lines = csv.trim().split(/\r?\n/);
+  const types = new Set(lines.slice(1).map(l => l.split(',')[1]));
+  check(lines[0] === 'visual,visual_type,dimension,member,dimension_2,member_2,series,value,format,synthetic', 'CSV has a tidy header');
+  check(lines.length > 80 && ['kpi', 'waterfall', 'gauge', 'column', 'treemap', 'bubble', 'boxplot', 'sankey', 'table', 'map'].every(t => types.has(t)), `one row per data point across every visual type (${lines.length - 1} rows, ${types.size} types)`);
+  check(!/NaN|undefined|Infinity/.test(csv), 'CSV holds no NaN or undefined');
+  check(dlC.suggestedFilename() === 'monthly-finance-operations-review-synthetic-data.csv', `CSV is named after the dashboard (${dlC.suggestedFilename()})`);
+  await page.locator('#replica .rp-chip', { hasText: 'Retail' }).click(); await wait(300);
+  const kpiCsv = await page.evaluate(() => DSCReplica.toCsv(document.getElementById('replica')).split('\r\n').find(l => l.startsWith('Revenue,kpi')));
+  check(!!kpiCsv && !lines.includes(kpiCsv), 'CSV follows the filters on screen');
+  const inj = await page.evaluate(() => { const root = document.createElement('div'); document.body.appendChild(root); DSCReplica.render(root, { title: 't', rows: [{ visuals: [{ id: 'x', type: 'column', title: 'x', dimension: { name: 'D', members: ['=HYPERLINK("http://evil")', 'B'] } }] }] }); const c = DSCReplica.toCsv(root); root.remove(); return c; });
+  check(/'=HYPERLINK/.test(inj) && !/,=HYPERLINK/.test(inj), 'CSV cells never start a spreadsheet formula');
+
+  console.log('Share links');
+  const links = await page.evaluate(async () => { const S = window.__DSC, out = {}; for (const l of ['shape', 'structure', 'generic']) out[l] = await VSShare.link(S.spec, { level: l, mode: 'shape', seed: S.seed }); return out; });
+  const dec = await page.evaluate(async links => { const r = {}; for (const k of Object.keys(links)) { const o = await VSShare.unpack(VSShare.fromHash('#' + links[k].split('#')[1])); r[k] = { mode: o.mode, spec: JSON.stringify(o.spec) }; } return r; }, links);
+  check(/Revenue to EBITDA/.test(dec.shape.spec) && /"shape"/.test(dec.shape.spec), 'a Shape-preserving link keeps labels and chart shapes');
+  check(/Revenue to EBITDA/.test(dec.structure.spec) && !/"shape"|"matrix"|"shapeValue"|"boxes"/.test(dec.structure.spec) && dec.structure.mode === 'structure', 'a Structure-only link drops every shape and opens in Structure-only');
+  check(!/Revenue|EBITDA|Retail|California|Memphis|Finance|Salaries/.test(dec.generic.spec) && dec.generic.mode === 'generic', 'a Generic link carries no original text at all');
+  const p3 = await browser.newPage(); p3.on('pageerror', e => pageErrors.push('shared page: ' + e.message));
+  await p3.goto(links.generic);
+  await p3.waitForFunction(() => !document.getElementById('s-replica').hidden && document.querySelectorAll('#replica .rp-card').length > 5);
+  const sv = await p3.evaluate(() => ({ banner: !document.getElementById('shared-banner').hidden, off: [...document.querySelectorAll('#modes button')].filter(b => b.disabled).map(b => b.dataset.mode).join(), title: document.querySelector('.rp-head h2').textContent }));
+  check(sv.banner && sv.off === 'shape,structure' && sv.title === 'Dashboard 1', 'a Generic link opens locked to Generic, with a "make your own" banner');
+  await p3.click('#btn-share'); await p3.waitForFunction(() => /^http/.test(document.getElementById('share-url').value));
+  check(await p3.evaluate(() => document.querySelector('input[name=share-level][value=shape]').disabled && document.querySelector('input[name=share-level][value=generic]').checked), 'a re-shared link can never be less private than the one it came from');
+  const tampered = await p3.evaluate(async () => {
+    const body = JSON.stringify({ v: 1, level: 'generic', mode: 'shape', seed: 1, spec: { title: 'Secret Corp', rows: [{ visuals: [{ id: 'a', type: 'column', title: 'Secret', dimension: { name: 'Client', members: ['Secret Corp'] }, series: [{ name: 's', shape: [10] }] }] }] } });
+    const buf = new Uint8Array(await new Response(new Blob([new TextEncoder().encode(body)]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+    const code = btoa(String.fromCharCode(...buf)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const o = await VSShare.unpack(code); return { mode: o.mode, spec: JSON.stringify(o.spec) };
+  });
+  check(tampered.mode === 'generic' && !/Secret/.test(tampered.spec), 'a hand-edited link cannot carry more than its privacy level says');
+  await p3.goto(base + '#r=AAAAnotAlink'); await p3.waitForTimeout(500);
+  check(await p3.locator('#drop-err').isVisible() && !(await p3.locator('#s-drop').isHidden()), 'a broken link shows a clear message on the start screen');
+  await p3.close();
 
   console.log('Feedback');
   await page.locator('header [data-feedback]').click();
@@ -152,6 +237,40 @@ try {
   check(unit.email === 'Email' && unit.email2 === 'Email', 'partial email addresses are still masked (#8)');
   check(unit.small === 'Number or money', 'single-digit numbers are masked (#8)');
   check(unit.kept.includes('$4.2M') && !unit.kept.includes('ffi') && !unit.kept.includes('Il'), `chart shapes read as giant "words" are dropped, big KPI numbers kept (#9: ${unit.kept.join(', ')})`);
+  const cols = await page.evaluate(() => {
+    const { columnFill } = window.__DSC.test;
+    const m = (x, y, w) => ({ x, y, w: w || 20, h: 16, type: 'Number or money' });
+    const table = [m(500, 100), m(500, 125), m(500, 175), m(500, 200), m(500, 225)];                 // row at y=150 was never read
+    const apart = [m(100, 40, 60), m(100, 300, 30), m(100, 600, 40)];                                // three sections, one above the other
+    return { table: columnFill(table), apart: columnFill(apart) };
+  });
+  check(cols.table.length === 1 && cols.table[0].y <= 100 && cols.table[0].y + cols.table[0].h >= 241, 'a table column with a skipped number is masked from top to bottom');
+  check(cols.apart.length === 0, 'numbers in separate sections are never joined into one mask');
+  const ui = await page.evaluate(() => ({ list: document.querySelectorAll('#mask-items input').length, masks: window.__DSC.masks.length, kept: +document.getElementById('kept-n').textContent }));
+  check(ui.list === ui.masks, `every mask can be switched with the keyboard (${ui.list} checkboxes)`);
+  check(ui.kept > 3, `words kept as safe are listed so a name like "Target" can be masked (${ui.kept})`);
+  await page.locator('#mask-list summary').click(); await page.locator('#mask-items input').first().press('Space');
+  check(/Masks changed/.test(await page.locator('.gate').textContent()) && await page.locator('#btn-send').isDisabled(), 'switching a mask off from the list blocks sending until the check runs again');
+  await page.fill('#client-names', 'Kestrelmoor, Acme');
+  check(/Policy changed/.test(await page.locator('.gate').textContent()) && await page.locator('#btn-send').isDisabled(), 'typing a new name to mask blocks sending until it is applied');
+
+  console.log('Mask-only download');
+  await page.evaluate(() => document.getElementById('btn-send').onclick());
+  check(await page.locator('#btn-dl-masked').isDisabled() && await page.locator('#btn-confirm').isDisabled(), 'nothing can be downloaded or sent before "I have looked over the masked image" is ticked');
+  await page.check('#pf-ok');
+  const [dlM] = await Promise.all([page.waitForEvent('download'), page.click('#btn-dl-masked')]);
+  const png = (await readFile(await dlM.path())).toString('base64');
+  const px = await page.evaluate(async b64 => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const S = window.__DSC, m = S.masks.find(q => q.on && q.w > 20);
+    const at = (px, py) => Array.from(x.getImageData(Math.round(px), Math.round(py), 1, 1).data.slice(0, 3));
+    return { same: img.width === S.img.width && img.height === S.img.height, mask: at(m.x + m.w / 2, m.y + m.h / 2), tag: at(img.width - 12, img.height - 12) };
+  }, png);
+  check(dlM.suggestedFilename() === 'sample-masked.png' && px.same, `the masked PNG is full size (${dlM.suggestedFilename()})`);
+  check(px.mask.join() === '120,124,130', 'masks in the PNG are solid grey');
+  check(px.tag.every(c => c < 110), 'the PNG carries a small "masked with VaultSnip" tag unless unticked');
+  await page.keyboard.press('Escape');
 
   console.log('AI providers (mocked Claude and OpenAI endpoints)');
   const spec = await page.evaluate(() => JSON.stringify(window.DSC_SAMPLES[1].spec));
@@ -160,7 +279,7 @@ try {
   await page.route('https://api.openai.com/v1/chat/completions', r => { seen.openai = { headers: r.request().headers(), body: r.request().postDataJSON() }; return r.fulfill({ json: { choices: [{ finish_reason: 'stop', message: { content: spec } }] } }); });
   await page.route('https://api.anthropic.com/v1/models?limit=100', r => r.fulfill({ json: { data: [{ id: 'claude-haiku-4-5' }, { id: 'claude-sonnet-5-5' }, { id: 'claude-opus-5-5' }] } }));
   await page.route('https://api.anthropic.com/v1/messages', r => { seen.anthropic = { headers: r.request().headers(), body: r.request().postDataJSON() }; return r.fulfill({ json: { stop_reason: 'end_turn', content: [{ type: 'text', text: spec }] } }); });
-  const openSend = () => page.evaluate(() => { window.__DSC.sample = null; document.getElementById('btn-send').onclick(); });
+  const openSend = () => page.evaluate(() => { window.__DSC.sample = null; document.getElementById('btn-send').onclick(); document.getElementById('pf-ok').click(); });
 
   // OpenAI, entered in the send dialog
   await openSend();
@@ -196,12 +315,25 @@ try {
   // A rejected key
   await page.unroute('https://api.openai.com/v1/chat/completions');
   await page.route('https://api.openai.com/v1/chat/completions', r => r.fulfill({ status: 401, json: { error: { message: 'Incorrect API key provided' } } }));
-  await page.evaluate(() => { const S = window.__DSC; S.provider = 'openai'; S.key = 'sk-proj-BAD000000000000000'; S.model = 'gpt-6-astra'; });
+  await page.evaluate(() => { const S = window.__DSC; S.provider = 'openai'; S.key = 'sk-proj-BAD000000000000000'; S.model = 'gpt-6-astra'; localStorage.setItem('dsc-key', S.key); });
   await openSend(); await page.click('#btn-confirm');
   await page.waitForFunction(() => !document.getElementById('send-err').hidden);
   check(/OpenAI rejected the key/.test(await page.locator('#send-err').textContent()) && await page.locator('#keybox').isVisible(), 'a rejected key shows a clear message and asks again');
+  check(!(await page.evaluate(() => localStorage.getItem('dsc-key'))), 'a rejected key is also forgotten on this device');
   check(!/BAD000/.test(await page.evaluate(() => VSFeedback.context().error)), 'the rejected key never appears in a feedback report');
   await page.keyboard.press('Escape');
+
+  console.log('Start screen');
+  await page.goto(base);
+  await page.setInputFiles('#file', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
+  check(await page.locator('#drop-err').isVisible() && /PNG, JPG or WebP/.test(await page.locator('#drop-err').textContent()), 'a file that is not an image gets an inline message, not a pop-up');
+  check(/image\/webp/.test(await page.getAttribute('#file', 'accept')), 'WebP screenshots are accepted');
+  await page.evaluate(() => { window.__DSC.sessionAllow.add('kestrelmoor'); });
+  await page.click('#btn-try'); await page.locator('#samples .sample button').nth(0).click();
+  await page.waitForFunction(() => !document.getElementById('s-review').hidden);
+  check(await page.evaluate(() => window.__DSC.sessionAllow.size === 0), '"Safe to keep" choices do not carry over to the next screenshot');
+  await page.setViewportSize({ width: 375, height: 800 });
+  check(await page.locator('header .pill').isHidden(), 'the header stays on one line on a phone');
 
   check(pageErrors.length === 0, 'no uncaught page errors' + (pageErrors.length ? ': ' + pageErrors.join(' | ') : ''));
 } catch (e) {

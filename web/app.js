@@ -273,14 +273,29 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
         return ix > 0.5 * Math.min(a.w, b.w) && Math.abs(b.h - a.h) < Math.max(a.h, b.h) * 0.6;
       }).sort((p, q) => p.y - q.y);
       if (col.length < 3) return;
-      // only rows of a table: regular spacing, no gap over 2.5x the typical row step
-      const steps = col.slice(1).map((m, i) => m.y - col[i].y).filter(s => s > 0).sort((p, q) => p - q);
-      const step = steps[Math.floor(steps.length / 2)] || 0;
-      if (!step || steps[steps.length - 1] > step * 2.5) return;
-      col.forEach(m => used.add(m));
-      const x1 = Math.min(...col.map(m => m.x)), x2 = Math.max(...col.map(m => m.x + m.w));
-      const y1 = col[0].y, y2 = col[col.length - 1].y + col[col.length - 1].h;
-      fills.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1, type: 'Number or money', text: '(table column)', on: true, src: 'auto' });
+      // only table rows: split into runs with a steady row step (about 1.2-3 text heights apart);
+      // a gap of more than two rows ends the run, so separate sections are never joined
+      const rowH = Math.min(...col.map(m => m.h));
+      let run = [col[0]];
+      const flush = () => {
+        if (run.length >= 3) {
+          const x1 = Math.min(...run.map(m => m.x)), x2 = Math.max(...run.map(m => m.x + m.w));
+          const widest = Math.max(...run.map(m => m.w));
+          if (x2 - x1 <= widest * 1.4) {
+            run.forEach(m => used.add(m));
+            const y1 = run[0].y, y2 = run[run.length - 1].y + run[run.length - 1].h;
+            fills.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1, type: 'Number or money', text: '(table column)', on: true, src: 'auto' });
+          }
+        }
+      };
+      let step = 0;
+      for (let i = 1; i < col.length; i++) {
+        const gap = col[i].y - col[i - 1].y;
+        if (gap <= 0) continue;
+        const ok = gap <= rowH * 3.2 * 2 && (!step || (gap <= step * 2.2 && gap >= step * 0.6));
+        if (ok) { if (!step || gap < step) step = gap; run.push(col[i]); } else { flush(); run = [col[i]]; step = 0; }
+      }
+      flush();
     });
     return fills;
   }
@@ -595,7 +610,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     const x = c.getContext('2d'), fs = Math.max(11, Math.round(c.width / 120)), text = 'masked with vaultsnip.pages.dev';
     x.font = `600 ${fs}px system-ui, sans-serif`;
     const w = x.measureText(text).width + fs, h = fs * 1.7;
-    x.fillStyle = 'rgba(20,24,30,.72)'; x.fillRect(c.width - w - 6, c.height - h - 6, w, h);
+    x.fillStyle = 'rgba(20,24,30,.82)'; x.fillRect(c.width - w - 6, c.height - h - 6, w, h);
     x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.fillText(text, c.width - w - 6 + fs / 2, c.height - 6 - h / 2);
   }
   $('btn-confirm').onclick = async () => {
@@ -792,5 +807,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { classify, plausible };
+  S.test = { classify, plausible, columnFill };
 })();
