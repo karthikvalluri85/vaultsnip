@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 - 0-10 survey scores are whole numbers. Organisation columns read "Company 01" instead of "Item 01".
+- Extension packages for the Chrome Web Store and Edge Add-ons include the OCR model, so the extension works offline and makes no network request until an approved image is sent.
 
 ## [0.3.2] - 2026-10-07
 
