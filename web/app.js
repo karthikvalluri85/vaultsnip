@@ -173,11 +173,27 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   function prep(src, scale, kind) {
     const c = document.createElement('canvas');
     c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
-    const x = c.getContext('2d');
+    const x = c.getContext('2d', { willReadFrequently: kind === 'ink' });
     x.imageSmoothingQuality = 'high';
-    x.filter = FILTERS[kind] || FILTERS.normal;
+    x.filter = kind === 'ink' ? 'none' : (FILTERS[kind] || FILTERS.normal);
     x.drawImage(src, 0, 0, c.width, c.height);
+    if (kind === 'ink') inkOnly(x, c.width, c.height);
     return c;
+  }
+  // "ink": keeps only text-coloured pixels and draws them black on white. Text is grey, black, white or a
+  // muted green/red; bars, tracks, pills and map fills are saturated or pale. This is what makes a label
+  // right beside a coloured bar, or a delta under a KPI, readable when the other passes miss it.
+  function inkOnly(x, w, h) {
+    const im = x.getImageData(0, 0, w, h), d = im.data;
+    let sum = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4 * 97) { sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+    const darkBg = sum / n < 110;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2], lum = (r + g + b) / 3, chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      const ink = darkBg ? (lum > 105 && chroma < 140) : (lum < 140 && chroma < 130);
+      d[i] = d[i + 1] = d[i + 2] = ink ? 0 : 255;
+    }
+    x.putImageData(im, 0, 0);
   }
   async function ocr(src, scale, kind) {
     kind = kind === true ? 'inverted' : (kind || 'normal');
@@ -192,7 +208,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       const c = line.split('\t');
       if (c.length < 12 || c[0] !== '5') return;
       const text = c.slice(11).join('\t').trim(); const conf = parseFloat(c[10]);
-      if (!text || conf < 30) return;
+      if (!text || conf < (/\d/.test(text) ? 12 : 30)) return;   // digits are the costliest leak: keep unsure ones
       out.push({ text, conf, x: +c[6] / scale, y: +c[7] / scale, w: +c[8] / scale, h: +c[9] / scale, line: `${c[2]}-${c[3]}-${c[4]}`, inv: invert, pass: kind });
     });
     return out;
@@ -200,8 +216,8 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   // Several passes, merged: a word found by a later pass is kept only if no earlier pass found it.
   async function readAll(src, passes) {
     let all = [];
-    for (const [scale, kind] of passes) {
-      const got = await ocr(src, scale, kind);
+    for (const [scale, kind, own] of passes) {
+      const got = await ocr(own || src, scale, kind);
       all = all.concat(got.filter(w => !all.some(v => overlap(v, w) > 0.3)));
     }
     return plausible(all);
@@ -213,6 +229,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     const hs = words.map(w => w.h).sort((a, b) => a - b);
     const med = hs.length ? hs[Math.floor(hs.length / 2)] : 10;
     return words.filter(w => {
+      if (/^[1Il|!\[\]{}()]{3,}$/.test(w.text.replace(/\s/g, ''))) return false;     // bars and gridlines read as "1111"
       const tall = w.h / med, hasDigit = /\d/.test(w.text), letters = (w.text.match(/[A-Za-z]/g) || []).length;
       if (tall > 8 && !(hasDigit && w.conf >= 90)) return false;
       if (tall > 3 && !hasDigit && (w.conf < 80 || letters < 3)) return false;
@@ -241,15 +258,41 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
         g.text += ' ' + w.text; g.w = x2 - g.x; g.y = y1; g.h = y2 - y1;
       } else groups.push({ x: w.x, y: w.y, w: w.w, h: w.h, type: w.type, text: w.text, on: true, src: 'auto' });
     });
-    return groups.map(g => { const p = Math.max(3, g.h * 0.18); return Object.assign(g, { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }); });
+    const out = groups.map(g => { const p = Math.max(3, g.h * 0.18); return Object.assign(g, { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }); });
+    return out.concat(columnFill(out));
   }
-  function maskedCanvas(scale) {
+  // Table columns: when three or more number masks stack in one column, the whole column is masked, so
+  // a single digit the reader skipped between them ("5", "8" story points) cannot stay readable.
+  function columnFill(masks) {
+    const nums = masks.filter(m => m.type === 'Number or money' && m.w < 260);
+    const used = new Set(), fills = [];
+    nums.forEach(a => {
+      if (used.has(a)) return;
+      const col = nums.filter(b => {
+        const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+        return ix > 0.5 * Math.min(a.w, b.w) && Math.abs(b.h - a.h) < Math.max(a.h, b.h) * 0.6;
+      }).sort((p, q) => p.y - q.y);
+      if (col.length < 3) return;
+      // only rows of a table: regular spacing, no gap over 2.5x the typical row step
+      const steps = col.slice(1).map((m, i) => m.y - col[i].y).filter(s => s > 0).sort((p, q) => p - q);
+      const step = steps[Math.floor(steps.length / 2)] || 0;
+      if (!step || steps[steps.length - 1] > step * 2.5) return;
+      col.forEach(m => used.add(m));
+      const x1 = Math.min(...col.map(m => m.x)), x2 = Math.max(...col.map(m => m.x + m.w));
+      const y1 = col[0].y, y2 = col[col.length - 1].y + col[col.length - 1].h;
+      fills.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1, type: 'Number or money', text: '(table column)', on: true, src: 'auto' });
+    });
+    return fills;
+  }
+  // fill: the colour of the masks. The re-scan's "ink" pass uses magenta, which it treats as background,
+  // so a label right beside a mask is not swallowed into one dark blob with it.
+  function maskedCanvas(scale, fill) {
     scale = scale || 1;
     const c = document.createElement('canvas');
     c.width = Math.round(S.img.width * scale); c.height = Math.round(S.img.height * scale);
     const x = c.getContext('2d');
     x.drawImage(S.img, 0, 0, c.width, c.height);
-    x.fillStyle = '#787c82';
+    x.fillStyle = fill || '#787c82';
     S.masks.filter(m => m.on).forEach(m => x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale));
     return c;
   }
@@ -257,13 +300,13 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   /* ---------------- verification gate (independent re-scan) ---------------- */
   async function verify() {
     S.gate = 'running'; renderGate();
-    setStatus('Checking the masked image again (four independent passes)…', true);
+    setStatus('Checking the masked image again (five independent passes)…', true);
     const m2 = maskedCanvas(1);
-    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block']]);
+    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')]]);
     const active = S.masks.filter(m => m.on);
     const flags = [];
     all.forEach(w => {
-      if (w.conf < 45) return;
+      if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
       const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
       const t = classify(w.text);
@@ -390,7 +433,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     $('btn-reapply').disabled = true;
     try {
       setStatus('Loading the on-device text reader…', true);
-      S.words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast']]);
+      S.words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']]);
       S.masks = buildMasks(S.words);
       renderTypes(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
