@@ -186,10 +186,12 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   function inkOnly(x, w, h) {
     const im = x.getImageData(0, 0, w, h), d = im.data;
     let sum = 0, n = 0;
-    for (let i = 0; i < d.length; i += 4 * 97) { sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
-    const darkBg = sum / n < 110;
+    const magenta = (r, g, b) => r > 200 && b > 200 && g < 70;   // the re-scan's mask colour: background, never ink
+    for (let i = 0; i < d.length; i += 4 * 97) { if (magenta(d[i], d[i + 1], d[i + 2])) continue; sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+    const darkBg = n > 0 && sum / n < 110;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], b = d[i + 2], lum = (r + g + b) / 3, chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      if (magenta(r, g, b)) { d[i] = d[i + 1] = d[i + 2] = 255; continue; }
       const ink = darkBg ? (lum > 105 && chroma < 140) : (lum < 140 && chroma < 130);
       d[i] = d[i + 1] = d[i + 2] = ink ? 0 : 255;
     }
