@@ -17,7 +17,8 @@
   /* ---------- privacy levels ---------- */
   // Every number in a spec is a relative shape (0-100), a position or a magnitude hint. None are real
   // values, but together they reproduce the original's ups and downs. Structure-only drops all of them.
-  const SHAPE_KEYS = ['shape', 'matrix', 'shapeValue', 'sparkShape', 'boxes', 'scaleHint', 'start', 'end'];
+  // (scaleHint stays: it is a generic magnitude for the kind of measure, never a value read from the image.)
+  const SHAPE_KEYS = ['shape', 'matrix', 'shapeValue', 'sparkShape', 'boxes', 'start', 'end'];
   function stripShapes(o) {
     if (Array.isArray(o)) return o.map(stripShapes);
     if (!o || typeof o !== 'object') return o;
