@@ -289,7 +289,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
         if (run.length >= 3) {
           const x1 = Math.min(...run.map(m => m.x)), x2 = Math.max(...run.map(m => m.x + m.w));
           const widest = Math.max(...run.map(m => m.w));
-          if (x2 - x1 <= widest * 1.4) {
+          if (x2 - x1 <= widest * 1.4 + rowH) {      // narrow cells: allow for padding differences
             run.forEach(m => used.add(m));
             const y1 = run[0].y, y2 = run[run.length - 1].y + run[run.length - 1].h;
             fills.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1, type: 'Number or money', text: '(table column)', on: true, src: 'auto' });
@@ -301,7 +301,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
         const gap = col[i].y - col[i - 1].y;
         if (gap <= 0) continue;
         // the row step is the smallest gap seen; a gap may be up to ~2 rows (one skipped number) either way
-        const ok = gap <= rowH * 3.2 * 2 && (!step || (gap <= step * 2.2 && gap * 2.2 >= step));
+        const ok = step ? (gap <= step * 2.2 && gap * 2.2 >= step) : gap <= rowH * 7;
         if (ok) { if (!step || gap < step) step = gap; run.push(col[i]); } else { flush(); run = [col[i]]; step = 0; }
       }
       flush();
