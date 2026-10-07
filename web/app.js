@@ -278,7 +278,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       if (used.has(a)) return;
       const col = nums.filter(b => {
         const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-        return ix > 0.5 * Math.min(a.w, b.w) && Math.abs(b.h - a.h) < Math.max(a.h, b.h) * 0.6;
+        return ix > 0.5 * Math.min(a.w, b.w) && Math.abs(b.h - a.h) < Math.max(a.h, b.h) * 0.35;
       }).sort((p, q) => p.y - q.y);
       if (col.length < 3) return;
       // only table rows: split into runs with a steady row step (about 1.2-3 text heights apart);
@@ -301,7 +301,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
         const gap = col[i].y - col[i - 1].y;
         if (gap <= 0) continue;
         // the row step is the smallest gap seen; a gap may be up to ~2 rows (one skipped number) either way
-        const ok = step ? (gap <= step * 2.2 && gap * 2.2 >= step) : gap <= rowH * 7;
+        const ok = step ? (gap <= step * 2.2 && gap * 2.2 >= step) : gap <= rowH * 4;
         if (ok) { if (!step || gap < step) step = gap; run.push(col[i]); } else { flush(); run = [col[i]]; step = 0; }
       }
       flush();
