@@ -21,6 +21,10 @@ cp -r web dist/extension/app
 if [[ $BUNDLE -eq 0 ]]; then
   rm -rf dist/extension/app/lang
   printf "window.VAULTSNIP_CONFIG = { langPath: '%s' };\n" "$MODEL_URL" > dist/extension/app/config.js
+else
+  # Store reviewers (Edge) refuse packages that contain compressed files, so the bundled model ships uncompressed.
+  gunzip dist/extension/app/lang/eng.traineddata.gz
+  printf "window.VAULTSNIP_CONFIG = { langPath: 'lang', langGzip: false };\n" > dist/extension/app/config.js
 fi
 
 # 3. Hugging Face static Space.
@@ -40,6 +44,8 @@ short_description: Turn sensitive report snips into client-safe replicas
 VaultSnip masks sensitive text in a report screenshot on your device, then builds a watermarked, interactive replica with generated data. Nothing is stored.
 MD
 
-(cd dist && zip -qr vaultsnip-web.zip web && zip -qr vaultsnip-extension.zip extension && zip -qr vaultsnip-hf-space.zip hf-space)
+(cd dist && zip -qr vaultsnip-web.zip web && zip -qr vaultsnip-hf-space.zip hf-space)
+# store packages need manifest.json at the root of the zip, not inside a folder
+(cd dist/extension && zip -qrD ../vaultsnip-extension.zip .)
 du -sh dist/web dist/extension dist/hf-space
 echo "Built dist/. Extension model URL: $([[ $BUNDLE -eq 1 ]] && echo bundled || echo "$MODEL_URL")"

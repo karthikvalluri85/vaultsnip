@@ -1,6 +1,6 @@
 {
   "name": "vaultsnip",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Turn sensitive report snips into client-safe replicas. Browser-only: masks sensitive text on your device and rebuilds dashboards with synthetic data.",
   "homepage": "https://vaultsnip.pages.dev",

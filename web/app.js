@@ -158,7 +158,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     if (!workerP) {
       workerP = Tesseract.createWorker('eng', 1, {
         workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
-        workerBlobURL: false, gzip: true, cacheMethod: 'write',
+        workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
         logger: m => { if (m.status && typeof m.progress === 'number') setStatus(`${humanStatus(m.status)} ${Math.round(m.progress * 100)}%`, true); }
       }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; });
     }

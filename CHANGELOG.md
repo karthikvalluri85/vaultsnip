@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-10
+
+### Fixed
+- Extension packages are accepted by Microsoft Edge Add-ons: `manifest.json` sits at the root of the zip, and the bundled OCR model ships uncompressed (the store refuses packages that contain compressed files).
+
 ## [0.5.0] - 2026-10-07
 
 Brings together two lines of work that both started from 0.3.2: the 0.4.0 release (mask-only download, share links, CSV, ink pass) and customer comments.
@@ -104,7 +109,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.1...v0.3.2
