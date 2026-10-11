@@ -7,7 +7,8 @@
 
 **Turn sensitive report snips into client-safe replicas.**
 
-**Try it now:** https://vaultsnip.pages.dev (no sign-up; the sample dashboards need no key)
+**Try it now:** https://vaultsnip.pages.dev (no sign-up; the sample dashboards need no key)  
+Also on Hugging Face: https://huggingface.co/spaces/karthikvalluri/vaultsnip · Chrome and Edge store listings are in review.
 
 VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), masks sensitive text **on your device**, and builds a watermarked, interactive replica that runs on **generated data**. Nothing is stored.
 
@@ -86,7 +87,7 @@ Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: 
 ## Deploy
 
 - **Web app:** Cloudflare Pages, connected to this repo. Build command: none. Output directory: `web`. Every push to `main` deploys.
-- **Hugging Face Space:** create a *Static* Space and upload the contents of `dist/hf-space`.
+- **Hugging Face Space:** a *Static* Space with the two files in `dist/hf-space` (`README.md` and a page that shows the live web app), so it always runs the latest release. Live at https://huggingface.co/spaces/karthikvalluri/vaultsnip.
 - **Chrome Web Store / Edge Add-ons:** run `./build.sh --bundle-models`, then upload `dist/vaultsnip-extension.zip`; privacy disclosures in [PRIVACY.md](PRIVACY.md).
 
 ## Project layout
