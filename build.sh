@@ -27,22 +27,9 @@ else
   printf "window.VAULTSNIP_CONFIG = { langPath: 'lang', langGzip: false };\n" > dist/extension/app/config.js
 fi
 
-# 3. Hugging Face static Space.
-cp -r web dist/hf-space
-cat > dist/hf-space/README.md <<'MD'
----
-title: VaultSnip
-emoji: 🔒
-colorFrom: green
-colorTo: gray
-sdk: static
-app_file: index.html
-pinned: false
-license: apache-2.0
-short_description: Turn sensitive report snips into client-safe replicas
----
-VaultSnip masks sensitive text in a report screenshot on your device, then builds a watermarked, interactive replica with generated data. Nothing is stored.
-MD
+# 3. Hugging Face static Space: a small page that shows the live web app, so the Space never falls behind a release.
+#    (Uploading the whole app through the Hugging Face website drops its folders.)
+mkdir -p dist/hf-space && cp tools/hf-space/index.html tools/hf-space/README.md dist/hf-space/
 
 (cd dist && zip -qr vaultsnip-web.zip web && zip -qr vaultsnip-hf-space.zip hf-space)
 # store packages need manifest.json at the root of the zip, not inside a folder
