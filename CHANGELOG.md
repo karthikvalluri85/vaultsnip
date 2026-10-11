@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-11
+
+### Fixed
+- The app failed to start on Hugging Face Spaces ("Failed to execute 'insertBefore' on 'Node'"). The host adds its own script to the page's `<head>`, and the footer was inserted before that script instead of before the app's scripts in `<body>`.
+
 ## [0.5.1] - 2026-10-10
 
 ### Fixed
@@ -109,7 +114,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.3.2...v0.4.0

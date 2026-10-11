@@ -5,7 +5,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '0.5.1';
+  const VERSION = '0.5.2';
   const REPO = 'https://github.com/karthikvalluri85/vaultsnip';
   const EMAIL = ['karthikvalluri', 'gmail.com'].join('@'); // assembled at runtime to keep it away from scrapers
 
@@ -181,7 +181,8 @@
     if (!document.querySelector('.site-foot')) {
       const f = document.createElement('footer'); f.className = 'site-foot';
       f.innerHTML = `<span>VaultSnip ${VERSION}</span><button type="button" class="linkbtn" data-feedback="bug">Report a problem</button><button type="button" class="linkbtn" data-feedback="idea">Suggest an idea</button><a href="privacy.html">Privacy</a><a href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a>`;
-      document.body.insertBefore(f, document.querySelector('script') || null);
+      // before the page's own scripts in <body>; hosts such as Hugging Face add scripts to <head>, so only look in <body>
+      document.body.insertBefore(f, document.querySelector('body > script'));
     }
     document.addEventListener('click', e => { const b = e.target.closest('[data-feedback]'); if (b) { e.preventDefault(); open(b.getAttribute('data-feedback')); } });
   }

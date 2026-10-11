@@ -216,6 +216,14 @@ try {
   check(await p3.locator('#drop-err').isVisible() && !(await p3.locator('#s-drop').isHidden()), 'a broken link shows a clear message on the start screen');
   await p3.close();
 
+  // hosts such as Hugging Face Spaces add their own <script> to <head>; the footer must still load (Space error, 0.5.1)
+  const p4 = await browser.newPage(); const hostErr = [];
+  p4.on('pageerror', e => hostErr.push(e.message));
+  await p4.route(base, async r => { const res = await r.fetch(); const html = (await res.text()).replace('<head>', '<head><script>window.__host = 1;</script>'); await r.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html' } }); });
+  await p4.goto(base); await p4.waitForTimeout(500);
+  check(hostErr.length === 0 && await p4.locator('.site-foot').count() === 1, 'the app loads where the host adds scripts to <head> (Hugging Face)' + (hostErr.length ? ': ' + hostErr.join(' | ') : ''));
+  await p4.close();
+
   console.log('Feedback');
   await page.locator('header [data-feedback]').click();
   check(await page.locator('#dlg-fb').evaluate(d => d.open), 'header Feedback opens the dialog');
