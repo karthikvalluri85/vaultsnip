@@ -8,15 +8,25 @@ chrome.action.onClicked.addListener(async (tab) => {
   chrome.tabs.create({ url: chrome.runtime.getURL("app/index.html" + (lastShot ? "#snip" : "")) });
 });
 const MENU_ID = "vs-blur-canvases";
+const RECORD_ID = "vs-record-tab";
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({ id: MENU_ID, title: "Blur text in charts on this page", contexts: ["page", "image", "frame"] });
+  chrome.contextMenus.create({ id: RECORD_ID, title: "Record this tab (text masked) / stop", contexts: ["page", "image", "frame"] });
 });
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === MENU_ID && tab?.id !== void 0) void redactCanvases(tab.id);
+  if (tab?.id === void 0) return;
+  if (info.menuItemId === MENU_ID) void redactCanvases(tab.id);
+  if (info.menuItemId === RECORD_ID) void recordTab(tab.id);
 });
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command === "blur-canvases" && tab?.id !== void 0) void redactCanvases(tab.id);
+  if (tab?.id === void 0) return;
+  if (command === "blur-canvases") void redactCanvases(tab.id);
+  if (command === "record-tab") void recordTab(tab.id);
 });
+async function recordTab(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["recorder.js"] });
+}
+let lastRecording = null;
 async function redactCanvases(tabId) {
   await chrome.scripting.executeScript({ target: { tabId }, files: ["canvas-ocr.js"] });
 }
@@ -24,6 +34,17 @@ chrome.runtime.onMessage.addListener((msg, sender, send) => {
   if (msg?.type === "dsc-get-snip") {
     send({ dataUrl: lastShot });
     lastShot = null;
+    return;
+  }
+  if (msg?.type === "vs-recording") {
+    lastRecording = msg;
+    chrome.tabs.create({ url: chrome.runtime.getURL("app/replay.html#recording") });
+    send({ ok: true });
+    return;
+  }
+  if (msg?.type === "vs-get-recording") {
+    send(lastRecording);
+    lastRecording = null;
     return;
   }
   if (msg?.type === "vs-canvas-capture") {
@@ -56,7 +77,8 @@ async function ocr(images) {
   await ensureOffscreen();
   return chrome.runtime.sendMessage({ target: "offscreen", type: "vs-ocr", images });
 }
-globalThis.vaultsnip = { redactCanvases };
+globalThis.vaultsnip = { redactCanvases, recordTab };
 export {
+  recordTab,
   redactCanvases
 };

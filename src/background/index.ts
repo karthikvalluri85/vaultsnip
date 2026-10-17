@@ -2,9 +2,11 @@
  * Extension service worker. Toolbar click: capture the visible tab and open the app (as extension/background.js).
  * Canvas redaction (Feature 3): the "Blur text in charts on this page" menu item or Alt+Shift+B injects the
  * canvas redactor; it asks here for tab screenshots and OCR, which runs in an offscreen document.
+ * "Record this tab (text masked)" or Alt+Shift+R records the tab with rrweb (Feature 4) and opens the masked replay.
  * Nothing is sent over the network, and nothing is stored.
  */
 import type { CaptureReply, OcrReply, ToBackground, ToOffscreen } from './canvas-protocol';
+import type { RecordingMessage } from '../content/recorder';
 
 let lastShot: string | null = null;
 
@@ -18,25 +20,51 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 const MENU_ID = 'vs-blur-canvases';
+const RECORD_ID = 'vs-record-tab';
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({ id: MENU_ID, title: 'Blur text in charts on this page', contexts: ['page', 'image', 'frame'] });
+  chrome.contextMenus.create({ id: RECORD_ID, title: 'Record this tab (text masked) / stop', contexts: ['page', 'image', 'frame'] });
 });
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === MENU_ID && tab?.id !== undefined) void redactCanvases(tab.id);
+  if (tab?.id === undefined) return;
+  if (info.menuItemId === MENU_ID) void redactCanvases(tab.id);
+  if (info.menuItemId === RECORD_ID) void recordTab(tab.id);
 });
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command === 'blur-canvases' && tab?.id !== undefined) void redactCanvases(tab.id);
+  if (tab?.id === undefined) return;
+  if (command === 'blur-canvases') void redactCanvases(tab.id);
+  if (command === 'record-tab') void recordTab(tab.id);
 });
+
+/** Starts recording the tab with text masked (Feature 4); running it again stops it and opens the replay. */
+export async function recordTab(tabId: number): Promise<void> {
+  await chrome.scripting.executeScript({ target: { tabId }, files: ['recorder.js'] });
+}
+
+// The finished recording (already cleaned and audited in the tab) waits here, in memory only, until the
+// replay page asks for it once, as the toolbar snip does.
+let lastRecording: RecordingMessage | null = null;
 
 /** Injects the canvas redactor. Running it again on the same page removes the redactions. */
 export async function redactCanvases(tabId: number): Promise<void> {
   await chrome.scripting.executeScript({ target: { tabId }, files: ['canvas-ocr.js'] });
 }
 
-chrome.runtime.onMessage.addListener((msg: ToBackground, sender, send) => {
+chrome.runtime.onMessage.addListener((msg: ToBackground | RecordingMessage | { type: 'vs-get-recording' }, sender, send) => {
   if (msg?.type === 'dsc-get-snip') {
     send({ dataUrl: lastShot });
     lastShot = null;
+    return;
+  }
+  if (msg?.type === 'vs-recording') {
+    lastRecording = msg;
+    chrome.tabs.create({ url: chrome.runtime.getURL('app/replay.html#recording') });
+    send({ ok: true });
+    return;
+  }
+  if (msg?.type === 'vs-get-recording') {
+    send(lastRecording);
+    lastRecording = null;
     return;
   }
   if (msg?.type === 'vs-canvas-capture') {
@@ -71,4 +99,4 @@ async function ocr(images: ToOffscreen['images']): Promise<OcrReply> {
 }
 
 // For the end-to-end test, which cannot click the context menu.
-(globalThis as { vaultsnip?: unknown }).vaultsnip = { redactCanvases };
+(globalThis as { vaultsnip?: unknown }).vaultsnip = { redactCanvases, recordTab };
