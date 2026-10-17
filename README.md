@@ -32,6 +32,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Upload, paste, extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
 | Mask by default, allowlist to keep | ✅ client names, numbers/money, IDs, emails, unlisted text |
+| Blur text in charts on any page (extension) | ✅ right-click → "Blur text in charts on this page" or Alt+Shift+B: charts drawn on canvas (Power BI, Tableau, ECharts…) are read on your device and sensitive text is blurred in place; run again to remove |
 | On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ four independent re-reads of the masked image, plus "Mask all" |
 | Review: click to toggle, drag to add masks | ✅ |
@@ -82,6 +83,7 @@ Open http://localhost:8080 and click **Try with sample dashboards**. Opening `in
 1. Open `chrome://extensions` (or `edge://extensions`) and switch on **Developer mode**.
 2. **Load unpacked** → choose `dist/extension`.
 3. Open any dashboard tab, click the VaultSnip toolbar icon, drag over the area, and go.
+4. To blur sensitive text inside the page's charts without leaving it, right-click → **Blur text in charts on this page** (or Alt+Shift+B). Run it again to remove the blur.
 
 Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: the OCR model ships inside the extension (about 7 MB zipped), so it works offline and makes no network request until you send an approved image to your AI provider. Tagged releases attach ready-made packages automatically.
 
@@ -104,7 +106,7 @@ web/              the app (static, no build step), published as-is
   maps/           map outlines (Natural Earth, simplified)
   lib/ lang/      tesseract.js + OCR model, echarts, vs-context.js (name check client)
   ml/ models/     name check: Web Worker + ONNX runtime (built by npm run build:ml), PII model (npm run fetch:model)
-extension/        manifest.json, background.js
+extension/        manifest.json; background.js, canvas-ocr.js, offscreen.*, wasm/ built from src/ (npm run build:ext)
 src/              TypeScript sources: name check (background/, content/), Rust scanner (core-rust/)
 tools/            check.mjs, e2e.mjs, build-ml.mjs, fetch-model.mjs, maps/build_maps.py
 build.sh          builds dist/web, dist/extension, dist/hf-space and zips

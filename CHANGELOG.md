@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- Extension: "Blur text in charts on this page" (right-click menu or Alt+Shift+B). Text inside charts drawn on canvas (Power BI, Tableau, ECharts, Chart.js, WebGL) is read on your device and sensitive text is blurred in place, with a re-check; redrawn charts are read again. Run it again to remove the blur. New permissions `scripting`, `offscreen` and `contextMenus` (no install warning, no host access); see PRIVACY.md.
 - On-device name check: a small PII model (Apache-2.0, 19 MB) runs in a Web Worker and masks safe words used as names, such as "May Chen" or "Delta Airlines", that the allowlist would otherwise keep. It only adds masks ("Name in context", brown), never touches words you marked safe, runs before the pre-flight check, and can be switched off under *Redaction policy*. Model and runtime are served by VaultSnip itself; store packages include them.
 - Rust/WebAssembly port of the text classifier (`src/core-rust`), with parity tests against the JavaScript rules.
 - `CLAUDE.md` and new ground rules in `CONTRIBUTING.md`: ethics, privacy law and licences are checked before any change; only compatible licences; disclosure in `PRIVACY.md`; VaultSnip stays free and open source.

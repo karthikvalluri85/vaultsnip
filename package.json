@@ -37,7 +37,9 @@
     "test:unit": "vitest run",
     "fetch:model": "node tools/fetch-model.mjs",
     "build:ml": "node tools/build-ml.mjs",
-    "test:ml-e2e": "node tests/e2e/ml-worker.e2e.mjs"
+    "test:ml-e2e": "node tests/e2e/ml-worker.e2e.mjs",
+    "build:ext": "node tools/build-ext.mjs",
+    "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.0",
@@ -46,6 +48,7 @@
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
+    "@types/chrome": "0.3.4",
     "playwright": "1.63.0",
     "typescript": "^5.9.2",
     "vite": "7.3.6",

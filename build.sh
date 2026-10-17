@@ -16,7 +16,7 @@ cp -r web dist/web
 
 # 2. Extension: app copy without the models; they download from VaultSnip's own site on first use.
 mkdir -p dist/extension
-cp extension/manifest.json extension/background.js dist/extension/
+cp -r extension/. dist/extension/   # manifest, service worker, canvas redactor, offscreen OCR, wasm (npm run build:ext)
 cp -r web/icons dist/extension/icons
 cp -r web dist/extension/app
 if [[ $BUNDLE -eq 0 ]]; then
