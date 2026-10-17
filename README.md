@@ -47,6 +47,8 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | **Realistic names** | ✅ made-up people, companies, emails, IDs and places that fit each column and each row's country (Faker); seeded, switchable, never in Generic mode; emails only at example.com/.net/.org |
 | Watermark + synthetic banner + `synthetic-data` meta | ✅ cannot be turned off |
 | Export: one offline HTML file | ✅ no network calls; carries only what its mode shows |
+| **Export for Figma (SVG)** | ✅ one layered SVG: editable text, vector charts, watermark drawn in; opens in Figma, Penpot, Illustrator |
+| **Export React code** | ✅ zip with a live React component running the replica engine: values, charts, filters and CSV generated at runtime from its spec and `seed` prop |
 | **Mask-only download** (no key) | ✅ masked PNG for forums, bug reports and slides |
 | **Share links** | ✅ the replica lives in the link itself; the sharer picks Shape, Structure or Generic and the receiver cannot unlock more |
 | **Synthetic data download** | ✅ tidy CSV of every generated data point, for Excel, Power BI, Tableau, Looker Studio |

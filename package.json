@@ -42,7 +42,8 @@
     "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs",
     "build:replay": "node tools/build-replay.mjs",
     "test:replay-e2e": "node tests/e2e/replay.e2e.mjs",
-    "build:faker": "node tools/build-faker.mjs"
+    "build:faker": "node tools/build-faker.mjs",
+    "build:design": "node tools/build-design.mjs"
   },
   "dependencies": {
     "@faker-js/faker": "10.6.0",
@@ -55,6 +56,8 @@
   "devDependencies": {
     "@types/chrome": "0.3.4",
     "playwright": "1.63.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "typescript": "^5.9.2",
     "vite": "7.3.6",
     "vitest": "^3.2.4"

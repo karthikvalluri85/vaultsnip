@@ -2,7 +2,8 @@
 // Usage: node tools/e2e.mjs        (first time: npx playwright install chromium)
 // Set PW_CHROMIUM to a Chromium binary to use a preinstalled browser.
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, extname, dirname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -168,6 +169,92 @@ try {
   check(table.off.every(r => /^Account \d+$/.test(r[0]) && /^Person \d$/.test(r[2])), 'with the switch off, the same table shows neutral placeholders');
   check(table.on.every(r => table.csv.includes(r[2])), 'the CSV download carries the same names as the screen');
   await page.click('#btn-regen'); await wait(200);
+
+  console.log('Design export (Figma SVG, React code)');
+  await page.locator('#modes button[data-mode="shape"]').click(); await wait(300);
+  const [dlS] = await Promise.all([page.waitForEvent('download'), page.click('#btn-figma')]);
+  const svg = await readFile(await dlS.path(), 'utf8');
+  const dsv = await page.evaluate(src => {
+    const d = new DOMParser().parseFromString(src, 'image/svg+xml');
+    const texts = [...d.querySelectorAll('#replica text')].map(t => t.textContent);
+    return { ok: !d.querySelector('parsererror') && d.documentElement.localName === 'svg', texts, charts: d.querySelectorAll('#replica svg').length,
+      marks: d.querySelectorAll('#watermark text').length, foreign: d.querySelectorAll('foreignObject, script').length,
+      // ECharts draws heat layers as a PNG of the synthetic values; anything else would be a leak
+      images: [...d.querySelectorAll('image')].filter(i => !/^data:image\/png;base64,/.test(i.getAttribute('href') || '')).length,
+      echartsFont: [...d.querySelectorAll('#replica svg text')].filter(t => /inherit/.test(t.getAttribute('style') || '') || t.hasAttribute('dominant-baseline')).length };
+  }, svg);
+  check(dsv.ok && dlS.suggestedFilename() === 'website-performance-replica-synthetic.svg', `the Figma export is a well-formed SVG named after the dashboard (${dlS.suggestedFilename()})`);
+  check(dsv.texts.some(t => /Website Performance/.test(t)) && dsv.texts.includes('SYNTHETIC DATA') && dsv.texts.some(t => /Paid search/.test(t)), 'titles, labels and the ribbon are editable text, not pictures');
+  check(dsv.charts >= 8 && dsv.foreign === 0 && dsv.images === 0, `charts are vectors (${dsv.charts}), with no embedded HTML, outside images or scripts`);
+  check(dsv.echartsFont === 0, 'chart text names its font and baseline, so design tools place it as in the app');
+  check(dsv.marks > 4, 'the SYNTHETIC DATA watermark is drawn across the page');
+  check(await page.locator('body > div[aria-hidden="true"]').count() === 0, 'the off-screen copy used for the export is removed');
+
+  // The React package is unzipped, bundled with real React and run: nothing in it may be frozen.
+  const unzipText = buf => {
+    const out = {}; let p = 0;
+    while (buf.readUInt32LE(p) === 0x04034b50) {
+      const size = buf.readUInt32LE(p + 18), nl = buf.readUInt16LE(p + 26), xl = buf.readUInt16LE(p + 28);
+      out[buf.subarray(p + 30, p + 30 + nl).toString('utf8')] = buf.subarray(p + 30 + nl + xl, p + 30 + nl + xl + size).toString('utf8');
+      p += 30 + nl + xl + size;
+    }
+    return out;
+  };
+  const runReact = async (files, name) => {
+    const dir = await mkdtemp(join(tmpdir(), 'vs-react-'));
+    for (const [f, text] of Object.entries(files)) { await mkdir(join(dir, dirname(f)), { recursive: true }); await writeFile(join(dir, f), text); }
+    await writeFile(join(dir, 'main.jsx'), `import { createRoot } from 'react-dom/client';\nimport C from './${name}/${name}.jsx';\nconst root = createRoot(document.getElementById('root'));\nwindow.__mount = props => root.render(<C {...props} />);\n`);
+    const { build } = await import('esbuild');
+    const out = await build({ entryPoints: [join(dir, 'main.jsx')], bundle: true, write: false, jsx: 'automatic', loader: { '.jsx': 'jsx', '.js': 'jsx' }, nodePaths: [join(web, '..', 'node_modules')], logLevel: 'silent' });
+    await rm(dir, { recursive: true, force: true });
+    const rp = await browser.newPage({ viewport: { width: 1280, height: 1000 } }); const errs = [];
+    rp.on('pageerror', e => errs.push(e.message)); rp.on('request', r => { if (!/^(data|about|blob):/.test(r.url())) errs.push('network: ' + r.url()); });
+    await rp.setContent('<div id="root"></div>'); await rp.addScriptTag({ content: out.outputFiles[0].text });
+    return { rp, errs };
+  };
+  const [dlR] = await Promise.all([page.waitForEvent('download'), page.click('#btn-react')]);
+  const pkg = unzipText(await readFile(await dlR.path()));
+  const P = 'WebsitePerformanceReplica/';
+  check(dlR.suggestedFilename() === 'WebsitePerformanceReplica.zip' && ['WebsitePerformanceReplica.jsx', 'vaultsnip-replica.js', 'spec.json', 'maps.json', 'README.md'].every(f => P + f in pkg),
+    `the React export is a package: component, engine, spec, maps and README (${dlR.suggestedFilename()})`);
+  check(!/Paid search|Sessions by channel/.test(pkg[P + 'WebsitePerformanceReplica.jsx']) && /DSCReplica\.render\(el, spec/.test(pkg[P + 'WebsitePerformanceReplica.jsx']) && 'world' in JSON.parse(pkg[P + 'maps.json']),
+    'the component holds no values or labels of its own; it renders from spec.json at runtime');
+  const { rp, errs } = await runReact(pkg, 'WebsitePerformanceReplica');
+  await rp.evaluate(() => window.__mount({})); await rp.waitForTimeout(2000);
+  const live = await rp.evaluate(() => {
+    const root = document.querySelector('#root .rp');
+    const scatter = root._charts.map(c => c.getOption().series).flat().filter(s => s.type === 'scatter' || s.type === 'effectScatter');
+    return { charts: root._charts.length, ph: root.querySelectorAll('.rp-ph').length, kpi: root.querySelector('.rp-kpi .v').textContent,
+      ribbon: /SYNTHETIC DATA/.test(root.querySelector('.rp-ribbon').textContent), sizes: scatter.length > 0 && scatter.every(s => typeof s.symbolSize === 'function' || typeof s.symbolSize === 'number') && scatter.some(s => typeof s.symbolSize === 'function') };
+  });
+  check(live.charts >= 8 && live.ph === 0 && live.ribbon, `the React component renders every chart live (${live.charts}) with the SYNTHETIC DATA ribbon`);
+  check(live.sizes, 'bubble sizes are computed from the data at runtime, not stored');
+  const appHead = await page.locator('#replica .rp-head h2').textContent();
+  const reactHead = await rp.locator('.rp-head h2').textContent();
+  check(P + 'vaultsnip-faker.js' in pkg && reactHead === appHead, `realistic names are generated inside the React component too, the same as in the app ("${reactHead}")`);
+  await rp.evaluate(() => window.__mount({ realistic: false })); await rp.waitForTimeout(800);
+  check(/^\[Client\] \| /.test(await rp.locator('.rp-head h2').textContent()), 'its realistic={false} prop shows neutral placeholders');
+  await rp.evaluate(() => window.__mount({})); await rp.waitForTimeout(800);
+  const appKpi = await kpi();
+  check(live.kpi === appKpi, `with the exported seed it shows the values seen in the app (${live.kpi})`);
+  await rp.locator('.rp-chip', { hasText: 'Paid search' }).click(); await rp.waitForTimeout(300);
+  check(await rp.locator('.rp-kpi .v').first().textContent() !== live.kpi, 'filter chips cross-filter the page inside the React component');
+  const [csvR] = await Promise.all([rp.waitForEvent('download'), rp.locator('.rp-csv').click()]);
+  check(/^visual,visual_type,/.test((await readFile(await csvR.path(), 'utf8')).replace(/^﻿/, '')), '"Download data (CSV)" works inside the React component');
+  await rp.evaluate(() => window.__mount({ seed: 99 })); await rp.waitForTimeout(800);
+  check(await rp.locator('.rp-kpi .v').first().textContent() !== live.kpi, 'a new seed prop generates new values');
+  check(errs.length === 0, 'the React component makes no network requests and throws no errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
+  await rp.close();
+
+  await page.locator('#modes button[data-mode="generic"]').click(); await wait(300);
+  const [dlSG] = await Promise.all([page.waitForEvent('download'), page.click('#btn-figma')]);
+  const [dlRG] = await Promise.all([page.waitForEvent('download'), page.click('#btn-react')]);
+  const svgG = await readFile(await dlSG.path(), 'utf8'), pkgG = unzipText(await readFile(await dlRG.path()));
+  check(!/Website Performance|Paid search|Sessions by channel|Bengaluru/.test(svgG + Object.values(pkgG).join('')) && dlRG.suggestedFilename() === 'DashboardReplica.zip', 'Generic SVG and React exports carry none of the original titles or labels, not even in hidden attributes');
+  const g = await runReact(pkgG, 'DashboardReplica');
+  await g.rp.evaluate(() => window.__mount({ mode: 'shape' })); await g.rp.waitForTimeout(1500);
+  check(await g.rp.locator('.rp-head h2').textContent() === 'Dashboard 1' && /Generic mode/.test(await g.rp.locator('.rp-ribbon').textContent()), 'a Generic package stays Generic even when asked for a less private mode');
+  await g.rp.close();
 
   console.log('Untrusted labels');
   const xss = await page.evaluate(async () => {

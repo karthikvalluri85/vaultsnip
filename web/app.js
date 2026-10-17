@@ -976,19 +976,73 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   }
   if (!isExt) { openShared(); window.addEventListener('hashchange', openShared); }
 
+  // The engine, ECharts and the map outlines a self-contained export needs, read from the app's own files.
+  async function exportLibs() {
+    const mapNames = DSCReplica.mapsUsed(S.spec);
+    // the realistic-names injector (Feature 6) goes in only when the export uses it
+    const useFaker = S.mode !== 'generic' && S.realistic;
+    const [echartsSrc, replicaSrc, fakerSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text()), useFaker ? fetch('lib/vs-faker.js').then(r => r.text()) : '']
+      .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
+    const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
+    return { echarts: echartsSrc, replica: replicaSrc, faker: fakerSrc, maps };
+  }
+
   $('btn-export').onclick = async () => {
     try {
-      const mapNames = DSCReplica.mapsUsed(S.spec);
-      const [echartsSrc, replicaSrc, fakerSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text()), fetch('lib/vs-faker.js').then(r => r.text())]
-        .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
-      const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
       // the file carries only what its mode shows: no original labels in Generic, no shapes in Structure-only
-      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic }, { echarts: echartsSrc, replica: replicaSrc, faker: S.mode !== 'generic' && S.realistic ? fakerSrc : '', maps });
+      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic }, await exportLibs());
       saveFile(new Blob([html], { type: 'text/html' }), replicaBase() + '-replica-synthetic.html');
       $('export-note').textContent = 'Exported. The file works offline and contains only generated values.';
     } catch (e) {
       $('export-note').textContent = 'Export needs the app to be served over http(s), not opened as a local file.';
       if (window.VSFeedback) VSFeedback.problem(e, 'Export');
+    }
+  };
+
+  /* ---------------- design export: SVG for Figma, React component ---------------- */
+  // The SVG is drawn from a copy of the replica rendered off-screen from the spec for the current mode, so the file carries
+  // exactly what that mode shows (the on-screen replica keeps original labels in hidden attributes for filtering).
+  async function designCopy() {
+    const live = $('replica');
+    const off = document.createElement('div');
+    off.setAttribute('aria-hidden', 'true');
+    off.style.cssText = `position:fixed;left:-30000px;top:0;width:${Math.max(960, Math.round(live.getBoundingClientRect().width))}px`;
+    document.body.appendChild(off);
+    if (S.mode !== 'generic' && live._state) off._state = { filters: JSON.parse(JSON.stringify(live._state.filters || {})) };
+    DSCReplica.render(off, VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic });
+    // charts animate in; wait until each has drawn its final frame
+    await Promise.all((off._charts || []).map(c => new Promise(res => { c.on('finished', res); setTimeout(res, 3000); })));
+    return { el: off, done() { (off._charts || []).forEach(c => c.dispose()); if (off._ro) off._ro.disconnect(); off.remove(); } };
+  }
+  const designTitle = () => (S.mode === 'generic' ? 'Dashboard' : String((S.spec && S.spec.title) || '').replace(/\[client\]/ig, '').replace(/^[\s|·:–-]+|[\s|·:–-]+$/g, '') || 'Dashboard');
+  $('btn-figma').onclick = async () => {
+    $('btn-figma').disabled = true;
+    let copy = null;
+    try {
+      copy = await designCopy();
+      saveFile(new Blob([VSDesign.toSvg(copy.el, { title: designTitle() })], { type: 'image/svg+xml' }), replicaBase() + '-replica-synthetic.svg');
+      $('export-note').textContent = 'Exported an SVG. In Figma, drag it onto the canvas (or File → Place image): titles and labels stay editable text and charts stay vectors. Only generated values are included.';
+    } catch (e) {
+      $('export-note').textContent = 'This export did not work: ' + (e && e.message || e);
+      if (window.VSFeedback) VSFeedback.problem(e, 'Export SVG');
+    } finally {
+      if (copy) copy.done();
+      $('btn-figma').disabled = false;
+    }
+  };
+  // The React package runs the replica engine itself, so values, sizes, labels, filters and the CSV download stay live.
+  $('btn-react').onclick = async () => {
+    $('btn-react').disabled = true;
+    try {
+      const libs = await exportLibs();
+      const pkg = VSDesign.reactPackage({ spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, realistic: S.realistic, title: designTitle(), replica: libs.replica, faker: libs.faker, maps: libs.maps });
+      saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '.zip');
+      $('export-note').textContent = `Exported ${pkg.name}.zip, a live React component: values, charts, filters and the CSV download are generated at runtime from its spec and seed. Unzip it into a project and run "npm install react echarts"; the README inside explains the rest.`;
+    } catch (e) {
+      $('export-note').textContent = 'Export needs the app to be served over http(s), not opened as a local file.';
+      if (window.VSFeedback) VSFeedback.problem(e, 'Export React');
+    } finally {
+      $('btn-react').disabled = false;
     }
   };
 
