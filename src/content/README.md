@@ -28,12 +28,12 @@ canvas-ocr.js (content script) ──► service worker ──► offscreen docu
 ## Build and test
 
 ```sh
-npm run build:wasm
-npm run build:ext            # dist/extension-dev, load unpacked; add -- --test for the test build
-npm run test:canvas-e2e      # Chromium, real extension: PII readable before, unreadable after (OCR of a screenshot)
+npm run build:wasm && npm run build:ext   # after changing src/: rebuild extension/ scripts and wasm, then commit
+npm run test:canvas-e2e                   # Chromium, the packaged extension: PII readable before, unreadable after
 ```
 
-`build.sh` and `extension/manifest.json` are unchanged: the release does not include this yet. The dev manifest adds
-`scripting`, `offscreen` and `contextMenus` (none shows a permission warning) and the Alt+Shift+B command.
+Shipped in the extension: `npm run build:ext` writes the scripts and the Rust WASM into `extension/` (committed, packaged
+as-is by `build.sh`). The manifest adds `scripting`, `offscreen` and `contextMenus` (no permission warning, no host
+access) and the Alt+Shift+B command; `tools/check.mjs` allows exactly these and requires each in `PRIVACY.md`.
 
 Reference studied: romelancheta/AutoRedact (GPL-3.0). Mechanics only, no code taken: VaultSnip is Apache-2.0.

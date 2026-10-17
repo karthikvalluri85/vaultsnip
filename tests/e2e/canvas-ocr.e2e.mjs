@@ -1,5 +1,5 @@
 // End-to-end test for canvas redaction (Feature 3) in the real extension, in Chromium.
-// Needs: npm run build:wasm && npm run build:ext -- --test      Run: npm run test:canvas-e2e
+// Run: npm run test:canvas-e2e   (tests the committed extension/ and web/; after changing src/, run npm run build:ext)
 //
 // A mock dashboard has three chart canvases: plain 2D, 2D tainted by a cross-origin image (pixels cannot
 // be read), and WebGL (reads back blank). The test triggers the redactor through the service worker, then
@@ -7,7 +7,7 @@
 // unreadable after, while allowlisted labels stay readable. It also checks redraws, scrolling, removal,
 // and that no request leaves the machine.
 import { createServer } from 'node:http';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, rm, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +15,15 @@ import { chromium } from 'playwright';
 import Tesseract from 'tesseract.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const ext = join(root, 'dist', 'extension-dev');
+// The extension as build.sh packages it (--bundle-models), in a temp folder. The test copy alone gets
+// <all_urls>: the test calls the service worker directly instead of using the menu, which is what grants activeTab.
+const ext = await mkdtemp(join(tmpdir(), 'vs-ext-pkg-'));
+await cp(join(root, 'extension'), ext, { recursive: true });
+await cp(join(root, 'web/icons'), join(ext, 'icons'), { recursive: true });
+await cp(join(root, 'web'), join(ext, 'app'), { recursive: true });
+const manifest = JSON.parse(await readFile(join(ext, 'manifest.json'), 'utf8'));
+manifest.host_permissions = ['<all_urls>'];
+await writeFile(join(ext, 'manifest.json'), JSON.stringify(manifest));
 
 const PII = { plain: ['Kestrelmoor', 'jane.doe@kestrelmoor.com', '1,204,330'], tainted: ['Globex'], webgl: ['Initech'], redraw: ['Umbrella'] };
 const LABELS = ['Revenue', 'Region'];
@@ -126,6 +134,13 @@ try {
   check(await tab.$('vaultsnip-redactions') === null, 'running it again removes the overlays');
   check(pageErrors.length === 0, `no page errors${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);
 
+  console.log('Toolbar snip (existing behaviour, same service worker)');
+  const appPage = await context.newPage();
+  await appPage.goto(new URL('app/privacy.html', sw.url()).href);
+  const reply = await appPage.evaluate(() => chrome.runtime.sendMessage({ type: 'dsc-get-snip' }));
+  check(reply && 'dataUrl' in reply, 'the app can still ask the service worker for a toolbar snip');
+  await appPage.close();
+
   console.log('Zero network');
   check(offOrigin.length === 0, `nothing requested outside this machine${offOrigin.length ? ': ' + offOrigin.join(', ') : ''}`);
   check(!requests.some((u) => Object.values(PII).flat().some((s) => decodeURIComponent(u).includes(s))), `no request URL carries the PII (${requests.length} requests)`);
@@ -134,6 +149,7 @@ try {
   await ocr.terminate();
   main.close(); other.close();
   await rm(profile, { recursive: true, force: true }).catch(() => {});
+  await rm(ext, { recursive: true, force: true }).catch(() => {});
 }
 if (failures) { console.error(`\n${failures} check(s) failed`); process.exit(1); }
 console.log('\nAll canvas redaction checks passed.');

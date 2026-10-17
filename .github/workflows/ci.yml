@@ -92,7 +92,8 @@ jobs:
       - run: cargo install wasm-pack --locked
       - run: npm ci
       - run: npm run build:wasm
-      - run: npm run build:ext -- --test
+      - name: Committed extension scripts match src/
+        run: npm run build:ext && git diff --exit-code -- extension/*.js extension/*.html
       - run: npx playwright install --with-deps chromium
       - run: npm run test:canvas-e2e
 
