@@ -57,6 +57,49 @@ jobs:
       - run: npm run build:wasm
       - run: npm run test:unit
 
+  ml:
+    name: On-device name check
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run fetch:model -- --check
+      - run: npx tsc -p .
+      - name: Committed web/ml matches src/
+        run: npm run build:ml && git diff --exit-code -- web/ml web/lib/vs-context.js
+      - run: npm run test:unit
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ml-e2e
+
+  canvas:
+    name: Extension (canvas blur, session replay)
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: rustup target add wasm32-unknown-unknown
+      - run: cargo install wasm-pack --locked
+      - run: npm ci
+      - run: npm run build:wasm
+      - name: Committed extension scripts match src/
+        run: npm run build:ext && git diff --exit-code -- extension/*.js extension/*.html
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:canvas-e2e
+      - name: Committed replay player matches src/
+        run: npm run build:replay && git diff --exit-code -- web/lib/vs-replay.js
+      - run: npm run test:replay-e2e
+
   build:
     name: Build packages
     runs-on: ubuntu-latest

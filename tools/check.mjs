@@ -46,7 +46,20 @@ console.log('Extension manifest');
 const manifest = JSON.parse(readFileSync(join(root, 'extension', 'manifest.json'), 'utf8'));
 if (manifest.manifest_version !== 3) fail('manifest_version must be 3'); else ok('Manifest V3');
 const perms = manifest.permissions || [];
-if (perms.some(p => p !== 'activeTab') || manifest.host_permissions) fail('only the activeTab permission is allowed (privacy promise)'); else ok('activeTab only');
+// Privacy promise: the extension touches a page only when the user acts on it (toolbar, menu, shortcut grant
+// activeTab for that tab). No host access, no scripts that run on their own. Each permission is listed in PRIVACY.md.
+const ALLOWED_PERMS = {
+  activeTab: 'capture or blur the current tab, only when the user asks',
+  scripting: 'inject the chart blur into that tab, only when the user asks',
+  offscreen: 'run OCR for the chart blur in a hidden extension page',
+  contextMenus: 'the "Blur text in charts on this page" menu item',
+};
+const extra = perms.filter(p => !(p in ALLOWED_PERMS));
+if (extra.length) fail(`permission not allowed by the privacy promise: ${extra.join(', ')}`);
+else if (manifest.host_permissions || manifest.optional_host_permissions || manifest.content_scripts) fail('no host permissions or automatic content scripts (privacy promise)');
+else ok(`permissions: ${perms.join(', ')}; no host access`);
+const privacy = readFileSync(join(root, 'PRIVACY.md'), 'utf8');
+for (const p of perms) if (!privacy.includes('`' + p + '`')) fail(`PRIVACY.md does not describe the ${p} permission`);
 
 console.log('Versions');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;

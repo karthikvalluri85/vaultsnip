@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VaultSnip · Masked replay</title>
+<link rel="icon" href="icons/icon32.png">
+<style>
+  :root{--ink:#14181e;--muted:#5b6472;--line:#e3e6eb;--bg:#f4f5f7;--accent:#0d6b5d;--bad:#b42318}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+  header{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid var(--line)}
+  header b{font-size:15px} header a{margin-left:auto;color:var(--muted)}
+  main{max-width:1280px;margin:0 auto;padding:16px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:12px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{font:inherit;padding:7px 13px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn:disabled{opacity:.5;cursor:default}
+  input[type=range]{flex:1;min-width:160px}
+  #stage{background:#fff;border:1px solid var(--line);overflow:hidden;min-height:120px}
+  .hint{color:var(--muted);margin:6px 0 0}
+  .bad{color:var(--bad)} .ok{color:var(--accent)}
+  #findings{margin:8px 0 0;padding-left:18px;color:var(--bad);font:12px ui-monospace,monospace}
+</style>
+</head>
+<body>
+<header><b>VaultSnip · Masked replay</b><a href="index.html">Open the app</a></header>
+<main>
+  <div class="panel">
+    <div class="row">
+      <label class="btn" for="file">Open a recording…</label>
+      <input type="file" id="file" accept=".json,application/json" hidden>
+      <span id="status">Record a tab with the VaultSnip extension (right-click → "Record this tab (text masked)"), or open a recording file.</span>
+    </div>
+    <p class="hint">Text was masked on the recording device: words not on the safe list became shapes like "Xxxxx 0,000". Images, video, canvas and links were removed. Every recording is checked again here before it plays.</p>
+    <ul id="findings" hidden></ul>
+  </div>
+  <div class="panel" id="player" hidden>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn primary" id="pp" type="button">Play</button>
+      <input type="range" id="seek" min="0" value="0" aria-label="Position">
+      <span id="time">0:00 / 0:00</span>
+      <select id="speed" aria-label="Speed" class="btn"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select>
+    </div>
+    <div id="stage"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="dl-json" type="button">Download recording (JSON)</button>
+      <button class="btn" id="dl-html" type="button">Download player (HTML, plays offline)</button>
+    </div>
+  </div>
+</main>
+<script src="lib/vs-replay.js"></script>
+<script src="replay.js"></script>
+</body>
+</html>
