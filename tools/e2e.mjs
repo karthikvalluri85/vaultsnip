@@ -3,7 +3,7 @@
 // Set PW_CHROMIUM to a Chromium binary to use a preinstalled browser.
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { join, extname, dirname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -200,19 +200,35 @@ try {
     }
     return out;
   };
-  const runReact = async (files, name) => {
-    const dir = await mkdtemp(join(tmpdir(), 'vs-react-'));
+  // React exports are unpacked inside node_modules/.cache so tsc and esbuild find react, echarts and their types
+  const cacheDir = join(web, '..', 'node_modules', '.cache');
+  const unpack = async files => {
+    await mkdir(cacheDir, { recursive: true });
+    const dir = await mkdtemp(join(cacheDir, 'vs-react-'));
     for (const [f, text] of Object.entries(files)) { await mkdir(join(dir, dirname(f)), { recursive: true }); await writeFile(join(dir, f), text); }
-    await writeFile(join(dir, 'main.jsx'), `import { createRoot } from 'react-dom/client';\nimport C from './${name}/${name}.jsx';\nconst root = createRoot(document.getElementById('root'));\nwindow.__mount = props => root.render(<C {...props} />);\n`);
+    return dir;
+  };
+  const runReact = async (files, name, ext = 'jsx') => {
+    const dir = await unpack(files);
+    const mount = ext === 'tsx'
+      ? `const root = createRoot(document.getElementById('root')!);\n(window as any).__mount = (props: any) => root.render(<C {...props} />);\n`
+      : `const root = createRoot(document.getElementById('root'));\nwindow.__mount = props => root.render(<C {...props} />);\n`;
+    await writeFile(join(dir, 'main.' + ext), `import { createRoot } from 'react-dom/client';\nimport C from './${name}/${name}.${ext}';\n` + mount);
     const { build } = await import('esbuild');
-    const out = await build({ entryPoints: [join(dir, 'main.jsx')], bundle: true, write: false, jsx: 'automatic', loader: { '.jsx': 'jsx', '.js': 'jsx' }, nodePaths: [join(web, '..', 'node_modules')], logLevel: 'silent' });
+    const out = await build({ entryPoints: [join(dir, 'main.' + ext)], bundle: true, write: false, jsx: 'automatic', loader: { '.jsx': 'jsx', '.js': 'jsx', '.tsx': 'tsx', '.ts': 'ts' }, nodePaths: [join(web, '..', 'node_modules')], logLevel: 'silent' });
     await rm(dir, { recursive: true, force: true });
     const rp = await browser.newPage({ viewport: { width: 1280, height: 1000 } }); const errs = [];
     rp.on('pageerror', e => errs.push(e.message)); rp.on('request', r => { if (!/^(data|about|blob):/.test(r.url())) errs.push('network: ' + r.url()); });
     await rp.setContent('<div id="root"></div>'); await rp.addScriptTag({ content: out.outputFiles[0].text });
     return { rp, errs };
   };
-  const [dlR] = await Promise.all([page.waitForEvent('download'), page.click('#btn-react')]);
+  // "Export React code" asks for the format: an editable TypeScript project (Feature 8) or one JSX file (Feature 5)
+  const exportReact = async format => {
+    await page.click('#btn-react'); await page.locator(`input[name=react-format][value=${format}]`).check();
+    const [d] = await Promise.all([page.waitForEvent('download'), page.click('#react-go')]);
+    return d;
+  };
+  const dlR = await exportReact('jsx');
   const pkg = unzipText(await readFile(await dlR.path()));
   const P = 'WebsitePerformanceReplica/';
   check(dlR.suggestedFilename() === 'WebsitePerformanceReplica.zip' && ['WebsitePerformanceReplica.jsx', 'vaultsnip-replica.js', 'spec.json', 'maps.json', 'README.md'].every(f => P + f in pkg),
@@ -248,13 +264,76 @@ try {
 
   await page.locator('#modes button[data-mode="generic"]').click(); await wait(300);
   const [dlSG] = await Promise.all([page.waitForEvent('download'), page.click('#btn-figma')]);
-  const [dlRG] = await Promise.all([page.waitForEvent('download'), page.click('#btn-react')]);
+  const dlRG = await exportReact('jsx');
   const svgG = await readFile(await dlSG.path(), 'utf8'), pkgG = unzipText(await readFile(await dlRG.path()));
   check(!/Website Performance|Paid search|Sessions by channel|Bengaluru/.test(svgG + Object.values(pkgG).join('')) && dlRG.suggestedFilename() === 'DashboardReplica.zip', 'Generic SVG and React exports carry none of the original titles or labels, not even in hidden attributes');
   const g = await runReact(pkgG, 'DashboardReplica');
   await g.rp.evaluate(() => window.__mount({ mode: 'shape' })); await g.rp.waitForTimeout(1500);
   check(await g.rp.locator('.rp-head h2').textContent() === 'Dashboard 1' && /Generic mode/.test(await g.rp.locator('.rp-ribbon').textContent()), 'a Generic package stays Generic even when asked for a less private mode');
   await g.rp.close();
+
+  console.log('Editable TypeScript React export (Feature 8)');
+  await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);
+  const dlT = await exportReact('tsx');
+  const tsx = unzipText(await readFile(await dlT.path()));
+  const TP = 'WebsitePerformanceReplica/';
+  check(dlT.suggestedFilename() === 'WebsitePerformanceReplica-tsx.zip' && ['WebsitePerformanceReplica.tsx', 'components.tsx', 'useReplica.ts', 'types.ts', 'vaultsnip-replica.js', 'vaultsnip-search.js', 'vaultsnip-faker.js', 'spec.json', 'maps.json', 'README.md'].every(f => TP + f in tsx),
+    `the TypeScript export is a project folder: page, components, hook, types, engine, spec, maps (${dlT.suggestedFilename()})`);
+  const appCards = await page.evaluate(() => [...document.querySelectorAll('#replica .rp-grid > .rp-card')].map(c => c.dataset.vid + ':' + c.dataset.component + ':' + getComputedStyle(c).getPropertyValue('--span').trim()));
+  const pageSrc = tsx[TP + 'WebsitePerformanceReplica.tsx'];
+  const pageCards = [...pageSrc.matchAll(/<\w+Card v=\{r\.visual\("([^"]+)", "(\w+)"\)\} span=\{(\d+)\}/g)].map(m => m[1] + ':' + m[2] + ':' + m[3]);
+  check(pageCards.length > 0 && JSON.stringify(pageCards) === JSON.stringify(appCards), `the page lists every card in the app's order, as typed components with the same widths (${pageCards.length})`);
+  const appKpi8 = await kpi();
+  // card titles appear only as comments that help find a card; the code itself holds no values or labels
+  const codeOnly = (pageSrc + tsx[TP + 'components.tsx'] + tsx[TP + 'useReplica.ts']).replace(/\{\/\*[^\n]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  check(!codeOnly.includes(appKpi8) && !/Paid search|Organic|Sessions by channel|Website Performance/.test(codeOnly), 'no value or label is written into the code; the engine supplies them at runtime');
+  const tdir = await unpack(tsx);
+  await writeFile(join(tdir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, noEmit: true, resolveJsonModule: true, esModuleInterop: true, skipLibCheck: true, lib: ['ES2022', 'DOM'], types: [] }, include: ['**/*.ts', '**/*.tsx'] }));
+  let tscOut = '';
+  try { execFileSync(process.execPath, [join(web, '..', 'node_modules', 'typescript', 'bin', 'tsc'), '-p', tdir], { stdio: 'pipe' }); } catch (e) { tscOut = String(e.stdout || e.message).slice(0, 800); }
+  await rm(tdir, { recursive: true, force: true });
+  check(!tscOut, 'the TypeScript project passes tsc --strict' + (tscOut ? ':\n' + tscOut : ''));
+  const t1 = await runReact(tsx, 'WebsitePerformanceReplica', 'tsx');
+  await t1.rp.evaluate(() => window.__mount({})); await t1.rp.waitForTimeout(2000);
+  const tl = await t1.rp.evaluate(() => ({ cards: document.querySelectorAll('#root .rp-card').length, charts: document.querySelectorAll('#root .rp-chart svg').length, ph: document.querySelectorAll('#root .rp-ph').length,
+    kpi: document.querySelector('#root .rp-kpi .v').textContent, head: document.querySelector('#root .rp-head h2').textContent }));
+  check(tl.cards === appCards.length && tl.charts >= 8 && tl.ph === 0, `the components draw every card and chart (${tl.cards} cards, ${tl.charts} charts)`);
+  check(tl.kpi === appKpi8 && tl.head === await page.locator('#replica .rp-head h2').textContent(), `values and names match the app for the same seed (${tl.kpi}, "${tl.head}")`);
+  const chartFiltered = await t1.rp.evaluate(() => {
+    const el = [...document.querySelectorAll('#root .rp-card')].find(c => /Sessions by channel/.test(c.textContent)).querySelector('.rp-chart');
+    const inst = window.echarts.getInstanceByDom(el);
+    const i = inst.getOption().series[0].data.findIndex(x => x.name === 'Organic'), d = inst.getOption().series[0].data[i];
+    inst._$handlers.click.forEach(h => h.h.call(inst, { componentType: 'series', seriesIndex: 0, dataIndex: i, name: d.name, data: d, value: d.value }));
+    return true;
+  });
+  await t1.rp.waitForTimeout(400);
+  check(chartFiltered && await t1.rp.locator('.rp-kpi .v').first().textContent() !== tl.kpi && /\(1\)/.test(await t1.rp.locator('.rp-ribbon').textContent()), 'clicking a chart segment re-runs the engine and every card updates');
+  await t1.rp.locator('.rp-filters .rp-chip:not(.rp-pill)', { hasText: 'Paid search' }).click(); await t1.rp.waitForTimeout(400);
+  check(/\(2\)/.test(await t1.rp.locator('.rp-ribbon').textContent()) && await t1.rp.locator('.rp-filters .rp-chip[aria-pressed="true"]', { hasText: 'Paid search' }).count() === 1, 'filter chips filter the page too, alongside the chart filter');
+  await t1.rp.locator('.rp-clear').click(); await t1.rp.waitForTimeout(300);
+  check(await t1.rp.locator('.rp-kpi .v').first().textContent() === tl.kpi, 'Clear all filters restores the values');
+  const [csvT] = await Promise.all([t1.rp.waitForEvent('download'), t1.rp.locator('.rp-csv').click()]);
+  check(csvT.suggestedFilename() === 'website-performance-synthetic-data.csv' && /^visual,visual_type,/.test((await readFile(await csvT.path(), 'utf8')).replace(/^﻿/, '')), '"Download data (CSV)" works in the TypeScript components');
+  await t1.rp.fill('.rp-search input', 'pricng'); await t1.rp.waitForTimeout(200);
+  check(/\/pricing/.test(await t1.rp.locator('.rp-sr').innerText()), '"Search this dashboard" works in the TypeScript components');
+  await t1.rp.evaluate(() => window.__mount({ seed: 99 })); await t1.rp.waitForTimeout(600);
+  check(await t1.rp.locator('.rp-kpi .v').first().textContent() !== tl.kpi, 'a new seed prop generates new values');
+  check(t1.errs.length === 0, 'the TypeScript components make no network requests and throw no errors' + (t1.errs.length ? ': ' + t1.errs.join(' | ') : ''));
+  await t1.rp.close();
+  const edited = Object.assign({}, tsx);
+  edited[TP + 'WebsitePerformanceReplica.tsx'] = pageSrc.replace(/\n\s*\{\/\*[^\n]*\*\/\}\n\s*<KpiCard [^\n]*\/>/, '').replace(/(<KpiCard [^\n]*?)span=\{\d+\}/, '$1span={6}');
+  const t2 = await runReact(edited, 'WebsitePerformanceReplica', 'tsx');
+  await t2.rp.evaluate(() => window.__mount({})); await t2.rp.waitForTimeout(1500);
+  const e2 = await t2.rp.evaluate(() => { const cs = [...document.querySelectorAll('#root .rp-card')]; return { n: cs.length, span: getComputedStyle(cs[0]).getPropertyValue('--span').trim() }; });
+  check(e2.n === appCards.length - 1 && e2.span === '6' && t2.errs.length === 0, 'editing the JSX works: a removed card is gone and a changed span applies');
+  await t2.rp.close();
+  await page.locator('#modes button[data-mode="generic"]').click(); await wait(400);
+  const tsxG = unzipText(await readFile(await (await exportReact('tsx')).path()));
+  check(!/Website Performance|Paid search|Sessions by channel|Bengaluru|Kapoor|Mishra/.test(Object.values(tsxG).join('')) && 'DashboardReplica/DashboardReplica.tsx' in tsxG && !('DashboardReplica/vaultsnip-faker.js' in tsxG), 'a Generic TypeScript export carries no original titles or labels, and no name generator');
+  const t3 = await runReact(tsxG, 'DashboardReplica', 'tsx');
+  await t3.rp.evaluate(() => window.__mount({ mode: 'shape' })); await t3.rp.waitForTimeout(1500);
+  check(await t3.rp.locator('.rp-head h2').textContent() === 'Dashboard 1' && /Generic mode/.test(await t3.rp.locator('.rp-ribbon').textContent()), 'a Generic TypeScript export stays Generic even when asked for a less private mode');
+  await t3.rp.close();
 
   console.log('Search this dashboard (Feature 7)');
   await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);

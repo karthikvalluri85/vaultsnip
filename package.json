@@ -44,7 +44,8 @@
     "test:replay-e2e": "node tests/e2e/replay.e2e.mjs",
     "build:faker": "node tools/build-faker.mjs",
     "build:design": "node tools/build-design.mjs",
-    "build:search": "node tools/build-search.mjs"
+    "build:search": "node tools/build-search.mjs",
+    "build:react": "node tools/build-react.mjs"
   },
   "dependencies": {
     "@faker-js/faker": "10.6.0",
@@ -57,6 +58,8 @@
   },
   "devDependencies": {
     "@types/chrome": "0.3.4",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
     "playwright": "1.63.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",

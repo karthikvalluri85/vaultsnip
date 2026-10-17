@@ -564,6 +564,8 @@
   // Customer comments kept on the device (names, emails and numbers already removed). "[…]" marks hidden words.
   const isVerbatim = c => !!c && /^(verbatim|quote|comment)s?$/i.test(String(c.kind || ''));
   const HIDDEN = /\[(?:…|\.\.\.|hidden|redacted|masked|client|name)\]/gi;
+  // the quote as text pieces; a hidden passage sits between two pieces
+  const quoteParts = q => String(q).replace(/^[\s"“”']+|[\s"“”']+$/g, '').slice(0, 400).split(HIDDEN);
   function quoteHtml(q) {
     const t = String(q).replace(/^[\s"“”']+|[\s"“”']+$/g, '').slice(0, 400);
     return '“' + t.split(HIDDEN).map(escH).join('<span class="rp-redact" role="img" aria-label="hidden"></span>') + '”';
@@ -761,9 +763,19 @@
 
     const quotes = !L.generic && visuals.some(v => v.type === 'table' && (Array.isArray(v.columns) ? v.columns : []).some(c => isVerbatim(c) && Array.isArray(c.values) && c.values.length));
     const footNote = quotes ? 'Synthetic replica · numbers are generated · customer comments are quoted with personal details hidden' : 'Synthetic replica · no source values included';
+    // The same page as data (Feature 8): what each part shows, for components that draw it themselves (DSCReplica.model).
+    const model = root._model = {
+      title: L.generic ? 'Dashboard 1' : L.text(spec.title || 'Dashboard'), subtitle: L.generic ? '' : L.text(spec.subtitle || ''),
+      mode, modeName: MODE_NAME[mode], seed, footNote,
+      filtered: active.length ? 'Filtered: ' + active.map(k => (L.generic ? 'filter' : keyLabel(k)) + ' (' + state.filters[k].length + ')').join(', ') : '',
+      filters: (spec.filters || []).filter(f => f.members && f.members.length).map(f => { const k = dk(f.label), on = state.filters[k] || []; return { label: L.dim(f.label), key: k, chips: f.members.map((m, i) => ({ raw: m, label: L.member(f.label, m, i), pressed: selHas(on, m) })) }; }),
+      pills: [].concat(...active.map(k => state.filters[k].filter(m => !(chipDims.includes(k) && chipHas(k, m))).map(m => ({ key: k, raw: m, label: (L.generic ? 'Filter' : keyLabel(k)) + ': ' + (L.generic ? '•' : m) })))),
+      active: active.length > 0,
+      visuals: []
+    };
     root.className = 'rp';
     root.innerHTML = `
-      <div class="rp-head"><h2>${esc(L.generic ? 'Dashboard 1' : L.text(spec.title || 'Dashboard'))}</h2><span>${esc(L.generic ? '' : L.text(spec.subtitle || ''))}</span></div>
+      <div class="rp-head"><h2>${esc(model.title)}</h2><span>${esc(model.subtitle)}</span></div>
       <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span>${activeNote}</div>
       ${filterBar ? `<div class="rp-filters">${filterBar}</div>` : ''}
       <div class="rp-grid"></div>
@@ -782,6 +794,12 @@
       card.innerHTML = title;
       grid.appendChild(card);
       const h = heights[v._h] || (v.type === 'kpi' ? 120 : 260);
+      // each card says what it is and which visual it shows, so exporters can read the page's structure (Feature 8)
+      let vid = String(v.id || 'v' + (idx + 1)); while (model.visuals.some(x => x.id === vid)) vid += '_' + (idx + 1);
+      const vm = { id: vid, type: v.type, span: Math.max(2, Math.min(12, v.span || 6)), height: h, title: v.type === 'kpi' ? '' : L.title(v.title || '', idx) };
+      model.visuals.push(vm);
+      card.setAttribute('data-vid', vm.id);
+      const kind = k => { vm.kind = k; card.setAttribute('data-component', k); };
 
       if (v.type === 'kpi') {
         const meas = v.measure || { name: v.title || 'Value', format: 'number' };
@@ -799,11 +817,14 @@
         const room = meas.format === 'percent' ? Math.max(0.2, Math.min(val, 100 - val)) : 100;
         const swing = meas.format === 'percent' ? Math.min(8, room * 0.6) : 20;
         const d0 = (r() - 0.35) * swing; const d = F.key ? (rng(hashStr(v.id + '|d|' + F.key))() - 0.4) * swing * 1.1 : d0; const up = d >= 0;
-        const spark = v.sparkline ? (() => { const a = shapeArray(v.sparkShape, 12, mode, F.key ? rng(hashStr(v.id + '|s|' + F.key)) : r, 'trend'); const mx = Math.max(...a), mn = Math.min(...a); return `<svg viewBox="0 0 120 28" preserveAspectRatio="none"><polyline fill="none" stroke="${colors[0]}" stroke-width="1.5" points="${a.map((x, i) => `${i * 120 / 11},${26 - (x - mn) / (mx - mn || 1) * 24}`).join(' ')}"/></svg>`; })() : '';
+        const sparkPts = v.sparkline ? (() => { const a = shapeArray(v.sparkShape, 12, mode, F.key ? rng(hashStr(v.id + '|s|' + F.key)) : r, 'trend'); const mx = Math.max(...a), mn = Math.min(...a); return a.map((x, i) => `${i * 120 / 11},${26 - (x - mn) / (mx - mn || 1) * 24}`).join(' '); })() : '';
+        const spark = sparkPts ? `<svg viewBox="0 0 120 28" preserveAspectRatio="none"><polyline fill="none" stroke="${colors[0]}" stroke-width="1.5" points="${sparkPts}"/></svg>` : '';
         card.classList.add('rp-kpi');
         // green means good: for "lower is better" measures (errors, response time, churn) a fall is good news
         const good = up === (meas.higherIsBetter !== false && v.higherIsBetter !== false);
         const dTxt = meas.format === 'ratio' ? (Math.abs(d) / 100 * outOf).toFixed(2) : Math.abs(d).toFixed(1) + (meas.format === 'percent' ? ' pts' : '%');
+        kind('kpi');
+        Object.assign(vm, { label: L.meas(v.title || meas.name), value: fmt(val, meas, L.generic), delta: v.delta === false ? null : { up, good, text: (up ? '▲' : '▼') + ' ' + dTxt + ' vs prior' }, spark: sparkPts ? { points: sparkPts, color: colors[0] } : null });
         card.innerHTML = `<div class="k">${esc(L.meas(v.title || meas.name))}</div><div class="v">${esc(fmt(val, meas, L.generic))}</div>${v.delta === false ? '' : `<div class="d ${good ? 'good' : 'bad'}">${up ? '▲' : '▼'} ${dTxt} vs prior</div>`}${spark}`;
         rows.push({ v, member: '', series: L.meas(v.title || meas.name), value: val, format: meas.format });
         return;
@@ -844,7 +865,7 @@
           let cell;
           if (isVerbatim(c)) {
             const q = Array.isArray(c.values) && !L.generic ? c.values[ri] : null;
-            return q != null && String(q).trim() ? { html: quoteHtml(q), text: String(q), cls: 'q', k: 'verbatim' } : { html: esc('Comment ' + String(ri + 1).padStart(2, '0')), text: 'Comment ' + String(ri + 1).padStart(2, '0'), cls: '', k: 'verbatim' };
+            return q != null && String(q).trim() ? { html: quoteHtml(q), text: String(q), parts: quoteParts(q), cls: 'q', k: 'verbatim' } : { html: esc('Comment ' + String(ri + 1).padStart(2, '0')), text: 'Comment ' + String(ri + 1).padStart(2, '0'), cls: '', k: 'verbatim' };
           }
           let x = null;
           // realistic synthetic values chosen from the column's name and kind; an email follows the row's person
@@ -863,13 +884,17 @@
         };
         // A narrow list of customer comments reads like the source: who said it, the quote, and the score badge.
         if (vcol && (num(v.span) || 6) <= 6) {
+          kind('feed'); vm.items = [];
           const items = Array.from({ length: rowsN }, (_, ri) => {
             const cs = cols.map((c, ci) => { const o = cellOf(c, ci, ri); csvCell(c, ri, o); return o; });
+            const item = { meta: cs.filter(o => !o.cls && o.k !== 'verbatim').map(o => o.text), quotes: cs.filter(o => o.k === 'verbatim').map(o => o.parts || [o.text]), badges: [] };
+            vm.items.push(item);
             const meta = cs.filter(o => !o.cls && o.k !== 'verbatim').map((o, i) => i === 0 ? `<b>${o.html}</b>` : o.html).join(' · ');
             const quote = cs.filter(o => o.k === 'verbatim').map(o => `<p>${o.html}</p>`).join('');
             const badges = cs.filter(o => o.cls === 'n').map(o => {
               const sx = o.x == null ? null : Math.round(o.x);
               const tone = o.k === 'number' && o.max <= 10.5 && sx != null ? (sx >= 9 ? 'good' : sx >= 7 ? 'mid' : 'bad') : '';
+              item.badges.push({ text: o.text, tone });
               return `<span class="rp-badge ${tone}">${o.html}</span>`;
             }).join('');
             return `<div class="rp-fi"><div class="m"><span>${meta}</span>${badges}</div>${quote}</div>`;
@@ -877,28 +902,37 @@
           card.insertAdjacentHTML('beforeend', `<div class="rp-feed">${items}</div>`);
           return;
         }
-        const rowsHtml = Array.from({ length: rowsN }, (_, ri) => (rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(rowLabels[ri])}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
+        kind('table');
+        vm.columns = cols.map(c => (L.generic ? L.dim(c.name) : c.name));
+        vm.rowLabel = rowCat ? rowCat.name : '';
+        vm.rows = [];
+        const rowsHtml = Array.from({ length: rowsN }, (_, ri) => (vm.rows.push({ filter: rowCat ? [dk(rowCat.name), rowLabels[ri]] : null, cells: [] }), rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(rowLabels[ri])}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
           const o = cellOf(c, ci, ri); csvCell(c, ri, o);
+          vm.rows[ri].cells.push(o.parts ? { text: o.text, cls: o.cls, parts: o.parts } : { text: o.text, cls: o.cls });
           return `<td class="${o.cls}">${o.html}</td>`;
         }).join('') + '</tr>').join('');
         card.insertAdjacentHTML('beforeend', `<div class="rp-table"><table><thead><tr>${cols.map(c => `<th>${esc(L.generic ? L.dim(c.name) : c.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`);
         return;
       }
-      if (v.type === 'text') { card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(L.generic ? 'Text block' : L.text(v.content || 'Text block (content masked)'))}</p>`); return; }
+      if (v.type === 'text') { kind('text'); vm.text = L.generic ? 'Text block' : L.text(v.content || 'Text block (content masked)'); card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(vm.text)}</p>`); return; }
       const opt = buildOption(v, { L, mode, r, t, colors, filter: F, quiet: !!opts._quiet });
       if (!opt || opt._placeholder) {
-        card.insertAdjacentHTML('beforeend', `<div class="rp-ph" style="--h:${h}px">${esc(opt ? opt._placeholder : 'Visual type "' + (v.originalType || v.type) + '" recognised; shown as a placeholder.')}</div>`);
+        kind('placeholder'); vm.text = opt ? opt._placeholder : 'Visual type "' + (v.originalType || v.type) + '" recognised; shown as a placeholder.';
+        card.insertAdjacentHTML('beforeend', `<div class="rp-ph" style="--h:${h}px">${esc(vm.text)}</div>`);
         return;
       }
       const el = document.createElement('div');
       el.className = 'rp-chart'; el.style.setProperty('--h', h + 'px');
       card.appendChild(el);
-      const chart = global.echarts.init(el, null, { renderer: 'svg' });
-      chart.setOption(Object.assign({}, opt, { _meta: undefined, _note: undefined }));
       const meta = opt._meta; delete opt._meta;
+      const pairsOf = meta && meta.pairs ? p => meta.pairs(p).filter(x => x[0] && x[1] != null) : null;
+      kind('chart'); Object.assign(vm, { option: Object.assign({}, opt, { _note: undefined }), note: opt._note || '', pairs: pairsOf });
       if (opt._note) card.insertAdjacentHTML('beforeend', `<div class="rp-note">${esc(opt._note)}</div>`);
       chartRows(v, opt, L).forEach(x => rows.push(x));
-      if (meta && meta.pairs) chart.on('click', p => { const pairs = meta.pairs(p).filter(x => x[0] && x[1] != null); if (pairs.length) toggleMany(pairs); });
+      if (opts.modelOnly) return;   // DSCReplica.model: the option is the result; nothing is drawn
+      const chart = global.echarts.init(el, null, { renderer: 'svg' });
+      chart.setOption(Object.assign({}, opt, { _note: undefined }));
+      if (pairsOf) chart.on('click', p => { const pairs = pairsOf(p); if (pairs.length) toggleMany(pairs); });
       root._charts.push(chart);
     });
 
@@ -906,6 +940,7 @@
     const clr = root.querySelector('.rp-clear'); if (clr) clr.addEventListener('click', () => { state.filters = {}; render(root, spec, reopts); });
     const csvBtn = root.querySelector('.rp-csv'); if (csvBtn) csvBtn.addEventListener('click', () => downloadCsv(root));
     root._title = L.generic ? '' : (spec.title || ''); root._generic = L.generic;
+    if (opts.modelOnly) return;
     // Feature 7 (web/lib/vs-search.js): "Search this dashboard", indexed from what this render shows
     if (global.VSSearch) global.VSSearch.attach(root, { echarts: global.echarts });
     if (!root._ro && global.ResizeObserver) { root._ro = new ResizeObserver(() => (root._charts || []).forEach(c => c.resize())); root._ro.observe(root); }
@@ -997,5 +1032,37 @@ ${Object.keys(libs.maps || {}).map(n => `<script>DSCReplica.addMap(${JSON.string
 </body></html>`;
   }
 
-  global.DSCReplica = { render, exportHtml, addMap, loadMap, mapsUsed, toCsv, downloadCsv, MAP_LIST, PRODUCT_NAME, PRODUCT_URL };
+  /* ---------- the replica as data (Feature 8) ---------- */
+  // For components that draw the page themselves (the TypeScript React export): every value, label, table row and chart
+  // option the replica would show for these options and filters, computed by this engine, drawn by the caller.
+  let MODEL_HOST = null;
+  function model(spec, opts) {
+    opts = opts || {};
+    if (!MODEL_HOST || !MODEL_HOST.isConnected) {
+      MODEL_HOST = document.createElement('div');
+      MODEL_HOST.setAttribute('aria-hidden', 'true');
+      MODEL_HOST.style.cssText = 'position:fixed;left:-30000px;top:0;width:1200px;visibility:hidden';
+      document.body.appendChild(MODEL_HOST);
+    }
+    MODEL_HOST._state = { filters: JSON.parse(JSON.stringify(opts.filters || {})) };
+    render(MODEL_HOST, spec, Object.assign({}, opts, { modelOnly: true, resetSelection: false, _quiet: true }));
+    const m = MODEL_HOST._model;
+    m.csv = toCsv(MODEL_HOST);
+    MODEL_HOST.innerHTML = '';   // the page is the caller's to draw; leave no second copy in the document
+    m.csvName = (String(MODEL_HOST._title || '').replace(/\[client\]/ig, '').normalize('NFKD').replace(/[^\w\s-]/g, '').trim().toLowerCase().replace(/[\s_-]+/g, '-').slice(0, 60).replace(/^-|-$/g, '') || 'dashboard') + '-synthetic-data.csv';
+    return m;
+  }
+  // Filters after clicking these [dimension key, raw member] pairs: each one is switched on or off, as a click in the replica does.
+  function toggleFilters(filters, pairs) {
+    const out = JSON.parse(JSON.stringify(filters || {}));
+    (pairs || []).forEach(([k, raw]) => {
+      if (!k || raw == null) return;
+      const cur = out[k] || [];
+      out[k] = cur.some(x => sameMember(x, raw)) ? cur.filter(x => !sameMember(x, raw)) : cur.concat([raw]);
+      if (!out[k].length) delete out[k];
+    });
+    return out;
+  }
+
+  global.DSCReplica = { render, model, toggleFilters, exportHtml, addMap, loadMap, mapsUsed, toCsv, downloadCsv, MAP_LIST, PRODUCT_NAME, PRODUCT_URL, CSS };
 })(window);
