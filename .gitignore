@@ -7,3 +7,7 @@ dist/
 docs/
 test-samples/
 *.zip
+
+# Rust / WASM build output
+src/core-rust/target/
+public/wasm/
