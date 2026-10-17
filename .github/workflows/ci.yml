@@ -57,6 +57,26 @@ jobs:
       - run: npm run build:wasm
       - run: npm run test:unit
 
+  ml:
+    name: On-device name check
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run fetch:model -- --check
+      - run: npx tsc -p .
+      - name: Committed web/ml matches src/
+        run: npm run build:ml && git diff --exit-code -- web/ml web/lib/vs-context.js
+      - run: npm run test:unit
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ml-e2e
+
   build:
     name: Build packages
     runs-on: ubuntu-latest
