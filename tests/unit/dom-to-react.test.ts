@@ -33,12 +33,12 @@ describe('DOM to React (Feature 8)', () => {
     expect(src).toMatch(/\{\/\* Revenue \* \/ by month \*\/\}/);
   });
 
-  it('loads the name generator and the search box only when they are shipped', () => {
-    const both = useReplicaTs({ mode: 'shape', faker: true, search: true });
-    expect(both).toMatch(/import '\.\/vaultsnip-faker\.js';\nimport '\.\/vaultsnip-search\.js';\nimport '\.\/vaultsnip-replica\.js';/);
+  it('loads the name generator only when it is shipped', () => {
+    const both = useReplicaTs({ mode: 'shape', faker: true });
+    expect(both).toMatch(/import '\.\/vaultsnip-faker\.js';\nimport '\.\/vaultsnip-replica\.js';/);
     expect(both).toMatch(/realistic: realistic, filters/);
-    const none = useReplicaTs({ mode: 'generic', faker: false, search: false });
-    expect(none).not.toMatch(/vaultsnip-faker|vaultsnip-search/);
+    const none = useReplicaTs({ mode: 'generic', faker: false });
+    expect(none).not.toMatch(/vaultsnip-faker/);
     expect(none).toMatch(/realistic: false, filters/);
     expect(none).toMatch(/export const EXPORTED: Mode = "generic";/);
   });

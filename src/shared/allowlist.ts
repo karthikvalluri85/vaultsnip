@@ -1,6 +1,6 @@
 /**
  * The built-in allowlist from web/app.js (ALLOW), for code outside the app page: the canvas redactor (Feature 3)
- * pushes it into the Rust scanner. tests/unit/allowlist.test.ts fails if this copy and web/app.js drift apart.
+ * masks with it (src/shared/classify.ts). tests/unit/canvas-ocr.test.ts fails if this copy and web/app.js drift apart.
  */
 export const ALLOW_WORDS: readonly string[] = `
 a an and or of the to in on at by for from with per vs versus via all any each other others total totals subtotal grand

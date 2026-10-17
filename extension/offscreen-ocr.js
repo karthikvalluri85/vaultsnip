@@ -1,53 +1,3 @@
-const CATEGORIES = [
-  null,
-  "Client name",
-  "Email",
-  "Identifier",
-  "Number or money",
-  "Text not on allowlist"
-];
-const SEP = "";
-class ScannerBridge {
-  constructor(wasm) {
-    this.wasm = wasm;
-  }
-  wasm;
-  static async create(load2, policy = {}) {
-    const mod = await load2();
-    const bridge = new ScannerBridge(new mod.Scanner());
-    bridge.setPolicy(policy);
-    return bridge;
-  }
-  setPolicy(p) {
-    if (p.allow) this.wasm.set_allowlist([...p.allow].join("\n"));
-    if (p.sessionAllow) this.wasm.set_session_allow([...p.sessionAllow].join("\n"));
-    if (p.clientNames) this.wasm.set_client_names([...p.clientNames].join(","));
-  }
-  classify(text) {
-    return CATEGORIES[this.wasm.classify(text.replaceAll(SEP, " "))] ?? null;
-  }
-  /** Classify many texts in one WASM call. Result order matches input order. */
-  scan(texts) {
-    if (texts.length === 0) return [];
-    const codes = this.wasm.scan(texts.map((t) => t.replaceAll(SEP, " ")).join(SEP));
-    if (codes.length !== texts.length) {
-      throw new Error(`scanner returned ${codes.length} results for ${texts.length} texts`);
-    }
-    return Array.from(codes, (c) => CATEGORIES[c] ?? null);
-  }
-  dispose() {
-    this.wasm.free?.();
-  }
-}
-const extensionLoader = async () => {
-  const base = chrome.runtime.getURL("wasm/");
-  const glue = await import(
-    /* @vite-ignore */
-    `${base}vaultsnip_core.js`
-  );
-  await glue.default(`${base}vaultsnip_core_bg.wasm`);
-  return glue;
-};
 const ALLOW_WORDS = `
 a an and or of the to in on at by for from with per vs versus via all any each other others total totals subtotal grand
 top bottom first last next previous prior current new old high medium low average avg mean median min max sum count share rate ratio index
@@ -96,16 +46,6 @@ function classify(text, p = {}) {
   const parts = low.split(/[-/&]/).filter(Boolean);
   if (parts.length > 1 && parts.every((x) => allow.has(x))) return null;
   return "Text not on allowlist";
-}
-async function createScanner(load2, allow) {
-  try {
-    const bridge = await ScannerBridge.create(load2, { allow });
-    return { engine: "wasm", scan: (texts) => bridge.scan(texts) };
-  } catch (e) {
-    console.warn("VaultSnip: the Rust scanner did not load; using the same rules in TypeScript.", e);
-    const set = new Set(allow);
-    return { engine: "typescript", scan: (texts) => texts.map((t) => classify(t, { allow: set })) };
-  }
 }
 function parseTsv(tsv, scale) {
   const out = [];
@@ -161,8 +101,8 @@ function ocrWorker() {
     throw e;
   });
 }
-let scannerP = null;
-const scanner = () => scannerP ??= createScanner(extensionLoader, ALLOW_WORDS);
+const ALLOW = new Set(ALLOW_WORDS);
+const scan = (texts) => texts.map((t) => classify(t, { allow: ALLOW }));
 function load(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -192,11 +132,10 @@ async function read(img) {
   return mergePasses(passes);
 }
 async function run(images) {
-  const s = await scanner();
   const results = [];
   for (const { id, dataUrl } of images) {
     const words = await read(await load(dataUrl));
-    results.push({ id, words: words.length, boxes: maskBoxes(words, s.scan(words.map((w) => w.text))) });
+    results.push({ id, words: words.length, boxes: maskBoxes(words, scan(words.map((w) => w.text))) });
   }
   return results;
 }

@@ -1,12 +1,12 @@
 /**
- * Offscreen document for canvas redaction (Feature 3): runs Tesseract and the Rust scanner on canvas images.
+ * Offscreen document for canvas redaction (Feature 3): runs Tesseract on canvas images and the app's masking rules
+ * (src/shared/classify.ts) on the words it reads.
  *
  * OCR runs here, not in the content script: in a content script, Tesseract's Worker and WASM fall under
  * the page's CSP, which strict sites (Power BI, Tableau) use to block them. An offscreen document runs
  * under the extension's own CSP. Tesseract and its language data are the app's own copies (app/lib, app/lang).
  */
-import { extensionLoader } from '../content/scanner-wasm';
-import { createScanner, type TextScanner } from './text-scanner';
+import { classify } from '../shared/classify';
 import { ALLOW_WORDS } from '../shared/allowlist';
 import type { OcrImage, OcrReply, OcrResult, ToOffscreen } from './canvas-protocol';
 import { maskBoxes, mergePasses, parseTsv, type OcrWord } from './ocr-words';
@@ -32,8 +32,8 @@ function ocrWorker(): Promise<TesseractWorker> {
   }).catch((e) => { workerP = null; throw e; }));
 }
 
-let scannerP: Promise<TextScanner> | null = null;
-const scanner = () => (scannerP ??= createScanner(extensionLoader, ALLOW_WORDS));
+const ALLOW = new Set(ALLOW_WORDS);
+const scan = (texts: readonly string[]) => texts.map((t) => classify(t, { allow: ALLOW }));
 
 function load(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -68,11 +68,10 @@ async function read(img: HTMLImageElement): Promise<OcrWord[]> {
 }
 
 async function run(images: OcrImage[]): Promise<OcrResult[]> {
-  const s = await scanner();
   const results: OcrResult[] = [];
   for (const { id, dataUrl } of images) {
     const words = await read(await load(dataUrl));
-    results.push({ id, words: words.length, boxes: maskBoxes(words, s.scan(words.map((w) => w.text))) });
+    results.push({ id, words: words.length, boxes: maskBoxes(words, scan(words.map((w) => w.text))) });
   }
   return results;
 }

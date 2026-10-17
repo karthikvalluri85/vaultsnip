@@ -78,7 +78,7 @@ export interface ${o.name}Props {
 export default function ${o.name}({ seed = ${o.seed}, mode = ${JSON.stringify(o.mode)}, realistic = ${o.realistic} }: ${o.name}Props) {
   const r = useReplica({ seed, mode, realistic });
   return (
-    <Replica model={r.model} onToggle={r.toggle}>
+    <Replica>
       <Header model={r.model} />
       <Ribbon model={r.model} />
 ${layout.filters ? '      <FilterBar model={r.model} onToggle={r.toggle} onClear={r.clear} />\n' : ''}      <Grid>
@@ -132,15 +132,14 @@ export interface VaultSnipWindow {
     toggleFilters(filters: Filters, pairs: Pair[]): Filters;
     addMap(name: string, featureCollection: unknown): void;
   };
-  VSSearch?: { attach(root: HTMLElement, opts: { echarts: unknown }): unknown };
 }
 `;
 
-export function useReplicaTs(o: { mode: string; faker: boolean; search: boolean }): string {
+export function useReplicaTs(o: { mode: string; faker: boolean }): string {
   return `/* Runs the VaultSnip engine: the replica model for the props and the filters the user has clicked. */
 import { useCallback, useMemo, useState } from 'react';
 import * as echarts from 'echarts';
-${o.faker ? "import './vaultsnip-faker.js';\n" : ''}${o.search ? "import './vaultsnip-search.js';\n" : ''}import './vaultsnip-replica.js';
+${o.faker ? "import './vaultsnip-faker.js';\n" : ''}import './vaultsnip-replica.js';
 import spec from './spec.json';
 import maps from './maps.json';
 import type { Filters, Mode, Pair, ReplicaModel, VaultSnipWindow, VisualModel, VisualOf } from './types';
@@ -185,23 +184,14 @@ export function useReplica({ seed, mode, realistic }: ReplicaOptions) {
 export const COMPONENTS_TSX = `/* The replica's building blocks. They draw what the model says; styles come from the engine (classes rp-*). */
 import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import * as echarts from 'echarts';
-import type { ChartModel, FeedModel, KpiModel, Pair, PlaceholderModel, ReplicaModel, TableModel, TextModel, VaultSnipWindow } from './types';
+import type { ChartModel, FeedModel, KpiModel, Pair, PlaceholderModel, ReplicaModel, TableModel, TextModel } from './types';
 
 type Toggle = (pairs: Pair[]) => void;
 const vars = (o: Record<string, string | number>) => o as CSSProperties;
 
-/** The page. Also hosts "Search this dashboard", which indexes what is on screen and is rebuilt when the page changes. */
-export function Replica({ model, onToggle, children }: { model: ReplicaModel; onToggle: Toggle; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current as (HTMLDivElement & { _toggle?: Toggle }) | null;
-    const search = (window as unknown as VaultSnipWindow).VSSearch;
-    if (!el || !search) return;
-    el._toggle = onToggle;
-    el.querySelectorAll('.rp-search').forEach((n) => n.remove());
-    search.attach(el, { echarts });
-  }, [model, onToggle]);
-  return <div ref={ref} className="rp" data-synthetic="true">{children}</div>;
+/** The page: the engine's styles (classes rp-*) and the "SYNTHETIC DATA" watermark hang off this element. */
+export function Replica({ children }: { children: ReactNode }) {
+  return <div className="rp" data-synthetic="true">{children}</div>;
 }
 
 export function Header({ model }: { model: ReplicaModel }) {
@@ -371,7 +361,6 @@ export interface TsxPackageOptions {
   title?: string;
   replica: string;
   faker?: string;
-  search?: string;
   maps: Record<string, string>;
 }
 
@@ -382,7 +371,7 @@ export function tsxPackage(o: TsxPackageOptions): { name: string; files: ZipEntr
   const realistic = !!o.faker && o.realistic !== false;
   const maps: Record<string, unknown> = {};
   Object.keys(o.maps || {}).forEach((k) => { maps[k] = JSON.parse(o.maps[k]); });
-  // the builds declare `var VSFaker` / `var VSSearch`, which a bundler keeps module-local, so they are published on window
+  // the build declares `var VSFaker`, which a bundler keeps module-local, so it is published on window
   const publish = (global: string) => `\nif (typeof window !== 'undefined' && typeof ${global} !== 'undefined') window.${global} = ${global};\n`;
   const used = [...new Set(layout.cards.map((c) => COMPONENTS[c.component]))];
   const readme = `# ${name}
@@ -413,7 +402,7 @@ Copy this folder into your project (in tsconfig, "resolveJsonModule": true), the
 
 Nothing is frozen into the code. Every value, label, table row and chart option comes at runtime from the VaultSnip engine
 (vaultsnip-replica.js) for spec.json, the seed and the filters the user clicks. Filter chips, table rows and chart segments
-filter the whole page, "Download data (CSV)" saves the values on screen${o.search ? ', and "Search this dashboard" finds any title, label or value shown' : ''}.${realistic ? ' Names, companies and IDs are made up at runtime to fit each column (realistic={false} for neutral placeholders); emails use only example.com/.net/.org.' : ''}
+filter the whole page, "Download data (CSV)" saves the values on screen.${realistic ? ' Names, companies and IDs are made up at runtime to fit each column (realistic={false} for neutral placeholders); emails use only example.com/.net/.org.' : ''}
 
 ## Privacy
 
@@ -423,16 +412,15 @@ There is no source data, screenshot or OCR text in this folder, and nothing in i
 ## Licence
 
 vaultsnip-replica.js is part of VaultSnip, Apache-2.0 (https://github.com/karthikvalluri85/vaultsnip). The map outlines in maps.json
-come from Natural Earth (public domain).${o.faker ? ' vaultsnip-faker.js bundles Faker (MIT, Copyright (c) 2022-present Faker).' : ''}${o.search ? ' vaultsnip-search.js bundles MiniSearch (MIT, Copyright 2022 Luca Ongaro).' : ''}
+come from Natural Earth (public domain).${o.faker ? ' vaultsnip-faker.js bundles Faker (MIT, Copyright (c) 2022-present Faker).' : ''}
 `;
   const files: ZipEntry[] = [
     { name: `${name}/${name}.tsx`, text: pageTsx(layout, { name, mode: o.mode, seed: Math.trunc(o.seed) || 4127, realistic }) },
     { name: `${name}/components.tsx`, text: COMPONENTS_TSX },
-    { name: `${name}/useReplica.ts`, text: useReplicaTs({ mode: o.mode, faker: !!o.faker, search: !!o.search }) },
+    { name: `${name}/useReplica.ts`, text: useReplicaTs({ mode: o.mode, faker: !!o.faker }) },
     { name: `${name}/types.ts`, text: TYPES_TS },
     { name: `${name}/vaultsnip-replica.js`, text: '/* VaultSnip replica engine. Apache-2.0, https://github.com/karthikvalluri85/vaultsnip. Defines window.DSCReplica; uses window.echarts. */\n' + o.replica },
     ...(o.faker ? [{ name: `${name}/vaultsnip-faker.js`, text: '/* VaultSnip realistic-names injector, Apache-2.0, with Faker (MIT, Copyright (c) 2022-present Faker). Defines window.VSFaker. */\n' + o.faker + publish('VSFaker') }] : []),
-    ...(o.search ? [{ name: `${name}/vaultsnip-search.js`, text: '/* VaultSnip replica search, Apache-2.0, with MiniSearch (MIT, Copyright 2022 Luca Ongaro). Defines window.VSSearch. */\n' + o.search + publish('VSSearch') }] : []),
     { name: `${name}/spec.json`, text: JSON.stringify(o.spec, null, 2) + '\n' },
     { name: `${name}/maps.json`, text: JSON.stringify(maps) + '\n' },
     { name: `${name}/README.md`, text: readme },
