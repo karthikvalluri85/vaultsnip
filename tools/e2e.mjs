@@ -137,6 +137,39 @@ try {
   const htmlG = await readFile(await dlG.path(), 'utf8');
   check(!/Website Performance|Paid search|Sessions by channel|Bengaluru/.test(htmlG) && dlG.suggestedFilename() === 'dashboard-replica-synthetic.html', 'a Generic export carries none of the original titles or labels, not even in its source');
 
+  console.log('Realistic synthetic names (Feature 6)');
+  await page.locator('#modes button[data-mode="shape"]').click(); await wait(300);
+  const head = () => page.locator('#replica .rp-head h2').textContent();
+  const realTitle = await head();
+  check(!/\[client\]/i.test(realTitle) && / \| Website Performance$/.test(realTitle), `a covered client name becomes a made-up company ("${realTitle}")`);
+  await page.click('#btn-regen'); await wait(300);
+  const regenTitle = await head();
+  check(regenTitle !== realTitle && !/\[client\]/i.test(regenTitle), `"Regenerate data" draws new names too ("${regenTitle}")`);
+  await page.locator('#opt-real').uncheck(); await wait(300);
+  check(/^\[Client\] \| Website Performance$/.test(await head()), 'switching "Realistic names" off shows the neutral placeholder again');
+  await page.locator('#opt-real').check(); await wait(300);
+  check(await head() === regenTitle, 'switching it back on gives the same names for the same seed');
+  const [dlF] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export')]);
+  const htmlF = await readFile(await dlF.path(), 'utf8');
+  const pF = await browser.newPage(); const netF = [];
+  pF.on('request', r => { if (!/^(data|about):/.test(r.url())) netF.push(r.url()); });
+  await pF.setContent(htmlF); await pF.waitForTimeout(1500);
+  check(await pF.locator('.rp-head h2').textContent() === regenTitle && netF.length === 0, 'the offline HTML export shows the same names, with no network requests');
+  await pF.close();
+  await page.locator('#modes button[data-mode="generic"]').click(); await wait(300);
+  check(await page.locator('#opt-real').isDisabled() && await head() === 'Dashboard 1', 'Generic mode never uses realistic names');
+  await page.locator('#modes button[data-mode="shape"]').click(); await wait(300);
+  const table = await page.evaluate(() => {
+    const root = document.getElementById('replica');
+    const rows = o => { DSCReplica.render(root, window.DSC_SAMPLES[0].spec, o); return [...root.querySelectorAll('.rp-table tbody tr')].map(tr => [...tr.children].map(td => td.textContent)); };
+    const on = rows({ mode: 'shape', seed: 4127, resetSelection: true }), csv = DSCReplica.toCsv(root), off = rows({ mode: 'shape', seed: 4127, realistic: false, resetSelection: true });
+    return { on, off, csv };
+  });
+  check(table.on.every(r => /^ACC-\d{5}$/.test(r[1]) && /\S+ \S+/.test(r[2]) && !/^(Account|Person) \d+$/.test(r[0] + r[2])), `table cells fit their columns: ${table.on[0].slice(0, 3).join(' · ')}`);
+  check(table.off.every(r => /^Account \d+$/.test(r[0]) && /^Person \d$/.test(r[2])), 'with the switch off, the same table shows neutral placeholders');
+  check(table.on.every(r => table.csv.includes(r[2])), 'the CSV download carries the same names as the screen');
+  await page.click('#btn-regen'); await wait(200);
+
   console.log('Design export (Figma SVG, React code)');
   await page.locator('#modes button[data-mode="shape"]').click(); await wait(300);
   const [dlS] = await Promise.all([page.waitForEvent('download'), page.click('#btn-figma')]);
@@ -196,6 +229,12 @@ try {
   });
   check(live.charts >= 8 && live.ph === 0 && live.ribbon, `the React component renders every chart live (${live.charts}) with the SYNTHETIC DATA ribbon`);
   check(live.sizes, 'bubble sizes are computed from the data at runtime, not stored');
+  const appHead = await page.locator('#replica .rp-head h2').textContent();
+  const reactHead = await rp.locator('.rp-head h2').textContent();
+  check(P + 'vaultsnip-faker.js' in pkg && reactHead === appHead, `realistic names are generated inside the React component too, the same as in the app ("${reactHead}")`);
+  await rp.evaluate(() => window.__mount({ realistic: false })); await rp.waitForTimeout(800);
+  check(/^\[Client\] \| /.test(await rp.locator('.rp-head h2').textContent()), 'its realistic={false} prop shows neutral placeholders');
+  await rp.evaluate(() => window.__mount({})); await rp.waitForTimeout(800);
   const appKpi = await kpi();
   check(live.kpi === appKpi, `with the exported seed it shows the values seen in the app (${live.kpi})`);
   await rp.locator('.rp-chip', { hasText: 'Paid search' }).click(); await rp.waitForTimeout(300);

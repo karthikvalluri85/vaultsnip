@@ -77,9 +77,21 @@ describe('React package (Feature 5)', () => {
 
   it('renders live from spec and seed, with nothing frozen into the code', () => {
     const jsx = files['SalesOverviewReplica/SalesOverviewReplica.jsx'];
-    expect(jsx).toMatch(/DSCReplica\.render\(el, spec, \{ mode: level, seed, resetSelection: true \}\)/);
+    expect(jsx).toMatch(/DSCReplica\.render\(el, spec, \{ mode: level, seed, realistic: false, resetSelection: true \}\)/);
     expect(jsx).toMatch(/export default function SalesOverviewReplica\(\{ seed = 77, mode = EXPORTED \}\)/);
     expect(jsx).not.toMatch(/Revenue/); // values and labels come from spec.json at runtime
+  });
+
+  it('ships the realistic-names injector only when the replica uses it, with a runtime prop', () => {
+    expect(Object.keys(files).some((f) => f.endsWith('vaultsnip-faker.js'))).toBe(false);
+    expect(files['SalesOverviewReplica/SalesOverviewReplica.jsx']).toMatch(/realistic: false, resetSelection/);
+    const withNames = unzip(reactPackage({ spec, mode: 'shape', seed: 5, title: 'Sales Overview', replica: '', faker: 'window.VSFaker={};', maps: {} }).zip);
+    const jsx = withNames['SalesOverviewReplica/SalesOverviewReplica.jsx'];
+    expect(withNames['SalesOverviewReplica/vaultsnip-faker.js']).toMatch(/Faker \(MIT[\s\S]*window\.VSFaker=\{\};/);
+    expect(jsx).toMatch(/import '\.\/vaultsnip-faker\.js';\nimport '\.\/vaultsnip-replica\.js';/);
+    expect(jsx).toMatch(/\{ seed = 5, mode = EXPORTED, realistic = true \}/);
+    expect(jsx).toMatch(/\{ mode: level, seed, realistic, resetSelection: true \}/);
+    expect(jsx).toMatch(/\[seed, level, realistic\]/);
   });
 
   it('cannot show a less private mode than it was exported at', () => {

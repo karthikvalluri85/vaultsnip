@@ -42,9 +42,11 @@
     "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs",
     "build:replay": "node tools/build-replay.mjs",
     "test:replay-e2e": "node tests/e2e/replay.e2e.mjs",
+    "build:faker": "node tools/build-faker.mjs",
     "build:design": "node tools/build-design.mjs"
   },
   "dependencies": {
+    "@faker-js/faker": "10.6.0",
     "@huggingface/transformers": "4.3.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "echarts": "^5.6.0",

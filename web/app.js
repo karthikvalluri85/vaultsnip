@@ -920,12 +920,16 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
       b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode));
       b.disabled = rankOf(b.dataset.mode) < rankOf(S.minMode);
     });
-    DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, resetSelection: true });
+    $('opt-real').checked = S.realistic; $('opt-real').disabled = S.mode === 'generic';
+    DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, resetSelection: true });
     $('export-note').textContent = '';
   }
   const MODE_NAMES = { shape: 'Shape-preserving', structure: 'Structure-only', generic: 'Generic' };
   $('modes').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; S.mode = b.dataset.mode; showReplica(); };
-  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed }); };
+  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
+  // Feature 6: realistic synthetic names (web/lib/vs-faker.js); Generic mode always uses neutral placeholders
+  S.realistic = true;
+  $('opt-real').onchange = () => { S.realistic = $('opt-real').checked; DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
   function startOver() { S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; fresh(); show('s-drop'); }
   $('btn-restart').onclick = startOver;
   $('btn-own').onclick = startOver;
@@ -975,16 +979,18 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   // The engine, ECharts and the map outlines a self-contained export needs, read from the app's own files.
   async function exportLibs() {
     const mapNames = DSCReplica.mapsUsed(S.spec);
-    const [echartsSrc, replicaSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text())]
+    // the realistic-names injector (Feature 6) goes in only when the export uses it
+    const useFaker = S.mode !== 'generic' && S.realistic;
+    const [echartsSrc, replicaSrc, fakerSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text()), useFaker ? fetch('lib/vs-faker.js').then(r => r.text()) : '']
       .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
     const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
-    return { echarts: echartsSrc, replica: replicaSrc, maps };
+    return { echarts: echartsSrc, replica: replicaSrc, faker: fakerSrc, maps };
   }
 
   $('btn-export').onclick = async () => {
     try {
       // the file carries only what its mode shows: no original labels in Generic, no shapes in Structure-only
-      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed }, await exportLibs());
+      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic }, await exportLibs());
       saveFile(new Blob([html], { type: 'text/html' }), replicaBase() + '-replica-synthetic.html');
       $('export-note').textContent = 'Exported. The file works offline and contains only generated values.';
     } catch (e) {
@@ -1003,7 +1009,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     off.style.cssText = `position:fixed;left:-30000px;top:0;width:${Math.max(960, Math.round(live.getBoundingClientRect().width))}px`;
     document.body.appendChild(off);
     if (S.mode !== 'generic' && live._state) off._state = { filters: JSON.parse(JSON.stringify(live._state.filters || {})) };
-    DSCReplica.render(off, VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed });
+    DSCReplica.render(off, VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic });
     // charts animate in; wait until each has drawn its final frame
     await Promise.all((off._charts || []).map(c => new Promise(res => { c.on('finished', res); setTimeout(res, 3000); })));
     return { el: off, done() { (off._charts || []).forEach(c => c.dispose()); if (off._ro) off._ro.disconnect(); off.remove(); } };
@@ -1029,7 +1035,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     $('btn-react').disabled = true;
     try {
       const libs = await exportLibs();
-      const pkg = VSDesign.reactPackage({ spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, title: designTitle(), replica: libs.replica, maps: libs.maps });
+      const pkg = VSDesign.reactPackage({ spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, realistic: S.realistic, title: designTitle(), replica: libs.replica, faker: libs.faker, maps: libs.maps });
       saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '.zip');
       $('export-note').textContent = `Exported ${pkg.name}.zip, a live React component: values, charts, filters and the CSV download are generated at runtime from its spec and seed. Unzip it into a project and run "npm install react echarts"; the README inside explains the rest.`;
     } catch (e) {

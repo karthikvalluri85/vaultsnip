@@ -267,6 +267,10 @@ export interface ReactPackageOptions {
   title?: string;
   /** Source of web/replica.js, the engine the component runs. */
   replica: string;
+  /** Source of web/lib/vs-faker.js (Feature 6) when the replica uses realistic names; omitted otherwise. */
+  faker?: string;
+  /** Default for the component's `realistic` prop. */
+  realistic?: boolean;
   /** Map outlines the spec uses, as JSON text keyed by map name (as the HTML export embeds them). */
   maps: Record<string, string>;
 }
@@ -282,6 +286,14 @@ export function reactPackage(o: ReactPackageOptions): ReactPackage {
   Object.keys(o.maps || {}).forEach((k) => { maps[k] = JSON.parse(o.maps[k]); });
   const title = (o.title || 'Dashboard').replace(/[\r\n*/`]/g, ' ');
   const allowed = LEVELS.filter((l) => LEVELS.indexOf(l) >= LEVELS.indexOf(mode));
+  // realistic names (Feature 6): the injector ships alongside and generates them at runtime; a `realistic` prop switches it
+  const withFaker = !!o.faker;
+  const realistic = o.realistic !== false;
+  const fakerImport = withFaker ? "import './vaultsnip-faker.js';\n" : '';
+  const realisticDoc = withFaker ? ` *         realistic  true: made-up names, companies and IDs that fit each column, generated at runtime; false: neutral placeholders (default ${realistic})\n` : '';
+  const realisticProp = withFaker ? `, realistic = ${realistic}` : '';
+  const realisticOpt = withFaker ? 'realistic, ' : 'realistic: false, ';
+  const realisticDep = withFaker ? ', realistic' : '';
 
   const component = `'use client';
 /*
@@ -292,10 +304,10 @@ export function reactPackage(o: ReactPackageOptions): ReactPackage {
  *
  * Props:  seed  any whole number; a new seed generates new values (default ${seed})
  *         mode  ${allowed.map((l) => JSON.stringify(l)).join(' | ')}; exported as ${JSON.stringify(mode)}, so it cannot show more than that
- */
+${realisticDoc} */
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
-import './vaultsnip-replica.js';
+${fakerImport}import './vaultsnip-replica.js';
 import spec from './spec.json';
 import maps from './maps.json';
 
@@ -310,21 +322,21 @@ function setup() {
   Object.keys(maps).forEach((name) => window.DSCReplica.addMap(name, maps[name]));
 }
 
-export default function ${name}({ seed = ${seed}, mode = EXPORTED }) {
+export default function ${name}({ seed = ${seed}, mode = EXPORTED${realisticProp} }) {
   const ref = useRef(null);
   // a mode less private than the exported one falls back to the exported one
   const level = LEVELS[Math.max(LEVELS.indexOf(mode), LEVELS.indexOf(EXPORTED))];
   useEffect(() => {
     setup();
     const el = ref.current;
-    window.DSCReplica.render(el, spec, { mode: level, seed, resetSelection: true });
+    window.DSCReplica.render(el, spec, { mode: level, seed, ${realisticOpt}resetSelection: true });
     return () => {
       (el._charts || []).forEach((c) => c.dispose());
       if (el._ro) { el._ro.disconnect(); el._ro = null; }
       el._charts = [];
       el.innerHTML = '';
     };
-  }, [seed, level]);
+  }, [seed, level${realisticDep}]);
   return <div ref={ref} />;
 }
 `;
@@ -355,7 +367,10 @@ Works with Vite, Create React App, Next.js (as a client component) and any bundl
 Nothing is frozen into the code. The component runs the VaultSnip replica engine (vaultsnip-replica.js), which generates every
 value, bubble size, label and tooltip at runtime from spec.json and the seed. Clicking a filter chip, a table row or a chart
 segment filters the whole page, and "Download data (CSV)" saves the values on screen.
-
+${withFaker ? `
+Names, companies, emails and IDs are made up at runtime by vaultsnip-faker.js to fit each column (pass realistic={false} for
+neutral placeholders). Emails use only example.com/.net/.org and phone numbers only fictional ranges.
+` : ''}
 To change titles, labels, chart types or the layout, edit spec.json (rows of visuals; "span" is the width out of 12).
 
 ## Privacy
@@ -366,7 +381,7 @@ There is no source data, screenshot or OCR text in this folder, and the componen
 ## Licence
 
 vaultsnip-replica.js is part of VaultSnip, Apache-2.0 (https://github.com/karthikvalluri85/vaultsnip). The map outlines in
-maps.json come from Natural Earth (public domain).
+maps.json come from Natural Earth (public domain).${withFaker ? ' vaultsnip-faker.js bundles Faker (https://github.com/faker-js/faker), MIT License, Copyright (c) 2022-present Faker.' : ''}
 `;
   const engine = `/* VaultSnip replica engine. Apache-2.0, https://github.com/karthikvalluri85/vaultsnip
    Exported with ${name}.jsx; defines window.DSCReplica and uses window.echarts. */
@@ -374,6 +389,9 @@ ${o.replica}`;
   const files: ZipEntry[] = [
     { name: `${name}/${name}.jsx`, text: component },
     { name: `${name}/vaultsnip-replica.js`, text: engine },
+    ...(withFaker ? [{ name: `${name}/vaultsnip-faker.js`, text: '/* VaultSnip realistic-names injector, Apache-2.0, with Faker (MIT, Copyright (c) 2022-present Faker). Defines window.VSFaker. */\n' + o.faker +
+      // the build declares `var VSFaker`, which a bundler keeps module-local, so it is published on window explicitly
+      "\nif (typeof window !== 'undefined' && typeof VSFaker !== 'undefined') window.VSFaker = VSFaker;\n" }] : []),
     { name: `${name}/spec.json`, text: JSON.stringify(o.spec, null, 2) + '\n' },
     { name: `${name}/maps.json`, text: JSON.stringify(maps) + '\n' },
     { name: `${name}/README.md`, text: readme },
