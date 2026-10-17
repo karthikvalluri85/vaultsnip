@@ -26,4 +26,8 @@ Realistic synthetic names, bundled in `web/lib/vs-faker.js` (and in HTML exports
 
 - [Faker](https://github.com/faker-js/faker) 10.6.0 (`@faker-js/faker`), MIT License, Copyright (c) 2022-present Faker. The library and a slim copy of its name, company, place and product lists for 15 locales (`src/replica/faker-locales.json`, made by `tools/build-faker.mjs`).
 
+Search inside replicas, bundled in `web/lib/vs-search.js` (and in HTML and React exports):
+
+- [MiniSearch](https://github.com/lucaong/minisearch) 7.2.0, MIT License, Copyright 2022 Luca Ongaro
+
 Map outlines in `web/maps` are simplified from [Natural Earth](https://www.naturalearthdata.com) (public domain) by `tools/maps/build_maps.py`. The world and India outlines follow Natural Earth's India point of view, matching official Indian boundaries.

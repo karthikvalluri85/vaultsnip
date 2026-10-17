@@ -981,10 +981,10 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     const mapNames = DSCReplica.mapsUsed(S.spec);
     // the realistic-names injector (Feature 6) goes in only when the export uses it
     const useFaker = S.mode !== 'generic' && S.realistic;
-    const [echartsSrc, replicaSrc, fakerSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text()), useFaker ? fetch('lib/vs-faker.js').then(r => r.text()) : '']
+    const [echartsSrc, replicaSrc, fakerSrc, searchSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text()), useFaker ? fetch('lib/vs-faker.js').then(r => r.text()) : '', fetch('lib/vs-search.js').then(r => r.text())]
       .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
     const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
-    return { echarts: echartsSrc, replica: replicaSrc, faker: fakerSrc, maps };
+    return { echarts: echartsSrc, replica: replicaSrc, faker: fakerSrc, search: searchSrc, maps };
   }
 
   $('btn-export').onclick = async () => {
@@ -1035,7 +1035,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     $('btn-react').disabled = true;
     try {
       const libs = await exportLibs();
-      const pkg = VSDesign.reactPackage({ spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, realistic: S.realistic, title: designTitle(), replica: libs.replica, faker: libs.faker, maps: libs.maps });
+      const pkg = VSDesign.reactPackage({ spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, realistic: S.realistic, title: designTitle(), replica: libs.replica, faker: libs.faker, search: libs.search, maps: libs.maps });
       saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '.zip');
       $('export-note').textContent = `Exported ${pkg.name}.zip, a live React component: values, charts, filters and the CSV download are generated at runtime from its spec and seed. Unzip it into a project and run "npm install react echarts"; the README inside explains the rest.`;
     } catch (e) {
