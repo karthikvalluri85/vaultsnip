@@ -294,6 +294,21 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
   </form>
 </dialog>
 
+<dialog id="dlg-react" aria-labelledby="react-title">
+  <form method="dialog" class="dlg">
+    <h2 id="react-title">Export React code</h2>
+    <p class="note">Made on this device, no AI and no network. Values, charts, filters, search and the CSV download stay live: they are generated when the component runs, from the replica's spec and seed, at the current privacy level.</p>
+    <div class="levels" role="radiogroup" aria-label="React export format">
+      <label><input type="radio" name="react-format" value="tsx" checked><div><b>Editable TypeScript project (.tsx)</b><span>One typed component per card (KPI, chart, table…) in the page's order and widths, plus a hook and types. Edit the JSX like any React code.</span></div></label>
+      <label><input type="radio" name="react-format" value="jsx"><div><b>One-file component (.jsx)</b><span>Drop-in component that renders the whole replica. Least code to maintain.</span></div></label>
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn primary" id="react-go" type="button">Export</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-key">
   <form method="dialog" class="dlg">
     <h2>AI key</h2>
@@ -316,6 +331,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="lib/vs-search.js"></script>
 <script src="replica.js"></script>
 <script src="lib/vs-design.js"></script>
+<script src="lib/vs-react.js"></script>
 <script src="samples.js"></script>
 <script src="share.js"></script>
 <script src="app.js"></script>

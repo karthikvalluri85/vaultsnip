@@ -1031,17 +1031,31 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     }
   };
   // The React package runs the replica engine itself, so values, sizes, labels, filters and the CSV download stay live.
-  $('btn-react').onclick = async () => {
+  $('btn-react').onclick = () => $('dlg-react').showModal();
+  $('react-go').onclick = async () => {
+    const format = (document.querySelector('input[name=react-format]:checked') || {}).value || 'tsx';
+    $('dlg-react').close();
     $('btn-react').disabled = true;
+    let copy = null;
     try {
       const libs = await exportLibs();
-      const pkg = VSDesign.reactPackage({ spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, realistic: S.realistic, title: designTitle(), replica: libs.replica, faker: libs.faker, search: libs.search, maps: libs.maps });
-      saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '.zip');
-      $('export-note').textContent = `Exported ${pkg.name}.zip, a live React component: values, charts, filters and the CSV download are generated at runtime from its spec and seed. Unzip it into a project and run "npm install react echarts"; the README inside explains the rest.`;
+      const common = { spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, realistic: S.realistic, title: designTitle(), replica: libs.replica, faker: libs.faker, search: libs.search, maps: libs.maps };
+      if (format === 'tsx') {
+        // Feature 8: the page structure is read from a replica rendered for this privacy level; the values stay live
+        copy = await designCopy();
+        const pkg = VSReact.tsxPackage(Object.assign({ root: copy.el }, common));
+        saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '-tsx.zip');
+        $('export-note').textContent = `Exported ${pkg.name}-tsx.zip, an editable TypeScript React project: one typed component per card, with values, charts, filters, search and CSV generated at runtime. Unzip it into a project and run "npm install react react-dom echarts"; the README inside explains the rest.`;
+      } else {
+        const pkg = VSDesign.reactPackage(common);
+        saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '.zip');
+        $('export-note').textContent = `Exported ${pkg.name}.zip, a live React component: values, charts, filters and the CSV download are generated at runtime from its spec and seed. Unzip it into a project and run "npm install react echarts"; the README inside explains the rest.`;
+      }
     } catch (e) {
       $('export-note').textContent = 'Export needs the app to be served over http(s), not opened as a local file.';
       if (window.VSFeedback) VSFeedback.problem(e, 'Export React');
     } finally {
+      if (copy) copy.done();
       $('btn-react').disabled = false;
     }
   };
