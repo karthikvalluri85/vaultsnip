@@ -920,12 +920,16 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
       b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode));
       b.disabled = rankOf(b.dataset.mode) < rankOf(S.minMode);
     });
-    DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, resetSelection: true });
+    $('opt-real').checked = S.realistic; $('opt-real').disabled = S.mode === 'generic';
+    DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, resetSelection: true });
     $('export-note').textContent = '';
   }
   const MODE_NAMES = { shape: 'Shape-preserving', structure: 'Structure-only', generic: 'Generic' };
   $('modes').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; S.mode = b.dataset.mode; showReplica(); };
-  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed }); };
+  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
+  // Feature 6: realistic synthetic names (web/lib/vs-faker.js); Generic mode always uses neutral placeholders
+  S.realistic = true;
+  $('opt-real').onchange = () => { S.realistic = $('opt-real').checked; DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
   function startOver() { S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; fresh(); show('s-drop'); }
   $('btn-restart').onclick = startOver;
   $('btn-own').onclick = startOver;
@@ -975,11 +979,11 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   $('btn-export').onclick = async () => {
     try {
       const mapNames = DSCReplica.mapsUsed(S.spec);
-      const [echartsSrc, replicaSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text())]
+      const [echartsSrc, replicaSrc, fakerSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text()), fetch('lib/vs-faker.js').then(r => r.text())]
         .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
       const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
       // the file carries only what its mode shows: no original labels in Generic, no shapes in Structure-only
-      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed }, { echarts: echartsSrc, replica: replicaSrc, maps });
+      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic }, { echarts: echartsSrc, replica: replicaSrc, faker: S.mode !== 'generic' && S.realistic ? fakerSrc : '', maps });
       saveFile(new Blob([html], { type: 'text/html' }), replicaBase() + '-replica-synthetic.html');
       $('export-note').textContent = 'Exported. The file works offline and contains only generated values.';
     } catch (e) {

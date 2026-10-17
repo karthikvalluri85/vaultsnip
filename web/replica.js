@@ -80,16 +80,20 @@
     return Array.from({ length: n }, () => 15 + r() * 85);
   }
 
-  function labelsFor(spec, mode) {
+  // `inj` (Feature 6, web/lib/vs-faker.js) fills covered labels such as "[Client]" or "Item 2" with realistic synthetic
+  // values chosen from context. Only the label shown changes; the raw member stays the filter key.
+  function labelsFor(spec, mode, inj) {
     const generic = mode === 'generic';
     const dimMap = new Map(); let dimCount = 0; let measCount = 0; const measMap = new Map();
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const txt = s => (inj && s ? inj.text(s) : s);
     return {
-      generic,
-      member(dimName, m, i) { return generic ? (dimShort(dimName) + ' ' + (i + 1)) : m; },
-      dim(name) { if (!generic) return name; if (!dimMap.has(name)) dimMap.set(name, 'Dimension ' + (++dimCount)); return dimMap.get(name); },
-      meas(name) { if (!generic) return name; if (!measMap.has(name)) measMap.set(name, 'Metric ' + letters[measCount++ % 26]); return measMap.get(name); },
-      title(t, i) { return generic ? 'Visual ' + (i + 1) : t; }
+      generic, inj,
+      text: txt,
+      member(dimName, m, i) { return generic ? (dimShort(dimName) + ' ' + (i + 1)) : (inj && inj.member(dimName, m, i)) || txt(m); },
+      dim(name) { if (!generic) return txt(name); if (!dimMap.has(name)) dimMap.set(name, 'Dimension ' + (++dimCount)); return dimMap.get(name); },
+      meas(name) { if (!generic) return txt(name); if (!measMap.has(name)) measMap.set(name, 'Metric ' + letters[measCount++ % 26]); return measMap.get(name); },
+      title(t, i) { return generic ? 'Visual ' + (i + 1) : txt(t); }
     };
     function dimShort(n) { if (!dimMap.has(n)) dimMap.set(n, 'Dimension ' + (++dimCount)); return dimMap.get(n).replace('Dimension ', 'Item ').replace(/ \d+$/, ''); }
   }
@@ -235,7 +239,8 @@
     const isOn = l => !ownMatch || matchesSel(l);
     const vals0 = shapeArray(allShapes, n, mode, r, 'cat').map(x => x / 100 * scale);
     const vals = vals0.map((x, i) => x * F.factor(v.id, ownMatch ? [dimKey] : [], i));
-    const label = i => L.member(dimName, locs[i].raw, i);
+    // markers sit at real coordinates, so a covered place name is not swapped for an unrelated town
+    const label = i => (L.generic ? L.member(dimName, locs[i].raw, i) : L.text(locs[i].raw));
     const mx = Math.max(1e-9, ...vals0); // unfiltered maximum, so filters elsewhere visibly lighten and shrink the map
     const note = (!generic && unmatched.length && unmatched.length < locs.length) ? 'Not on this map: ' + unmatched.map(l => l.raw).join(', ') : '';
 
@@ -657,7 +662,8 @@
     const rows = root._rows = [];
     const mode = opts.mode || 'shape';
     const seed = opts.seed || 4127;
-    const L = labelsFor(spec, mode);
+    const inj = mode !== 'generic' && opts.realistic !== false && global.VSFaker ? global.VSFaker.create({ seed, spec }) : null;
+    const L = labelsFor(spec, mode, inj);
     SCALES = {}; HINTS = {};
     (spec.rows || []).forEach(row => (row.visuals || []).forEach(v => [v && v.measure, v && v.xMeasure, v && v.yMeasure].forEach(m => {
       const h = m ? num(m.scaleHint) : NaN; if (h > 0 && !HINTS[measureKey(m)]) HINTS[measureKey(m)] = h;
@@ -757,7 +763,7 @@
     const footNote = quotes ? 'Synthetic replica · numbers are generated · customer comments are quoted with personal details hidden' : 'Synthetic replica · no source values included';
     root.className = 'rp';
     root.innerHTML = `
-      <div class="rp-head"><h2>${esc(L.generic ? 'Dashboard 1' : (spec.title || 'Dashboard'))}</h2><span>${esc(L.generic ? '' : (spec.subtitle || ''))}</span></div>
+      <div class="rp-head"><h2>${esc(L.generic ? 'Dashboard 1' : L.text(spec.title || 'Dashboard'))}</h2><span>${esc(L.generic ? '' : L.text(spec.subtitle || ''))}</span></div>
       <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span>${activeNote}</div>
       ${filterBar ? `<div class="rp-filters">${filterBar}</div>` : ''}
       <div class="rp-grid"></div>
@@ -815,6 +821,9 @@
         const rowLabels = rowCat ? (() => { const p = pool(rowCat).map(String); const tot = p.filter(m => /^(grand )?totals?$/i.test(m.trim())); return p.filter(m => !tot.includes(m)).concat(tot); })() : [];
         const vcol = cols.find(c => isVerbatim(c) && Array.isArray(c.values) && c.values.length);
         const rowsN = rowCat ? Math.min(nRows, rowLabels.length) : (vcol && !L.generic ? Math.min(25, vcol.values.length) : nRows);
+        const firstPerson = L.inj ? cols.findIndex(c => global.VSFaker.columnRole(c.name, c.kind || 'text') === 'person') : -1;
+        // a Country column gives each row its own locale: a UK row gets a British name, a French row a French one
+        const placeCol = L.inj ? cols.find(c => c.kind === 'category' && c.members && c.members.length && global.VSFaker.columnRole(c.name, 'category') === 'country') : null;
         const ids = Array.from({ length: rowsN }, () => Math.floor(r() * 65536).toString(16).toUpperCase().padStart(4, '0'));
         const desc = Array.from({ length: rowsN }, () => r()).sort((a, b) => b - a);
         // every numeric column gets its own stream and range; the first one follows the table's sort order
@@ -838,7 +847,10 @@
             return q != null && String(q).trim() ? { html: quoteHtml(q), text: String(q), cls: 'q', k: 'verbatim' } : { html: esc('Comment ' + String(ri + 1).padStart(2, '0')), text: 'Comment ' + String(ri + 1).padStart(2, '0'), cls: '', k: 'verbatim' };
           }
           let x = null;
-          if (k === 'person') cell = (L.generic ? 'Owner ' : 'Person ') + (1 + ((ri * 7 + ci) % 9));
+          // realistic synthetic values chosen from the column's name and kind; an email follows the row's person
+          const fake = L.inj && ['person', 'org', 'text', 'id'].includes(k) ? L.inj.cell(c.name, k, v.id + '|' + ri + '|' + ci, firstPerson >= 0 ? v.id + '|' + ri + '|' + firstPerson : undefined, placeCol ? String(placeCol === rowCat ? rowLabels[ri] : pick(placeCol, ri)) : undefined) : null;
+          if (fake != null) cell = fake;
+          else if (k === 'person') cell = (L.generic ? 'Owner ' : 'Person ') + (1 + ((ri * 7 + ci) % 9));
           else if (k === 'org' || k === 'text') cell = (L.generic ? 'Entity ' : (c.placeholder || (k === 'org' ? 'Company' : 'Item')) + ' ') + String(ri + 1).padStart(2, '0');
           else if (k === 'id') cell = (L.generic ? 'ID-' : 'TKN-') + ids[ri];
           else if (k === 'category') { if (cats) { const m = c === rowCat ? rowLabels[ri] : pick(c, ri); cell = L.member(c.name, m, cats.map(String).indexOf(String(m))); } else cell = 'Group ' + 'ABC'[Math.floor(r() * 3)]; }
@@ -872,7 +884,7 @@
         card.insertAdjacentHTML('beforeend', `<div class="rp-table"><table><thead><tr>${cols.map(c => `<th>${esc(L.generic ? L.dim(c.name) : c.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`);
         return;
       }
-      if (v.type === 'text') { card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(L.generic ? 'Text block' : (v.content || 'Text block (content masked)'))}</p>`); return; }
+      if (v.type === 'text') { card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(L.generic ? 'Text block' : L.text(v.content || 'Text block (content masked)'))}</p>`); return; }
       const opt = buildOption(v, { L, mode, r, t, colors, filter: F, quiet: !!opts._quiet });
       if (!opt || opt._placeholder) {
         card.insertAdjacentHTML('beforeend', `<div class="rp-ph" style="--h:${h}px">${esc(opt ? opt._placeholder : 'Visual type "' + (v.originalType || v.type) + '" recognised; shown as a placeholder.')}</div>`);
@@ -975,9 +987,10 @@
 <style>body{margin:0;padding:16px;background:#e9ebef;font-family:ui-sans-serif,system-ui,sans-serif}@media (prefers-color-scheme: dark){body{background:#0b0d10}}#app{max-width:1280px;margin:0 auto}</style>
 </head><body><div id="app"></div>
 <script>${safe(libs.echarts)}</script>
+${libs.faker ? `<script>${safe(libs.faker)}</script>` : ''}
 <script>${safe(libs.replica)}</script>
 ${Object.keys(libs.maps || {}).map(n => `<script>DSCReplica.addMap(${JSON.stringify(n)},${safe(libs.maps[n])});</script>`).join('\n')}
-<script>window.DSC_SPEC=${JSON.stringify(cleanSpec(spec)).replace(/</g, '\\u003c')};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed })});</script>
+<script>window.DSC_SPEC=${JSON.stringify(cleanSpec(spec)).replace(/</g, '\\u003c')};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed, realistic: opts.realistic !== false })});</script>
 </body></html>`;
   }
 

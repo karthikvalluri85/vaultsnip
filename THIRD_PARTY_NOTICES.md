@@ -22,4 +22,8 @@ On-device name check, in `web/ml`, `web/lib/vs-context.js` and `web/models`:
   built from MIT and Apache-2.0 sources, mostly synthetic). `npm run fetch:model -- --check` verifies the files against the
   pinned revision.
 
+Realistic synthetic names, bundled in `web/lib/vs-faker.js` (and in HTML exports that use them):
+
+- [Faker](https://github.com/faker-js/faker) 10.6.0 (`@faker-js/faker`), MIT License, Copyright (c) 2022-present Faker. The library and a slim copy of its name, company, place and product lists for 15 locales (`src/replica/faker-locales.json`, made by `tools/build-faker.mjs`).
+
 Map outlines in `web/maps` are simplified from [Natural Earth](https://www.naturalearthdata.com) (public domain) by `tools/maps/build_maps.py`. The world and India outlines follow Natural Earth's India point of view, matching official Indian boundaries.
