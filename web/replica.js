@@ -906,6 +906,8 @@
     const clr = root.querySelector('.rp-clear'); if (clr) clr.addEventListener('click', () => { state.filters = {}; render(root, spec, reopts); });
     const csvBtn = root.querySelector('.rp-csv'); if (csvBtn) csvBtn.addEventListener('click', () => downloadCsv(root));
     root._title = L.generic ? '' : (spec.title || ''); root._generic = L.generic;
+    // Feature 7 (web/lib/vs-search.js): "Search this dashboard", indexed from what this render shows
+    if (global.VSSearch) global.VSSearch.attach(root, { echarts: global.echarts });
     if (!root._ro && global.ResizeObserver) { root._ro = new ResizeObserver(() => (root._charts || []).forEach(c => c.resize())); root._ro.observe(root); }
   }
 
@@ -988,6 +990,7 @@
 </head><body><div id="app"></div>
 <script>${safe(libs.echarts)}</script>
 ${libs.faker ? `<script>${safe(libs.faker)}</script>` : ''}
+${libs.search ? `<script>${safe(libs.search)}</script>` : ''}
 <script>${safe(libs.replica)}</script>
 ${Object.keys(libs.maps || {}).map(n => `<script>DSCReplica.addMap(${JSON.stringify(n)},${safe(libs.maps[n])});</script>`).join('\n')}
 <script>window.DSC_SPEC=${JSON.stringify(cleanSpec(spec)).replace(/</g, '\\u003c')};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed, realistic: opts.realistic !== false })});</script>

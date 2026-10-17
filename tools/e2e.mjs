@@ -256,6 +256,43 @@ try {
   check(await g.rp.locator('.rp-head h2').textContent() === 'Dashboard 1' && /Generic mode/.test(await g.rp.locator('.rp-ribbon').textContent()), 'a Generic package stays Generic even when asked for a less private mode');
   await g.rp.close();
 
+  console.log('Search this dashboard (Feature 7)');
+  await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);
+  const sbox = '#replica .rp-search input', sres = '#replica .rp-sr';
+  await page.fill(sbox, 'pricng'); await wait(200);
+  check(/\/pricing/.test(await page.locator(sres).innerText()) && await page.locator(sbox).getAttribute('aria-expanded') === 'true', 'a typo still finds the label ("pricng" finds /pricing)');
+  await page.keyboard.press('Enter'); await wait(300);
+  check(await page.locator('#replica .rp-card.rp-hit h3').textContent() === 'Top landing pages' && await page.locator(sres).isHidden(), 'Enter jumps to the chart and highlights it');
+  const before7 = await kpi();
+  await page.fill(sbox, 'paid search'); await wait(200);
+  await page.locator(`${sres} .flt`).first().click(); await wait(400);
+  check(await kpi() !== before7 && /Filtered/.test(await page.locator('#replica .rp-ribbon').textContent()), 'a match on a filter chip filters the page in one click');
+  check(await page.locator(sbox).inputValue() === 'paid search', 'the query is kept when the page re-renders');
+  await page.locator('#replica .rp-clear').click(); await wait(300);
+  await page.fill(sbox, 'organic'); await wait(150); await page.keyboard.press('Escape');
+  check(await page.locator(sres).isHidden(), 'Escape closes the results');
+  await page.locator('#modes button[data-mode="generic"]').click(); await wait(400);
+  await page.fill(sbox, 'paid search'); await wait(200);
+  const genRes = await page.locator(sres).innerText();
+  await page.fill(sbox, 'dimension'); await wait(200);
+  const genRes2 = await page.locator(sres).innerText();
+  check(/No matches/.test(genRes) && /Dimension/.test(genRes2), 'in Generic mode only Generic labels can be found (the index is built from what is shown)');
+  await page.fill(sbox, ''); await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);
+  const [dlQ] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export')]);
+  const pQ = await browser.newPage(); const netQ = [];
+  pQ.on('request', r => { if (!/^(data|about):/.test(r.url())) netQ.push(r.url()); });
+  await pQ.setContent(await readFile(await dlQ.path(), 'utf8')); await pQ.waitForTimeout(1500);
+  await pQ.fill('.rp-search input', 'pricng'); await pQ.waitForTimeout(200);
+  check(/\/pricing/.test(await pQ.locator('.rp-sr').innerText()) && netQ.length === 0, 'search works in the offline HTML export, with no network requests');
+  await pQ.close();
+  check(P + 'vaultsnip-search.js' in pkg, 'the React package ships the search box');
+  const rq = await runReact(pkg, 'WebsitePerformanceReplica');
+  await rq.rp.evaluate(() => window.__mount({})); await rq.rp.waitForTimeout(1500);
+  await rq.rp.fill('.rp-search input', 'checkout'); await rq.rp.waitForTimeout(200);
+  check(/Checkout funnel/.test(await rq.rp.locator('.rp-sr').innerText()) && rq.errs.length === 0, 'search works inside the React component');
+  await rq.rp.close();
+  check(!/Search this dashboard/.test(svg), 'the Figma SVG leaves the search box out');
+
   console.log('Untrusted labels');
   const xss = await page.evaluate(async () => {
     window.__pwned = 0;

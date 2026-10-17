@@ -42,6 +42,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
 | Replica: KPI, bar, column, stacked, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table | ✅ Apache ECharts |
 | Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
+| **Search this dashboard** | ✅ typo-tolerant search over titles, labels, cells and values; jumps to the visual or filters the page; in the app and in HTML and React exports; index rebuilt from what is shown |
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
 | Privacy modes: Shape-preserving, Structure-only, Generic | ✅ |
 | **Realistic names** | ✅ made-up people, companies, emails, IDs and places that fit each column and each row's country (Faker); seeded, switchable, never in Generic mode; emails only at example.com/.net/.org |
