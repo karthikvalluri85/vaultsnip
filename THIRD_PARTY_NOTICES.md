@@ -6,6 +6,11 @@ Bundled in `web/lib` and `web/lang`, each under the Apache License 2.0:
 - Tesseract English language model (`eng.traineddata`, 4.0.0_best_int)
 - Apache ECharts (charts in the replica and in every export)
 
+Masked session replay, bundled in `extension/recorder.js` and `web/lib/vs-replay.js`:
+
+- [rrweb](https://github.com/rrweb-io/rrweb) 2.1.7 with rrweb-snapshot, rrdom, @rrweb/types and @rrweb/utils, MIT License
+- Bundled by rrweb: PostCSS (MIT), nanoid (MIT), picocolors (ISC), source-map-js (BSD 3-Clause, Copyright 2009-2011 Mozilla Foundation and contributors), @xstate/fsm (MIT), base64-arraybuffer (MIT), mitt (MIT)
+
 On-device name check, in `web/ml`, `web/lib/vs-context.js` and `web/models`:
 
 - [Transformers.js](https://github.com/huggingface/transformers.js) 4.3.0, Apache License 2.0 (bundled in `web/ml/ner-model.js`)

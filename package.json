@@ -39,12 +39,15 @@
     "build:ml": "node tools/build-ml.mjs",
     "test:ml-e2e": "node tests/e2e/ml-worker.e2e.mjs",
     "build:ext": "node tools/build-ext.mjs",
-    "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs"
+    "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs",
+    "build:replay": "node tools/build-replay.mjs",
+    "test:replay-e2e": "node tests/e2e/replay.e2e.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "echarts": "^5.6.0",
+    "rrweb": "2.1.7",
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
