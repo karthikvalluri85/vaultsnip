@@ -39,7 +39,8 @@ const text = (ctx, lines) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, ctx.ca
   lines.forEach((l, i) => { ctx.font = (i ? '' : 'bold ') + '22px Arial'; ctx.fillText(l, 20, 40 + i * 44); }); };
 const plain = document.getElementById('plain').getContext('2d');
 text(plain, ['Revenue by Region', 'Kestrelmoor Holdings', 'jane.doe@kestrelmoor.com', '$1,204,330']);
-window.redraw = () => text(plain, ['Revenue by Region', 'Umbrella Holdings', 'jane.doe@kestrelmoor.com', '$1,204,330']);
+// a data refresh: the earlier text stays, and a new name appears where nothing was masked before
+window.redraw = () => { text(plain, ['Revenue by Region', 'Kestrelmoor Holdings', 'jane.doe@kestrelmoor.com', '$1,204,330']); plain.font = '22px Arial'; plain.fillText('Umbrella Holdings', 360, 172); };
 
 const tc = document.getElementById('tainted').getContext('2d');
 const img = new Image();
@@ -119,7 +120,13 @@ try {
 
   console.log('Redraw and scroll');
   await tab.evaluate(() => window.redraw());
-  await tab.waitForTimeout(8000); // watcher interval + OCR
+  // fail closed: the watcher (every 0.3 s) hides a changed chart at once, and keeps it hidden until it has been read again
+  const shots = [];
+  for (const at of [500, 800, 1100, 1400]) { await tab.waitForTimeout(at - (shots.length ? [500, 800, 1100, 1400][shots.length - 1] : 0)); shots.push(await tab.screenshot()); }
+  const seen = [];
+  for (const s of shots) seen.push(has(await readable(s), 'Umbrella'));
+  check(!seen.some(Boolean), `a redrawn chart is hidden within half a second and while it is read again (readable at 0.5/0.8/1.1/1.4 s: ${seen.map(x => (x ? 'yes' : 'no')).join('/')})`);
+  await tab.waitForTimeout(6600); // OCR
   const redrawn = await readable(await tab.screenshot());
   check(!has(redrawn, 'Umbrella'), 'text drawn after redaction ("Umbrella") is blurred too');
   check(!has(redrawn, 'Kestrelmoor'), 'redrawn chart: earlier PII stays hidden');

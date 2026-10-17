@@ -24,6 +24,8 @@ const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); 
 const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const pageErrors = []; page.on('pageerror', e => pageErrors.push(e.message));
+// Zero-network promise, checked over the whole run: the app only talks to its own site, plus the AI provider the user picked.
+const offsite = []; page.on('request', r => { const u = r.url(); if (!u.startsWith(base) && !/^(data|blob|about):/.test(u)) offsite.push(u); });
 const wait = ms => page.waitForTimeout(ms);
 
 try {
@@ -493,10 +495,15 @@ try {
     S.words = [].concat(line(10, 'Owner: May Chen'), line(40, 'Revenue by Month'));
     await T.scoreContext();
     const masked = T.contextMasks().map(m => m.text);
+    // a word the user marked "Safe to keep" is never masked by the name check (regression: a lost \w in the lookup)
+    S.sessionAllow.add('may');
+    const afterSafe = T.contextMasks().map(m => m.text);
+    S.sessionAllow.delete('may');
     S.words = saved; await T.scoreContext();
-    return masked;
+    return { masked, afterSafe };
   });
-  check(ctx.includes('May') && !ctx.includes('Month') && !ctx.includes('Revenue'), `a safe word used as a name is masked in context, labels are not (${ctx.join(', ') || 'none'})`);
+  check(ctx.masked.includes('May') && !ctx.masked.includes('Month') && !ctx.masked.includes('Revenue'), `a safe word used as a name is masked in context, labels are not (${ctx.masked.join(', ') || 'none'})`);
+  check(!ctx.afterSafe.includes('May'), 'a word marked "Safe to keep" is not masked by the name check');
   const unit = await page.evaluate(() => {
     const { classify, plausible } = window.__DSC.test;
     const w = (text, h, conf, ww) => ({ text, x: 0, y: 0, w: ww || h * text.length * 0.6, h, conf });
@@ -615,6 +622,68 @@ try {
   check(!/BAD000/.test(await page.evaluate(() => VSFeedback.context().error)), 'the rejected key never appears in a feedback report');
   await page.keyboard.press('Escape');
 
+  console.log('Two screenshots in quick succession');
+  // The first screenshot is still being read when the second arrives: its late results must not land on the second.
+  await page.goto(base);
+  const small = await page.screenshot({ clip: { x: 0, y: 0, width: 320, height: 120 } });
+  await page.setInputFiles('#file', join(web, 'samples', 'kestrelmoor.png'));
+  await wait(300);
+  await page.setInputFiles('#file', { name: 'second.png', mimeType: 'image/png', buffer: small });
+  await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 180000 });
+  await wait(1500);
+  const race = await page.evaluate(() => {
+    const S = window.__DSC, W = S.img.width, H = S.img.height;
+    const inside = b => b.x >= -8 && b.y >= -8 && b.x + b.w <= W + 8 && b.y + b.h <= H + 8;
+    return { W, H, words: S.words.length, outWords: S.words.filter(w => !inside(w)).length, outMasks: S.masks.filter(m => !inside(m)).length };
+  });
+  check(race.W === 320 && race.outWords === 0 && race.outMasks === 0, `only the second screenshot's words and masks remain (${race.W}×${race.H}, ${race.words} words, ${race.outWords + race.outMasks} out of bounds)`);
+
+  console.log('Stress: a large dashboard');
+  await page.goto(base);
+  const stress = await page.evaluate(async () => {
+    const people = ['Account manager', 'Owner', 'Reviewer'], kinds = ['bar', 'line', 'donut', 'column', 'area', 'treemap', 'funnel', 'heatmap'];
+    const members = Array.from({ length: 12 }, (_, i) => ['Germany', 'UK', 'France', 'Italy', 'Spain', 'India'][i % 6] + (i > 5 ? ' ' + i : ''));
+    const visuals = [];
+    for (let i = 0; i < 4; i++) visuals.push({ id: 'k' + i, type: 'kpi', span: 3, title: 'KPI ' + i, measure: { name: 'Revenue ' + i, format: 'currency', currency: '€' }, sparkline: true });
+    kinds.forEach((t, i) => visuals.push(t === 'heatmap'
+      ? { id: 'h', type: t, span: 6, title: 'Heat', rows: { name: 'Day', members: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] }, columns: { name: 'Hour', members: ['00', '06', '12', '18'] }, matrix: [[1, 2, 3, 4], [4, 3, 2, 1], [1, 3, 5, 7], [7, 5, 3, 1], [2, 2, 2, 2]] }
+      : { id: 'c' + i, type: t, span: 6, title: 'Chart ' + i, dimension: { name: 'Country', members }, series: [{ name: 'Sales', shape: members.map((_, j) => 100 - j * 7) }], measure: { name: 'Sales', format: 'currency', currency: '€' } }));
+    for (let i = 0; i < 6; i++) visuals.push({ id: 't' + i, type: 'table', span: 12, title: 'Accounts ' + i, rowCount: 25,
+      columns: [{ name: 'Customer', kind: 'org' }, { name: 'Order ID', kind: 'id' }, { name: people[i % 3], kind: 'person' }, { name: 'Email', kind: 'text' }, { name: 'Phone', kind: 'text' }, { name: 'Country', kind: 'category', members }, { name: 'Revenue', kind: 'currency', currency: '€' }, { name: 'Margin', kind: 'percent' }] });
+    const spec = { title: '[Client] | Stress test', filters: [{ label: 'Country', members }], rows: [{ visuals }] };
+    const root = document.createElement('div'); root.style.width = '1300px'; document.body.appendChild(root);
+    const t0 = performance.now(); DSCReplica.render(root, spec, { mode: 'shape', seed: 7, resetSelection: true }); const tRender = performance.now() - t0; const cells = root.querySelectorAll('.rp-table td').length;
+    const t1 = performance.now(); root.querySelector('.rp-chip').click(); const tFilter = performance.now() - t1;
+    const t2 = performance.now(); const m = DSCReplica.model(spec, { mode: 'shape', seed: 7, realistic: true, filters: {} }); const tModel = performance.now() - t2;
+    const t3 = performance.now(); const docs = VSSearch.buildDocs(root, echarts).length; const tIndex = performance.now() - t3;
+    root._charts.forEach(c => c.dispose()); root._ro && root._ro.disconnect(); root.remove();
+    return { tRender, tFilter, tModel, tIndex, docs, cells, visuals: m.visuals.length };
+  });
+  check(stress.cells >= 500 && stress.visuals === 18, `a large dashboard renders: 18 visuals, ${stress.cells} table cells, ${stress.docs} search entries`);
+  check(stress.tRender < 3000 && stress.tFilter < 3000 && stress.tModel < 3000 && stress.tIndex < 1000,
+    `it stays responsive: render ${stress.tRender.toFixed(0)} ms, filter ${stress.tFilter.toFixed(0)} ms, model ${stress.tModel.toFixed(0)} ms, search index ${stress.tIndex.toFixed(0)} ms`);
+  // Memory: render, filter, export-copy and model the sample many times; after garbage collection the heap must not keep growing.
+  await page.click('#btn-try'); await page.locator('#samples .sample button').nth(1).click();
+  await page.waitForFunction(() => document.querySelectorAll('#replica .rp-chart').length >= 8); await wait(2000);
+  const cdp = await page.context().newCDPSession(page);
+  const heap = async () => { await cdp.send('HeapProfiler.collectGarbage'); return (await cdp.send('Runtime.getHeapUsage')).usedSize / 1048576; };
+  const churn = () => page.evaluate(async () => {
+    const S = window.__DSC, live = document.getElementById('replica');
+    for (let i = 0; i < 10; i++) {
+      DSCReplica.render(live, S.spec, { mode: 'shape', seed: 1000 + i, realistic: true });
+      live.querySelector('.rp-chip').click();
+      const off = document.createElement('div'); off.style.cssText = 'position:fixed;left:-30000px;width:1200px'; document.body.appendChild(off);
+      DSCReplica.render(off, VSShare.forLevel(S.spec, 'shape'), { mode: 'shape', seed: i });
+      VSDesign.toSvg(off, { title: 'x' });
+      off._charts.forEach(c => c.dispose()); off._ro && off._ro.disconnect(); off.remove();
+      DSCReplica.model(S.spec, { mode: 'shape', seed: i, realistic: true, filters: {} });
+    }
+  });
+  await churn(); const h1 = await heap();
+  await churn(); await churn(); const h2 = await heap();
+  check(h2 - h1 < 12, `no memory build-up across 20 more renders, filters, design exports and models (heap ${h1.toFixed(1)} → ${h2.toFixed(1)} MB)`);
+  await cdp.detach();
+
   console.log('Start screen');
   await page.goto(base);
   await page.setInputFiles('#file', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
@@ -628,6 +697,8 @@ try {
   check(await page.locator('header .pill').isHidden(), 'the header stays on one line on a phone');
 
   check(pageErrors.length === 0, 'no uncaught page errors' + (pageErrors.length ? ': ' + pageErrors.join(' | ') : ''));
+  const unexpected = offsite.filter(u => !/^https:\/\/api\.(anthropic|openai)\.com\//.test(u));
+  check(unexpected.length === 0, `across the whole run the app requested nothing outside its own site, except the AI provider in the key tests${unexpected.length ? ': ' + [...new Set(unexpected)].slice(0, 5).join(', ') : ''}`);
 } catch (e) {
   failures++; console.log('  ✗ ' + e.message);
 } finally {

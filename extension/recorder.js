@@ -12971,6 +12971,22 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   }
   const KEY = "__vaultsnipRecorder";
   const MAX_MS = 10 * 60 * 1e3;
+  const MAX_BYTES = 40 * 1024 * 1024;
+  function sizeBudget(max = MAX_BYTES) {
+    let total = 0;
+    return {
+      add(e) {
+        try {
+          total += JSON.stringify(e).length;
+        } catch {
+        }
+        return total > max;
+      },
+      get total() {
+        return total;
+      }
+    };
+  }
   const RECORD_OPTIONS = {
     maskAllInputs: true,
     maskInputFn: (text) => "*".repeat(Math.min(text.length, 24)),
@@ -13004,10 +13020,17 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     };
     tick();
     const clock = setInterval(tick, 1e3);
-    const stopRecording = record({ ...RECORD_OPTIONS, emit: (e) => {
-      events.push(e);
-    } });
+    const budget = sizeBudget();
+    let full = false;
     let stopped = false;
+    const stopRecording = record({ ...RECORD_OPTIONS, emit: (e) => {
+      if (stopped) return;
+      events.push(e);
+      if (budget.add(e) && !full) {
+        full = true;
+        setTimeout(() => finish(), 0);
+      }
+    } });
     const limit = setTimeout(() => finish(), MAX_MS);
     function finish() {
       if (stopped) return;
@@ -13025,9 +13048,16 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
         console.warn("VaultSnip: recording discarded by the privacy audit", findings.slice(0, 5));
         return;
       }
-      badge.textContent = "Opening the masked replay…";
+      badge.textContent = full ? "Recording stopped at the size limit (busy page). Opening the masked replay…" : "Opening the masked replay…";
       const msg = { type: "vs-recording", events: clean, durationMs: Date.now() - t0 };
-      chrome.runtime.sendMessage(msg).finally(() => setTimeout(() => host2.remove(), 1500));
+      chrome.runtime.sendMessage(msg).then(
+        () => setTimeout(() => host2.remove(), full ? 4e3 : 1500),
+        (e) => {
+          badge.textContent = `The replay could not be opened (${e instanceof Error ? e.message : String(e)}). Nothing was saved. Try a shorter recording.`;
+          badge.style.background = "#14181e";
+          setTimeout(() => host2.remove(), 1e4);
+        }
+      );
     }
     badge.onclick = finish;
     return { stop: finish };

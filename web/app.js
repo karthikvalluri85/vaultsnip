@@ -162,7 +162,8 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
         workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
         workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
         logger: m => { if (m.status && typeof m.progress === 'number') setStatus(`${humanStatus(m.status)} ${Math.round(m.progress * 100)}%`, true); }
-      }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; });
+      }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
+        .catch(e => { workerP = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
     }
     return workerP;
   }
@@ -206,7 +207,14 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     }
     x.putImageData(im, 0, 0);
   }
-  async function ocr(src, scale, kind) {
+  // One reader, one pass at a time: a pass changes the reader's settings ("block" mode), so two callers must not interleave.
+  let ocrQueue = Promise.resolve();
+  function ocr(src, scale, kind) {
+    const run = ocrQueue.then(() => ocrPass(src, scale, kind));
+    ocrQueue = run.catch(() => {});
+    return run;
+  }
+  async function ocrPass(src, scale, kind) {
     kind = kind === true ? 'inverted' : (kind || 'normal');
     const invert = kind === 'inverted';
     const w = await worker();
@@ -456,12 +464,15 @@ customer service staff agent team people everyone nobody someone something nothi
     S.ctx.lines = null; S.ctx.scores = null;
     if (!S.ctx.on || !window.VSContext || !S.words.length) { S.ctx.state = S.ctx.on ? 'idle' : 'off'; return renderCtxNote(); }
     S.ctx.state = 'running'; renderCtxNote();
+    const words = S.words;
     try {
       ctxClient = ctxClient || new VSContext.ContextClassifier(VSContext.moduleWorker(ctxWorkerUrl()), { timeoutMs: 60000 });
-      const lines = textLines(S.words.filter(w => !w.ghost)).map(l => l.words);
-      S.ctx.scores = await ctxClient.score(lines.map(l => l.map(w => w.text)));
-      S.ctx.lines = lines; S.ctx.state = 'ready';
+      const lines = textLines(words.filter(w => !w.ghost)).map(l => l.words);
+      const scores = await ctxClient.score(lines.map(l => l.map(w => w.text)));
+      if (S.words !== words) return;   // another screenshot started meanwhile: these scores belong to the old one
+      S.ctx.scores = scores; S.ctx.lines = lines; S.ctx.state = 'ready';
     } catch (e) {
+      if (S.words !== words) return;
       console.warn('On-device name check unavailable:', e);
       S.ctx.state = 'error';
     }
@@ -469,7 +480,8 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   function contextMasks() {
     if (!S.ctx.on || !S.ctx.scores || !window.VSContext) return [];
-    const approved = t => { const lc = t.trim().replace(/^[^w€$£¥₹%#@]+|[^w€$£¥₹%]+$/g, '').toLowerCase(); return S.sessionAllow.has(lc.replace(/[^w-]/g, '')) || extraAllow().has(lc); };
+    // the same keys as "Safe to keep" stores (sessionAllow) and the safe-words list (extraAllow)
+    const approved = t => { const lc = t.trim().replace(/^[^\w€$£¥₹%#@]+|[^\w€$£¥₹%]+$/g, '').toLowerCase(); return S.sessionAllow.has(lc.replace(/[^\w-]/g, '')) || extraAllow().has(lc); };
     const out = [];
     S.ctx.lines.forEach((line, li) => {
       const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) }));
@@ -499,8 +511,9 @@ customer service staff agent team people everyone nobody someone something nothi
     const extra = columnFill(numeric.map(m => Object.assign({}, m, { type: 'Number or money' })))
       .filter(f => !S.masks.some(m => m.on && m.x <= f.x + 1 && m.y <= f.y + 1 && m.x + m.w >= f.x + f.w - 1 && m.y + m.h >= f.y + f.h - 1));
     if (extra.length) { S.masks.push(...extra); renderTypes(); draw(); }
-    const m2 = maskedCanvas(1);
+    const m2 = maskedCanvas(1), img0 = S.img;
     const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')], [2, 'delta']]);
+    if (S.img !== img0) return;   // a newer screenshot replaced this one; its own check decides its gate
     const active = S.masks.filter(m => m.on);
     const flags = [];
     all.forEach(w => {
@@ -668,6 +681,7 @@ customer service staff agent team people everyone nobody someone something nothi
     return c;
   }
 
+  let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
     S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.spec = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle';
@@ -675,18 +689,23 @@ customer service staff agent team people everyone nobody someone something nothi
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
     $('btn-reapply').disabled = true;
+    // Reading takes seconds; if another screenshot arrives meanwhile, this run must not write into it.
+    const seq = ++reviewSeq, current = () => seq === reviewSeq && S.img === canvas;
     try {
       setStatus('Loading the on-device text reader…', true);
-      S.words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']]);
+      const words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']]);
+      if (!current()) return;
+      S.words = words;
       S.comments = findComments(S.words);
       S.masks = buildMasks(S.words);
-      if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); S.masks = allMasks(); }
+      if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); if (!current()) return; S.masks = allMasks(); }
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
       renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
       $('btn-reapply').disabled = false;
       await verify();
     } catch (err) {
+      if (!current()) return;
       console.error(err);
       setStatus('The on-device reader could not start: ' + (err && err.message || err), false);
       if (window.VSFeedback) VSFeedback.problem(err, 'On-device reader');
@@ -930,7 +949,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   // Feature 6: realistic synthetic names (web/lib/vs-faker.js); Generic mode always uses neutral placeholders
   S.realistic = true;
   $('opt-real').onchange = () => { S.realistic = $('opt-real').checked; DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
-  function startOver() { S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; fresh(); show('s-drop'); }
+  function startOver() { reviewSeq++; S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; fresh(); show('s-drop'); }
   $('btn-restart').onclick = startOver;
   $('btn-own').onclick = startOver;
 
