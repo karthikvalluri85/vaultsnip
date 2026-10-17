@@ -1,0 +1,21 @@
+[package]
+name = "vaultsnip-core"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "VaultSnip text classifier (port of classify() in web/app.js) compiled to WebAssembly. No network, no I/O."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# One dependency on purpose: no regex crate, no serde, no rand/uuid (so no getrandom JS shims),
+# no web-sys. The module has no import that could reach the network.
+[dependencies]
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
