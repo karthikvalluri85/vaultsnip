@@ -9,3 +9,6 @@ test-samples/
 *.zip
 
 
+
+# vision model evaluation output (tools/eval-vision)
+tools/eval-vision/results/

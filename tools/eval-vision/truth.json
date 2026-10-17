@@ -1,0 +1,15 @@
+{
+  "_note": "Ground truth for masked-dashboard.png (1600x1000): the layout of sample 1 (web/samples.js) with boxes measured by hand on the image, as [x0, y0, x1, y1] on a 0-1000 scale of the image width and height.",
+  "title": "EMEA Sales Performance",
+  "visuals": [
+    { "type": "kpi", "title": "Net Revenue", "bbox": [20, 135, 245, 265] },
+    { "type": "kpi", "title": "Units", "bbox": [263, 135, 488, 265] },
+    { "type": "kpi", "title": "Gross Margin", "bbox": [505, 135, 730, 265] },
+    { "type": "kpi", "title": "Active Accounts", "bbox": [748, 135, 973, 265] },
+    { "type": "column", "title": "Net Revenue by Country", "bbox": [20, 290, 488, 610] },
+    { "type": "line", "title": "Monthly Net Revenue", "bbox": [530, 290, 981, 610] },
+    { "type": "table", "title": "Accounts", "bbox": [20, 625, 981, 915] }
+  ],
+  "labels": ["Germany", "UK", "France", "Italy", "Spain", "Netherlands", "Nordics", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Account ID", "Account Manager", "Country", "vs LY", "YTD Jan-Sep 2026"],
+  "masked": ["Kestrelmoor", "4.2", "1,204", "€", "Sold", "Top 5"]
+}
