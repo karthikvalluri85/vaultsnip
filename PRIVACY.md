@@ -7,6 +7,7 @@
 - **What leaves your device.** Only when you click send, and only the *masked* image you approved, goes directly from your browser to the AI provider you chose, **Anthropic (Claude)** or **OpenAI**, using your own API key. It never passes through a VaultSnip server. That provider's API terms and data policy apply to the request.
 - **Customer comments (optional).** If you tick *Keep the wording of comments*, the ordinary words of quotes and free-text feedback stay readable in the image you send, and can appear in the replica and its export. Names, companies, emails, numbers and IDs inside them stay masked, and the replica only quotes words that were readable in the image you approved. It is off by default.
 - **Samples** send nothing at all.
+- **On-device name check (on by default).** A small AI model looks for safe words used as names ("May Chen", "Delta Airlines") and adds masks for them. It runs in your browser, on this device; the text it reads never leaves it. The model is an app file (19 MB) served by VaultSnip itself, never by a third party; extension packages built for the stores include it. It only adds masks, and you can switch it off under *Redaction policy*.
 - **What your browser keeps.** The OCR language model (an app file, cached so it downloads once) and, only if you tick "remember", your API key, its provider and the model name. You can remove them at any time from "AI key" → "Forget key". "Check key" asks the provider which models the key can use; it sends only the key.
 - **Extension permissions.** `activeTab` only: the extension can capture the tab you are on, and only when you click its icon.
 - **Downloads** (the masked PNG and the CSV of generated data) are made in your browser and saved to your computer; nothing is sent.
@@ -15,6 +16,6 @@
 - **Feedback is your choice.** The Feedback button prepares a report (VaultSnip version, browser, the step you were on, chart types and any error message, never your screenshot or dashboard text). Nothing is sent until you choose to continue on GitHub, where it is posted under your GitHub account, or to email it from your own mail app. GitHub's or your email provider's terms apply.
 - **No analytics, cookies or tracking.**
 
-_Last updated: 7 October 2026._
+_Last updated: 17 October 2026._
 
 Contact: use **Feedback** in the app, open an issue or discussion on [GitHub](https://github.com/karthikvalluri85/vaultsnip), or report security concerns privately as described in [SECURITY.md](SECURITY.md).

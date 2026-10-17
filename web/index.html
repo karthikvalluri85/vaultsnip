@@ -212,6 +212,8 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
             <input type="text" id="extra-allow" placeholder="e.g. Pipeline, Bookings"></label>
           <div class="row"><button class="btn" id="btn-reapply" type="button" disabled>Re-apply policy</button></div>
+          <label class="chk"><input type="checkbox" id="ctx-on" checked><span>Find names among safe words (on-device AI)</span></label>
+          <p class="hint" id="ctx-note">Catches safe words used as names, such as "May Chen" or "Delta Airlines". Runs on this device; the 19 MB model downloads once. It only adds masks.</p>
           <details class="more" id="kept"><summary>Words kept as safe (<span id="kept-n">0</span>)</summary>
             <p class="note">Common report words are kept so the layout stays readable. If any of these is a client, product or person name, click it to mask it.</p>
             <div class="chips" id="kept-words"></div></details>
@@ -305,6 +307,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="llm.js"></script>
 <script src="config.js"></script>
 <script src="lib/tesseract.min.js"></script>
+<script src="lib/vs-context.js"></script>
 <script src="lib/echarts.min.js"></script>
 <script src="replica.js"></script>
 <script src="samples.js"></script>

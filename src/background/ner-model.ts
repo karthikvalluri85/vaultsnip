@@ -4,7 +4,7 @@
  */
 import { AutoModelForTokenClassification, AutoTokenizer, Tensor, env } from '@huggingface/transformers';
 import { MODEL_ID, type WordScore } from './ml-protocol';
-import { LABELS, emptyScores, packLines, personOrg } from './ner-encode';
+import { emptyScores, labelGroups, packLines, personOrg } from './ner-encode';
 
 export interface NerScorer {
   score(lines: string[][]): Promise<WordScore[][]>;
@@ -40,6 +40,7 @@ const BATCH = 16;
 export async function loadNerScorer(modelId = MODEL_ID): Promise<NerScorer> {
   const tokenizer = await AutoTokenizer.from_pretrained(modelId);
   const model = await AutoModelForTokenClassification.from_pretrained(modelId, { dtype: 'q8' });
+  const groups = labelGroups((model.config as unknown as { id2label: Record<string, string> }).id2label);
   const [cls, sep] = tokenizer.encode('') as number[];
   const encode = (w: string) => tokenizer.encode(w, { add_special_tokens: false }) as number[];
   const int64 = (a: number[]) => BigInt64Array.from(a, (v) => BigInt(v));
@@ -66,9 +67,9 @@ export async function loadNerScorer(modelId = MODEL_ID): Promise<NerScorer> {
         });
         const data = logits.data as Float32Array;
         const n = logits.dims[2] as number;
-        if (n !== LABELS.length) throw new Error(`model has ${n} labels, expected ${LABELS.length}`);
+        if (n !== groups.size) throw new Error(`model returned ${n} labels, its config lists ${groups.size}`);
         batch.forEach((r, ri) => r.words.forEach((w) => {
-          out[w.line][w.word] = personOrg(data, (ri * len + w.pos) * n, n);
+          out[w.line][w.word] = personOrg(data, (ri * len + w.pos) * n, groups);
         }));
       }
       return out;

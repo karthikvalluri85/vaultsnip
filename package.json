@@ -36,7 +36,7 @@
     "test:rust": "cargo test --manifest-path src/core-rust/Cargo.toml",
     "test:unit": "vitest run",
     "fetch:model": "node tools/fetch-model.mjs",
-    "build:ml": "vite build",
+    "build:ml": "node tools/build-ml.mjs",
     "test:ml-e2e": "node tests/e2e/ml-worker.e2e.mjs"
   },
   "dependencies": {

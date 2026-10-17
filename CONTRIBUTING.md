@@ -7,6 +7,10 @@ Thanks for helping. VaultSnip is a static, browser-only app: no build step, no b
 1. **No real data, ever.** Code, tests, fixtures, issues and screenshots use fictional or public material only.
 2. **No new data flows.** Do not add analytics, trackers, error-reporting services or calls to any server other than the AI provider the user chose (with the user's own key). Discuss first in an issue if you think one is needed.
 3. **Mask by default.** Changes to OCR or masking must keep the "mask unless allowlisted" rule and the independent re-scan gate.
+4. **Ethics and the law come first.** Before a change is made, check that it respects people's privacy, applicable privacy and data-protection law (for example GDPR and CCPA), copyright and licences, and the terms of the services involved. If it does not, it is not made, however useful it would be.
+5. **Only compatible licences.** VaultSnip is Apache-2.0. Code, models and datasets must carry a declared licence that allows redistribution under it (MIT, BSD, Apache-2.0 and similar). No GPL code copied in, no "no licence" or non-commercial assets. Credit every third-party asset in `THIRD_PARTY_NOTICES.md`.
+6. **Disclose before shipping.** Any new download, file kept by the browser or extension permission is described in `PRIVACY.md` in the same change.
+7. **Free and open, for good.** No paywalls, licence keys, ads or selling of data. VaultSnip stays free and open source.
 
 ## Run it locally
 
@@ -49,6 +53,8 @@ Both run automatically on every pull request.
 - Commit messages: short imperative summary line, e.g. `Maps: match UK and United Kingdom`.
 
 ## Upgrading vendored libraries
+
+`web/ml`, `web/lib/vs-context.js` and `web/models` (the on-device name check) are built from `src/` and committed for the same reason: after changing `src/background` or `src/content/context-classifier.ts`, run `npm run build:ml` and commit the result; `npm run fetch:model -- --check` verifies the model against its pinned revision.
 
 `web/lib` holds copies of tesseract.js and Apache ECharts, so the app needs no build step. To upgrade one, update `package.json`, run `npm install`, copy the new files into `web/lib`, and run `npm run e2e`. Dependabot is told not to propose these upgrades for that reason.
 
