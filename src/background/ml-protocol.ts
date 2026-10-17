@@ -6,7 +6,7 @@
  */
 
 /** Folder under the models base URL that tools/fetch-model.mjs fills. */
-export const MODEL_ID = 'tinybert-ner';
+export const MODEL_ID = 'pii-bert-small';
 
 /** [P(person), P(organisation)] for one word, from the model's prediction on the word's first sub-token. */
 export type WordScore = [per: number, org: number];

@@ -16,15 +16,22 @@ export class BlockedRequestError extends Error {
   }
 }
 
-export function installNetworkGuard(scope: GuardScope, origin: string, blocked: string[] = []): string[] {
+/**
+ * `origin` is the worker's own origin. `also` may name further first-party origins, such as the VaultSnip
+ * site the store extension downloads its model from; nothing else is ever allowed.
+ */
+export function installNetworkGuard(scope: GuardScope, origin: string, blocked: string[] = [], also: string[] = []): string[] {
   // Compared by protocol and host, not URL.origin: for chrome-extension:// that can be the opaque "null",
   // and "null" === "null" would let every opaque-origin URL through.
-  const own = new URL(origin);
-  if (!own.host) throw new Error(`network guard needs an origin with a host, got "${origin}"`);
+  const owns = [origin, ...also].map((o) => {
+    const u = new URL(o);
+    if (!u.host) throw new Error(`network guard needs an origin with a host, got "${o}"`);
+    return u;
+  });
   const allowed = (raw: string) => {
     try {
-      const u = new URL(raw, own);
-      return u.protocol === 'blob:' || (u.protocol === own.protocol && u.host === own.host);
+      const u = new URL(raw, owns[0]);
+      return u.protocol === 'blob:' || owns.some((o) => u.protocol === o.protocol && u.host === o.host);
     } catch {
       return false;
     }

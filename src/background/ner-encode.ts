@@ -7,8 +7,23 @@
  */
 import type { WordScore } from './ml-protocol';
 
-/** CoNLL-2003 label order. The model's config only says LABEL_0..LABEL_8; this order was checked on real text. */
-export const LABELS = ['O', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC'] as const;
+/** Label indexes that count as a person or an organisation, from the model's config. */
+export interface LabelGroups { per: number[]; org: number[]; size: number }
+
+/** Reads B-/I- person and organisation labels from id2label ("B-PERSON", "I-ORGANIZATION", "B-PER", …). */
+export function labelGroups(id2label: Record<string | number, string>): LabelGroups {
+  const per: number[] = [], org: number[] = [];
+  let size = 0;
+  for (const [k, v] of Object.entries(id2label)) {
+    const i = Number(k);
+    size = Math.max(size, i + 1);
+    const tag = String(v).replace(/^[BIES]-/, '').toUpperCase();
+    if (tag === 'PERSON' || tag === 'PER') per.push(i);
+    else if (tag === 'ORGANIZATION' || tag === 'ORG') org.push(i);
+  }
+  if (!per.length || !org.length) throw new Error('model has no person/organisation labels');
+  return { per, org, size };
+}
 
 export interface Row {
   ids: number[];
@@ -57,12 +72,13 @@ export function emptyScores(lines: readonly (readonly string[])[]): WordScore[][
   return lines.map((l) => l.map((): WordScore => [0, 0]));
 }
 
-/** Softmax of one token's logits, folded to [P(B-PER)+P(I-PER), P(B-ORG)+P(I-ORG)]. */
-export function personOrg(logits: ArrayLike<number>, offset: number, numLabels = LABELS.length): WordScore {
+/** Softmax of one token's logits, folded to [P(person), P(organisation)] (B- and I- labels together). */
+export function personOrg(logits: ArrayLike<number>, offset: number, g: LabelGroups): WordScore {
   let max = -Infinity;
-  for (let k = 0; k < numLabels; k++) max = Math.max(max, logits[offset + k]);
+  for (let k = 0; k < g.size; k++) max = Math.max(max, logits[offset + k]);
   let sum = 0;
-  const e = new Array<number>(numLabels);
-  for (let k = 0; k < numLabels; k++) sum += e[k] = Math.exp(logits[offset + k] - max);
-  return [(e[1] + e[2]) / sum, (e[3] + e[4]) / sum];
+  const e = new Array<number>(g.size);
+  for (let k = 0; k < g.size; k++) sum += e[k] = Math.exp(logits[offset + k] - max);
+  const total = (idx: number[]) => idx.reduce((s, i) => s + e[i], 0) / sum;
+  return [total(g.per), total(g.org)];
 }

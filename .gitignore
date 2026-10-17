@@ -12,6 +12,3 @@ test-samples/
 src/core-rust/target/
 public/wasm/
 
-# Feature 2: NER model (npm run fetch:model; no declared license, not shipped) and the ML worker build
-public/models/
-public/ml/

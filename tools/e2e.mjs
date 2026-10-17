@@ -250,6 +250,17 @@ try {
   const gate = (await page.locator('.gate').textContent()).replace(/\s+/g, ' ').trim();
   check(/Blocked|Review/.test(gate), `pre-flight check catches readable text (${gate.slice(0, 40)}…)`);
   check(await page.evaluate(() => (window.__DSC.masks || []).length > 20), 'sensitive text is masked');
+  check(await page.evaluate(() => window.__DSC.ctx.state) === 'ready', `on-device name check ran on the demo (${await page.evaluate(() => window.__DSC.ctx.state)})`);
+  const ctx = await page.evaluate(async () => {
+    const S = window.__DSC, T = S.test, saved = S.words;
+    const line = (y, text) => { let x = 10; return text.split(' ').map(t => { const w = { text: t, x, y, w: t.length * 7, h: 12, conf: 95 }; x += t.length * 7 + 6; return w; }); };
+    S.words = [].concat(line(10, 'Owner: May Chen'), line(40, 'Revenue by Month'));
+    await T.scoreContext();
+    const masked = T.contextMasks().map(m => m.text);
+    S.words = saved; await T.scoreContext();
+    return masked;
+  });
+  check(ctx.includes('May') && !ctx.includes('Month') && !ctx.includes('Revenue'), `a safe word used as a name is masked in context, labels are not (${ctx.join(', ') || 'none'})`);
   const unit = await page.evaluate(() => {
     const { classify, plausible } = window.__DSC.test;
     const w = (text, h, conf, ww) => ({ text, x: 0, y: 0, w: ww || h * text.length * 0.6, h, conf });

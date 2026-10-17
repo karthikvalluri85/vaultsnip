@@ -32,6 +32,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Upload, paste, extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
 | Mask by default, allowlist to keep | ✅ client names, numbers/money, IDs, emails, unlisted text |
+| On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ four independent re-reads of the masked image, plus "Mask all" |
 | Review: click to toggle, drag to add masks | ✅ |
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in; replicas quote only words that were readable in the approved image |
@@ -101,9 +102,11 @@ web/              the app (static, no build step), published as-is
   feedback.js     in-app feedback and error reporting
   samples.js      bundled fictional samples
   maps/           map outlines (Natural Earth, simplified)
-  lib/ lang/      tesseract.js + OCR model, echarts
+  lib/ lang/      tesseract.js + OCR model, echarts, vs-context.js (name check client)
+  ml/ models/     name check: Web Worker + ONNX runtime (built by npm run build:ml), PII model (npm run fetch:model)
 extension/        manifest.json, background.js
-tools/            check.mjs, e2e.mjs, maps/build_maps.py
+src/              TypeScript sources: name check (background/, content/), Rust scanner (core-rust/)
+tools/            check.mjs, e2e.mjs, build-ml.mjs, fetch-model.mjs, maps/build_maps.py
 build.sh          builds dist/web, dist/extension, dist/hf-space and zips
 ```
 

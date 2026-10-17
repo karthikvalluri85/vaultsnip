@@ -19,7 +19,8 @@
     view: 'orig',
     provider: 'anthropic', key: null, model: 'claude-sonnet-5-5',
     sessionAllow: new Set(),
-    keepComments: false, comments: [], commentVocab: new Set()
+    keepComments: false, comments: [], commentVocab: new Set(),
+    ctx: { on: true, lines: null, scores: null, state: 'idle' }   // on-device name check (lib/vs-context.js, ml/)
   };
   try {
     const k = localStorage.getItem('dsc-key'), m = localStorage.getItem('dsc-model'), p = localStorage.getItem('dsc-provider');
@@ -129,7 +130,8 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     'Name in comment': '#a1338f',
     'Text not on allowlist': '#1baf7a',
     'Added by you': '#14181e',
-    'Added after check': '#b03c38'
+    'Added after check': '#b03c38',
+    'Name in context': '#9a5b00'
   };
 
   function clientNames() { return $('client-names').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean); }
@@ -440,6 +442,54 @@ customer service staff agent team people everyone nobody someone something nothi
     return c;
   }
 
+  /* ---------------- on-device name check (contextual AI) ---------------- */
+  // A second opinion on words the rules keep: a safe word used as a name ("May Chen", "Delta Airlines").
+  // A small PII model runs in a Web Worker (ml/ml-worker.js) on this device and can only ADD masks.
+  // Words the user marked safe or listed as safe are never touched. If it cannot run, the rules' masks stand.
+  let ctxClient = null;
+  function ctxWorkerUrl() {
+    const cfg = window.VAULTSNIP_CONFIG || {};
+    const q = new URLSearchParams({ models: new URL(cfg.mlModels || 'models/', location.href).href, gz: cfg.mlGzip === false ? '0' : '1' });
+    return new URL('ml/ml-worker.js?' + q, location.href);
+  }
+  async function scoreContext() {
+    S.ctx.lines = null; S.ctx.scores = null;
+    if (!S.ctx.on || !window.VSContext || !S.words.length) { S.ctx.state = S.ctx.on ? 'idle' : 'off'; return renderCtxNote(); }
+    S.ctx.state = 'running'; renderCtxNote();
+    try {
+      ctxClient = ctxClient || new VSContext.ContextClassifier(VSContext.moduleWorker(ctxWorkerUrl()), { timeoutMs: 60000 });
+      const lines = textLines(S.words.filter(w => !w.ghost)).map(l => l.words);
+      S.ctx.scores = await ctxClient.score(lines.map(l => l.map(w => w.text)));
+      S.ctx.lines = lines; S.ctx.state = 'ready';
+    } catch (e) {
+      console.warn('On-device name check unavailable:', e);
+      S.ctx.state = 'error';
+    }
+    renderCtxNote();
+  }
+  function contextMasks() {
+    if (!S.ctx.on || !S.ctx.scores || !window.VSContext) return [];
+    const approved = t => { const lc = t.trim().replace(/^[^w€$£¥₹%#@]+|[^w€$£¥₹%]+$/g, '').toLowerCase(); return S.sessionAllow.has(lc.replace(/[^w-]/g, '')) || extraAllow().has(lc); };
+    const out = [];
+    S.ctx.lines.forEach((line, li) => {
+      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) }));
+      VSContext.contextualHits(words, S.ctx.scores[li]).forEach(i => {
+        const w = line[i], p = Math.max(3, w.h * 0.18);
+        out.push({ x: w.x - p, y: w.y - p, w: w.w + 2 * p, h: w.h + 2 * p, type: VSContext.CONTEXT_TYPE, text: w.text, on: true, src: 'auto' });
+      });
+    });
+    return out;
+  }
+  const allMasks = () => buildMasks(S.words).concat(contextMasks());
+  function renderCtxNote() {
+    const n = S.masks.filter(m => m.type === 'Name in context').length;
+    $('ctx-note').textContent = !S.ctx.on ? 'Off. Safe words stay as listed; click any of them below to mask it.'
+      : S.ctx.state === 'running' ? 'Looking for names among safe words on this device…'
+      : S.ctx.state === 'error' ? 'The on-device name check could not run here, so only the rules above apply. Check the safe words below.'
+      : S.ctx.state === 'ready' ? (n ? `Found ${n} safe word${n > 1 ? 's' : ''} used as a name (brown boxes). Untick any in the mask list if wrong.` : 'No safe word here looks like a name.')
+      : 'Catches safe words used as names, such as "May Chen" or "Delta Airlines". Runs on this device; the 19 MB model downloads once. It only adds masks.';
+  }
+
   /* ---------------- verification gate (independent re-scan) ---------------- */
   async function verify() {
     S.gate = 'running'; renderGate();
@@ -546,7 +596,7 @@ customer service staff agent team people everyone nobody someone something nothi
     S.masks.filter(m => m.on).forEach(m => counts[m.type] = (counts[m.type] || 0) + 1);
     $('types').innerHTML = Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${t}</span><b>${counts[t]}</b></div>`).join('') || '<div class="hint">Nothing masked yet.</div>';
   }
-  function renderTypes() { renderCounts(); renderMaskList(); }
+  function renderTypes() { renderCounts(); renderMaskList(); renderCtxNote(); }
   // The same masks as a list of checkboxes: works with a keyboard and a screen reader, unlike the canvas.
   function renderMaskList() {
     const box = $('mask-items'); box.innerHTML = '';
@@ -620,7 +670,7 @@ customer service staff agent team people everyone nobody someone something nothi
 
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.spec = null; S.sessionAllow = new Set();
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.spec = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
@@ -630,6 +680,7 @@ customer service staff agent team people everyone nobody someone something nothi
       S.words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']]);
       S.comments = findComments(S.words);
       S.masks = buildMasks(S.words);
+      if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); S.masks = allMasks(); }
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
       renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
@@ -656,13 +707,21 @@ customer service staff agent team people everyone nobody someone something nothi
   $('keep-comments').onchange = async e => {
     S.keepComments = e.target.checked;
     const manual = S.masks.filter(m => m.src !== 'auto');
-    S.masks = buildMasks(S.words).concat(manual);
+    S.masks = allMasks().concat(manual);
     S.gate = 'dirty'; renderTypes(); draw(); await verify();
   };
   $('btn-reapply').onclick = async () => {
     const manual = S.masks.filter(m => m.src !== 'auto');
-    S.masks = buildMasks(S.words).concat(manual);
+    S.masks = allMasks().concat(manual);
     S.gate = 'dirty'; renderTypes(); renderKept(); draw(); await verify();
+  };
+  $('ctx-on').onchange = async e => {
+    S.ctx.on = e.target.checked;
+    if (!S.img || !(S.words && S.words.length) || S.gate === 'running') return renderCtxNote();
+    if (S.ctx.on && !S.ctx.scores) { setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); }
+    const manual = S.masks.filter(m => m.src !== 'auto');
+    S.masks = allMasks().concat(manual);
+    S.gate = 'dirty'; renderTypes(); draw(); await verify();
   };
   // Typing a name to mask does nothing until it is applied, so sending is blocked until then.
   ['client-names', 'extra-allow'].forEach(id => $(id).addEventListener('input', () => {
@@ -958,5 +1017,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { classify, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks };
+  S.test = { classify, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext };
 })();

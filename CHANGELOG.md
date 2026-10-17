@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- On-device name check: a small PII model (Apache-2.0, 19 MB) runs in a Web Worker and masks safe words used as names, such as "May Chen" or "Delta Airlines", that the allowlist would otherwise keep. It only adds masks ("Name in context", brown), never touches words you marked safe, runs before the pre-flight check, and can be switched off under *Redaction policy*. Model and runtime are served by VaultSnip itself; store packages include them.
+- Rust/WebAssembly port of the text classifier (`src/core-rust`), with parity tests against the JavaScript rules.
+- `CLAUDE.md` and new ground rules in `CONTRIBUTING.md`: ethics, privacy law and licences are checked before any change; only compatible licences; disclosure in `PRIVACY.md`; VaultSnip stays free and open source.
+
 ## [0.5.2] - 2026-10-11
 
 ### Fixed
