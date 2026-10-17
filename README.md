@@ -33,7 +33,6 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
 | Mask by default, allowlist to keep | ✅ client names, numbers/money, IDs, emails, unlisted text |
 | Blur text in charts on any page (extension) | ✅ right-click → "Blur text in charts on this page" or Alt+Shift+B: charts drawn on canvas (Power BI, Tableau, ECharts…) are read on your device and sensitive text is blurred in place; run again to remove |
-| Masked session replay (extension) | ✅ right-click → "Record this tab (text masked)" or Alt+Shift+R: clicks, hovers, scrolls and changes replay with text masked on your device; audited before it plays; download as JSON or an offline HTML player |
 | On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ four independent re-reads of the masked image, plus "Mask all" |
 | Review: click to toggle, drag to add masks | ✅ |
@@ -42,7 +41,6 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
 | Replica: KPI, bar, column, stacked, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table | ✅ Apache ECharts |
 | Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
-| **Search this dashboard** | ✅ typo-tolerant search over titles, labels, cells and values; jumps to the visual or filters the page; in the app and in HTML and React exports; index rebuilt from what is shown |
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
 | Privacy modes: Shape-preserving, Structure-only, Generic | ✅ |
 | **Realistic names** | ✅ made-up people, companies, emails, IDs and places that fit each column and each row's country (Faker); seeded, switchable, never in Generic mode; emails only at example.com/.net/.org |
@@ -90,7 +88,6 @@ Open http://localhost:8080 and click **Try with sample dashboards**. Opening `in
 2. **Load unpacked** → choose `dist/extension`.
 3. Open any dashboard tab, click the VaultSnip toolbar icon, drag over the area, and go.
 4. To blur sensitive text inside the page's charts without leaving it, right-click → **Blur text in charts on this page** (or Alt+Shift+B). Run it again to remove the blur.
-5. To record a masked replay of the tab, right-click → **Record this tab (text masked)** (or Alt+Shift+R); click the red badge to stop. The replay opens in VaultSnip, where you can play it and download it.
 
 Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: the OCR model ships inside the extension (about 7 MB zipped), so it works offline and makes no network request until you send an approved image to your AI provider. Tagged releases attach ready-made packages automatically.
 
@@ -106,7 +103,6 @@ Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: 
 web/              the app (static, no build step), published as-is
   index.html      screens and styles
   app.js          pipeline: OCR, masking, gate, review, AI call, export
-  replay.html/js  masked session replay (player in lib/vs-replay.js)
   llm.js          AI providers (Claude, OpenAI): the only code that calls an AI service
   replica.js      replica engine, also inlined into every export
   feedback.js     in-app feedback and error reporting
@@ -115,7 +111,7 @@ web/              the app (static, no build step), published as-is
   lib/ lang/      tesseract.js + OCR model, echarts, vs-context.js (name check client)
   ml/ models/     name check: Web Worker + ONNX runtime (built by npm run build:ml), PII model (npm run fetch:model)
 extension/        manifest.json; background.js, canvas-ocr.js, offscreen.*, wasm/ built from src/ (npm run build:ext)
-src/              TypeScript sources: name check (background/, content/), Rust scanner (core-rust/)
+src/              TypeScript sources: name check, chart blur (background/, content/), exports (export/, exporters/), realistic names (replica/)
 tools/            check.mjs, e2e.mjs, build-ml.mjs, fetch-model.mjs, maps/build_maps.py
 build.sh          builds dist/web, dist/extension, dist/hf-space and zips
 ```

@@ -32,19 +32,14 @@
     "e2e": "node tools/e2e.mjs",
     "build": "bash build.sh",
     "maps": "python3 tools/maps/build_maps.py",
-    "build:wasm": "wasm-pack build src/core-rust --release --target web --out-dir ../../public/wasm --out-name vaultsnip_core",
-    "test:rust": "cargo test --manifest-path src/core-rust/Cargo.toml",
     "test:unit": "vitest run",
     "fetch:model": "node tools/fetch-model.mjs",
     "build:ml": "node tools/build-ml.mjs",
     "test:ml-e2e": "node tests/e2e/ml-worker.e2e.mjs",
     "build:ext": "node tools/build-ext.mjs",
     "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs",
-    "build:replay": "node tools/build-replay.mjs",
-    "test:replay-e2e": "node tests/e2e/replay.e2e.mjs",
     "build:faker": "node tools/build-faker.mjs",
     "build:design": "node tools/build-design.mjs",
-    "build:search": "node tools/build-search.mjs",
     "build:react": "node tools/build-react.mjs"
   },
   "dependencies": {
@@ -52,8 +47,6 @@
     "@huggingface/transformers": "4.3.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "echarts": "^5.6.0",
-    "minisearch": "7.2.0",
-    "rrweb": "2.1.7",
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
 /**
  * Canvas redaction on the live page (Feature 3). Charts in Power BI, Tableau, ECharts and Chart.js are
  * <canvas> elements, so their text is not in the DOM. This reads each canvas's pixels, has the extension
- * read and classify the text (OCR + Rust scanner, in an offscreen document), and blurs what it flags.
+ * read and classify the text (OCR + the app's masking rules, in an offscreen document), and blurs what it flags.
  *
  * The blur is drawn on an overlay canvas above each chart, not into the chart's own context: chart
  * libraries redraw on every hover, animation or resize, which would wipe it; WebGL canvases have no 2D

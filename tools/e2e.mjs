@@ -279,7 +279,7 @@ try {
   const dlT = await exportReact('tsx');
   const tsx = unzipText(await readFile(await dlT.path()));
   const TP = 'WebsitePerformanceReplica/';
-  check(dlT.suggestedFilename() === 'WebsitePerformanceReplica-tsx.zip' && ['WebsitePerformanceReplica.tsx', 'components.tsx', 'useReplica.ts', 'types.ts', 'vaultsnip-replica.js', 'vaultsnip-search.js', 'vaultsnip-faker.js', 'spec.json', 'maps.json', 'README.md'].every(f => TP + f in tsx),
+  check(dlT.suggestedFilename() === 'WebsitePerformanceReplica-tsx.zip' && ['WebsitePerformanceReplica.tsx', 'components.tsx', 'useReplica.ts', 'types.ts', 'vaultsnip-replica.js', 'vaultsnip-faker.js', 'spec.json', 'maps.json', 'README.md'].every(f => TP + f in tsx),
     `the TypeScript export is a project folder: page, components, hook, types, engine, spec, maps (${dlT.suggestedFilename()})`);
   const appCards = await page.evaluate(() => [...document.querySelectorAll('#replica .rp-grid > .rp-card')].map(c => c.dataset.vid + ':' + c.dataset.component + ':' + getComputedStyle(c).getPropertyValue('--span').trim()));
   const pageSrc = tsx[TP + 'WebsitePerformanceReplica.tsx'];
@@ -316,8 +316,6 @@ try {
   check(await t1.rp.locator('.rp-kpi .v').first().textContent() === tl.kpi, 'Clear all filters restores the values');
   const [csvT] = await Promise.all([t1.rp.waitForEvent('download'), t1.rp.locator('.rp-csv').click()]);
   check(csvT.suggestedFilename() === 'website-performance-synthetic-data.csv' && /^visual,visual_type,/.test((await readFile(await csvT.path(), 'utf8')).replace(/^﻿/, '')), '"Download data (CSV)" works in the TypeScript components');
-  await t1.rp.fill('.rp-search input', 'pricng'); await t1.rp.waitForTimeout(200);
-  check(/\/pricing/.test(await t1.rp.locator('.rp-sr').innerText()), '"Search this dashboard" works in the TypeScript components');
   await t1.rp.evaluate(() => window.__mount({ seed: 99 })); await t1.rp.waitForTimeout(600);
   check(await t1.rp.locator('.rp-kpi .v').first().textContent() !== tl.kpi, 'a new seed prop generates new values');
   check(t1.errs.length === 0, 'the TypeScript components make no network requests and throw no errors' + (t1.errs.length ? ': ' + t1.errs.join(' | ') : ''));
@@ -336,43 +334,6 @@ try {
   await t3.rp.evaluate(() => window.__mount({ mode: 'shape' })); await t3.rp.waitForTimeout(1500);
   check(await t3.rp.locator('.rp-head h2').textContent() === 'Dashboard 1' && /Generic mode/.test(await t3.rp.locator('.rp-ribbon').textContent()), 'a Generic TypeScript export stays Generic even when asked for a less private mode');
   await t3.rp.close();
-
-  console.log('Search this dashboard (Feature 7)');
-  await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);
-  const sbox = '#replica .rp-search input', sres = '#replica .rp-sr';
-  await page.fill(sbox, 'pricng'); await wait(200);
-  check(/\/pricing/.test(await page.locator(sres).innerText()) && await page.locator(sbox).getAttribute('aria-expanded') === 'true', 'a typo still finds the label ("pricng" finds /pricing)');
-  await page.keyboard.press('Enter'); await wait(300);
-  check(await page.locator('#replica .rp-card.rp-hit h3').textContent() === 'Top landing pages' && await page.locator(sres).isHidden(), 'Enter jumps to the chart and highlights it');
-  const before7 = await kpi();
-  await page.fill(sbox, 'paid search'); await wait(200);
-  await page.locator(`${sres} .flt`).first().click(); await wait(400);
-  check(await kpi() !== before7 && /Filtered/.test(await page.locator('#replica .rp-ribbon').textContent()), 'a match on a filter chip filters the page in one click');
-  check(await page.locator(sbox).inputValue() === 'paid search', 'the query is kept when the page re-renders');
-  await page.locator('#replica .rp-clear').click(); await wait(300);
-  await page.fill(sbox, 'organic'); await wait(150); await page.keyboard.press('Escape');
-  check(await page.locator(sres).isHidden(), 'Escape closes the results');
-  await page.locator('#modes button[data-mode="generic"]').click(); await wait(400);
-  await page.fill(sbox, 'paid search'); await wait(200);
-  const genRes = await page.locator(sres).innerText();
-  await page.fill(sbox, 'dimension'); await wait(200);
-  const genRes2 = await page.locator(sres).innerText();
-  check(/No matches/.test(genRes) && /Dimension/.test(genRes2), 'in Generic mode only Generic labels can be found (the index is built from what is shown)');
-  await page.fill(sbox, ''); await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);
-  const [dlQ] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export')]);
-  const pQ = await browser.newPage(); const netQ = [];
-  pQ.on('request', r => { if (!/^(data|about):/.test(r.url())) netQ.push(r.url()); });
-  await pQ.setContent(await readFile(await dlQ.path(), 'utf8')); await pQ.waitForTimeout(1500);
-  await pQ.fill('.rp-search input', 'pricng'); await pQ.waitForTimeout(200);
-  check(/\/pricing/.test(await pQ.locator('.rp-sr').innerText()) && netQ.length === 0, 'search works in the offline HTML export, with no network requests');
-  await pQ.close();
-  check(P + 'vaultsnip-search.js' in pkg, 'the React package ships the search box');
-  const rq = await runReact(pkg, 'WebsitePerformanceReplica');
-  await rq.rp.evaluate(() => window.__mount({})); await rq.rp.waitForTimeout(1500);
-  await rq.rp.fill('.rp-search input', 'checkout'); await rq.rp.waitForTimeout(200);
-  check(/Checkout funnel/.test(await rq.rp.locator('.rp-sr').innerText()) && rq.errs.length === 0, 'search works inside the React component');
-  await rq.rp.close();
-  check(!/Search this dashboard/.test(svg), 'the Figma SVG leaves the search box out');
 
   console.log('Untrusted labels');
   const xss = await page.evaluate(async () => {
@@ -655,13 +616,12 @@ try {
     const t0 = performance.now(); DSCReplica.render(root, spec, { mode: 'shape', seed: 7, resetSelection: true }); const tRender = performance.now() - t0; const cells = root.querySelectorAll('.rp-table td').length;
     const t1 = performance.now(); root.querySelector('.rp-chip').click(); const tFilter = performance.now() - t1;
     const t2 = performance.now(); const m = DSCReplica.model(spec, { mode: 'shape', seed: 7, realistic: true, filters: {} }); const tModel = performance.now() - t2;
-    const t3 = performance.now(); const docs = VSSearch.buildDocs(root, echarts).length; const tIndex = performance.now() - t3;
     root._charts.forEach(c => c.dispose()); root._ro && root._ro.disconnect(); root.remove();
-    return { tRender, tFilter, tModel, tIndex, docs, cells, visuals: m.visuals.length };
+    return { tRender, tFilter, tModel, cells, visuals: m.visuals.length };
   });
-  check(stress.cells >= 500 && stress.visuals === 18, `a large dashboard renders: 18 visuals, ${stress.cells} table cells, ${stress.docs} search entries`);
-  check(stress.tRender < 3000 && stress.tFilter < 3000 && stress.tModel < 3000 && stress.tIndex < 1000,
-    `it stays responsive: render ${stress.tRender.toFixed(0)} ms, filter ${stress.tFilter.toFixed(0)} ms, model ${stress.tModel.toFixed(0)} ms, search index ${stress.tIndex.toFixed(0)} ms`);
+  check(stress.cells >= 500 && stress.visuals === 18, `a large dashboard renders: 18 visuals, ${stress.cells} table cells`);
+  check(stress.tRender < 3000 && stress.tFilter < 3000 && stress.tModel < 3000,
+    `it stays responsive: render ${stress.tRender.toFixed(0)} ms, filter ${stress.tFilter.toFixed(0)} ms, model ${stress.tModel.toFixed(0)} ms`);
   // Memory: render, filter, export-copy and model the sample many times; after garbage collection the heap must not keep growing.
   await page.click('#btn-try'); await page.locator('#samples .sample button').nth(1).click();
   await page.waitForFunction(() => document.querySelectorAll('#replica .rp-chart').length >= 8); await wait(2000);

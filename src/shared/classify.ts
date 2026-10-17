@@ -1,7 +1,6 @@
 /**
- * TypeScript port of classify() in web/app.js, for code that cannot load WASM (content scripts run under the
- * page's CSP). Same order of checks, same results; tests/unit/replay.test.ts checks it against the Rust
- * scanner, which is itself checked against web/app.js.
+ * TypeScript port of classify() in web/app.js, used by the extension's chart blur (src/background/offscreen-ocr.ts).
+ * Same order of checks, same results: tests/unit/classify.test.ts checks it against web/app.js on a fuzzed corpus.
  */
 import { ALLOW_WORDS } from './allowlist';
 
@@ -31,20 +30,3 @@ export function classify(text: string, p: ClassifyPolicy = {}): TextType | null 
   if (parts.length > 1 && parts.every((x) => allow.has(x))) return null;
   return 'Text not on allowlist';
 }
-
-/** Hides a word but keeps its shape, so layouts replay at the same width: letters → X/x, digits → 0. */
-export const maskWord = (w: string) => w.replace(/[\p{L}\p{N}]/gu, (c) => (/\p{N}/u.test(c) ? '0' : /\p{Lu}/u.test(c) ? 'X' : 'x'));
-
-/**
- * Masks every word classify() would mask; allowlisted words, years and periods stay readable.
- * Idempotent: masking masked text changes nothing.
- */
-export function maskText(text: string, p: ClassifyPolicy = {}): string {
-  return text.replace(/\S+/g, (tok) => {
-    const type = classify(tok, p);
-    return !type ? tok : type === 'Email' ? maskWhole(tok) : maskWord(tok);
-  });
-}
-
-/** Emails lose their shape too ("xxxxxxxxxx"), so no "@" or domain structure is left. */
-export const maskWhole = (w: string) => w.replace(/\S/g, 'x');

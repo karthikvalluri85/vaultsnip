@@ -94,14 +94,6 @@ describe('React package (Feature 5)', () => {
     expect(jsx).toMatch(/\[seed, level, realistic\]/);
   });
 
-  it('ships the search box when given, published on window', () => {
-    expect(Object.keys(files).some((f) => f.endsWith('vaultsnip-search.js'))).toBe(false);
-    const withSearch = unzip(reactPackage({ spec, mode: 'shape', seed: 5, title: 'Sales Overview', replica: '', search: 'var VSSearch={};', maps: {} }).zip);
-    expect(withSearch['SalesOverviewReplica/vaultsnip-search.js']).toMatch(/MiniSearch \(MIT[\s\S]*var VSSearch=\{\};[\s\S]*window\.VSSearch = VSSearch;/);
-    expect(withSearch['SalesOverviewReplica/SalesOverviewReplica.jsx']).toMatch(/import '\.\/vaultsnip-search\.js';\nimport '\.\/vaultsnip-replica\.js';/);
-    expect(withSearch['SalesOverviewReplica/README.md']).toMatch(/Search this dashboard[\s\S]*MiniSearch/);
-  });
-
   it('cannot show a less private mode than it was exported at', () => {
     const jsx = files['SalesOverviewReplica/SalesOverviewReplica.jsx'];
     expect(jsx).toMatch(/const EXPORTED = "structure";/);
