@@ -79,7 +79,8 @@ function rng(seed: number) {
 }
 
 describe.skipIf(!built)('Rust scanner (real WASM)', () => {
-  const allow = new Set(['revenue', 'sales', 'north', 'south', 'region', 'total', 'q', 'jan', 'feb', 'orders']);
+  // 'acme widgets' is one extra-allowlist entry with a space: it must not allow 'acme' on its own.
+  const allow = new Set(['revenue', 'sales', 'north', 'south', 'region', 'total', 'q', 'jan', 'feb', 'orders', 'acme widgets']);
   const session = new Set(['widgets']);
   const clients = ['acme corp', 'globex'];
 
@@ -94,9 +95,11 @@ describe.skipIf(!built)('Rust scanner (real WASM)', () => {
 
   it('matches the JavaScript classify() on a fuzzed corpus', async () => {
     const b = await load();
-    const alphabet = 'abcXYZ019 -_/&@.#$€%()é,';
+    // includes whitespace where JS and Rust disagree by default: U+0085, U+FEFF, U+00A0
+    const alphabet = 'abcXYZ019 -_/&@.#$€%()é,\u0085﻿ ';
     const r = rng(42);
-    const corpus: string[] = ['', ' ', 'Revenue', 'North-South', 'widgets-revenue', 'INV-20931', '4410-X', 'a@b', 'Q3', 'FY24', '2024', 'Acme Corp Q3'];
+    const corpus: string[] = ['', ' ', 'Revenue', 'North-South', 'widgets-revenue', 'INV-20931', '4410-X', 'a@b', 'Q3', 'FY24', '2024', 'Acme Corp Q3',
+      'acme', 'widgets', 'Acme Widgets', '﻿Revenue', '\u0085Revenue\u0085', 'Revenue Total'];
     for (let i = 0; i < 20000; i++) {
       let s = '';
       for (let n = 1 + Math.floor(r() * 12); n--; ) s += alphabet[Math.floor(r() * alphabet.length)];

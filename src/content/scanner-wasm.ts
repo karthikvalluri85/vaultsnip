@@ -31,8 +31,11 @@ export type WasmLoader = () => Promise<WasmModule>;
 
 const SEP = '\u001f';
 
+// Only the one call the default loader makes; avoids a dependency on @types/chrome.
+declare const chrome: { runtime: { getURL(path: string): string } };
+
 export interface Policy {
-  /** ALLOW plus the user's extra allowlist. */
+  /** ALLOW plus the user's extra allowlist. An entry may contain spaces; it is matched whole. */
   allow?: Iterable<string>;
   /** Words approved during this session. */
   sessionAllow?: Iterable<string>;

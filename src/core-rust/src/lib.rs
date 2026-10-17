@@ -26,6 +26,12 @@ pub const NOT_ON_ALLOWLIST: u8 = 5;
 /// Separator between texts in a `scan` batch (ASCII unit separator). The TS bridge strips it from input.
 const SEP: char = '\u{1f}';
 
+/// JS `\s` and `String.prototype.trim`: Rust's White_Space plus U+FEFF, minus U+0085 (NEL),
+/// which JS does not count as whitespace.
+fn is_js_space(c: char) -> bool {
+    (c.is_whitespace() && c != '\u{85}') || c == '\u{feff}'
+}
+
 // JS `\w` without the `u` flag is ASCII only, so these are ASCII only too.
 fn is_word(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
@@ -103,10 +109,12 @@ fn has_number_or_money(s: &str) -> bool {
     s.chars().any(|c| c.is_ascii_digit() || is_currency(c))
 }
 
-fn word_set(list: &str) -> HashSet<String> {
-    list.split(|c: char| c.is_whitespace() || c == ',')
+/// One entry per line. An entry may contain spaces ("acme widgets" allows only that exact text,
+/// as `extraAllow()` does in JS); splitting on spaces would also allow "acme" alone.
+fn entry_set(list: &str) -> HashSet<String> {
+    list.split('\n')
+        .map(|w| w.trim_matches(is_js_space).to_lowercase())
         .filter(|w| !w.is_empty())
-        .map(|w| w.to_lowercase())
         .collect()
 }
 
@@ -128,27 +136,28 @@ impl Scanner {
         Scanner::default()
     }
 
-    /// Words separated by whitespace or commas.
+    /// One entry per line.
     pub fn set_allowlist(&mut self, words: &str) {
-        self.allow = word_set(words);
+        self.allow = entry_set(words);
     }
 
+    /// One entry per line.
     pub fn set_session_allow(&mut self, words: &str) {
-        self.session = word_set(words);
+        self.session = entry_set(words);
     }
 
     /// Comma-separated; a name may contain spaces ("acme corp").
     pub fn set_client_names(&mut self, names: &str) {
         self.clients = names
             .split(',')
-            .map(|n| n.trim().to_lowercase())
+            .map(|n| n.trim_matches(is_js_space).to_lowercase())
             .filter(|n| !n.is_empty())
             .collect();
     }
 
     /// Category code for one text (`NONE` = safe to keep).
     pub fn classify(&self, text: &str) -> u8 {
-        let raw = text.trim();
+        let raw = text.trim_matches(is_js_space);
         let clean = clean(raw);
         if clean.is_empty() {
             return NONE;
@@ -157,7 +166,7 @@ impl Scanner {
         if self
             .clients
             .iter()
-            .any(|n| low.contains(n.as_str()) || n.split_whitespace().any(|p| p == low))
+            .any(|n| low.contains(n.as_str()) || n.split(is_js_space).any(|p| p == low))
         {
             return CLIENT_NAME;
         }
@@ -199,7 +208,7 @@ mod tests {
 
     fn scanner() -> Scanner {
         let mut s = Scanner::new();
-        s.set_allowlist("revenue sales region north south q jan feb total");
+        s.set_allowlist("revenue\nsales\nregion\nnorth\nsouth\nq\njan\nfeb\ntotal\nacme widgets");
         s.set_session_allow("widgets");
         s.set_client_names("Acme Corp, Globex");
         s
@@ -259,6 +268,24 @@ mod tests {
         assert_eq!(s.classify("Initech"), NOT_ON_ALLOWLIST);
         assert_eq!(s.classify("x"), NONE);
         assert_eq!(s.classify("  ...  "), NONE);
+    }
+
+    #[test]
+    fn allowlist_entry_with_space_is_one_entry() {
+        let mut s = Scanner::new();
+        s.set_allowlist("acme widgets");
+        assert_eq!(s.classify("Acme Widgets"), NONE);
+        assert_eq!(s.classify("acme"), NOT_ON_ALLOWLIST);
+        assert_eq!(s.classify("widgets"), NOT_ON_ALLOWLIST);
+    }
+
+    #[test]
+    fn whitespace_follows_js() {
+        let s = scanner();
+        assert_eq!(s.classify("\u{feff}Revenue\u{feff}"), NONE); // JS trim strips U+FEFF
+        assert_eq!(s.classify("\u{a0}Revenue\u{3000}"), NONE);
+        // JS trim keeps U+0085, but clean() then strips it as a non-word edge character
+        assert_eq!(s.classify("\u{85}Revenue"), NONE);
     }
 
     #[test]

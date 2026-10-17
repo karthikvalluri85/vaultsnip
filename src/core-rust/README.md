@@ -14,4 +14,8 @@ npm run test:unit    # Vitest: bridge tests + JS-vs-Rust parity (20k strings) + 
 ```
 
 The parity and benchmark tests skip themselves until `public/wasm/` exists.
-Report the output of all three; the Rust code was written without being compiled.
+CI runs all three in the "Rust/WASM scanner" job (pull requests and pushes to `main`).
+
+Policy entries cross the boundary one per line, so an extra-allowlist entry with a space
+("acme widgets") is matched whole, as in `extraAllow()` in `web/app.js`. Whitespace follows JS
+`trim()`/`\s` (U+FEFF counts, U+0085 does not), not Rust's `char::is_whitespace`.
