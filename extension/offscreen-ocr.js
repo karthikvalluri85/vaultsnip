@@ -79,6 +79,34 @@ sprint sprints story stories points velocity burndown committed completed carry 
 experiment experiments variant variants control treatment lift interval significant significance confidence
 median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second sec secs ms
 `.split(/\s+/).filter(Boolean);
+const DEFAULT_ALLOW = new Set(ALLOW_WORDS);
+function classify(text, p = {}) {
+  const allow = p.allow ?? DEFAULT_ALLOW;
+  const raw = text.trim();
+  const clean = raw.replace(/^[^\w€$£¥₹%#@]+|[^\w€$£¥₹%]+$/g, "");
+  if (!clean) return null;
+  const low = clean.toLowerCase();
+  if ((p.clientNames ?? []).some((n) => n && (low.includes(n) || n.split(/\s+/).includes(low)))) return "Client name";
+  if (/\w@\w/.test(raw) || /@/.test(raw) && /\./.test(raw)) return "Email";
+  if (/^(19|20)\d{2}$/.test(clean) || /^(q[1-4]|h[12]|fy\d{2,4}|w\d{1,2}|p\d{1,2})$/i.test(clean)) return null;
+  if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return "Identifier";
+  if (/[\d€$£¥₹%]/.test(clean)) return "Number or money";
+  if (clean.length <= 1) return null;
+  if (allow.has(low)) return null;
+  const parts = low.split(/[-/&]/).filter(Boolean);
+  if (parts.length > 1 && parts.every((x) => allow.has(x))) return null;
+  return "Text not on allowlist";
+}
+async function createScanner(load2, allow) {
+  try {
+    const bridge = await ScannerBridge.create(load2, { allow });
+    return { engine: "wasm", scan: (texts) => bridge.scan(texts) };
+  } catch (e) {
+    console.warn("VaultSnip: the Rust scanner did not load; using the same rules in TypeScript.", e);
+    const set = new Set(allow);
+    return { engine: "typescript", scan: (texts) => texts.map((t) => classify(t, { allow: set })) };
+  }
+}
 function parseTsv(tsv, scale) {
   const out = [];
   for (const line of tsv.split("\n")) {
@@ -134,7 +162,7 @@ function ocrWorker() {
   });
 }
 let scannerP = null;
-const scanner = () => scannerP ??= ScannerBridge.create(extensionLoader, { allow: ALLOW_WORDS });
+const scanner = () => scannerP ??= createScanner(extensionLoader, ALLOW_WORDS);
 function load(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();

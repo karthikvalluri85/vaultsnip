@@ -14,6 +14,18 @@ import { auditEvents, sanitizeEvents, type RrEvent } from '../shared/replay-sani
 
 const KEY = '__vaultsnipRecorder';
 const MAX_MS = 10 * 60 * 1000;
+// Chrome refuses extension messages over 64 MiB; a busy live dashboard can pass that within minutes
+// (a full snapshot every 15 s), so a recording stops in good time and says why.
+export const MAX_BYTES = 40 * 1024 * 1024;
+
+/** Running size of the recorded events (JSON characters); true once `max` is passed. */
+export function sizeBudget(max = MAX_BYTES) {
+  let total = 0;
+  return {
+    add(e: unknown): boolean { try { total += JSON.stringify(e).length; } catch { /* not serialisable: not sent either */ } return total > max; },
+    get total() { return total; },
+  };
+}
 
 /** Recording options, exported for tests. */
 export const RECORD_OPTIONS = {
@@ -55,8 +67,14 @@ function start(): State {
   tick();
   const clock = setInterval(tick, 1000);
 
-  const stopRecording = record<RrEvent>({ ...RECORD_OPTIONS, emit: (e) => { events.push(e as RrEvent); } });
+  const budget = sizeBudget();
+  let full = false;
   let stopped = false;
+  const stopRecording = record<RrEvent>({ ...RECORD_OPTIONS, emit: (e) => {
+    if (stopped) return;
+    events.push(e as RrEvent);
+    if (budget.add(e) && !full) { full = true; setTimeout(() => finish(), 0); }
+  } });
   const limit = setTimeout(() => finish(), MAX_MS);
 
   function finish(): void {
@@ -76,9 +94,17 @@ function start(): State {
       console.warn('VaultSnip: recording discarded by the privacy audit', findings.slice(0, 5));
       return;
     }
-    badge.textContent = 'Opening the masked replay…';
+    badge.textContent = full ? 'Recording stopped at the size limit (busy page). Opening the masked replay…' : 'Opening the masked replay…';
     const msg: RecordingMessage = { type: 'vs-recording', events: clean, durationMs: Date.now() - t0 };
-    chrome.runtime.sendMessage(msg).finally(() => setTimeout(() => host.remove(), 1500));
+    chrome.runtime.sendMessage(msg).then(
+      () => setTimeout(() => host.remove(), full ? 4000 : 1500),
+      (e: unknown) => {
+        // never fail silently: say what happened; nothing was saved anywhere
+        badge.textContent = `The replay could not be opened (${e instanceof Error ? e.message : String(e)}). Nothing was saved. Try a shorter recording.`;
+        badge.style.background = '#14181e';
+        setTimeout(() => host.remove(), 10000);
+      },
+    );
   }
 
   badge.onclick = finish;

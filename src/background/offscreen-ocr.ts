@@ -5,7 +5,8 @@
  * the page's CSP, which strict sites (Power BI, Tableau) use to block them. An offscreen document runs
  * under the extension's own CSP. Tesseract and its language data are the app's own copies (app/lib, app/lang).
  */
-import { ScannerBridge, extensionLoader } from '../content/scanner-wasm';
+import { extensionLoader } from '../content/scanner-wasm';
+import { createScanner, type TextScanner } from './text-scanner';
 import { ALLOW_WORDS } from '../shared/allowlist';
 import type { OcrImage, OcrReply, OcrResult, ToOffscreen } from './canvas-protocol';
 import { maskBoxes, mergePasses, parseTsv, type OcrWord } from './ocr-words';
@@ -31,8 +32,8 @@ function ocrWorker(): Promise<TesseractWorker> {
   }).catch((e) => { workerP = null; throw e; }));
 }
 
-let scannerP: Promise<ScannerBridge> | null = null;
-const scanner = () => (scannerP ??= ScannerBridge.create(extensionLoader, { allow: ALLOW_WORDS }));
+let scannerP: Promise<TextScanner> | null = null;
+const scanner = () => (scannerP ??= createScanner(extensionLoader, ALLOW_WORDS));
 
 function load(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

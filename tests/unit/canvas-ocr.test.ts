@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { cropForCanvas, pixelDelta, toCss, uncovered } from '../../src/content/canvas-ocr';
+import { changedBox, cropForCanvas, pixelDelta, SIG, toCss, uncovered, unionBox } from '../../src/content/canvas-ocr';
 import { maskBoxes, mergePasses, overlap, parseTsv } from '../../src/background/ocr-words';
 import { ALLOW_WORDS } from '../../src/shared/allowlist';
 
@@ -79,5 +79,39 @@ describe('shared allowlist', () => {
     const m = app.match(/const ALLOW = new Set\(\(`([\s\S]*?)`\)/);
     expect(m, 'ALLOW not found in web/app.js').toBeTruthy();
     expect([...new Set(ALLOW_WORDS)].sort()).toEqual([...new Set(m![1].split(/\s+/).filter(Boolean))].sort());
+  });
+});
+
+describe('redraw detection', () => {
+  const blank = () => new Uint8ClampedArray(SIG * SIG * 4).fill(255);
+  const paintCells = (a: Uint8ClampedArray, x0: number, y0: number, w: number, h: number) => {
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = (y * SIG + x) * 4; a[i] = a[i + 1] = a[i + 2] = 20; }
+    return a;
+  };
+
+  it('finds one new label in an empty part of a chart, which an average over the chart misses', () => {
+    const before = blank(), after = paintCells(blank(), 40, 30, 8, 2); // ~0.4% of the thumbnail
+    expect(pixelDelta(after, before)).toBeLessThan(2);                  // the old test: no redraw seen
+    const box = changedBox(after, before)!;
+    expect(box).not.toBeNull();
+    // the box covers the label, with one cell of margin
+    expect(box.x).toBeCloseTo(39 / SIG); expect(box.y).toBeCloseTo(29 / SIG);
+    expect(box.w).toBeCloseTo(10 / SIG); expect(box.h).toBeCloseTo(4 / SIG);
+  });
+
+  it('sees nothing when nothing changed, and treats a size change as a change everywhere', () => {
+    expect(changedBox(blank(), blank())).toBeNull();
+    expect(changedBox(blank(), new Uint8ClampedArray(16))).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+  });
+
+  it('ignores tiny anti-aliasing differences', () => {
+    const a = blank(), b = blank(); b[100] = 240;
+    expect(changedBox(a, b)).toBeNull();
+  });
+
+  it('joins covered regions', () => {
+    const u = unionBox({ x: 0.1, y: 0.1, w: 0.1, h: 0.1 }, { x: 0.5, y: 0.5, w: 0.2, h: 0.2 })!;
+    [u.x, u.y, u.w, u.h].forEach((v, i) => expect(v).toBeCloseTo([0.1, 0.1, 0.6, 0.6][i]));
+    expect(unionBox(null, { x: 0, y: 0, w: 1, h: 1 })).toEqual({ x: 0, y: 0, w: 1, h: 1 });
   });
 });

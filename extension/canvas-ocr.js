@@ -14,15 +14,34 @@
       return !masks.some((m) => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h);
     });
   }
-  function pixelDelta(a, b) {
-    if (a.length !== b.length) return 255;
-    let d = 0;
-    for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]);
-    return a.length ? d / a.length : 0;
+  const SIG = 64;
+  function changedBox(a, b, size = SIG, threshold = 24) {
+    if (a.length !== b.length || a.length !== size * size * 4) return { x: 0, y: 0, w: 1, h: 1 };
+    let x0 = size, y0 = size, x1 = -1, y1 = -1;
+    for (let i = 0; i < a.length; i += 4) {
+      if (Math.abs(a[i] - b[i]) > threshold || Math.abs(a[i + 1] - b[i + 1]) > threshold || Math.abs(a[i + 2] - b[i + 2]) > threshold || Math.abs(a[i + 3] - b[i + 3]) > threshold) {
+        const px = i / 4 % size, py = Math.floor(i / 4 / size);
+        if (px < x0) x0 = px;
+        if (px > x1) x1 = px;
+        if (py < y0) y0 = py;
+        if (py > y1) y1 = py;
+      }
+    }
+    if (x1 < 0) return null;
+    x0 = Math.max(0, x0 - 1);
+    y0 = Math.max(0, y0 - 1);
+    x1 = Math.min(size - 1, x1 + 1);
+    y1 = Math.min(size - 1, y1 + 1);
+    return { x: x0 / size, y: y0 / size, w: (x1 - x0 + 1) / size, h: (y1 - y0 + 1) / size };
   }
+  const unionBox = (a, b) => {
+    if (!a || !b) return a || b;
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+  };
   const KEY = "__vaultsnipCanvas";
   const MIN_W = 40, MIN_H = 20;
-  const WATCH_MS = 1500;
+  const WATCH_MS = 300;
   const send = (msg) => chrome.runtime.sendMessage(msg);
   function allCanvases(root, out = []) {
     root.querySelectorAll("canvas").forEach((c) => out.push(c));
@@ -38,6 +57,10 @@
     if (s.visibility === "hidden" || s.display === "none" || +s.opacity === 0) return null;
     return { x: r.left, y: r.top, w: r.width, h: r.height };
   }
+  function inView(c) {
+    const r = visibleRect(c);
+    return !!r && r.x + r.w > 0 && r.y + r.h > 0 && r.x < innerWidth && r.y < innerHeight;
+  }
   function loadImage(dataUrl) {
     return new Promise((res, rej) => {
       const i = new Image();
@@ -49,11 +72,11 @@
   function signature(c) {
     try {
       const t = document.createElement("canvas");
-      t.width = 32;
-      t.height = 32;
+      t.width = SIG;
+      t.height = SIG;
       const ctx = t.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(c, 0, 0, 32, 32);
-      return ctx.getImageData(0, 0, 32, 32).data;
+      ctx.drawImage(c, 0, 0, SIG, SIG);
+      return ctx.getImageData(0, 0, SIG, SIG).data;
     } catch {
       return null;
     }
@@ -94,6 +117,17 @@
       ctx.drawImage(tiny, 0, 0, tiny.width, tiny.height, box.x - 4, box.y - 4, box.w + 8, box.h + 8);
       ctx.restore();
     }
+    if (t.cover) {
+      const c = { x: t.cover.x * r.width, y: t.cover.y * r.height, w: t.cover.w * r.width, h: t.cover.h * r.height };
+      ctx.fillStyle = "#8a9099";
+      ctx.fillRect(c.x, c.y, c.w, c.h);
+      if (c.w > 180 && c.h > 24) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "12px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Hidden until VaultSnip reads it again", c.x + c.w / 2, c.y + c.h / 2 + 4);
+      }
+    }
   }
   function start() {
     const host = document.createElement("vaultsnip-redactions");
@@ -122,13 +156,20 @@
     }
     async function fromTab(cs, idBase) {
       const out = [];
+      const covers = cs.map((c) => targets.get(c)).filter((t) => !!t && !!t.cover).map((t) => t.overlay);
       badge.style.visibility = "hidden";
+      covers.forEach((o) => {
+        o.style.visibility = "hidden";
+      });
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       let cap;
       try {
         cap = await send({ type: "vs-canvas-capture" });
       } finally {
         badge.style.visibility = "";
+        covers.forEach((o) => {
+          o.style.visibility = "";
+        });
       }
       if (!cap.ok) throw new Error(cap.error);
       const shot = await loadImage(cap.dataUrl);
@@ -157,7 +198,7 @@
         overlay.style.cssText = "position:fixed;left:0;top:0;pointer-events:none;";
         shadow.insertBefore(overlay, badge);
         const r = c.getBoundingClientRect();
-        t = { canvas: c, overlay, masks: [], size: { w: r.width, h: r.height }, signature: null, busy: false };
+        t = { canvas: c, overlay, masks: [], size: { w: r.width, h: r.height }, signature: null, busy: false, cover: null, tries: 0 };
         targets.set(c, t);
       }
       return t;
@@ -176,10 +217,12 @@
           const t = target(s.c);
           const img = await loadImage(s.image.dataUrl);
           const found = (results.get(s.image.id)?.boxes ?? []).map((b) => ({ box: toCss(b, s.map), img, map: s.map }));
-          t.masks = s.fromTab && t.masks.length ? [...t.masks, ...found.filter((f) => uncovered([f.box], t.masks.map((m) => m.box)).length)] : found;
+          t.masks = s.fromTab && t.masks.length && !t.cover ? [...t.masks, ...found.filter((f) => uncovered([f.box], t.masks.map((m) => m.box)).length)] : found;
           const r = s.c.getBoundingClientRect();
           t.size = { w: r.width, h: r.height };
           t.signature = signature(s.c);
+          t.cover = null;
+          t.tries = 0;
           paint(t);
           n += t.masks.length;
         }
@@ -209,6 +252,25 @@
       }
       return added;
     }
+    function rescan(cs, boxes = /* @__PURE__ */ new Map()) {
+      const todo = cs.filter((c) => !targets.get(c)?.busy);
+      if (!todo.length) return;
+      todo.forEach((c) => {
+        const t = target(c);
+        t.cover = unionBox(t.cover, boxes.get(c) ?? { x: 0, y: 0, w: 1, h: 1 });
+        paint(t);
+      });
+      scan(todo).catch((e) => {
+        todo.forEach((c) => {
+          const t = targets.get(c);
+          if (t) t.tries++;
+        });
+        const msg = e instanceof Error ? e.message : String(e);
+        say(`a chart changed and could not be read again, so it stays hidden (${msg}). Run again to retry.`);
+        host.dataset.state = "error";
+        host.dataset.error = msg;
+      });
+    }
     const follow = () => {
       if (stopped) return;
       const resized = [];
@@ -221,18 +283,22 @@
         t.overlay.style.height = `${r.height}px`;
         if (shown && (Math.abs(r.width - t.size.w) > 1 || Math.abs(r.height - t.size.h) > 1)) resized.push(t.canvas);
       }
-      if (resized.length) void scan(resized).catch(() => {
-      });
+      if (resized.length) rescan(resized);
       requestAnimationFrame(follow);
     };
     const watch = setInterval(() => {
-      const redrawn = [...targets.values()].filter((t) => {
-        if (t.busy || !t.signature) return false;
+      const boxes = /* @__PURE__ */ new Map();
+      for (const t of targets.values()) {
+        if (t.busy || !t.signature) continue;
+        if (t.cover) {
+          if (t.tries < 3 && inView(t.canvas)) boxes.set(t.canvas, t.cover);
+          continue;
+        }
         const now = signature(t.canvas);
-        return !!now && pixelDelta(now, t.signature) > 2;
-      });
-      if (redrawn.length) void scan(redrawn.map((t) => t.canvas)).catch(() => {
-      });
+        const box = now && changedBox(now, t.signature);
+        if (box) boxes.set(t.canvas, box);
+      }
+      if (boxes.size) rescan([...boxes.keys()], boxes);
     }, WATCH_MS);
     (async () => {
       const cs = allCanvases(document).filter((c) => visibleRect(c));
