@@ -19,6 +19,7 @@
     view: 'orig',
     provider: 'anthropic', key: null, model: 'claude-sonnet-5-5',
     sessionAllow: new Set(),
+    fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
     ctx: { on: true, lines: null, scores: null, state: 'idle' }   // on-device name check (lib/vs-context.js, ml/)
   };
@@ -148,7 +149,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     'Name in context': 'Names spotted by on-device AI',
     'Kept by you': 'Kept visible by you'
   };
-  const label = t => LABELS[t] || t;
+  const label = t => (t === 'Number or money' && S.fakeNumbers ? 'Numbers (replaced with invented values)' : LABELS[t] || t);
   // a decision the user made, as opposed to one the rules made
   const byUser = m => m.userOff || m.src === 'manual' || m.src === 'check' || m.src === 'user';
 
@@ -516,15 +517,158 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   // fill: the colour of the masks. The re-scan's "ink" pass uses magenta, which it treats as background,
   // so a label right beside a mask is not swallowed into one dark blob with it.
-  function maskedCanvas(scale, fill) {
+  // Without a fill colour, numbers are replaced with invented values of the same size (when "fake numbers" is on) and
+  // every other mask stays a grey box. An image with invented numbers gets a footer strip that says so; opts.tag: false
+  // leaves it out (the review view says it in the page; the layout builder must not read it as content).
+  function maskedCanvas(scale, fill, opts) {
     scale = scale || 1;
+    const on = S.masks.filter(m => m.on);
+    const fakes = !fill && S.fakeNumbers && on.some(isNumberMask), strip = fakes && !(opts && opts.tag === false) ? footerHeight(scale) : 0;
     const c = document.createElement('canvas');
-    c.width = Math.round(S.img.width * scale); c.height = Math.round(S.img.height * scale);
+    c.width = Math.round(S.img.width * scale); c.height = Math.round(S.img.height * scale) + strip;
     const x = c.getContext('2d');
-    x.drawImage(S.img, 0, 0, c.width, c.height);
-    x.fillStyle = fill || '#787c82';
-    S.masks.filter(m => m.on).forEach(m => x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale));
+    x.drawImage(S.img, 0, 0, c.width, c.height - strip);
+    if (!fakes) {
+      x.fillStyle = fill || '#787c82';
+      on.forEach(m => x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale));
+      return c;
+    }
+    paintFakes(x, on, scale);
+    if (strip) drawFooter(x, c.width, c.height - strip, strip);
     return c;
+  }
+  const footerHeight = scale => Math.round(Math.max(26, S.img.width * scale / 55));
+  // Below the picture, so it hides nothing: a forwarded image must not pass for the real report.
+  function drawFooter(x, w, y, h) {
+    x.fillStyle = '#20262e'; x.fillRect(0, y, w, h);
+    const fs = Math.round(h * 0.42);
+    x.fillStyle = '#ffffff'; x.textBaseline = 'middle'; x.textAlign = 'left';
+    x.font = `600 ${fs}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    const lead = 'Numbers in this image are made up';
+    x.fillText(lead, fs, y + h / 2);
+    x.font = `400 ${fs}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    x.fillStyle = '#c9d1da';
+    x.fillText('  ·  same scale as the real ones, never the real values  ·  names and labels are masked', fs + x.measureText(lead).width, y + h / 2);
+  }
+
+  /* ---------------- numbers replaced with invented values ---------------- */
+  // A number in the masked image becomes a different, invented one of the same magnitude: the real value scaled by a
+  // random factor that always changes it (0.55-0.85 or 1.18-1.8), kept to the same number of digits before the decimal
+  // point, the same decimals, sign, currency, unit and separators ("$4.2M" → "$5.6M", "62.4%" → "41.9%", "21 °C" →
+  // "29 °C"). It never equals the real value. Numbers stacked as an axis share one factor, so the scale still reads in
+  // order. Years stay; dates become another valid date in the same year.
+  const isNumberMask = m => m.type === 'Number or money' || (m.type === 'Added after check' && /\d/.test(m.text || ''));
+  function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  const randomFactor = r => (r() < 0.5 ? 0.55 + r() * 0.3 : 1.18 + r() * 0.62);
+  // exact: the value to show (an axis tick rebuilt on an even scale); otherwise the real value is scaled at random
+  function fakeValue(text, seed, exact, depth = 0) {
+    const r = seeded(seed), digit = (lo = 0) => String(lo + Math.floor(r() * (10 - lo)));
+    const date = /^(\d{1,2})([-/.])([A-Za-z]{3,}|\d{1,2})\2(\d{2,4})$/.exec(text);
+    if (date) {
+      const d = 1 + Math.floor(r() * 28), mon = /\d/.test(date[3]) ? String(1 + Math.floor(r() * 12)).padStart(date[3].length, '0') : date[3];
+      const out = `${String(d).padStart(date[1].length, '0')}${date[2]}${mon}${date[2]}${date[4]}`;
+      return out === text && depth < 8 ? fakeValue(text, seed + 1, undefined, depth + 1) : out;
+    }
+    let first = true;
+    let out = text.replace(/\d[\d,]*(?:\.\d+)?/g, (run, offset) => {
+      if (/^(19|20)\d{2}$/.test(run)) return run;                                   // a year is a label, not a value
+      if (/\/\s*$/.test(text.slice(0, offset))) return run;                          // the scale of a rating ("/ 5") stays
+      const outOf = /^\s*\/\s*(\d+(?:\.\d+)?)/.exec(text.slice(offset + run.length)), cap = outOf ? parseFloat(outOf[1]) : Infinity;
+      const [intPart, dec = ''] = run.split('.'), plain = intPart.replace(/,/g, ''), v = parseFloat(plain + (dec ? '.' + dec : ''));
+      const afterColon = text[offset - 1] === ':', pct = text.slice(offset + run.length).trim().startsWith('%');
+      let n;
+      if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
+      else if (pct && v >= 100) n = String(90 + Math.floor(r() * 10)) + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // 100% becomes a high percentage
+      else {
+        // the real value scaled, kept to the same number of digits (a percentage stays at or under 100)
+        const fit = x => { const s = Math.round(x).toString(); return x > 0 && s.length === plain.length && (!pct || x <= 100) && x <= cap; };
+        let f = randomFactor(r), nv = exact != null && first ? exact : v * f;
+        first = false;
+        if (!fit(nv)) nv = v * (f > 1 ? 0.55 + r() * 0.3 : 1.18 + r() * 0.62);
+        if (v === 0 || !fit(nv)) nv = parseFloat(plain.length === 1 ? digit(1) : digit(1) + Array.from({ length: plain.length - 1 }, () => digit()).join('')) + (dec ? r() : 0);
+        if (nv > cap) nv = cap * (0.5 + 0.45 * r());                                  // a score stays within its scale
+        n = dec ? nv.toFixed(dec.length) : String(Math.round(nv));
+        const [ni, nd] = n.split('.');
+        n = ni.padStart(plain.length, '0').slice(-Math.max(plain.length, ni.length)) + (nd ? '.' + nd : '');
+      }
+      const [ni2, nd2] = n.split('.');
+      const grouped = intPart.includes(',') ? ni2.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ni2;
+      return grouped + (nd2 !== undefined ? '.' + nd2 : '');
+    });
+    // try again only when there is a number to change (a lone year stays as it is), and never endlessly
+    if (out === text && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run))) out = fakeValue(text, seed + 7, undefined, depth + 1);
+    return out;
+  }
+  // Numbers stacked as an axis (three or more in a column or a row, evenly spaced) share one factor, so the invented scale
+  // stays in order and evenly stepped.
+  function axisFactors(nums) {
+    const out = new Map(), val = m => parseFloat((m.text.match(/\d[\d,]*(?:\.\d+)?/) || ['NaN'])[0].replace(/,/g, ''));
+    const lines = (key, along) => {
+      const groups = [];
+      nums.filter(m => !out.has(m) && Number.isFinite(val(m))).forEach(m => {
+        // ticks of one axis are alike in size: a big KPI value above a chart is not one of them
+        const g = groups.find(g => Math.abs(key(g[0]) - key(m)) < Math.max(4, Math.min(g[0].w, m.w) * 0.6) && Math.abs(g[0].h - m.h) < Math.max(g[0].h, m.h) * 0.4);
+        if (g) g.push(m); else groups.push([m]);
+      });
+      groups.filter(g => g.length >= 3).forEach(g => {
+        g.sort((a, b) => along(a) - along(b));
+        const gaps = g.slice(1).map((m, i) => along(m) - along(g[i])), mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+        const even = mean > 0 && gaps.every(d => Math.abs(d - mean) < mean * 0.25);
+        // an axis steps its values evenly too (8, 7, 6, 5…); a table column of real figures does not, and sharing a factor
+        // there would keep the true ratios between its rows
+        const vals = g.map(val), steps = vals.slice(1).map((v, i) => v - vals[i]), ms = steps.reduce((a, b) => a + b, 0) / steps.length;
+        const stepped = ms !== 0 && steps.every(d => Math.abs(d - ms) <= Math.abs(ms) * 0.1);
+        if (!even || !stepped) return;
+        // one factor that keeps every tick to its number of digits (else each would fall back to its own and break the scale)
+        // rebuilt as an even scale: a new start and a new step, at the labels' precision, every tick keeping its digits
+        const r = seeded(hash(g.map(m => m.text).join('|'))), digits = v => String(Math.floor(Math.abs(v))).length;
+        const decs = Math.max(...g.map(m => ((m.text.match(/\d[\d,]*(?:\.(\d+))?/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
+        for (let k = 0; k < 24; k++) {
+          const f = randomFactor(r), start = q(vals[0] * f), step = q(ms * f) || Math.sign(ms) * unit;
+          const next = vals.map((_, i) => q(start + i * step));
+          if (next.every((v, i) => v > 0 && digits(v) === digits(vals[i]) && v !== vals[i])) { g.forEach((m, i) => out.set(m, next[i])); break; }
+        }
+      });
+    };
+    lines(m => m.x + m.w / 2, m => m.y);   // y-axis ticks: one column
+    lines(m => m.y + m.h / 2, m => m.x);   // x-axis ticks: one row
+    return out;
+  }
+  // Paints number masks with the background colour and an invented value in the same style; other masks stay grey. A
+  // column-fill block (digits the reader skipped) gets the background colour, then its numbers on top.
+  function paintFakes(x, masks, scale) {
+    const src = document.createElement('canvas'); src.width = S.img.width; src.height = S.img.height;
+    const sx = src.getContext('2d', { willReadFrequently: true }); sx.drawImage(S.img, 0, 0);
+    const colours = m => {
+      const W = S.img.width, H = S.img.height, x0 = Math.max(0, Math.floor(m.x)), y0 = Math.max(0, Math.floor(m.y)), x1 = Math.min(W, Math.ceil(m.x + m.w)), y1 = Math.min(H, Math.ceil(m.y + m.h));
+      if (x1 - x0 < 2 || y1 - y0 < 2) return { bg: '#ffffff', ink: '#333333', bold: false };
+      const d = sx.getImageData(x0, y0, x1 - x0, y1 - y0).data, w = x1 - x0, h = y1 - y0;
+      const edge = []; for (let i = 0; i < w; i++) edge.push(i, i + (h - 1) * w); for (let j = 0; j < h; j++) edge.push(j * w, j * w + w - 1);
+      const bgC = [0, 1, 2].map(k => { const v = edge.map(p => d[p * 4 + k]).sort((a, b) => a - b); return v[Math.floor(v.length / 2)]; });
+      let best = 0, ink = [51, 51, 51], dark = 0;
+      for (let p = 0; p < w * h; p++) { const dist = Math.abs(d[p * 4] - bgC[0]) + Math.abs(d[p * 4 + 1] - bgC[1]) + Math.abs(d[p * 4 + 2] - bgC[2]); if (dist > 90) dark++; if (dist > best) { best = dist; ink = [d[p * 4], d[p * 4 + 1], d[p * 4 + 2]]; } }
+      if (best < 60) ink = (bgC[0] + bgC[1] + bgC[2]) / 3 > 128 ? [40, 40, 40] : [235, 235, 235];
+      return { bg: `rgb(${bgC.join(',')})`, ink: `rgb(${ink.join(',')})`, bold: dark / (w * h) > 0.22 };
+    };
+    const nums = masks.filter(isNumberMask), blocks = masks.filter(m => m.text === '(table column)'), axes = axisFactors(nums.filter(m => m.text && m.text !== '(table column)'));
+    masks.forEach(m => {
+      x.fillStyle = isNumberMask(m) || blocks.includes(m) ? colours(m).bg : '#787c82';
+      x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale);
+    });
+    nums.forEach(m => {
+      if (!m.text || m.text === '(table column)') return;
+      const c = colours(m), value = fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), axes.get(m));
+      const inner = (m.h / 1.36) * scale;                                               // masks are padded by ~18% on each side
+      let size = Math.max(7, inner / 0.72);
+      x.save(); x.beginPath(); x.rect(m.x * scale, m.y * scale, m.w * scale, m.h * scale); x.clip();
+      x.font = `${c.bold ? 700 : 400} ${size}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+      const fit = (m.w * scale - 4) / Math.max(1, x.measureText(value).width);
+      if (fit < 1) { size *= fit; x.font = `${c.bold ? 700 : 400} ${size}px system-ui, -apple-system, "Segoe UI", sans-serif`; }
+      x.fillStyle = c.ink; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(value, (m.x + m.w / 2) * scale, (m.y + m.h / 2) * scale + size * 0.04);
+      x.restore();
+    });
   }
 
   /* ---------------- on-device name check (contextual AI) ---------------- */
@@ -588,7 +732,8 @@ customer service staff agent team people everyone nobody someone something nothi
     const extra = columnFill(numeric.map(m => Object.assign({}, m, { type: 'Number or money' })))
       .filter(f => !S.masks.some(m => m.on && m.x <= f.x + 1 && m.y <= f.y + 1 && m.x + m.w >= f.x + f.w - 1 && m.y + m.h >= f.y + f.h - 1));
     if (extra.length) { S.masks.push(...extra); renderTypes(); draw(); }
-    const m2 = maskedCanvas(1), img0 = S.img;
+    // the check reads solid boxes: they cover exactly the pixels the invented numbers cover
+    const m2 = maskedCanvas(1, '#787c82'), img0 = S.img;
     const all = await readAll(m2, [[CHECK_SCALES[0], 'normal'], [CHECK_SCALES[1], 'inverted'], [CHECK_SCALES[2], 'contrast'], [CHECK_SCALES[3], 'block'], [CHECK_SCALES[4], 'ink', maskedCanvas(1, '#ff00ff')], [CHECK_SCALES[5], 'delta']], 'Checking the masked image on this device…');
     if (S.img !== img0) return;   // a newer screenshot replaced this one; its own check decides its gate
     const active = S.masks.filter(m => m.on);
@@ -678,7 +823,9 @@ customer service staff agent team people everyone nobody someone something nothi
     if (!S.img) return;
     rc.width = S.img.width; rc.height = S.img.height;
     const x = rc.getContext('2d');
-    if (S.view === 'mask') { x.drawImage(maskedCanvas(1), 0, 0); return; }
+    // the masked view says in the page that its numbers are made up (the image's footer strip would not fit here)
+    $('fake-note').hidden = !(S.view === 'mask' && S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)));
+    if (S.view === 'mask') { x.drawImage(maskedCanvas(1, null, { tag: false }), 0, 0); return; }
     x.drawImage(S.img, 0, 0);
     const lw = Math.max(2, S.img.width / 600);
     S.masks.forEach(m => {
@@ -871,6 +1018,8 @@ customer service staff agent team people everyone nobody someone something nothi
     rebuildMasks();
     S.gate = 'dirty'; renderTypes(); renderKept(); draw(); await verify();
   };
+  // invented numbers or grey boxes: the same pixels are covered either way, so no new check is needed
+  $('fake-on').onchange = e => { S.fakeNumbers = e.target.checked; renderCounts(); draw(); };
   $('ctx-on').onchange = async e => {
     S.ctx.on = e.target.checked;
     if (!S.img || !(S.words && S.words.length) || S.gate === 'running') return renderCtxNote();
@@ -946,7 +1095,7 @@ customer service staff agent team people everyone nobody someone something nothi
     const url = c.toDataURL('image/png');
     S.payload = url;
     $('payload-img').src = url;
-    $('pf-contents').textContent = 'The masked image above and fixed instructions. No original image, no OCR text.' + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
+    $('pf-contents').textContent = 'The masked image above and fixed instructions. No original image, no OCR text.' + (S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)) ? ' Numbers are replaced with invented values of the same size; labels stay masked.' : '') + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
     $('pf-size').textContent = Math.round(url.length * 0.75 / 1024) + ' KB';
     const isSample = !!S.sample;
     $('pf-dest').textContent = isSample ? 'Nothing is sent: this sample uses a bundled spec' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'Only if you click Send: the AI provider you choose below, with your key');
@@ -1063,7 +1212,8 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   // Builds the replica spec from the masked image on this device: no key, no network. It sees what the AI would see:
   // the masked image, the words that stay readable, and masked words and mask boxes as positions without text.
   function layoutInput() {
-    const c = maskedCanvas(1), im = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+    // the builder reads solid boxes (as the check does): it was built on them, and invented digits would look like stray text
+    const c = maskedCanvas(1, '#787c82'), im = c.getContext('2d').getImageData(0, 0, c.width, c.height);
     const on = S.masks.filter(m => m.on);
     const inMask = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
     const words = S.words.filter(w => !w.ghost).map(w => { const kept = !inMask(w); return { text: kept ? w.text : '', x: w.x, y: w.y, w: w.w, h: w.h, kept }; });
@@ -1364,5 +1514,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext };
+  S.test = { fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext };
 })();

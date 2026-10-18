@@ -601,6 +601,46 @@ try {
   check(cols.table.length === 1 && cols.table[0].y <= 100 && cols.table[0].y + cols.table[0].h >= 241, 'a table column with a skipped number is masked from top to bottom');
   check(cols.apart.length === 0, 'numbers in separate sections are never joined into one mask');
 
+  console.log('Numbers replaced with invented values of the same size');
+  const fk = await page.evaluate(() => {
+    const T = window.__DSC.test, bad = [];
+    const digitsBefore = t => (t.match(/\d[\d,]*(?:\.\d+)?/g) || []).map(r => r.split('.')[0].replace(/,/g, '').length + '.' + (r.split('.')[1] || '').length).join(' ');
+    const shape = t => t.replace(/\d/g, '9');
+    const cases = ['€48.6M', '62.4%', '312', '+11.2%', '-0.9', '21 °C', '1,284', '$4,210,000', '4.5 / 5', '100%', '8%', '£0.75', '98.6°F', '7'];
+    for (const c of cases) for (let seed = 1; seed <= 40; seed++) {
+      const f = T.fakeValue(c, seed);
+      if (f === c) bad.push('same: ' + c);
+      if (c !== '100%' && digitsBefore(f) !== digitsBefore(c)) bad.push(`digits: ${c} -> ${f}`);   // 100% can only go down to 9x%
+      if (shape(f).replace(/9/g, '') !== shape(c).replace(/9/g, '')) bad.push(`symbols: ${c} -> ${f}`);
+      if (/%/.test(c) && parseFloat(f.replace(/[^\d.]/g, '')) > 100) bad.push(`over 100%: ${f}`);
+    }
+    const kept = [T.fakeValue('2026', 3), T.fakeValue('FY 2026', 3)];
+    const date = T.fakeValue('30-Sep-2026', 5), time = T.fakeValue('12:45', 5);
+    const ratings = Array.from({ length: 30 }, (_, i) => T.fakeValue('4.5 / 5', i + 1));
+    const ratingOk = ratings.every(t => /^\d\.\d \/ 5$/.test(t) && parseFloat(t) <= 5 && t !== '4.5 / 5');
+    return { bad: bad.slice(0, 5), n: bad.length, kept, date, time, ratingOk, rating: ratings[0], sample: cases.map(c => c + ' → ' + T.fakeValue(c, 11)).join(', ') };
+  });
+  check(fk.n === 0, `invented numbers always differ from the real ones and keep their size, decimals, symbols and units (${fk.sample})` + (fk.n ? ': ' + fk.bad.join(' | ') : ''));
+  check(fk.ratingOk, `a rating keeps its scale and stays within it (4.5 / 5 → ${fk.rating})`);
+  check(fk.kept[0] === '2026' && /-Sep-2026$/.test(fk.date) && +fk.date.split('-')[0] <= 28 && /^\d{2}:[0-5]\d$/.test(fk.time), `years stay, dates and times stay valid (${fk.date}, ${fk.time})`);
+  const img = await page.evaluate(() => {
+    const S = window.__DSC, T = S.test, m = S.masks.find(q => q.on && q.type === 'Number or money' && q.w > 30 && q.h > 14 && q.text && q.text !== '(table column)');
+    const c = T.maskedCanvas(1), x = c.getContext('2d'), d = x.getImageData(Math.round(m.x), Math.round(m.y), Math.round(m.w), Math.round(m.h)).data;
+    let grey = 0, n = 0; for (let i = 0; i < d.length; i += 4) { n++; if (Math.abs(d[i] - 120) < 4 && Math.abs(d[i + 1] - 124) < 4 && Math.abs(d[i + 2] - 130) < 4) grey++; }
+    const noTag = T.maskedCanvas(1, null, { tag: false });
+    S.fakeNumbers = false; const off = T.maskedCanvas(1).getContext('2d').getImageData(Math.round(m.x + m.w / 2), Math.round(m.y + m.h / 2), 1, 1).data; S.fakeNumbers = true;
+    const axis = [0, 1, 2, 3, 4].map(i => ({ type: 'Number or money', text: '€' + (8 - i) + 'M', x: 800, y: 340 + i * 52, w: 34, h: 17, on: true }));
+    const ax = T.axisFactors(axis), vals = axis.map(a => ax.get(a)), steps = vals.slice(1).map((v, i) => v - vals[i]);
+    return { greyShare: grey / n, tall: c.height > S.img.height, noTag: noTag.height === S.img.height, off: Array.from(off.slice(0, 3)).join(), vals, even: steps.every(s => s === steps[0] && s < 0), note: document.getElementById('fake-on').checked };
+  });
+  check(img.note && img.greyShare < 0.2, `numbers in the masked image are drawn as invented values, not grey boxes (${Math.round(img.greyShare * 100)}% grey at a number)`);
+  check(img.tall && img.noTag, 'the image carries a note below it that its numbers are made up (left out for the on-device builder)');
+  check(img.vals.every(v => typeof v === 'number') && img.even && img.vals[0] !== 8, `an axis is rebuilt as an even scale in the same order (€8M…€4M → ${img.vals.map(v => '€' + v + 'M').join(', ')})`);
+  check(img.off === '120,124,130', 'unticking "Replace numbers with invented values" brings back grey boxes');
+  await page.locator('#v-mask').click();
+  check(await page.locator('#fake-note').isVisible(), 'the masked view says in the page that its numbers are made up');
+  await page.locator('#v-orig').click();
+
   console.log('Numbers in context: labels, not data (issue: "Top 5 performers")');
   const ctxNums = await page.evaluate(() => {
     const { buildMasks } = window.__DSC.test;
@@ -638,7 +678,7 @@ try {
   check(await page.evaluate(b => window.__DSC.masks.some(m => m.src === 'auto' && !m.on && m.userOff && Math.abs(m.x - b.x) < 4 && Math.abs(m.y - b.y) < 4), userOff.box), '"Re-apply policy" keeps a mask you switched off, off');
   // a box you drew over an automatic one: one click clears the spot (both switch off together)
   // (real mouse clicks, as a user makes them)
-  await page.locator('#review-canvas').scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.getElementById('review-canvas').scrollIntoView({ block: 'center' }));
   const spot = await page.evaluate(() => {
     // (below the top of the image, which the page's sticky header can cover after scrolling)
     const S = window.__DSC, m = S.masks.find(q => q.on && q.src === 'auto' && q.w < 200 && q.y > S.img.height * 0.25);
@@ -675,7 +715,7 @@ try {
   check(sum.hidden + sum.kept === sum.words && sum.hidden > 20 && sum.kept > 10, `the summary counts every word read: ${sum.hidden} hidden + ${sum.kept} kept readable = ${sum.words}`);
   check(sum.you === sum.yoursExpected && sum.you >= 2, `"Changed by you" counts your decisions (${sum.you})`);
   check(/^Ready: /.test(sum.next) && /decisions? of yours/.test(sum.next), `the next step says plainly what to do ("${sum.next.slice(0, 70)}…")`);
-  check(sum.types.includes('Numbers and amounts') && !sum.types.some(t => /Number or money|allowlist/.test(t)), `categories use plain words (${sum.types.join(', ')})`);
+  check(sum.types.some(t => /^Numbers/.test(t)) && !sum.types.some(t => /Number or money|allowlist/.test(t)), `categories use plain words (${sum.types.join(', ')})`);
   await page.evaluate(() => { document.getElementById('mask-list').open = true; });
   await page.locator('#mask-filter button[data-f="yours"]').click();
   const yoursList = await page.evaluate(() => ({ rows: document.querySelectorAll('#mask-items label').length, badges: document.querySelectorAll('#mask-items .badge').length }));
@@ -694,16 +734,20 @@ try {
   await page.evaluate(() => document.getElementById('btn-send').onclick());
   check(await page.locator('#btn-dl-masked').isDisabled() && await page.locator('#btn-confirm').isDisabled(), 'nothing can be downloaded or sent before "I have looked over the masked image" is ticked');
   await page.check('#pf-ok');
-  const [dlM] = await Promise.all([page.waitForEvent('download'), page.click('#btn-dl-masked')]);
+  const [dlM] = await Promise.all([page.waitForEvent('download'), page.click('#btn-dl-masked')]).catch(async e => {
+    // say why, if the file never comes (an error while painting the image, say)
+    throw new Error(e.message.split('\n')[0] + ' | page errors: ' + pageErrors.join(' | ') + ' | dialog: ' + await page.locator('#send-err').textContent());
+  });
   const png = (await readFile(await dlM.path())).toString('base64');
   const px = await page.evaluate(async b64 => {
     const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
     const S = window.__DSC, m = S.masks.find(q => q.on && q.w > 20);
     const at = (px, py) => Array.from(x.getImageData(Math.round(px), Math.round(py), 1, 1).data.slice(0, 3));
-    return { same: img.width === S.img.width && img.height === S.img.height, mask: at(m.x + m.w / 2, m.y + m.h / 2), tag: at(img.width - 12, img.height - 12) };
+    // full width; the footer strip that says numbers are made up sits below the picture
+    return { same: img.width === S.img.width && img.height > S.img.height && img.height < S.img.height * 1.1, foot: at(4, img.height - 4), mask: at(m.x + m.w / 2, m.y + m.h / 2), tag: at(img.width - 12, img.height - 12) };
   }, png);
-  check(dlM.suggestedFilename() === 'sample-masked.png' && px.same, `the masked PNG is full size (${dlM.suggestedFilename()})`);
+  check(dlM.suggestedFilename() === 'sample-masked.png' && px.same && px.foot.every(c => c < 60), `the masked PNG is full size, with the made-up-numbers note below it (${dlM.suggestedFilename()})`);
   check(px.mask.join() === '120,124,130', 'masks in the PNG are solid grey');
   check(px.tag.every(c => c < 110), 'the PNG carries a small "masked with VaultSnip" tag unless unticked');
   await page.keyboard.press('Escape');

@@ -115,6 +115,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 .fixrow .conf.ok{background:var(--good-soft);color:var(--good)}.fixrow .conf.check{background:var(--warn-soft);color:var(--warn)}
 .fixrow button{font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
 @media (max-width:640px){.fixrow{grid-template-columns:auto minmax(0,1fr)}.fixrow select,.fixrow button{grid-column:2}}
+.fakenote{margin:0 0 8px;padding:8px 12px;border-radius:8px;background:var(--warn-soft);color:var(--ink);font-size:13.5px;border:1px solid var(--line)}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .kpi{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:1px;background:var(--sunken)}
 .kpi b{font-size:24px;line-height:1.15}.kpi span{font-size:13px;font-weight:600}.kpi small{font-size:11.5px;color:var(--muted)}
@@ -201,6 +202,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
           <button type="button" class="btn" id="v-zoom" aria-pressed="false">Zoom 2×</button>
           <span class="hint">Click a box to turn its mask on or off. Drag to add a mask.</span>
         </div>
+        <p class="fakenote" id="fake-note" role="note" hidden><b>Numbers here are made up</b>: same scale as the real ones, never the real values. Names and labels stay masked. This is the image that is sent or saved, with the same note below it.</p>
         <div class="canvaswrap" id="review-wrap"><canvas id="review-canvas" role="img" aria-label="The screenshot with mask boxes. Use the list of masks beside it to turn masks on or off with the keyboard."></canvas></div>
       </div>
       <div>
@@ -245,6 +247,8 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
             <input type="text" id="extra-allow" placeholder="e.g. Pipeline, Bookings"></label>
           <div class="row"><button class="btn" id="btn-reapply" type="button" disabled>Re-apply policy</button></div>
+          <label class="chk"><input type="checkbox" id="fake-on" checked><span>Replace numbers with invented values of the same size</span></label>
+          <p class="hint">$4.2M might show as $6.8M, 62% as 47%: never the real value, and labels stay masked. The image is tagged "Numbers are synthetic". Untick to cover numbers with grey boxes instead.</p>
           <label class="chk"><input type="checkbox" id="ctx-on" checked><span>Find names among safe words (on-device AI)</span></label>
           <p class="hint" id="ctx-note">Catches safe words used as names, such as "May Chen" or "Delta Airlines". Runs on this device; the 19 MB model downloads once. It only adds masks.</p>
           <details class="more" id="kept"><summary>Words kept as safe (<span id="kept-n">0</span>)</summary>
