@@ -57,7 +57,8 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | **Synthetic data download** | ✅ tidy CSV of every generated data point, for Excel, Power BI, Tableau, Looker Studio |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
 | In-app feedback with a private route for masking misses | ✅ |
-| Pixel-measured shapes, PDF/PPTX input | ⏳ planned |
+| Pixel-measured shapes | ✅ in "Build on this device": bar lengths, line heights, slice shares and dot positions measured from the masked image |
+| PDF/PPTX input | ⏳ planned |
 
 ## Privacy
 
