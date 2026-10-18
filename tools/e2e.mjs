@@ -591,6 +591,88 @@ try {
   });
   check(cols.table.length === 1 && cols.table[0].y <= 100 && cols.table[0].y + cols.table[0].h >= 241, 'a table column with a skipped number is masked from top to bottom');
   check(cols.apart.length === 0, 'numbers in separate sections are never joined into one mask');
+
+  console.log('Numbers in context: labels, not data (issue: "Top 5 performers")');
+  const ctxNums = await page.evaluate(() => {
+    const { buildMasks } = window.__DSC.test;
+    let y = 0;
+    const masked = text => { y += 30; let x = 10; const ws = text.split(' ').map(t => { const w = { text: t, x, y, w: t.length * 7, h: 12, conf: 95 }; x += t.length * 7 + 6; return w; }); return buildMasks(ws).map(m => m.text); };
+    return {
+      top: masked('Top 5 performers'), last: masked('Last 30 days'), week: masked('Week 34'), page: masked('Page 1 of 3'), step: masked('Step 2 Review'),
+      hyph: masked('Top-10 stores'), bottom: masked('Bottom 10 regions'),
+      periods: [masked('L12M Revenue'), masked('R12M'), masked('Q1-Q3 2026'), masked('FY25-26'), masked('2025-26'), masked('#1 Product')],
+      value: masked('Revenue 5'), dur: masked('Avg resolution 3 days'), bare: masked('5 performers'), money: masked('Top 5 $1.2M'), pct: masked('Margin 5%'), big: masked('Top 12500')
+    };
+  });
+  // (only the numbers matter here: a word such as "performers" may be masked because it is not on the safe list)
+  check(![ctxNums.top, ctxNums.last, ctxNums.week, ctxNums.page, ctxNums.step, ctxNums.hyph, ctxNums.bottom].some(l => l.some(t => /\d/.test(t))), `counts that label a visual stay readable: Top 5, Last 30 days, Week 34, Page 1 of 3, Step 2, Top-10, Bottom 10 (${JSON.stringify([ctxNums.top, ctxNums.last, ctxNums.week, ctxNums.page])})`);
+  check(ctxNums.value.includes('5') && ctxNums.dur.includes('3') && ctxNums.bare.includes('5') && ctxNums.pct.some(t => /5%/.test(t)) && ctxNums.big.includes('12500'),
+    'numbers standing as values stay masked: "Revenue 5", "Avg resolution 3 days", "5 performers", "Margin 5%", "Top 12500"');
+  check(ctxNums.periods.every(l => !l.some(t => /\d/.test(t))), `period and rank labels stay readable: L12M, R12M, Q1-Q3, FY25-26, 2025-26, #1 (${JSON.stringify(ctxNums.periods)})`);
+  check(ctxNums.money.some(t => /1\.2M/.test(t)) && !ctxNums.money.includes('5'), 'in "Top 5 $1.2M" the count stays readable and the money is masked');
+  check(!(await page.evaluate(() => window.__DSC.masks.some(m => m.on && m.text === '5' && m.y > 600 && m.y < 670))), 'the demo\'s "Top 5 Accounts" title keeps its 5');
+  // switching a number's mask off is remembered: the check does not re-flag it, and re-applying the policy keeps it off
+  const userOff = await page.evaluate(async () => {
+    const S = window.__DSC, m = S.masks.find(q => q.on && q.src === 'auto' && q.type === 'Number or money' && q.w < 120 && q.y < 300);
+    const canvas = document.getElementById('review-canvas'), r = canvas.getBoundingClientRect();
+    const at = { clientX: r.left + (m.x + m.w / 2) * r.width / canvas.width, clientY: r.top + (m.y + m.h / 2) * r.height / canvas.height, pointerId: 1, bubbles: true };
+    canvas.dispatchEvent(new PointerEvent('pointerdown', at)); canvas.dispatchEvent(new PointerEvent('pointerup', at));
+    return { text: m.text, box: { x: m.x, y: m.y, w: m.w, h: m.h }, off: !m.on, userOff: !!m.userOff };
+  });
+  check(userOff.off && userOff.userOff, `clicking a number's mask switches it off and records that you chose to show it ("${userOff.text}")`);
+  await page.click('#btn-recheck');
+  await page.waitForFunction(() => !/Checking/.test(document.querySelector('.gate').textContent), null, { timeout: 120000 });
+  const reflag = await page.evaluate(b => window.__DSC.flags.some(f => { const cx = f.x + f.w / 2, cy = f.y + f.h / 2; return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h; }), userOff.box);
+  check(!reflag, 'the check does not re-flag a number you chose to show (no dead end)');
+  await page.click('#btn-reapply');
+  await page.waitForFunction(() => !/Checking/.test(document.querySelector('.gate').textContent), null, { timeout: 120000 });
+  check(await page.evaluate(b => window.__DSC.masks.some(m => m.src === 'auto' && !m.on && m.userOff && Math.abs(m.x - b.x) < 4 && Math.abs(m.y - b.y) < 4), userOff.box), '"Re-apply policy" keeps a mask you switched off, off');
+  // a box you drew over an automatic one: one click clears the spot (both switch off together)
+  // (real mouse clicks, as a user makes them)
+  await page.locator('#review-canvas').scrollIntoViewIfNeeded();
+  const spot = await page.evaluate(() => {
+    // (below the top of the image, which the page's sticky header can cover after scrolling)
+    const S = window.__DSC, m = S.masks.find(q => q.on && q.src === 'auto' && q.w < 200 && q.y > S.img.height * 0.25);
+    S.masks.push({ x: m.x - 4, y: m.y - 4, w: m.w + 8, h: m.h + 8, type: 'Added by you', text: '(drawn box)', on: true, src: 'manual' });
+    const canvas = document.getElementById('review-canvas'), r = canvas.getBoundingClientRect();
+    return { cx: m.x + m.w / 2, cy: m.y + m.h / 2, x: r.left + (m.x + m.w / 2) * r.width / canvas.width, y: r.top + (m.y + m.h / 2) * r.height / canvas.height };
+  });
+  const atSpot = () => page.evaluate(s => window.__DSC.masks.filter(q => q.x <= s.cx && q.x + q.w >= s.cx && q.y <= s.cy && q.y + q.h >= s.cy).map(q => q.on), spot);
+  await page.mouse.click(spot.x, spot.y);
+  const click1 = await atSpot();
+  await page.mouse.click(spot.x, spot.y);
+  const click2 = await atSpot();
+  const both = { n: click1.length, off: click1.every(v => !v), backOn: click2.every(v => v), states: click2.join(' ') };
+  check(both.n >= 2 && both.off && both.backOn, `one click switches every mask at a spot off together, and back on (${both.n} masks; after: ${both.states}; off first: ${both.off})`);
+  // a blocking finding that is not sensitive can be kept, at that spot only
+  await page.evaluate(() => {
+    const S = window.__DSC;
+    S.flags = [{ x: 40, y: 40, w: 30, h: 20, text: '5', type: 'Number or money', severity: 'block', resolved: false }];
+    S.test.updateGate();
+  });
+  const keepBtn = page.locator('#flags button', { hasText: 'Not sensitive, keep it' });
+  check(await keepBtn.count() === 1 && /Blocked/.test(await page.locator('.gate').textContent()), 'a blocking finding offers "Not sensitive, keep it" next to "Mask it"');
+  await keepBtn.click();
+  const afterKeep = await page.evaluate(() => ({ gate: document.querySelector('.gate').textContent, kept: window.__DSC.masks.filter(m => m.type === 'Kept by you' && !m.on && m.userOff).length }));
+  check(/Pass/.test(afterKeep.gate) && afterKeep.kept === 1, `keeping it resolves the finding and records the spot as yours (${afterKeep.gate.trim().slice(0, 20)})`);
+  // the review summary: plain numbers that add up, your decisions counted, and a clear next step
+  const sum = await page.evaluate(() => {
+    const S = window.__DSC, words = S.words.filter(w => !w.ghost);
+    const n = id => +document.getElementById(id).textContent;
+    return { hidden: n('k-hidden'), kept: n('k-kept'), you: n('k-you'), words: words.length, next: document.getElementById('next-step').textContent,
+      yoursExpected: S.masks.filter(m => m.userOff || ['manual', 'check', 'user'].includes(m.src)).length + S.sessionAllow.size,
+      types: [...document.querySelectorAll('#types div span:nth-child(2)')].map(s => s.textContent) };
+  });
+  check(sum.hidden + sum.kept === sum.words && sum.hidden > 20 && sum.kept > 10, `the summary counts every word read: ${sum.hidden} hidden + ${sum.kept} kept readable = ${sum.words}`);
+  check(sum.you === sum.yoursExpected && sum.you >= 2, `"Changed by you" counts your decisions (${sum.you})`);
+  check(/^Ready: /.test(sum.next) && /decisions? of yours/.test(sum.next), `the next step says plainly what to do ("${sum.next.slice(0, 70)}…")`);
+  check(sum.types.includes('Numbers and amounts') && !sum.types.some(t => /Number or money|allowlist/.test(t)), `categories use plain words (${sum.types.join(', ')})`);
+  await page.evaluate(() => { document.getElementById('mask-list').open = true; });
+  await page.locator('#mask-filter button[data-f="yours"]').click();
+  const yoursList = await page.evaluate(() => ({ rows: document.querySelectorAll('#mask-items label').length, badges: document.querySelectorAll('#mask-items .badge').length }));
+  check(yoursList.rows === sum.you - (await page.evaluate(() => window.__DSC.sessionAllow.size)) && yoursList.badges === yoursList.rows, `"Your choices" lists exactly your decisions, each marked (${yoursList.rows})`);
+  await page.locator('#mask-filter button[data-f="all"]').click();
+  await page.evaluate(() => { document.getElementById('mask-list').open = false; });
   const ui = await page.evaluate(() => ({ list: document.querySelectorAll('#mask-items input').length, masks: window.__DSC.masks.length, kept: +document.getElementById('kept-n').textContent }));
   check(ui.list === ui.masks, `every mask can be switched with the keyboard (${ui.list} checkboxes)`);
   check(ui.kept > 3, `words kept as safe are listed so a name like "Target" can be masked (${ui.kept})`);

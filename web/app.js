@@ -132,8 +132,25 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     'Text not on allowlist': '#1baf7a',
     'Added by you': '#14181e',
     'Added after check': '#b03c38',
-    'Name in context': '#9a5b00'
+    'Name in context': '#9a5b00',
+    'Kept by you': '#5b6470'
   };
+  // The same categories in plain words, for the review pane
+  const LABELS = {
+    'Client name': 'Client names',
+    'Number or money': 'Numbers and amounts',
+    'Identifier': 'IDs and codes',
+    'Email': 'Email addresses',
+    'Name in comment': 'Names in customer comments',
+    'Text not on allowlist': 'Words not on the safe list',
+    'Added by you': 'Boxes you drew',
+    'Added after check': 'Hidden after the check',
+    'Name in context': 'Names spotted by on-device AI',
+    'Kept by you': 'Kept visible by you'
+  };
+  const label = t => LABELS[t] || t;
+  // a decision the user made, as opposed to one the rules made
+  const byUser = m => m.userOff || m.src === 'manual' || m.src === 'check' || m.src === 'user';
 
   function clientNames() { return $('client-names').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean); }
   function extraAllow() { return new Set($('extra-allow').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)); }
@@ -146,6 +163,10 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     if (clientNames().some(n => n && (low.includes(n) || n.split(/\s+/).includes(low)))) return 'Client name';
     if (/\w@\w/.test(raw) || (/@/.test(raw) && /\./.test(raw))) return 'Email';
     if (/^(19|20)\d{2}$/.test(clean) || /^(q[1-4]|h[12]|fy\d{2,4}|w\d{1,2}|p\d{1,2})$/i.test(clean)) return null;
+    // period and rank labels BI tools use: rolling windows (L12M, R12M, T12M, L30D, P3M), quarter and fiscal ranges
+    // (Q1-Q3, FY25-26, 2025-26) and rank markers (#1). They name a time window or a position, never a value.
+    if (/^[lrtpn]\d{1,3}[dwmqy]$/i.test(clean) || /^q[1-4][-–]q[1-4]$/i.test(clean) || /^fy\d{2}[-–/]\d{2}$/i.test(clean)
+      || /^(19|20)\d{2}[-–/]((19|20)?\d{2})$/.test(clean) || /^#\d{1,2}$/.test(clean)) return null;
     if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return 'Identifier';
     if (/[\d€$£¥₹%]/.test(clean)) return 'Number or money';
     if (clean.length <= 1) return null;
@@ -153,6 +174,39 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     const parts = low.split(/[-/&]/).filter(Boolean);
     if (parts.length > 1 && parts.every(p => ALLOW.has(p) || extraAllow().has(p))) return null;
     return 'Text not on allowlist';
+  }
+
+  // A small number that labels a visual rather than reporting a value: a count after a ranking word ("Top 5 performers",
+  // "Bottom 10", "Last 30 days", "Past 12 months") or a position after a sequence word ("Week 34", "Step 2", "Tier 1",
+  // "Page 1 of 3"). Judged from the words beside it on the same line; a number standing as a value ("Revenue 5",
+  // "Avg resolution 3 days") is still masked.
+  const RANK_WORDS = new Set(['top', 'bottom', 'first', 'last', 'best', 'worst', 'leading', 'lowest', 'highest', 'next', 'past', 'previous', 'prior', 'rolling', 'trailing', 'latest', 'recent']);
+  const SEQ_WORDS = new Set(['week', 'wk', 'step', 'phase', 'tier', 'level', 'stage', 'wave', 'page', 'round', 'sprint', 'version', 'release', 'grade', 'rank', 'no', 'number']);
+  function countLabels(words) {
+    const safe = new Set();
+    const low = w => (w ? w.text.trim().replace(/^[^\w]+|[^\w%]+$/g, '').toLowerCase() : '');
+    const small = t => { const m = /^(\d{1,3})%?$/.exec(t); return !!m && +m[1] >= 1 && +m[1] <= 500; };
+    const beside = (w, dir) => {
+      const cy = w.y + w.h / 2, reach = Math.max(w.h, 8) * 3;
+      let best = null, bd = Infinity;
+      for (const v of words) {
+        if (v === w || Math.abs(v.y + v.h / 2 - cy) > Math.max(v.h, w.h) * 0.6) continue;
+        if (Math.min(v.x + v.w, w.x + w.w) - Math.max(v.x, w.x) > Math.min(v.w, w.w) * 0.3) continue;   // another reading of the same spot
+        const gap = dir < 0 ? w.x - (v.x + v.w) : v.x - (w.x + w.w);
+        if (gap >= -2 && gap <= reach && gap < bd) { bd = gap; best = v; }
+      }
+      return best;
+    };
+    for (const w of words) {
+      const t = low(w);
+      if (/^(top|bottom)[-_]?\d{1,3}%?$/.test(t)) { safe.add(w); continue; }      // "Top-5", "Top10"
+      if (!small(t)) continue;
+      const prev = beside(w, -1), p = low(prev);
+      if (RANK_WORDS.has(p) || SEQ_WORDS.has(p)) { safe.add(w); continue; }
+      // "Page 1 of 3": the total after "of" belongs to the same label
+      if (p === 'of') { const pp = beside(prev, -1); if (pp && safe.has(pp)) safe.add(w); }
+    }
+    return safe;
   }
 
   /* ---------------- OCR (local, Tesseract in WASM) ---------------- */
@@ -381,8 +435,9 @@ customer service staff agent team people everyone nobody someone something nothi
     S.commentVocab = new Set();
     // kept comment words read with good confidence: the check does not second-guess re-readings of these pixels
     S.keptBoxes = keep ? words.filter(w => w.inCm && !w.ghost && w.conf >= 80 && !commentType(w)) : [];
+    const labels = countLabels(words);
     const flagged = words.map(w => {
-      const type = keep && w.inCm ? commentType(w) : classify(w.text);
+      const type = keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
       if (keep && w.inCm && !type && normW(w.text)) S.commentVocab.add(normW(w.text));
       return Object.assign({}, w, { type });
     }).filter(w => w.type);
@@ -516,11 +571,16 @@ customer service staff agent team people everyone nobody someone something nothi
     const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')], [2, 'delta']]);
     if (S.img !== img0) return;   // a newer screenshot replaced this one; its own check decides its gate
     const active = S.masks.filter(m => m.on);
+    // spots the user looked at and chose to show (a mask they switched off, or a finding marked not sensitive)
+    const shown = S.masks.filter(m => !m.on && m.userOff);
+    const labels = countLabels(all);
     const flags = [];
     all.forEach(w => {
       if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
       const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
+      if (shown.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
+      if (labels.has(w)) return;
       const t = classify(w.text);
       if (!t) return;
       if (S.keepComments && inComment(w) && (S.keptBoxes || []).some(k => overlap(k, w) > 0.5)) return;   // a re-reading of kept comment wording
@@ -551,9 +611,10 @@ customer service staff agent team people everyone nobody someone something nothi
       policy: ['pending', 'Policy changed', 'Click "Re-apply policy" so the new names and words take effect. The check then runs again.'],
       pass: ['pass', 'Pass', S.flags.length ? 'Every finding is resolved. You can preview what is sent.' : 'Nothing readable is left outside the masks.'],
       review: ['review', 'Review needed', 'Unlisted words are still readable. Mask them or mark them safe.'],
-      blocked: ['blocked', 'Blocked', 'Numbers or IDs are still readable. Mask them before sending.']
+      blocked: ['blocked', 'Blocked', 'Numbers or IDs are still readable. Mask each one, or keep it if it is not sensitive.']
     }[S.gate];
     g.className = 'gate ' + map[0];
+    renderSummary();
     g.innerHTML = `<b>${map[1]}</b><span>${map[2]}</span>`;
     $('btn-send').disabled = S.gate !== 'pass';
     $('btn-recheck').disabled = S.gate === 'running';
@@ -578,6 +639,12 @@ customer service staff agent team people everyone nobody someone something nothi
           const ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Safe to keep';
           ok.onclick = () => { S.sessionAllow.add(f.text.toLowerCase().replace(/[^\w-]/g, '')); f.resolved = true; updateGate(); draw(); };
           d.appendChild(ok);
+        } else {
+          // a number or ID that is not sensitive here ("Top 5", a version number): kept at this spot only, never everywhere
+          const keepIt = document.createElement('button'); keepIt.type = 'button'; keepIt.textContent = 'Not sensitive, keep it';
+          keepIt.title = 'Keep this one value readable. Only this spot; the same number elsewhere stays masked.';
+          keepIt.onclick = () => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Kept by you', text: f.text, on: false, userOff: true, src: 'user' }); f.resolved = true; updateGate(); renderTypes(); draw(); };
+          d.appendChild(keepIt);
         }
       }
       fl.appendChild(d);
@@ -608,23 +675,59 @@ customer service staff agent team people everyone nobody someone something nothi
   function renderCounts() {
     const counts = {};
     S.masks.filter(m => m.on).forEach(m => counts[m.type] = (counts[m.type] || 0) + 1);
-    $('types').innerHTML = Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${t}</span><b>${counts[t]}</b></div>`).join('') || '<div class="hint">Nothing masked yet.</div>';
+    $('types').innerHTML = Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${label(t)}</span><b>${counts[t]}</b></div>`).join('') || '<div class="hint">Nothing hidden yet.</div>';
+    renderSummary();
+  }
+  // Summary for the reviewer: how much is hidden, how much stays readable, how many decisions are theirs, and what to do next
+  function renderSummary() {
+    if (!$('k-hidden')) return;
+    const words = (S.words || []).filter(w => !w.ghost);
+    const active = S.masks.filter(m => m.on);
+    const covered = w => { const cx = w.x + w.w / 2, cy = w.y + w.h / 2; return active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h); };
+    const hidden = words.filter(covered).length, kept = words.length - hidden;
+    const yours = S.masks.filter(byUser).length + (S.sessionAllow ? S.sessionAllow.size : 0);
+    $('k-hidden').textContent = hidden; $('k-kept').textContent = kept; $('k-you').textContent = yours;
+    const open = (S.flags || []).filter(f => !f.resolved), blocks = open.filter(f => f.severity === 'block').length, plural = (n, a, b) => n + ' ' + (n === 1 ? a : b);
+    const msg = {
+      pending: 'Reading the screenshot on this device…',
+      running: 'Checking the masked image again on this device…',
+      dirty: `You changed what is hidden. Run the check again to confirm nothing sensitive is readable.`,
+      policy: 'Click "Re-apply policy" to update what is hidden with your new names and safe words.',
+      blocked: `${plural(blocks, 'number or ID is', 'numbers or IDs are')} still readable. For each one, choose "Mask it", or "Not sensitive, keep it" if it is harmless (like the 5 in "Top 5").`,
+      review: `${plural(open.length, 'word is', 'words are')} readable but not on the safe list. Mask them, or mark them safe to keep.`,
+      pass: `Ready: ${plural(hidden, 'item', 'items')} hidden and ${plural(kept, 'safe word', 'safe words')} kept${yours ? `, including ${plural(yours, 'decision', 'decisions')} of yours` : ''}. Preview the masked image to continue.`
+    }[S.gate] || '';
+    $('next-step').textContent = msg;
   }
   function renderTypes() { renderCounts(); renderMaskList(); renderCtxNote(); }
   // The same masks as a list of checkboxes: works with a keyboard and a screen reader, unlike the canvas.
+  S.maskFilter = 'all';
   function renderMaskList() {
     const box = $('mask-items'); box.innerHTML = '';
     $('mask-n').textContent = S.masks.length;
+    const keep = m => S.maskFilter === 'hidden' ? m.on : S.maskFilter === 'shown' ? !m.on : S.maskFilter === 'yours' ? byUser(m) : true;
     S.masks.forEach((m, i) => {
+      if (!keep(m)) return;
       const l = document.createElement('label');
-      l.innerHTML = `<input type="checkbox"><span class="sw"></span><code></code>`;
+      l.innerHTML = `<input type="checkbox" role="switch"><span class="sw"></span><code></code><span class="st"></span>`;
       l.querySelector('.sw').style.background = TYPES[m.type] || '#14181e';
-      l.querySelector('code').textContent = `${i + 1}. ${m.type}${m.text && m.src !== 'manual' ? ': ' + m.text : ''}`;
-      const cb = l.querySelector('input'); cb.checked = m.on;
-      cb.onchange = () => { m.on = cb.checked; S.gate = 'dirty'; renderGate(); renderCounts(); draw(); };
+      l.querySelector('code').textContent = `${label(m.type)}${m.text && m.src !== 'manual' ? ': ' + m.text : ''}`;
+      l.title = `Item ${i + 1}. Ticked = hidden. Untick to keep it readable.`;
+      const st = l.querySelector('.st'), cb = l.querySelector('input');
+      const paint = () => { st.textContent = m.on ? 'Hidden' : 'Shown'; st.className = 'st ' + (m.on ? 'on' : 'off'); };
+      cb.checked = m.on; cb.setAttribute('aria-label', (m.on ? 'Hidden: ' : 'Shown: ') + l.querySelector('code').textContent); paint();
+      if (byUser(m)) { const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'your choice'; l.insertBefore(b, st); }
+      cb.onchange = () => { m.on = cb.checked; m.userOff = !cb.checked; S.gate = 'dirty'; renderGate(); renderCounts(); draw(); renderMaskList(); };
       box.appendChild(l);
     });
+    if (!box.children.length) box.innerHTML = '<div class="hint">Nothing here.</div>';
   }
+  $('mask-filter').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.maskFilter = b.dataset.f;
+    $('mask-filter').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    renderMaskList();
+  };
   // Words kept because they are on the safe list. A client called "Target" or "Delta" would otherwise
   // stay readable, so the user can mask any of them in one click.
   function renderKept() {
@@ -658,9 +761,10 @@ customer service staff agent team people everyone nobody someone something nothi
       const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
       if (w > 4 && h > 4) S.masks.push({ x, y, w, h, type: 'Added by you', text: '(drawn box)', on: true, src: 'manual' });
     } else {
-      const hit = S.masks.slice().reverse().find(m => d.x0 >= m.x && d.x0 <= m.x + m.w && d.y0 >= m.y && d.y0 <= m.y + m.h);
-      if (!hit) { draw(); return; }
-      hit.on = !hit.on;
+      const hits = S.masks.filter(m => d.x0 >= m.x && d.x0 <= m.x + m.w && d.y0 >= m.y && d.y0 <= m.y + m.h);
+      if (!hits.length) { draw(); return; }
+      const on = !hits.some(m => m.on);
+      hits.forEach(m => { m.on = on; m.userOff = !on; });
     }
     S.gate = 'dirty'; renderGate(); renderTypes(); draw();
   });
@@ -726,21 +830,26 @@ customer service staff agent team people everyone nobody someone something nothi
   $('btn-recheck').onclick = () => verify();
   $('keep-comments').onchange = async e => {
     S.keepComments = e.target.checked;
-    const manual = S.masks.filter(m => m.src !== 'auto');
-    S.masks = allMasks().concat(manual);
+    rebuildMasks();
     S.gate = 'dirty'; renderTypes(); draw(); await verify();
   };
-  $('btn-reapply').onclick = async () => {
+  // Rebuilding the automatic masks keeps the user's choices: a mask they switched off stays off, unless the new policy
+  // masks that spot for another reason (they just listed it as a client name, say)
+  function rebuildMasks() {
     const manual = S.masks.filter(m => m.src !== 'auto');
-    S.masks = allMasks().concat(manual);
+    const off = S.masks.filter(m => m.src === 'auto' && m.userOff && !m.on);
+    const same = (a, b) => a.type === b.type && Math.abs(a.x - b.x) < 4 && Math.abs(a.y - b.y) < 4 && Math.abs(a.w - b.w) < 6 && Math.abs(a.h - b.h) < 6;
+    S.masks = allMasks().map(m => (off.some(o => same(o, m)) ? Object.assign(m, { on: false, userOff: true }) : m)).concat(manual);
+  }
+  $('btn-reapply').onclick = async () => {
+    rebuildMasks();
     S.gate = 'dirty'; renderTypes(); renderKept(); draw(); await verify();
   };
   $('ctx-on').onchange = async e => {
     S.ctx.on = e.target.checked;
     if (!S.img || !(S.words && S.words.length) || S.gate === 'running') return renderCtxNote();
     if (S.ctx.on && !S.ctx.scores) { setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); }
-    const manual = S.masks.filter(m => m.src !== 'auto');
-    S.masks = allMasks().concat(manual);
+    rebuildMasks();
     S.gate = 'dirty'; renderTypes(); draw(); await verify();
   };
   // Typing a name to mask does nothing until it is applied, so sending is blocked until then.
@@ -1160,5 +1269,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { classify, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext };
+  S.test = { classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext };
 })();

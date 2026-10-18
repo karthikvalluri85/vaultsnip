@@ -104,8 +104,18 @@ a{color:var(--accent)}
 @media (max-width:600px){.hide-sm{display:none}.top{gap:8px;padding:10px 14px}}
 .canvaswrap.zoom{overflow:auto;max-height:78vh}.canvaswrap.zoom canvas{width:200%;max-width:none}
 details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;color:var(--muted);font-weight:600}
-.masklist{display:grid;gap:4px;max-height:220px;overflow:auto;margin-top:6px}
-.masklist label{display:flex;gap:8px;align-items:center;font-size:12.5px}.masklist code{font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:1px;background:var(--sunken)}
+.kpi b{font-size:24px;line-height:1.15}.kpi span{font-size:13px;font-weight:600}.kpi small{font-size:11.5px;color:var(--muted)}
+.kpi.hid b{color:var(--bad)}.kpi.kept b{color:var(--good)}.kpi.you b{color:var(--accent)}
+.nextstep{margin:10px 0 0;font-size:13.5px;line-height:1.45}
+.filters{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 4px}
+.filters button{font-size:12px;padding:3px 10px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.filters button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.masklist .st{font-size:11.5px;font-weight:600;margin-left:auto;white-space:nowrap}.masklist .st.on{color:var(--bad)}.masklist .st.off{color:var(--good)}
+.badge{font-size:10.5px;padding:1px 6px;border-radius:99px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.masklist{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;max-height:260px;overflow:auto;margin-top:6px}
+.masklist label{display:flex;gap:8px;align-items:center;font-size:12.5px}.masklist code{font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .chip{font:inherit;font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
 .chip:hover{border-color:var(--bad);color:var(--bad)}
@@ -186,10 +196,22 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         <div class="panel">
           <div class="status" id="status"><span class="spinner"></span><span id="status-text">Preparing…</span></div>
         </div>
+        <div class="panel" id="summary-panel">
+          <h3>Summary</h3>
+          <div class="kpis">
+            <div class="kpi hid"><b id="k-hidden">0</b><span>Hidden</span><small>words and numbers covered</small></div>
+            <div class="kpi kept"><b id="k-kept">0</b><span>Kept readable</span><small>safe report words</small></div>
+            <div class="kpi you"><b id="k-you">0</b><span>Changed by you</span><small>your own decisions</small></div>
+          </div>
+          <p class="nextstep" id="next-step" role="status" aria-live="polite"></p>
+        </div>
         <div class="panel">
-          <h3>Detected, by type</h3>
+          <h3>What is hidden</h3>
           <div class="types" id="types"></div>
-          <details class="more" id="mask-list"><summary>All masks (<span id="mask-n">0</span>), on or off</summary><div class="masklist" id="mask-items"></div></details>
+          <details class="more" id="mask-list"><summary>Review every item (<span id="mask-n">0</span>)</summary>
+            <p class="hint">Switch an item to <b>Shown</b> to keep it readable, or click its box in the picture. Your choices are remembered when the check runs again.</p>
+            <div class="filters" id="mask-filter" role="group" aria-label="Show items"><button type="button" data-f="all" aria-pressed="true">All</button><button type="button" data-f="hidden" aria-pressed="false">Hidden</button><button type="button" data-f="shown" aria-pressed="false">Shown</button><button type="button" data-f="yours" aria-pressed="false">Your choices</button></div>
+            <div class="masklist" id="mask-items"></div></details>
         </div>
         <div class="panel" id="cm-panel" hidden>
           <h3>Customer comments</h3>
