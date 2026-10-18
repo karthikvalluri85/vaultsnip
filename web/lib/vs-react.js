@@ -1,5 +1,5 @@
-var VSReact=(function(u){"use strict";function R(t){return(String(t||"").normalize("NFKD").replace(/[^\w\s]/g," ").trim().split(/\s+/).filter(Boolean).slice(0,5).map(r=>r[0].toUpperCase()+r.slice(1).toLowerCase()).join("").replace(/^[^A-Za-z]+/,"")||"Dashboard")+"Replica"}const $=(()=>{const t=new Uint32Array(256);for(let e=0;e<256;e++){let n=e;for(let r=0;r<8;r++)n=n&1?3988292384^n>>>1:n>>>1;t[e]=n>>>0}return t})();function V(t){let e=4294967295;for(let n=0;n<t.length;n++)e=$[(e^t[n])&255]^e>>>8;return(e^4294967295)>>>0}function E(t,e=new Date){const n=new TextEncoder,r=e.getHours()<<11|e.getMinutes()<<5|e.getSeconds()>>1,a=Math.max(1980,e.getFullYear())-1980<<9|e.getMonth()+1<<5|e.getDate(),c=(o,l)=>{const d=new DataView(new ArrayBuffer(o));return l.forEach(([f,N,O])=>O===4?d.setUint32(f,N>>>0,!0):d.setUint16(f,N,!0)),new Uint8Array(d.buffer)},i=[],m=[];let p=0;for(const o of t){const l=n.encode(o.name),d=n.encode(o.text),f=V(d);i.push(c(30,[[0,67324752,4],[4,20,2],[6,2048,2],[8,0,2],[10,r,2],[12,a,2],[14,f,4],[18,d.length,4],[22,d.length,4],[26,l.length,2],[28,0,2]]),l,d),m.push(c(46,[[0,33639248,4],[4,20,2],[6,20,2],[8,2048,2],[10,0,2],[12,r,2],[14,a,2],[16,f,4],[20,d.length,4],[24,d.length,4],[28,l.length,2],[30,0,2],[32,0,2],[34,0,2],[36,0,2],[38,0,4],[42,p,4]]),l),p+=30+l.length+d.length}const s=m.reduce((o,l)=>o+l.length,0),b=c(22,[[0,101010256,4],[4,0,2],[6,0,2],[8,t.length,2],[10,t.length,2],[12,s,4],[16,p,4],[20,0,2]]),S=[...i,...m,b],T=new Uint8Array(S.reduce((o,l)=>o+l.length,0));let M=0;for(const o of S)T.set(o,M),M+=o.length;return T}const h={kpi:"KpiCard",chart:"ChartCard",table:"TableCard",feed:"FeedCard",text:"TextCard",placeholder:"PlaceholderCard"},F=t=>!!t&&t in h,g=t=>String(t??"").replace(/\s+/g," ").trim();function y(t){const e=r=>{const a=parseFloat(r);return Number.isFinite(a)?Math.round(a):0},n=[];return t.querySelectorAll(".rp-grid > .rp-card").forEach((r,a)=>{const c=r.getAttribute("data-component");if(!F(c))return;const i=getComputedStyle(r),m=e(i.getPropertyValue("--span")||r.style.getPropertyValue("--span"))||e((/span\s+(\d+)/.exec(i.gridColumnEnd||i.gridColumn||"")||[])[1]||"")||6,p=r.querySelector(".rp-chart, .rp-ph"),s=p?e(p.style.getPropertyValue("--h"))||e(getComputedStyle(p).height):e(i.height),b=g((r.querySelector("h3")||r.querySelector(".k"))?.textContent);n.push({vid:r.getAttribute("data-vid")||"v"+(a+1),component:c,span:Math.max(1,Math.min(12,m)),height:s,title:b})}),{title:g(t.querySelector(".rp-head h2")?.textContent),filters:!!t.querySelector(".rp-filters"),cards:n}}const v=t=>g(t).replace(/\*\//g,"* /").replace(/[{}]/g,"").slice(0,80)||"untitled";function k(t,e){const n=[...new Set(t.cards.map(a=>h[a.component]))],r=t.cards.map(a=>{const c=`r.visual(${JSON.stringify(a.vid)}, ${JSON.stringify(a.component)})`,i=a.component==="chart"?` height={${a.height||260}} onToggle={r.toggle}`:a.component==="table"?" onToggle={r.toggle}":a.component==="placeholder"?` height={${a.height||200}}`:"";return`        {/* ${v(a.title||h[a.component])} */}
-        <${h[a.component]} v={${c}} span={${a.span}}${i} />`}).join(`
+var VSReact=(function(u){"use strict";function R(t){return(String(t||"").normalize("NFKD").replace(/[^\w\s]/g," ").trim().split(/\s+/).filter(Boolean).slice(0,5).map(n=>n[0].toUpperCase()+n.slice(1).toLowerCase()).join("").replace(/^[^A-Za-z]+/,"")||"Dashboard")+"Replica"}const $=(()=>{const t=new Uint32Array(256);for(let e=0;e<256;e++){let r=e;for(let n=0;n<8;n++)r=r&1?3988292384^r>>>1:r>>>1;t[e]=r>>>0}return t})();function V(t){let e=4294967295;for(let r=0;r<t.length;r++)e=$[(e^t[r])&255]^e>>>8;return(e^4294967295)>>>0}function j(t,e=new Date){const r=new TextEncoder,n=e.getHours()<<11|e.getMinutes()<<5|e.getSeconds()>>1,a=Math.max(1980,e.getFullYear())-1980<<9|e.getMonth()+1<<5|e.getDate(),c=(l,o)=>{const d=new DataView(new ArrayBuffer(l));return o.forEach(([h,M,P])=>P===4?d.setUint32(h,M>>>0,!0):d.setUint16(h,M,!0)),new Uint8Array(d.buffer)},i=[],m=[];let p=0;for(const l of t){const o=r.encode(l.name),d=r.encode(l.text),h=V(d);i.push(c(30,[[0,67324752,4],[4,20,2],[6,2048,2],[8,0,2],[10,n,2],[12,a,2],[14,h,4],[18,d.length,4],[22,d.length,4],[26,o.length,2],[28,0,2]]),o,d),m.push(c(46,[[0,33639248,4],[4,20,2],[6,20,2],[8,2048,2],[10,0,2],[12,n,2],[14,a,2],[16,h,4],[20,d.length,4],[24,d.length,4],[28,o.length,2],[30,0,2],[32,0,2],[34,0,2],[36,0,2],[38,0,4],[42,p,4]]),o),p+=30+o.length+d.length}const s=m.reduce((l,o)=>l+o.length,0),b=c(22,[[0,101010256,4],[4,0,2],[6,0,2],[8,t.length,2],[10,t.length,2],[12,s,4],[16,p,4],[20,0,2]]),S=[...i,...m,b],N=new Uint8Array(S.reduce((l,o)=>l+o.length,0));let T=0;for(const l of S)N.set(l,T),T+=l.length;return N}const f={kpi:"KpiCard",chart:"ChartCard",table:"TableCard",pivot:"PivotCard",feed:"FeedCard",text:"TextCard",placeholder:"PlaceholderCard"},E=t=>!!t&&t in f,g=t=>String(t??"").replace(/\s+/g," ").trim();function y(t){const e=n=>{const a=parseFloat(n);return Number.isFinite(a)?Math.round(a):0},r=[];return t.querySelectorAll(".rp-grid > .rp-card").forEach((n,a)=>{const c=n.getAttribute("data-component");if(!E(c))return;const i=getComputedStyle(n),m=e(i.getPropertyValue("--span")||n.style.getPropertyValue("--span"))||e((/span\s+(\d+)/.exec(i.gridColumnEnd||i.gridColumn||"")||[])[1]||"")||6,p=n.querySelector(".rp-chart, .rp-ph"),s=p?e(p.style.getPropertyValue("--h"))||e(getComputedStyle(p).height):e(i.height),b=g((n.querySelector("h3")||n.querySelector(".k"))?.textContent);r.push({vid:n.getAttribute("data-vid")||"v"+(a+1),component:c,span:Math.max(1,Math.min(12,m)),height:s,title:b})}),{title:g(t.querySelector(".rp-head h2")?.textContent),filters:!!t.querySelector(".rp-filters"),cards:r}}const v=t=>g(t).replace(/\*\//g,"* /").replace(/[{}]/g,"").slice(0,80)||"untitled";function k(t,e){const r=[...new Set(t.cards.map(a=>f[a.component]))],n=t.cards.map(a=>{const c=`r.visual(${JSON.stringify(a.vid)}, ${JSON.stringify(a.component)})`,i=a.component==="chart"?` height={${a.height||260}} onToggle={r.toggle}`:a.component==="table"||a.component==="pivot"?" onToggle={r.toggle}":a.component==="placeholder"?` height={${a.height||200}}`:"";return`        {/* ${v(a.title||f[a.component])} */}
+        <${f[a.component]} v={${c}} span={${a.span}}${i} />`}).join(`
 `);return`'use client';
 /*
  * ${v(t.title)}: a live synthetic replica, exported from VaultSnip (https://vaultsnip.pages.dev).
@@ -9,7 +9,7 @@ var VSReact=(function(u){"use strict";function R(t){return(String(t||"").normali
  */
 import { useReplica } from './useReplica';
 import type { Mode } from './types';
-import { Replica, Header, Ribbon, FilterBar, Grid, Footer, ${n.join(", ")} } from './components';
+import { Replica, Header, Ribbon, ParameterBar, FilterBar, Grid, Footer, ${r.join(", ")} } from './components';
 
 export interface ${e.name}Props {
   /** Any whole number; a new seed generates new values. */
@@ -26,15 +26,16 @@ export default function ${e.name}({ seed = ${e.seed}, mode = ${JSON.stringify(e.
     <Replica>
       <Header model={r.model} />
       <Ribbon model={r.model} />
+      <ParameterBar model={r.model} />
 ${t.filters?`      <FilterBar model={r.model} onToggle={r.toggle} onClear={r.clear} />
 `:""}      <Grid>
-${r}
+${n}
       </Grid>
       <Footer model={r.model} onDownload={r.downloadCsv} />
     </Replica>
   );
 }
-`}const x=`/* Types for the VaultSnip replica model (what DSCReplica.model returns) and the engine on window. */
+`}const w=`/* Types for the VaultSnip replica model (what DSCReplica.model returns) and the engine on window. */
 export type Mode = 'shape' | 'structure' | 'generic';
 /** A filter click: [dimension key, raw member]. */
 export type Pair = [string, string];
@@ -53,15 +54,19 @@ export interface ChartModel extends VisualBase {
 }
 /** A table cell; a customer comment carries its text in parts, with a hidden passage between two parts. */
 export interface Cell { text: string; cls: string; parts?: string[] }
-export interface TableModel extends VisualBase { kind: 'table'; columns: string[]; rowLabel: string; rows: { filter: Pair | null; cells: Cell[] }[] }
+export interface TableModel extends VisualBase { kind: 'table'; columns: string[]; rowLabel: string; grouped?: boolean; rows: { filter: Pair | null; cls?: string; cells: Cell[] }[] }
+/** A grid cell of a pivot: spans, a numeric flag, and the dimension member a click on it filters by. */
+export interface GridCell { text: string; colspan?: number; rowspan?: number; num?: boolean; filter?: Pair | null; x?: number }
+export interface PivotModel extends VisualBase { kind: 'pivot'; head: GridCell[][]; body: { cls: string; cells: GridCell[] }[] }
 export interface FeedModel extends VisualBase { kind: 'feed'; items: { meta: string[]; quotes: string[][]; badges: { text: string; tone: string }[] }[] }
 export interface TextModel extends VisualBase { kind: 'text'; text: string }
 export interface PlaceholderModel extends VisualBase { kind: 'placeholder'; text: string }
-export type VisualModel = KpiModel | ChartModel | TableModel | FeedModel | TextModel | PlaceholderModel;
+export type VisualModel = KpiModel | ChartModel | TableModel | PivotModel | FeedModel | TextModel | PlaceholderModel;
 export type VisualOf<K extends VisualModel['kind']> = Extract<VisualModel, { kind: K }>;
 
 export interface ReplicaModel {
   title: string; subtitle: string; mode: Mode; modeName: string; seed: number; footNote: string; filtered: string; active: boolean;
+  parameters: { label: string; value: string }[];
   filters: { label: string; key: string; chips: { raw: string; label: string; pressed: boolean }[] }[];
   pills: { key: string; raw: string; label: string }[];
   visuals: VisualModel[];
@@ -76,7 +81,7 @@ export interface VaultSnipWindow {
     addMap(name: string, featureCollection: unknown): void;
   };
 }
-`;function w(t){return`/* Runs the VaultSnip engine: the replica model for the props and the filters the user has clicked. */
+`;function x(t){return`/* Runs the VaultSnip engine: the replica model for the props and the filters the user has clicked. */
 import { useCallback, useMemo, useState } from 'react';
 import * as echarts from 'echarts';
 ${t.faker?`import './vaultsnip-faker.js';
@@ -122,7 +127,7 @@ export function useReplica({ seed, mode, realistic }: ReplicaOptions) {
 `}const C=`/* The replica's building blocks. They draw what the model says; styles come from the engine (classes rp-*). */
 import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import * as echarts from 'echarts';
-import type { ChartModel, FeedModel, KpiModel, Pair, PlaceholderModel, ReplicaModel, TableModel, TextModel } from './types';
+import type { ChartModel, FeedModel, GridCell, KpiModel, Pair, PivotModel, PlaceholderModel, ReplicaModel, TableModel, TextModel } from './types';
 
 type Toggle = (pairs: Pair[]) => void;
 const vars = (o: Record<string, string | number>) => o as CSSProperties;
@@ -234,7 +239,7 @@ export function TableCard({ v, span, onToggle }: { v?: TableModel; span: number;
             {v.rows.map((row, i) => {
               const f = row.filter;
               return (
-                <tr key={i} className={f ? 'rp-row' : undefined} data-dim={f ? f[0] : undefined} data-raw={f ? f[1] : undefined}
+                <tr key={i} className={[f && !v.grouped ? 'rp-row' : '', row.cls || ''].join(' ').trim() || undefined} data-dim={f && !v.grouped ? f[0] : undefined} data-raw={f && !v.grouped ? f[1] : undefined}
                   title={f ? 'Filter by this ' + v.rowLabel : undefined} onClick={f ? () => onToggle([f]) : undefined}>
                   {row.cells.map((c, j) => <td key={j} className={c.cls}>{c.parts ? <Quote parts={c.parts} /> : c.text}</td>)}
                 </tr>
@@ -244,6 +249,41 @@ export function TableCard({ v, span, onToggle }: { v?: TableModel; span: number;
         </table>
       </div>
     </Card>
+  );
+}
+
+/** A matrix / cross-tab: grouped column headers, row groups, subtotal and total rows. Clicking a row label filters the page. */
+export function PivotCard({ v, span, onToggle }: { v?: PivotModel; span: number; onToggle: Toggle }) {
+  if (!v) return null;
+  const span2 = (c: GridCell) => ({ colSpan: c.colspan && c.colspan > 1 ? c.colspan : undefined, rowSpan: c.rowspan && c.rowspan > 1 ? c.rowspan : undefined });
+  return (
+    <Card span={span} kind="pivot" vid={v.id} title={v.title}>
+      <div className="rp-table rp-pivot">
+        <table>
+          <thead>{v.head.map((r, i) => <tr key={i}>{r.map((c, j) => <th key={j} className={c.num ? 'n' : undefined} {...span2(c)}>{c.text}</th>)}</tr>)}</thead>
+          <tbody>
+            {v.body.map((r, i) => (
+              <tr key={i} className={r.cls || undefined}>
+                {r.cells.map((c, j) => {
+                  const f = c.filter;
+                  return <td key={j} className={c.num ? 'n' : f ? 'rp-hd' : undefined} {...span2(c)} data-dim={f ? f[0] : undefined} data-raw={f ? f[1] : undefined} onClick={f ? () => onToggle([f]) : undefined}>{c.text}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+/** Report parameters (prompts above a paginated report), shown as label and value. */
+export function ParameterBar({ model }: { model: ReplicaModel }) {
+  if (!model.parameters || !model.parameters.length) return null;
+  return (
+    <div className="rp-params">
+      {model.parameters.map((q, i) => <span key={i} className="rp-param"><span className="lbl">{q.label}</span><span className="rp-pv">{q.value}</span></span>)}
+    </div>
   );
 }
 
@@ -284,11 +324,11 @@ export function Footer({ model, onDownload }: { model: ReplicaModel; onDownload:
     </div>
   );
 }
-`;function j(t){const e=R(t.title||""),n=y(t.root),r=!!t.faker&&t.realistic!==!1,a={};Object.keys(t.maps||{}).forEach(s=>{a[s]=JSON.parse(t.maps[s])});const c=s=>`
+`;function F(t){const e=R(t.title||""),r=y(t.root),n=!!t.faker&&t.realistic!==!1,a={};Object.keys(t.maps||{}).forEach(s=>{a[s]=JSON.parse(t.maps[s])});const c=s=>`
 if (typeof window !== 'undefined' && typeof ${s} !== 'undefined') window.${s} = ${s};
-`,i=[...new Set(n.cards.map(s=>h[s.component]))],m=`# ${e}
+`,i=[...new Set(r.cards.map(s=>f[s.component]))],m=`# ${e}
 
-A live, synthetic replica of "${v(n.title)}", exported from [VaultSnip](https://vaultsnip.pages.dev) as editable TypeScript React.
+A live, synthetic replica of "${v(r.title)}", exported from [VaultSnip](https://vaultsnip.pages.dev) as editable TypeScript React.
 
 ## Use it
 
@@ -305,7 +345,7 @@ Copy this folder into your project (in tsconfig, "resolveJsonModule": true), the
 
 ## Edit it
 
-- ${e}.tsx is the page: ${n.cards.length} cards in order (${i.join(", ")}), each with its span out of 12.
+- ${e}.tsx is the page: ${r.cards.length} cards in order (${i.join(", ")}), each with its span out of 12.
   Reorder, remove or wrap them, or change a span, as ordinary JSX.
 - components.tsx holds the building blocks; restyle or replace any of them.
 - useReplica.ts runs the engine; types.ts describes everything it returns.
@@ -314,7 +354,7 @@ Copy this folder into your project (in tsconfig, "resolveJsonModule": true), the
 
 Nothing is frozen into the code. Every value, label, table row and chart option comes at runtime from the VaultSnip engine
 (vaultsnip-replica.js) for spec.json, the seed and the filters the user clicks. Filter chips, table rows and chart segments
-filter the whole page, "Download data (CSV)" saves the values on screen.${r?" Names, companies and IDs are made up at runtime to fit each column (realistic={false} for neutral placeholders); emails use only example.com/.net/.org.":""}
+filter the whole page, "Download data (CSV)" saves the values on screen.${n?" Names, companies and IDs are made up at runtime to fit each column (realistic={false} for neutral placeholders); emails use only example.com/.net/.org.":""}
 
 ## Privacy
 
@@ -325,8 +365,8 @@ There is no source data, screenshot or OCR text in this folder, and nothing in i
 
 vaultsnip-replica.js is part of VaultSnip, Apache-2.0 (https://github.com/karthikvalluri85/vaultsnip). The map outlines in maps.json
 come from Natural Earth (public domain).${t.faker?" vaultsnip-faker.js bundles Faker (MIT, Copyright (c) 2022-present Faker).":""}
-`,p=[{name:`${e}/${e}.tsx`,text:k(n,{name:e,mode:t.mode,seed:Math.trunc(t.seed)||4127,realistic:r})},{name:`${e}/components.tsx`,text:C},{name:`${e}/useReplica.ts`,text:w({mode:t.mode,faker:!!t.faker})},{name:`${e}/types.ts`,text:x},{name:`${e}/vaultsnip-replica.js`,text:`/* VaultSnip replica engine. Apache-2.0, https://github.com/karthikvalluri85/vaultsnip. Defines window.DSCReplica; uses window.echarts. */
+`,p=[{name:`${e}/${e}.tsx`,text:k(r,{name:e,mode:t.mode,seed:Math.trunc(t.seed)||4127,realistic:n})},{name:`${e}/components.tsx`,text:C},{name:`${e}/useReplica.ts`,text:x({mode:t.mode,faker:!!t.faker})},{name:`${e}/types.ts`,text:w},{name:`${e}/vaultsnip-replica.js`,text:`/* VaultSnip replica engine. Apache-2.0, https://github.com/karthikvalluri85/vaultsnip. Defines window.DSCReplica; uses window.echarts. */
 `+t.replica},...t.faker?[{name:`${e}/vaultsnip-faker.js`,text:`/* VaultSnip realistic-names injector, Apache-2.0, with Faker (MIT, Copyright (c) 2022-present Faker). Defines window.VSFaker. */
 `+t.faker+c("VSFaker")}]:[],{name:`${e}/spec.json`,text:JSON.stringify(t.spec,null,2)+`
 `},{name:`${e}/maps.json`,text:JSON.stringify(a)+`
-`},{name:`${e}/README.md`,text:m}];return{name:e,files:p,zip:E(p)}}return u.COMPONENTS_TSX=C,u.TYPES_TS=x,u.pageTsx=k,u.readLayout=y,u.tsxPackage=j,u.useReplicaTs=w,Object.defineProperty(u,Symbol.toStringTag,{value:"Module"}),u})({});
+`},{name:`${e}/README.md`,text:m}];return{name:e,files:p,zip:j(p)}}return u.COMPONENTS_TSX=C,u.TYPES_TS=w,u.pageTsx=k,u.readLayout=y,u.tsxPackage=F,u.useReplicaTs=x,Object.defineProperty(u,Symbol.toStringTag,{value:"Module"}),u})({});

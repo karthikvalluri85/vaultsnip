@@ -335,6 +335,69 @@ try {
   check(await t3.rp.locator('.rp-head h2').textContent() === 'Dashboard 1' && /Generic mode/.test(await t3.rp.locator('.rp-ribbon').textContent()), 'a Generic TypeScript export stays Generic even when asked for a less private mode');
   await t3.rp.close();
 
+  console.log('Paginated reports: matrix, grouped table, parameters (Phase 1)');
+  await page.goto(base); await page.click('#btn-try'); await page.locator('#samples .sample button').nth(3).click();
+  await page.waitForSelector('#replica .rp-pivot table'); await wait(400);
+  const rep = await page.evaluate(() => {
+    const root = document.getElementById('replica'), m = root._model;
+    const pv = m.visuals.find(x => x.kind === 'pivot'), gt = m.visuals.find(x => x.kind === 'table' && x.grouped);
+    const nums = r => r.cells.filter(c => c.num).map(c => c.x);
+    const leaf = pv.body.filter(r => !r.cls), grand = pv.body.find(r => r.cls === 'rp-grand');
+    const sums = nums(grand).map((g, j) => [g, leaf.reduce((a, r) => a + nums(r)[j], 0)]);
+    const th = [...root.querySelectorAll('.rp-pivot thead tr')].map(tr => [...tr.children].map(c => c.textContent + (c.colSpan > 1 ? '*' + c.colSpan : '')));
+    return {
+      headRows: th.length, years: th[0].filter(t => /^20\d\d\*/.test(t)).length, quarters: th[1].filter(t => /^Q\d$/.test(t)).length,
+      subs: root.querySelectorAll('.rp-pivot tr.rp-sub').length, grands: root.querySelectorAll('.rp-pivot tr.rp-grand').length,
+      sumsOk: sums.length > 0 && sums.every(([g, s]) => Math.abs(g - s) <= Math.abs(s) * 1e-9 + 1e-6),
+      gSubs: gt.rows.filter(r => r.cls === 'rp-sub').length, gGrand: gt.rows.filter(r => r.cls === 'rp-grand').length,
+      gBlank: gt.rows.filter(r => !r.cls).filter(r => r.cells[0].text === '').length,
+      params: [...root.querySelectorAll('.rp-params .rp-param')].map(p => p.textContent), mParams: m.parameters.length,
+      hd: root.querySelectorAll('.rp-pivot td.rp-hd[data-dim]').length, csv: DSCReplica.toCsv(root)
+    };
+  });
+  check(rep.headRows === 3 && rep.years === 2 && rep.quarters === 8, `the matrix has grouped column headers: years over quarters over measures (${rep.years} years, ${rep.quarters} quarters)`);
+  check(rep.subs === 3 && rep.grands === 1, `the matrix has a subtotal per region and a grand total (${rep.subs} + ${rep.grands})`);
+  check(rep.sumsOk, 'every grand-total cell equals the sum of the detail rows above it');
+  check(rep.gSubs === 3 && rep.gGrand === 1 && rep.gBlank > 0, `the grouped table shows each region once, a subtotal per group and a grand total (${rep.gSubs} subtotals)`);
+  check(rep.params.length === 3 && rep.mParams === 3 && /Fiscal Year\s*2026/.test(rep.params[0]), `report parameters appear above the page (${rep.params.join(' | ')})`);
+  check(rep.csv.split('\n').filter(l => /^"?Sales by territory/.test(l)).length === 9 * 8, 'the CSV download holds every detail cell of the matrix');
+  const kpiPv = () => page.evaluate(() => document.querySelector('#replica .rp-pivot tr.rp-grand td.n').textContent);
+  const pv0 = await kpiPv();
+  await page.locator('#replica .rp-pivot td.rp-hd', { hasText: 'Europe' }).first().click(); await wait(300);
+  const pvF = await page.evaluate(() => ({ rows: document.querySelectorAll('#replica .rp-pivot tbody tr:not(.rp-sub):not(.rp-grand)').length, ribbon: document.querySelector('#replica .rp-ribbon').textContent }));
+  check(pvF.rows === 3 && /\(1\)/.test(pvF.ribbon) && (await kpiPv()) !== pv0, `clicking a row label filters the report (${pvF.rows} rows left)`);
+  await page.locator('#replica .rp-clear').click(); await wait(300);
+  check((await kpiPv()) === pv0, 'Clear all filters restores the matrix');
+  const repG = await page.evaluate(() => {
+    const g = VSShare.forLevel(window.DSC_SAMPLES[3].spec, 'generic'), root = document.createElement('div');
+    document.body.appendChild(root); DSCReplica.render(root, g, { mode: 'generic', seed: 1, resetSelection: true });
+    const out = { spec: JSON.stringify(g), page: root.textContent, params: [...root.querySelectorAll('.rp-param')].map(p => p.textContent), pivot: !!root.querySelector('.rp-pivot tr.rp-grand') };
+    root.remove(); return out;
+  });
+  check(!/North America|Europe|Pacific|Bikes|Accessories|Fiscal Year|Territory|Sales by/.test(repG.spec + repG.page) && repG.pivot && repG.params[0] === 'Parameter 1All',
+    'a Generic share link keeps the report structure but none of its labels, members or parameter values');
+  const dlP = await exportReact('tsx');
+  const tsxP = unzipText(await readFile(await dlP.path()));
+  const PN = dlP.suggestedFilename().replace(/-tsx\.zip$/, ''), PP = PN + '/';
+  check(/<PivotCard v=\{r\.visual\("mx", "pivot"\)\} span=\{12\} onToggle=\{r\.toggle\} \/>/.test(tsxP[PP + PN + '.tsx']) && /<ParameterBar model=\{r\.model\} \/>/.test(tsxP[PP + PN + '.tsx']), 'the TypeScript page uses a PivotCard and a ParameterBar');
+  const pdir = await unpack(tsxP);
+  await writeFile(join(pdir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, noEmit: true, resolveJsonModule: true, esModuleInterop: true, skipLibCheck: true, lib: ['ES2022', 'DOM'], types: [] }, include: ['**/*.ts', '**/*.tsx'] }));
+  let tscP = '';
+  try { execFileSync(process.execPath, [join(web, '..', 'node_modules', 'typescript', 'bin', 'tsc'), '-p', pdir], { stdio: 'pipe' }); } catch (e) { tscP = String(e.stdout || e.message).slice(0, 800); }
+  await rm(pdir, { recursive: true, force: true });
+  check(!tscP, 'the report project passes tsc --strict' + (tscP ? ':\n' + tscP : ''));
+  const t4 = await runReact(tsxP, PN, 'tsx');
+  await t4.rp.evaluate(() => window.__mount({})); await t4.rp.waitForTimeout(1500);
+  const t4s = await t4.rp.evaluate(() => ({ grand: document.querySelector('#root .rp-pivot tr.rp-grand td.n').textContent, subs: document.querySelectorAll('#root .rp-pivot tr.rp-sub').length,
+    params: document.querySelectorAll('#root .rp-params .rp-param').length, gsub: document.querySelectorAll('#root .rp-card tr.rp-sub').length }));
+  check(t4s.grand === pv0 && t4s.subs === 3 && t4s.params === 3 && t4s.gsub === 6, `the TypeScript components draw the matrix, grouped table and parameters with the app's values (${t4s.grand})`);
+  await t4.rp.locator('#root .rp-pivot td.rp-hd', { hasText: 'Europe' }).first().click(); await t4.rp.waitForTimeout(400);
+  check(await t4.rp.locator('#root .rp-pivot tr.rp-grand td.n').first().textContent() !== pv0 && t4.errs.length === 0, 'clicking a matrix row label filters the TypeScript page too' + (t4.errs.length ? ': ' + t4.errs.join(' | ') : ''));
+  await t4.rp.close();
+  const [dlPS] = await Promise.all([page.waitForEvent('download'), page.click('#btn-figma')]);
+  const svgP = await readFile(await dlPS.path(), 'utf8');
+  check(/Sales by territory and quarter/.test(svgP) && />Total</.test(svgP), 'the Figma SVG includes the matrix with its total rows');
+
   console.log('Untrusted labels');
   const xss = await page.evaluate(async () => {
     window.__pwned = 0;

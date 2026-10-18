@@ -132,5 +132,27 @@ window.DSC_SAMPLES = [
               { from: 'Allentown DC', to: 'New York', shape: 90 }, { from: 'Allentown DC', to: 'Boston', shape: 40 }, { from: 'Allentown DC', to: 'Chicago', shape: 25 }] }] }
       ]
     }
+  },
+  {
+    id: 'report',
+    name: 'Paginated sales report',
+    blurb: 'An SSRS / Crystal / BusinessObjects-style report: parameters, a matrix with subtotals and a grouped detail table.',
+    spec: {
+      title: '[Client] | Sales by Territory', subtitle: 'Fiscal year 2026',
+      parameters: [{ label: 'Fiscal Year', value: '2026' }, { label: 'Territory', value: 'All' }, { label: 'Category', value: 'Bikes, Accessories' }],
+      filters: [{ label: 'Category', members: ['Bikes', 'Accessories', 'Clothing'] }],
+      rows: [
+        { height: 'l', visuals: [
+          { id: 'mx', type: 'pivot', span: 12, title: 'Sales by territory and quarter',
+            rowDims: [{ name: 'Region', members: ['North America', 'Europe', 'Pacific'] }, { name: 'Category', members: ['Bikes', 'Accessories', 'Clothing'] }],
+            colDims: [{ name: 'Year', members: ['2025', '2026'] }, { name: 'Quarter', members: ['Q1', 'Q2', 'Q3', 'Q4'] }],
+            measures: [{ name: 'Sales', format: 'currency', currency: '$' }] }] },
+        { height: 'l', visuals: [
+          { id: 'gt', type: 'table', span: 12, title: 'Order detail', rowCount: 12, groupBy: ['Region'], subtotals: true, grandTotal: true, columns: [
+            { name: 'Region', kind: 'category', members: ['North America', 'Europe', 'Pacific'] }, { name: 'Order number', kind: 'id' },
+            { name: 'Customer', kind: 'org', placeholder: 'Customer' }, { name: 'Order date', kind: 'date' },
+            { name: 'Quantity', kind: 'number' }, { name: 'Sales', kind: 'currency', currency: '$' }] }] }
+      ]
+    }
   }
 ];
