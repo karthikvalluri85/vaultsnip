@@ -76,6 +76,13 @@ for (const [, ref] of html.matchAll(/(?:src|href)="([^"#?]+)"/g)) {
   if (existsSync(join(root, 'web', ref))) ok(ref); else fail(`index.html references missing file ${ref}`);
 }
 
+console.log('Privacy page matches PRIVACY.md');
+{
+  const { expectedPrivacy, privacyPath } = await import('./build-privacy.mjs');
+  if (readFileSync(privacyPath, 'utf8') === expectedPrivacy()) ok('web/privacy.html');
+  else fail('web/privacy.html differs from PRIVACY.md: run node tools/build-privacy.mjs');
+}
+
 console.log('Privacy guard: no third-party trackers in web/');
 const trackers = /googletagmanager|google-analytics|gtag\(|sentry|logrocket|hotjar|mixpanel|segment\.com|amplitude\.com|clarity\.ms/i;
 for (const f of walk(join(root, 'web')).filter(f => /\.(js|html)$/.test(f))) {

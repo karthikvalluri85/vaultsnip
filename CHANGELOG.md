@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Security
+- The web app now sends a **Content-Security-Policy** (`web/_headers`): scripts and data only from VaultSnip itself, and network access only to VaultSnip and the two AI providers a user can choose, so the browser itself enforces "no hidden data flow". The end-to-end test runs under the same headers and fails if anything is blocked.
+- CI actions are pinned to commit SHAs; releases run the type check and unit tests before building packages; the release job alone gets write access.
+- Dev dependency Vitest upgraded to 5 (fixes critical advisories in its worker pool; tests only, nothing shipped).
+
+### Fixed
+- The in-app privacy page had fallen behind PRIVACY.md (it lacked *Realistic names* and *Design exports*). It is now generated from PRIVACY.md (`npm run build:privacy`), and `npm run check` fails if they differ.
+
+### Changed
+- CI and `engines` move to supported Node.js LTS (Node 20 reached end of life in April 2026): CI runs Node 24, and Node 22 or later is required.
+- CI checks that every committed `web/lib` bundle matches its source, as it already did for the extension and the name-check model.
+- CONTRIBUTING lists every build step and the full set of checks.
+
 ### Added
 - **Build on this device (beta).** The send dialog has a new choice: *Build on this device*. VaultSnip reads the layout from the masked image itself, with no AI key and nothing sent. It finds the panels (including cards), reads each one as a KPI, column, bar, line, area, pie, donut, scatter, treemap, table, pivot or text block, measures bar lengths, line heights, slice shares and dot positions as shapes, and takes titles, labels and report parameters from the words that stay readable. Masked words reach it only as positions. It runs in a Web Worker in about half a second. The replica says it was built on this device and offers *Use my AI key for a precise layout*. On a benchmark of 11 public Power BI, Tableau and Looker dashboards it finds 76% of the visuals and types 62% of those correctly; SSRS matrices are read in full. Developers can rerun the benchmark with `tools/layout-bench`.
 - **Paginated reports.** Replicas now cover SSRS, Crystal Reports and BusinessObjects-style reports. A **matrix** (pivot / cross-tab) has up to two row and two column levels, several measures, subtotals and a grand total. Every total is the sum of the cells it covers, and clicking a row label filters the page. A **grouped table** shows each group value once and closes each group with a subtotal row and the table with a grand total. **Report parameters** (Fiscal Year, Territory…) appear above the page. The AI prompt describes these, and the allowlist keeps common report field words (Quantity, Invoice, Subcategory, Fiscal…). The CSV, HTML, Figma SVG and both React exports include them. The TypeScript export gains `<PivotCard>` and `<ParameterBar>`. In Generic mode, share links and exports keep the structure but no labels, members or parameter values. There is a new sample: *Paginated sales report*.

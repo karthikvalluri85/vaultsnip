@@ -25,12 +25,14 @@ Open http://localhost:8080 and use **Try with sample dashboards**.
 ## Checks before a pull request
 
 ```bash
-npm ci                    # once
-npm run check             # syntax, JSON, manifest and version checks
-npm run e2e               # browser smoke test (installs Chromium on first run: npx playwright install chromium)
+npm ci                    # once (Node 22 or later)
+npm run check             # syntax, JSON, manifest, versions, privacy page in sync with PRIVACY.md
+npx tsc -p .              # types
+npm run test:unit         # unit tests (Vitest)
+npm run e2e               # browser end-to-end test (first run: npx playwright install chromium)
 ```
 
-Both run automatically on every pull request.
+CI runs these on every pull request, plus the extension and on-device name-check suites, and checks that every committed bundle matches its source (see *Built files* below).
 
 ## Project layout
 
@@ -42,19 +44,35 @@ Both run automatically on every pull request.
 | `web/replica.js` | Replica engine (also embedded in every export) |
 | `web/feedback.js` | In-app feedback and error reporting |
 | `web/maps/` | Map outlines, rebuilt by `tools/maps/build_maps.py` |
+| `src/` | TypeScript sources, built into the committed bundles listed under *Built files* |
+| `tests/` | Unit tests (`tests/unit`, Vitest) and extra end-to-end suites (`tests/e2e`) |
 | `extension/` | Chrome/Edge (MV3) wrapper |
 | `build.sh` | Builds the extension, web and Hugging Face packages into `dist/` |
-| `tools/` | Checks, end-to-end test, map builder |
+| `tools/` | Checks, end-to-end test, build scripts, map builder |
 
 ## Style
 
-- Plain modern JavaScript, no frameworks; 2-space indent (see `.editorconfig`).
+- Plain modern JavaScript in `web/`, TypeScript in `src/`, no frameworks; 2-space indent (see `.editorconfig`).
 - Keep files self-contained: `replica.js` must work inside an offline exported file.
 - Commit messages: short imperative summary line, e.g. `Maps: match UK and United Kingdom`.
 
-## Upgrading vendored libraries
+## Built files
 
-`web/ml`, `web/lib/vs-context.js` and `web/models` (the on-device name check) are built from `src/` and committed for the same reason: after changing `src/background` or `src/content/context-classifier.ts`, run `npm run build:ml` and commit the result; `npm run fetch:model -- --check` verifies the model against its pinned revision.
+The app has no build step, so code from `src/` ships as committed bundles. After changing a source, run its script and commit the output with the change; CI fails when a committed bundle differs from its source.
+
+| Source | Script | Committed output |
+|---|---|---|
+| `src/replica` | `npm run build:faker` | `web/lib/vs-faker.js` |
+| `src/export` | `npm run build:design` | `web/lib/vs-design.js` |
+| `src/exporters` | `npm run build:react` | `web/lib/vs-react.js` |
+| `src/layout` | `npm run build:layout` | `web/lib/vs-layout.js` |
+| `src/background`, `src/content`, `src/shared` | `npm run build:ext` | `extension/*.js`, `extension/offscreen.html` |
+| `src/background`, `src/content/context-classifier.ts` | `npm run build:ml` | `web/ml`, `web/lib/vs-context.js` |
+| `PRIVACY.md` | `npm run build:privacy` | `web/privacy.html` |
+
+`src/shared/allowlist.ts` must match the `ALLOW` list in `web/app.js` (a unit test checks this), and it is bundled into the extension, so run `npm run build:ext` after changing it. `npm run fetch:model -- --check` verifies the on-device model in `web/models` against its pinned revision.
+
+## Upgrading vendored libraries
 
 `web/lib` holds copies of tesseract.js and Apache ECharts, so the app needs no build step. To upgrade one, update `package.json`, run `npm install`, copy the new files into `web/lib`, and run `npm run e2e`. Dependabot is told not to propose these upgrades for that reason.
 
