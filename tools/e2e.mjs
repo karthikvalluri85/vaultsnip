@@ -610,6 +610,51 @@ try {
   check(px.tag.every(c => c < 110), 'the PNG carries a small "masked with VaultSnip" tag unless unticked');
   await page.keyboard.press('Escape');
 
+  console.log('On-device layout builder (Phase 2, beta)');
+  // the bundled demo screenshot, reviewed afresh, then built on this device with no key
+  const workerReqs = []; const onReq = r => { if (/layout-worker\.js/.test(r.url())) workerReqs.push(r.url()); }; page.on('request', onReq);
+  await page.goto(base); await page.click('#btn-try'); await page.locator('#samples .sample button').nth(0).click();
+  await page.waitForFunction(() => { const g = document.querySelector('.gate'); return g && /Blocked|Review|Pass/.test(g.textContent) && !/Checking/.test(g.textContent); }, null, { timeout: 180000 });
+  await page.evaluate(() => document.getElementById('btn-send').onclick());
+  check(await page.locator('#btn-local').isDisabled(), '"Build on this device" waits for "I have looked over the masked image", like sending');
+  await page.check('#pf-ok');
+  await page.click('#btn-local');
+  await page.waitForFunction(() => !document.getElementById('s-replica').hidden, null, { timeout: 120000 });
+  const lb = await page.evaluate(() => {
+    const S = window.__DSC, on = S.masks.filter(m => m.on);
+    const inMask = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
+    const hidden = [...new Set(S.words.filter(w => inMask(w) && w.text.replace(/[^\p{L}\p{N}]/gu, '').length >= 4).map(w => w.text.replace(/[^\p{L}\p{N}]/gu, '')))];
+    const json = JSON.stringify(S.spec);
+    return { rows: S.spec.rows.map(r => r.visuals.map(v => v.type)), title: S.spec.title, titles: S.spec.rows.flatMap(r => r.visuals.map(v => v.title || '')),
+      leaked: hidden.filter(t => json.includes(t)), hidden: hidden.length, banner: !document.getElementById('local-banner').hidden && document.getElementById('local-banner').textContent,
+      cards: document.querySelectorAll('#replica .rp-card').length, charts: document.querySelectorAll('#replica .rp-chart svg').length, local: S.local };
+  });
+  const flat = lb.rows.flat();
+  check(workerReqs.length > 0, 'the layout is read in a Web Worker, off the page\'s main thread');
+  check(/Built on this device \(beta\)/.test(lb.banner || '') && /visuals found/.test(lb.banner || ''), 'the replica says it was built on this device and how many visuals were found');
+  check(flat.filter(t => t === 'kpi').length === 4 && JSON.stringify(lb.rows[0]) === JSON.stringify(['kpi', 'kpi', 'kpi', 'kpi']), `the four KPI cards are read as KPIs (${JSON.stringify(lb.rows)})`);
+  check(flat.includes('column') && flat.includes('line') && flat.includes('table'), 'the column chart, line chart and table are recognised');
+  check(lb.titles.includes('Net Revenue by Country') && lb.titles.includes('Monthly Net Revenue') && /EMEA Sales Performance/.test(lb.title), `chart and page titles come from the visible words ("${lb.title}")`);
+  check(lb.hidden > 5 && lb.leaked.length === 0, `no masked word reaches the spec (${lb.hidden} masked words checked${lb.leaked.length ? ', leaked: ' + lb.leaked.join(', ') : ''})`);
+  check(lb.cards >= 8 && lb.charts >= 2, `the engine draws the local spec (${lb.cards} cards, ${lb.charts} charts)`);
+  page.off('request', onReq);
+  await page.locator('#modes button[data-mode="generic"]').click(); await wait(400);
+  check(!/EMEA|Net Revenue by Country|Monthly Net Revenue/.test(await page.locator('#replica').textContent()), 'Generic mode hides the titles of a locally built replica too');
+  await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);
+  const [csvL] = await Promise.all([page.waitForEvent('download'), page.click('#btn-csv')]);
+  check(/^visual,visual_type,/.test((await readFile(await csvL.path(), 'utf8')).replace(/^﻿/, '')), '"Download data (CSV)" works for a locally built replica');
+  const dlL = await exportReact('tsx');
+  const tsxL = unzipText(await readFile(await dlL.path()));
+  const ldir = await unpack(tsxL);
+  await writeFile(join(ldir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, noEmit: true, resolveJsonModule: true, esModuleInterop: true, skipLibCheck: true, lib: ['ES2022', 'DOM'], types: [] }, include: ['**/*.ts', '**/*.tsx'] }));
+  let tscL = '';
+  try { execFileSync(process.execPath, [join(web, '..', 'node_modules', 'typescript', 'bin', 'tsc'), '-p', ldir], { stdio: 'pipe' }); } catch (e) { tscL = String(e.stdout || e.message).slice(0, 800); }
+  await rm(ldir, { recursive: true, force: true });
+  check(!tscL, 'a TypeScript export of a locally built replica passes tsc --strict' + (tscL ? ':\n' + tscL : ''));
+  await page.click('#btn-local-key');
+  check(await page.locator('#dlg-send').evaluate(d => d.open) && await page.locator('#btn-confirm').isVisible(), '"Use my AI key for a precise layout" opens the same masked-image preview, to send with your own key');
+  await page.keyboard.press('Escape');
+
   console.log('AI providers (mocked Claude and OpenAI endpoints)');
   const spec = await page.evaluate(() => JSON.stringify(window.DSC_SAMPLES[1].spec));
   const seen = {};

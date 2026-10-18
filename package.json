@@ -40,7 +40,9 @@
     "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs",
     "build:faker": "node tools/build-faker.mjs",
     "build:design": "node tools/build-design.mjs",
-    "build:react": "node tools/build-react.mjs"
+    "build:react": "node tools/build-react.mjs",
+    "build:layout": "node tools/build-layout.mjs",
+    "bench:layout": "node tools/layout-bench/run.mjs"
   },
   "dependencies": {
     "@faker-js/faker": "10.6.0",

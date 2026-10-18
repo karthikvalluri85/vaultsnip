@@ -228,6 +228,10 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <span><b>Shared replica.</b> Every value is generated; the person who shared it chose what the link keeps.</span>
       <button class="btn primary" id="btn-own" type="button">Make one from your own screenshot</button>
     </div>
+    <div class="banner" id="local-banner" hidden>
+      <span><b>Built on this device (beta).</b> The layout, chart types and shapes were read from the masked image here; nothing was sent. Compare it with your original: <span id="local-stats"></span></span>
+      <button class="btn" id="btn-local-key" type="button">Use my AI key for a precise layout</button>
+    </div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="Privacy mode" id="modes">
         <button type="button" data-mode="shape" aria-pressed="true">Shape-preserving</button>
@@ -270,6 +274,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <label class="note" style="margin-right:auto;align-self:center"><input type="checkbox" id="pf-credit" checked> Add a small "masked with VaultSnip" tag</label>
       <button class="btn" value="cancel" type="submit">Cancel</button>
       <button class="btn" id="btn-dl-masked" type="button">Download masked image</button>
+      <button class="btn" id="btn-local" type="button" title="Reads the layout, chart types and shapes from the masked image on this device. No key, nothing is sent.">Build on this device (beta)</button>
       <button class="btn primary" id="btn-confirm" type="button">Send and build replica</button>
     </div>
   </form>
@@ -312,7 +317,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <dialog id="dlg-key">
   <form method="dialog" class="dlg">
     <h2>AI key</h2>
-    <p class="note">Used only when you convert your own images. Bring your own key from Anthropic (Claude) or OpenAI. It is held in this tab's memory unless you choose to remember it on this device.</p>
+    <p class="note">Used only when you send your own images for a precise layout; "Build on this device" needs no key. Bring your own key from Anthropic (Claude) or OpenAI. It is held in this tab's memory unless you choose to remember it on this device.</p>
     <div id="kp-dlg"></div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn" id="key-clear" type="button">Forget key</button>
@@ -331,6 +336,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="replica.js"></script>
 <script src="lib/vs-design.js"></script>
 <script src="lib/vs-react.js"></script>
+<script src="lib/vs-layout.js"></script>
 <script src="samples.js"></script>
 <script src="share.js"></script>
 <script src="app.js"></script>
