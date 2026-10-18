@@ -4,19 +4,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-### Security
-- The web app now sends a **Content-Security-Policy** (`web/_headers`): scripts and data only from VaultSnip itself, and network access only to VaultSnip and the two AI providers a user can choose, so the browser itself enforces "no hidden data flow". The end-to-end test runs under the same headers and fails if anything is blocked.
-- CI actions are pinned to commit SHAs; releases run the type check and unit tests before building packages; the release job alone gets write access.
-- Dev dependency Vitest upgraded to 5 (fixes critical advisories in its worker pool; tests only, nothing shipped).
-
-### Fixed
-- The in-app privacy page had fallen behind PRIVACY.md (it lacked *Realistic names* and *Design exports*). It is now generated from PRIVACY.md (`npm run build:privacy`), and `npm run check` fails if they differ.
-
-### Changed
-- CI and `engines` move to supported Node.js LTS (Node 20 reached end of life in April 2026): CI runs Node 24, and Node 22 or later is required.
-- CI checks that every committed `web/lib` bundle matches its source, as it already did for the extension and the name-check model.
-- CONTRIBUTING lists every build step and the full set of checks.
-
 ### Added
 - **Build on this device (beta).** The send dialog has a new choice: *Build on this device*. VaultSnip reads the layout from the masked image itself, with no AI key and nothing sent. It finds the panels (including cards), reads each one as a KPI, column, bar, line, area, pie, donut, scatter, treemap, table, pivot or text block, measures bar lengths, line heights, slice shares and dot positions as shapes, and takes titles, labels and report parameters from the words that stay readable. Masked words reach it only as positions. It runs in a Web Worker in about half a second. The replica says it was built on this device and offers *Use my AI key for a precise layout*. On a benchmark of 11 public Power BI, Tableau and Looker dashboards it finds 76% of the visuals and types 62% of those correctly; SSRS matrices are read in full. Developers can rerun the benchmark with `tools/layout-bench`.
 - **Paginated reports.** Replicas now cover SSRS, Crystal Reports and BusinessObjects-style reports. A **matrix** (pivot / cross-tab) has up to two row and two column levels, several measures, subtotals and a grand total. Every total is the sum of the cells it covers, and clicking a row label filters the page. A **grouped table** shows each group value once and closes each group with a subtotal row and the table with a grand total. **Report parameters** (Fiscal Year, Territory…) appear above the page. The AI prompt describes these, and the allowlist keeps common report field words (Quantity, Invoice, Subcategory, Fiscal…). The CSV, HTML, Figma SVG and both React exports include them. The TypeScript export gains `<PivotCard>` and `<ParameterBar>`. In Generic mode, share links and exports keep the structure but no labels, members or parameter values. There is a new sample: *Paginated sales report*.
@@ -27,6 +14,24 @@ All notable changes to this project are documented here. The format follows [Kee
 - Extension: "Blur text in charts on this page" (right-click menu or Alt+Shift+B). Text inside charts drawn on canvas (Power BI, Tableau, ECharts, Chart.js, WebGL) is read on your device and sensitive text is blurred in place, with a re-check; redrawn charts are read again. Run it again to remove the blur. New permissions `scripting`, `offscreen` and `contextMenus` (no install warning, no host access); see PRIVACY.md.
 - On-device name check: a small PII model (Apache-2.0, 19 MB) runs in a Web Worker and masks safe words used as names, such as "May Chen" or "Delta Airlines", that the allowlist would otherwise keep. It only adds masks ("Name in context", brown), never touches words you marked safe, runs before the pre-flight check, and can be switched off under *Redaction policy*. Model and runtime are served by VaultSnip itself; store packages include them.
 - `CLAUDE.md` and new ground rules in `CONTRIBUTING.md`: ethics, privacy law and licences are checked before any change; only compatible licences; disclosure in `PRIVACY.md`; VaultSnip stays free and open source.
+
+### Changed
+- **Clearer review pane.** A summary shows how many words and numbers are **Hidden**, how many are **Kept readable**, and how many decisions are **yours**, with one plain sentence on what to do next. Categories use plain words ("Numbers and amounts", "IDs and codes"). *Review every item* lists each one with a Hidden/Shown switch, marks your own choices, and filters by All, Hidden, Shown or Your choices.
+- CI and `engines` move to supported Node.js LTS (Node 20 reached end of life in April 2026): CI runs Node 24, and Node 22 or later is required.
+- CI checks that every committed `web/lib` bundle matches its source, as it already did for the extension and the name-check model.
+- CONTRIBUTING lists every build step and the full set of checks.
+
+### Fixed
+- **Numbers that label a visual are no longer masked.** A count after a ranking word ("Top 5 performers", "Bottom 10", "Last 30 days"), a position after a sequence word ("Week 34", "Step 2", "Page 1 of 3") and standard period labels (L12M, R12M, Q1-Q3, FY25-26, 2025-26, #1) stay readable. A number standing as a value ("Revenue 5", "Avg resolution 3 days") is still masked.
+- **Your choices stick.** A mask you switch off is remembered: the pre-flight check no longer re-flags that spot, and *Re-apply policy* keeps it off. Before, unmasking a number blocked sending with no way out.
+- **Blocking findings can be kept.** A number or ID the check flags now offers *Not sensitive, keep it* next to *Mask it*. It applies to that spot only; the same number elsewhere stays masked.
+- **One click clears a spot.** Clicking a spot switches every mask there together, so a box you drew over an automatic one no longer leaves the automatic one in place.
+- The in-app privacy page had fallen behind PRIVACY.md (it lacked *Realistic names* and *Design exports*). It is now generated from PRIVACY.md (`npm run build:privacy`), and `npm run check` fails if they differ.
+
+### Security
+- The web app now sends a **Content-Security-Policy** (`web/_headers`): scripts and data only from VaultSnip itself, and network access only to VaultSnip and the two AI providers a user can choose, so the browser itself enforces "no hidden data flow". The end-to-end test runs under the same headers and fails if anything is blocked.
+- CI actions are pinned to commit SHAs; releases run the type check and unit tests before building packages; the release job alone gets write access.
+- Dev dependency Vitest upgraded to 5 (fixes critical advisories in its worker pool; tests only, nothing shipped).
 
 ## [0.5.2] - 2026-10-11
 
