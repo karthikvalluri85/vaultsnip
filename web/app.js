@@ -820,11 +820,11 @@ customer service staff agent team people everyone nobody someone something nothi
     $('send-err').hidden = true;
     // the user confirms they looked: the reader cannot promise it caught everything
     $('pf-ok').checked = false;
-    $('btn-confirm').disabled = true; $('btn-dl-masked').disabled = true;
+    $('btn-confirm').disabled = true; $('btn-dl-masked').disabled = true; $('btn-local').disabled = true;
     $('btn-confirm').textContent = isSample ? 'Build replica' : 'Send and build replica';
     $('dlg-send').showModal();
   };
-  $('pf-ok').onchange = () => { $('btn-confirm').disabled = $('btn-dl-masked').disabled = !$('pf-ok').checked; };
+  $('pf-ok').onchange = () => { $('btn-confirm').disabled = $('btn-dl-masked').disabled = $('btn-local').disabled = !$('pf-ok').checked; };
   // Mask-only: the masked image as a PNG, no key and no network. Optionally tagged so others can find the tool.
   $('btn-dl-masked').onclick = async () => {
     if (!$('pf-ok').checked) return;
@@ -847,7 +847,7 @@ customer service staff agent team people everyone nobody someone something nothi
     if (S.sample) { $('dlg-send').close(); S.spec = S.sample.spec; S.seed = 4127; fresh(); showReplica(); return; }
     if (!S.key) {
       const v = kpSend.read();
-      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key to build a replica, or click "Download masked image" (no key needed).'; err.hidden = false; return; }
+      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key to build a replica, or click "Build on this device (beta)" or "Download masked image" (no key needed, nothing sent).'; err.hidden = false; return; }
       applyKey(v);
       $('pf-dest').textContent = VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key';
     }
@@ -924,6 +924,52 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     } catch (e) { return null; }
   }
 
+  /* ---------------- on-device layout builder (Phase 2, beta) ---------------- */
+  // Builds the replica spec from the masked image on this device: no key, no network. It sees what the AI would see:
+  // the masked image, the words that stay readable, and masked words and mask boxes as positions without text.
+  function layoutInput() {
+    const c = maskedCanvas(1), im = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+    const on = S.masks.filter(m => m.on);
+    const inMask = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
+    const words = S.words.filter(w => !w.ghost).map(w => { const kept = !inMask(w); return { text: kept ? w.text : '', x: w.x, y: w.y, w: w.w, h: w.h, kept }; });
+    return { image: { data: im.data, width: im.width, height: im.height, channels: 4 }, words, masks: on.map(m => ({ x: m.x, y: m.y, w: m.w, h: m.h })) };
+  }
+  // In a Web Worker so the page stays responsive; on the main thread if workers are unavailable.
+  function buildLocally(input) {
+    const here = () => VSLayout.buildSpec(input);
+    let w = null;
+    try { w = new Worker(new URL('layout-worker.js', location.href)); } catch (e) { w = null; }
+    if (!w) return Promise.resolve().then(here);
+    return new Promise((resolve, reject) => {
+      const done = () => { clearTimeout(timer); w.terminate(); };
+      const timer = setTimeout(() => { done(); reject(new Error('Reading the layout took too long. Try a smaller crop, or use your own AI key.')); }, 90000);
+      w.onmessage = e => { done(); if (e.data && e.data.ok) resolve(e.data.result); else reject(new Error((e.data && e.data.error) || 'The on-device builder failed.')); };
+      w.onerror = e => { done(); if (e && e.preventDefault) e.preventDefault(); try { resolve(here()); } catch (err) { reject(err); } };
+      w.postMessage(Object.assign({ id: 1 }, input));
+    });
+  }
+  $('btn-local').onclick = async () => {
+    const err = $('send-err'); err.hidden = true; err.className = 'err';
+    if (!$('pf-ok').checked || !S.img) return;
+    const b = $('btn-local'); b.disabled = true; b.textContent = 'Reading the layout on this device…';
+    try {
+      const r = await buildLocally(layoutInput());
+      if (!r || !r.spec || !r.spec.rows || !r.spec.rows.length) throw new Error('No visuals were found in this image. Crop closer to the dashboard, or use your own AI key.');
+      S.spec = r.spec; S.seed = 1000 + Math.floor(Math.random() * 9000);
+      $('dlg-send').close();
+      fresh();
+      S.local = { visuals: r.spec.rows.reduce((n, row) => n + row.visuals.length, 0), coverage: r.coverage, ms: r.ms };
+      showReplica();
+    } catch (e) {
+      err.textContent = 'The on-device builder could not read this image: ' + (e && e.message || e); err.hidden = false;
+      if (window.VSFeedback) VSFeedback.note(e, 'On-device layout builder');
+    } finally {
+      b.textContent = 'Build on this device (beta)'; b.disabled = !$('pf-ok').checked;
+    }
+  };
+  // the fallback: the same review and payload preview, then the user's own provider
+  $('btn-local-key').onclick = () => { if (S.img) $('btn-send').onclick(); };
+
   /* ---------------- Screen 3 ---------------- */
   const MODE_HELP = {
     shape: 'Keeps the layout, labels, rankings and trends of the original. Every value is generated and rescaled. Use for internal reviews.',
@@ -932,12 +978,14 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   };
   // A replica built here starts unrestricted; one opened from a share link keeps the sharer's privacy level.
   S.minMode = 'shape'; S.shared = false;
-  function fresh() { S.minMode = 'shape'; S.shared = false; if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname + location.search); }
+  function fresh() { S.minMode = 'shape'; S.shared = false; S.local = null; if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname + location.search); }
   const rankOf = m => VSShare.rank(m);
   function showReplica() {
     if (rankOf(S.mode) < rankOf(S.minMode)) S.mode = S.minMode;
     show('s-replica');
     $('shared-banner').hidden = !S.shared;
+    $('local-banner').hidden = !S.local || S.shared;
+    if (S.local) $('local-stats').textContent = S.local.visuals + ' visual' + (S.local.visuals === 1 ? '' : 's') + ' found' + (S.local.coverage < 0.85 ? ', and some content may have been missed' : '') + '.';
     $('modehelp').textContent = MODE_HELP[S.mode] + (S.shared && S.minMode !== 'shape' ? ' This link was shared as ' + MODE_NAMES[S.minMode] + ', so less private modes are not available.' : '');
     document.querySelectorAll('#modes button').forEach(b => {
       b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode));
@@ -991,7 +1039,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     if (!code) return;
     try {
       const r = await VSShare.unpack(code);
-      S.sample = null; S.img = null; S.spec = r.spec; S.seed = r.seed; S.mode = r.mode; S.minMode = r.level; S.shared = true;
+      S.sample = null; S.img = null; S.local = null; S.spec = r.spec; S.seed = r.seed; S.mode = r.mode; S.minMode = r.level; S.shared = true;
       showReplica();
     } catch (e) {
       show('s-drop'); dropError('This share link could not be opened. ' + (e && e.message && !/JSON|atob|decompress|Invalid/i.test(e.message) ? e.message : 'It may have been cut off when it was copied.'));

@@ -65,6 +65,7 @@ The app has no build step, so code from `src/` ships as committed bundles. After
 | `src/replica` | `npm run build:faker` | `web/lib/vs-faker.js` |
 | `src/export` | `npm run build:design` | `web/lib/vs-design.js` |
 | `src/exporters` | `npm run build:react` | `web/lib/vs-react.js` |
+| `src/layout` | `npm run build:layout` | `web/lib/vs-layout.js` |
 | `src/background`, `src/content`, `src/shared` | `npm run build:ext` | `extension/*.js`, `extension/offscreen.html` |
 | `src/background`, `src/content/context-classifier.ts` | `npm run build:ml` | `web/ml`, `web/lib/vs-context.js` |
 | `PRIVACY.md` | `npm run build:privacy` | `web/privacy.html` |
