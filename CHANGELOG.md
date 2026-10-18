@@ -24,6 +24,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - CONTRIBUTING lists every build step and the full set of checks.
 
 ### Fixed
+- **One progress figure while a screenshot is read.** The percentage used to restart for each of the ten reading and checking passes, so it ran to 100% several times. It now climbs once from 0 to 100% across reading and the check that follows, each pass counted by how much of the image it reads.
 - **Numbers that label a visual are no longer masked.** A count after a ranking word ("Top 5 performers", "Bottom 10", "Last 30 days"), a position after a sequence word ("Week 34", "Step 2", "Page 1 of 3") and standard period labels (L12M, R12M, Q1-Q3, FY25-26, 2025-26, #1) stay readable. A number standing as a value ("Revenue 5", "Avg resolution 3 days") is still masked.
 - **Your choices stick.** A mask you switch off is remembered: the pre-flight check no longer re-flags that spot, and *Re-apply policy* keeps it off. Before, unmasking a number blocked sending with no way out.
 - **Blocking findings can be kept.** A number or ID the check flags now offers *Not sensitive, keep it* next to *Mask it*. It applies to that spot only; the same number elsewhere stays masked.

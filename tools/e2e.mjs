@@ -529,8 +529,17 @@ try {
   console.log('Redaction demo (on-device OCR)');
   await page.goto(base);
   await page.click('#btn-try');
+  // record every progress figure shown while the demo is read and checked
+  await page.evaluate(() => {
+    window.__progress = [];
+    new MutationObserver(() => { const m = /(\d+)%/.exec(document.getElementById('status-text').textContent); if (m) window.__progress.push(+m[1]); })
+      .observe(document.getElementById('status-text'), { childList: true, characterData: true, subtree: true });
+  });
   await page.locator('#samples .sample button').nth(0).click();
   await page.waitForFunction(() => { const g = document.querySelector('.gate'); return g && /Blocked|Review|Pass/.test(g.textContent) && !/Checking/.test(g.textContent); }, null, { timeout: 120000 });
+  const prog = await page.evaluate(() => window.__progress);
+  const drops = prog.filter((v, i) => i > 0 && v < prog[i - 1]).length;
+  check(prog.length > 5 && drops === 0 && Math.max(...prog) >= 90, `reading and checking show one progress figure that only climbs (${prog.length} updates, ${prog[0]}% → ${prog[prog.length - 1]}%, ${drops} restarts)`);
   const gate = (await page.locator('.gate').textContent()).replace(/\s+/g, ' ').trim();
   check(/Blocked|Review/.test(gate), `pre-flight check catches readable text (${gate.slice(0, 40)}…)`);
   check(await page.evaluate(() => (window.__DSC.masks || []).length > 20), 'sensitive text is masked');
