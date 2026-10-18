@@ -25,7 +25,7 @@
     "chrome-extension"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "check": "node tools/check.mjs",
@@ -40,7 +40,8 @@
     "test:canvas-e2e": "node tests/e2e/canvas-ocr.e2e.mjs",
     "build:faker": "node tools/build-faker.mjs",
     "build:design": "node tools/build-design.mjs",
-    "build:react": "node tools/build-react.mjs"
+    "build:react": "node tools/build-react.mjs",
+    "build:privacy": "node tools/build-privacy.mjs"
   },
   "dependencies": {
     "@faker-js/faker": "10.6.0",
@@ -58,6 +59,6 @@
     "react-dom": "18.3.1",
     "typescript": "^5.9.2",
     "vite": "7.3.6",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.5"
   }
 }

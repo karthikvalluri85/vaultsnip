@@ -10,10 +10,12 @@ import { chromium } from 'playwright';
 
 const web = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.gz': 'application/gzip', '.wasm': 'application/wasm', '.css': 'text/css' };
+// the site's security headers (web/_headers, as Cloudflare Pages serves them), so every check runs under the real policy
+const HEADERS = Object.fromEntries((await readFile(join(web, '_headers'), 'utf8')).split(/\r?\n/).filter(l => /^\s+[\w-]+:/.test(l)).map(l => { const i = l.indexOf(':'); return [l.slice(0, i).trim().toLowerCase(), l.slice(i + 1).trim()]; }));
 const server = createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^([/\\])+/, '');
   const file = path || 'index.html';
-  try { const body = await readFile(join(web, file)); res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream' }); res.end(body); }
+  try { const body = await readFile(join(web, file)); res.writeHead(200, { ...HEADERS, 'content-type': TYPES[extname(file)] || 'application/octet-stream' }); res.end(body); }
   catch { res.writeHead(404); res.end('not found'); }
 });
 await new Promise(r => server.listen(0, r));
@@ -24,12 +26,17 @@ const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); 
 const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const pageErrors = []; page.on('pageerror', e => pageErrors.push(e.message));
+// anything the site's Content-Security-Policy blocks is a bug: the app must work entirely within it
+const cspBlocked = []; page.on('console', m => { if (/Content Security Policy|Refused to (load|connect|execute|create|apply)/i.test(m.text())) cspBlocked.push(m.text().slice(0, 200)); });
 // Zero-network promise, checked over the whole run: the app only talks to its own site, plus the AI provider the user picked.
 const offsite = []; page.on('request', r => { const u = r.url(); if (!u.startsWith(base) && !/^(data|blob|about):/.test(u)) offsite.push(u); });
 const wait = ms => page.waitForTimeout(ms);
 
 try {
-  await page.goto(base);
+  const first = await page.goto(base);
+  const csp = first.headers()['content-security-policy'] || '';
+  check(/connect-src 'self' data: blob: https:\/\/api\.anthropic\.com https:\/\/api\.openai\.com;/.test(csp) && /script-src 'self' 'wasm-unsafe-eval';/.test(csp),
+    'the page is served with its Content-Security-Policy: scripts from this site only; it can reach only this site and the two AI providers');
   console.log('Samples and cross-filtering');
   await page.click('#btn-try');
   await page.locator('#samples .sample button').nth(1).click();          // Web analytics
@@ -735,6 +742,7 @@ try {
   check(await page.locator('header .pill').isHidden(), 'the header stays on one line on a phone');
 
   check(pageErrors.length === 0, 'no uncaught page errors' + (pageErrors.length ? ': ' + pageErrors.join(' | ') : ''));
+  check(cspBlocked.length === 0, 'the app runs within its Content-Security-Policy (nothing blocked)' + (cspBlocked.length ? ': ' + cspBlocked.slice(0, 3).join(' | ') : ''));
   const unexpected = offsite.filter(u => !/^https:\/\/api\.(anthropic|openai)\.com\//.test(u));
   check(unexpected.length === 0, `across the whole run the app requested nothing outside its own site, except the AI provider in the key tests${unexpected.length ? ': ' + [...new Set(unexpected)].slice(0, 5).join(', ') : ''}`);
 } catch (e) {

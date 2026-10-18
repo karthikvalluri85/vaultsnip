@@ -19,6 +19,9 @@ mkdir -p dist/extension
 cp -r extension/. dist/extension/   # manifest, service worker, canvas redactor, offscreen OCR, wasm (npm run build:ext)
 cp -r web/icons dist/extension/icons
 cp -r web dist/extension/app
+# Chrome reserves file names starting with "_" in extensions, and the site's headers file means nothing there
+# (the extension's own Content-Security-Policy is in its manifest)
+rm -f dist/extension/app/_headers
 if [[ $BUNDLE -eq 0 ]]; then
   rm -rf dist/extension/app/lang dist/extension/app/models
   printf "window.VAULTSNIP_CONFIG = { langPath: '%s', mlModels: '%s' };\n" "$MODEL_URL" "$ML_URL" > dist/extension/app/config.js
@@ -27,6 +30,9 @@ else
   gunzip dist/extension/app/lang/eng.traineddata.gz dist/extension/app/models/pii-bert-small/onnx/model_quantized.onnx.gz
   printf "window.VAULTSNIP_CONFIG = { langPath: 'lang', langGzip: false, mlModels: 'models/', mlGzip: false };\n" > dist/extension/app/config.js
 fi
+
+# Chrome refuses to load an extension holding any other file or folder whose name starts with "_"
+if find dist/extension -name "_*" ! -name "_locales" ! -name "_metadata" | grep -q .; then echo "Reserved _ name in the extension package:"; find dist/extension -name "_*"; exit 1; fi
 
 # 3. Hugging Face static Space: a small page that shows the live web app, so the Space never falls behind a release.
 #    (Uploading the whole app through the Hugging Face website drops its folders.)

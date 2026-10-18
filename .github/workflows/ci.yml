@@ -13,16 +13,38 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Actions are pinned to commit SHAs (the version is in the comment); Dependabot keeps them current.
 jobs:
   check:
     name: Static checks
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 20
+          node-version: 24
       - run: node tools/check.mjs
+
+  unit:
+    name: Unit tests, types and bundles
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -p .
+      - run: npm run test:unit
+      # web/lib holds built copies of src/ (the app has no build step); a change to src/ must ship its rebuilt bundle
+      - name: Committed web/lib bundles match src/
+        run: |
+          for s in build:faker build:design build:react build:layout; do npm run --if-present "$s"; done
+          git diff --exit-code -- web/lib
 
   e2e:
     name: End-to-end (Chromium)
@@ -30,10 +52,10 @@ jobs:
     needs: check
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -45,17 +67,15 @@ jobs:
     needs: check
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run fetch:model -- --check
-      - run: npx tsc -p .
       - name: Committed web/ml matches src/
         run: npm run build:ml && git diff --exit-code -- web/ml web/lib/vs-context.js
-      - run: npm run test:unit
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ml-e2e
 
@@ -65,10 +85,10 @@ jobs:
     needs: check
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - name: Committed extension scripts match src/
@@ -80,10 +100,11 @@ jobs:
     name: Build packages
     runs-on: ubuntu-latest
     needs: check
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: bash build.sh --model-url https://vaultsnip.pages.dev/lang
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: vaultsnip-packages
           path: dist/*.zip

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Security
+- The web app now sends a **Content-Security-Policy** (`web/_headers`): scripts and data only from VaultSnip itself, and network access only to VaultSnip and the two AI providers a user can choose, so the browser itself enforces "no hidden data flow". The end-to-end test runs under the same headers and fails if anything is blocked.
+- CI actions are pinned to commit SHAs; releases run the type check and unit tests before building packages; the release job alone gets write access.
+- Dev dependency Vitest upgraded to 5 (fixes critical advisories in its worker pool; tests only, nothing shipped).
+
+### Fixed
+- The in-app privacy page had fallen behind PRIVACY.md (it lacked *Realistic names* and *Design exports*). It is now generated from PRIVACY.md (`npm run build:privacy`), and `npm run check` fails if they differ.
+
+### Changed
+- CI and `engines` move to supported Node.js LTS (Node 20 reached end of life in April 2026): CI runs Node 24, and Node 22 or later is required.
+- CI checks that every committed `web/lib` bundle matches its source, as it already did for the extension and the name-check model.
+- CONTRIBUTING lists every build step and the full set of checks.
+
 ### Added
 - **Paginated reports.** Replicas now cover SSRS, Crystal Reports and BusinessObjects-style reports. A **matrix** (pivot / cross-tab) has up to two row and two column levels, several measures, subtotals and a grand total. Every total is the sum of the cells it covers, and clicking a row label filters the page. A **grouped table** shows each group value once and closes each group with a subtotal row and the table with a grand total. **Report parameters** (Fiscal Year, Territory…) appear above the page. The AI prompt describes these, and the allowlist keeps common report field words (Quantity, Invoice, Subcategory, Fiscal…). The CSV, HTML, Figma SVG and both React exports include them. The TypeScript export gains `<PivotCard>` and `<ParameterBar>`. In Generic mode, share links and exports keep the structure but no labels, members or parameter values. There is a new sample: *Paginated sales report*.
 - **Industry-style synthetic names.** A covered organisation is named for what it is and for the dashboard's industry: on a healthcare dashboard a masked hospital becomes "Larchmont Health System" or "St. Perpetua Regional Hospital", a payer "Brightwater Health Plan", a clinician "Dr. …" (instead of "Item 1" or "Gutmann Inc"). The industry is read from the dashboard's own visible words; dimension names are matched in the plural too ("Top Accounts", "Facilities"). Names are assembled from Faker's seeded name lists and checked against well-known real organisations, which are never produced. Generic mode keeps neutral labels.
