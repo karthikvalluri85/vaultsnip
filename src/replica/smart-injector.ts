@@ -15,6 +15,7 @@ import type { Faker, LocaleDefinition } from '@faker-js/faker';
 // The package's main entry builds a Faker for every locale (several MB); the base entry carries the same class without them.
 import { faker as baseFaker } from '@faker-js/faker/locale/base';
 import slim from './faker-locales.json';
+import { entityOf, industryOf, orgName, PHYSICIAN, singular, specTexts, type Entity, type Industry } from './org-names';
 
 const DATA = slim as unknown as Record<string, LocaleDefinition>;
 const FakerClass = baseFaker.constructor as typeof Faker;
@@ -64,8 +65,14 @@ const ROLE_BY_NAME: [Role, RegExp][] = [
 
 /** What a column or dimension holds, from its kind and name; null when the name says nothing a fake value could fill. */
 export function columnRole(name: string, kind = 'text'): Role | null {
-  const n = String(name || '').toLowerCase().replace(/[_-]+/g, ' ');
+  const n = singular(name);   // "Top Accounts" reads as account, "Facilities" as facility
   if (kind === 'id') return 'id';
+  // organisations (hospital, payer, bank, school, store...) and clinicians come before the generic word list,
+  // so "Health Plan" is a payer rather than a product
+  if (kind === 'text' || kind === 'category' || kind === 'org') {
+    if (PHYSICIAN.test(n)) return 'person';
+    if (entityOf(n) && !/e-?mail|phone|\b(id|code|number|no)\b|#/.test(n)) return 'company';
+  }
   const byName = ROLE_BY_NAME.find(([, re]) => re.test(n));
   if (kind === 'person') return byName && (byName[0] === 'email' || byName[0] === 'phone') ? byName[0] : 'person';
   if (kind === 'org') return 'company';
@@ -86,7 +93,7 @@ export function idPrefix(name: string): string {
 }
 
 // Placeholders the replica or the AI uses for covered labels.
-const PLACEHOLDER = /^\s*\[?\s*(client|customer|company|account|item|person|user|rep|owner|product|location|city|name|entity|vendor|partner)\s*\]?\s*\d*\s*$/i;
+const PLACEHOLDER = /^\s*\[?\s*(client|customer|company|account|item|person|user|rep|owner|product|location|city|name|entity|vendor|partner|hospital|provider|clinic|facility|payer|store|school|bank)\s*\]?\s*\d*\s*$/i;
 export const isPlaceholder = (s: unknown) => PLACEHOLDER.test(String(s ?? ''));
 const CLIENT_TOKEN = /\[(client|customer|company|account)\]/gi;
 
@@ -108,13 +115,16 @@ export function localeForPlace(place: unknown): string | null {
   return hit ? hit[1] : null;
 }
 
-export interface InjectorOptions { seed: number; spec?: unknown; locale?: string }
+export interface InjectorOptions { seed: number; spec?: unknown; locale?: string; industry?: Industry }
 
 /** Every generator takes an optional `place` (a row's country, for example) that picks the locale for that one value. */
 export interface Injector {
   readonly locale: string;
+  /** The industry the dashboard's own words point to; it sets the style of organisation names. */
+  readonly industry: Industry;
   person(key: string, place?: string): string;
-  company(key: string, place?: string): string;
+  /** An organisation name in the style of its kind (hospital, payer, bank...) and of the dashboard's industry. */
+  company(key: string, place?: string, entity?: Entity): string;
   email(key: string, person?: string): string;
   phone(key: string, place?: string): string;
   city(key: string, place?: string): string;
@@ -134,6 +144,7 @@ export interface Injector {
 
 export function create(o: InjectorOptions): Injector {
   const locale = o.locale && DATA[o.locale] ? o.locale : localeFor(o.spec);
+  const industry: Industry = o.industry ?? industryOf(specTexts(o.spec));
   const seed = Number.isFinite(o.seed) ? o.seed : 4127;
   const fakers = new Map<string, Faker>();
   const fakerFor = (code: string) => {
@@ -153,9 +164,11 @@ export function create(o: InjectorOptions): Injector {
   const ascii = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, '.').replace(/^\.|\.$/g, '');
 
   const inj: Injector = {
-    locale,
+    locale, industry,
     person: (key, place) => draw('person', key, place, (f, code) => (code === 'ja' || code === 'zh_CN' ? `${f.person.lastName()} ${f.person.firstName()}` : `${f.person.firstName()} ${f.person.lastName()}`)),
-    company: (key, place) => draw('company', key, place, (f) => f.company.name()),
+    company: (key, place, entity = 'company') => draw('company|' + entity, key, place, (f) =>
+      // ordinary town names ("Springfield Community Hospital") read better than invented ones ("Jaylinberg")
+      orgName({ pick: (l) => f.helpers.arrayElement(l), city: () => (Array.isArray(f.definitions.location?.city_name) && f.definitions.location.city_name.length ? f.helpers.arrayElement(f.definitions.location.city_name as string[]) : f.location.city()), last: () => f.person.lastName() }, entity, industry, () => f.company.name())),
     email: (key, person) => draw('email', key + '|' + (person || ''), undefined, (f) => {
       const local = ascii(person || '') || 'user' + f.number.int({ min: 10, max: 9999 });
       return `${local}@example.${f.helpers.arrayElement(['com', 'net', 'org'])}`;
@@ -169,8 +182,8 @@ export function create(o: InjectorOptions): Injector {
     id: (columnName, key) => draw('id', columnName + '|' + key, undefined, (f) => `${idPrefix(columnName)}-${f.number.int({ min: 10000, max: 99999 })}`),
     value(role, key, { columnName = '', person, place } = {}) {
       switch (role) {
-        case 'person': return inj.person(key, place);
-        case 'company': return inj.company(key, place);
+        case 'person': return PHYSICIAN.test(singular(columnName)) ? 'Dr. ' + inj.person(key, place) : inj.person(key, place);
+        case 'company': return inj.company(key, place, entityOf(columnName) ?? 'company');
         case 'email': return inj.email(key, person);
         case 'phone': return inj.phone(key, place);
         case 'city': return inj.city(key, place);
@@ -191,7 +204,7 @@ export function create(o: InjectorOptions): Injector {
       const r = String(raw);
       const role = columnRole(dimName, 'text') || (/client|customer|company|account|vendor|partner|entity/i.test(r) ? 'company' : /person|user|rep|owner|name/i.test(r) ? 'person' : /city|location/i.test(r) ? 'city' : /product|item/i.test(r) && /product|plan|sku|item/i.test(dimName) ? 'product' : null);
       if (!role || role === 'email' || role === 'phone' || role === 'id') return null;
-      return inj.value(role, 'member|' + String(dimName).toLowerCase() + '|' + index);
+      return inj.value(role, 'member|' + String(dimName).toLowerCase() + '|' + index, { columnName: dimName });
     },
     text: (s) => String(s ?? '').replace(CLIENT_TOKEN, () => inj.company('client')),
   };
