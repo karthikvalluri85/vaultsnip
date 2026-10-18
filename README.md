@@ -15,6 +15,7 @@ VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF re
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
         → you approve the exact payload → Claude or OpenAI returns a layout spec (your key)
+                                          or VaultSnip reads it on your device (no key, beta)
         → synthetic replica (3 privacy modes) → one self-contained HTML export
 ```
 
@@ -40,6 +41,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Exact-payload preview before anything is sent | ✅ |
 | Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
 | Replica: KPI, bar, column, stacked, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table | ✅ Apache ECharts |
+| **Build on this device (beta)** | ✅ no key, nothing sent: panels, chart types, shapes, titles and tables read from the masked image in a Web Worker; "Use my AI key" for a precise layout |
 | **Paginated reports** (SSRS, Crystal, BusinessObjects) | ✅ matrix / cross-tab with grouped headers, subtotals and grand totals; grouped tables with subtotals; report parameters; in every export and share link |
 | Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
@@ -59,7 +61,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 ## Privacy
 
-No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. The only thing that ever leaves the device is the masked image you approved, sent straight to the AI provider you chose (Anthropic or OpenAI) with your own key. The browser stores only the OCR model (an app asset) and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
+No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. The only thing that ever leaves the device is the masked image you approved, sent straight to the AI provider you chose (Anthropic or OpenAI) with your own key, and only if you choose that over building the replica on your device. The browser stores only the OCR model (an app asset) and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
 
 ## Feedback and support
 
