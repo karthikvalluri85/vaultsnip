@@ -43,7 +43,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
 | Privacy modes: Shape-preserving, Structure-only, Generic | ✅ |
-| **Realistic names** | ✅ made-up people, companies, emails, IDs and places that fit each column and each row's country (Faker); seeded, switchable, never in Generic mode; emails only at example.com/.net/.org |
+| **Realistic names** | ✅ made-up people, companies, emails, IDs and places that fit each column and each row's country (Faker); organisations named in the dashboard's industry style (a hospital as "… Health System", a payer as "… Health Plan"); seeded, switchable, never in Generic mode; emails only at example.com/.net/.org |
 | Watermark + synthetic banner + `synthetic-data` meta | ✅ cannot be turned off |
 | Export: one offline HTML file | ✅ no network calls; carries only what its mode shows |
 | **Export for Figma (SVG)** | ✅ one layered SVG: editable text, vector charts, watermark drawn in; opens in Figma, Penpot, Illustrator |
