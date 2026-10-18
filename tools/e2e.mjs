@@ -727,6 +727,31 @@ try {
   check(lb.hidden > 5 && lb.leaked.length === 0, `no masked word reaches the spec (${lb.hidden} masked words checked${lb.leaked.length ? ', leaked: ' + lb.leaked.join(', ') : ''})`);
   check(lb.cards >= 8 && lb.charts >= 2, `the engine draws the local spec (${lb.cards} cards, ${lb.charts} charts)`);
   page.off('request', onReq);
+
+  console.log('Confidence and the 90% rule (Phase 3)');
+  const band = await page.evaluate(() => ({ conf: window.__DSC.local.confidence, band: document.getElementById('local-band').textContent, stats: document.getElementById('local-stats').textContent,
+    fix: !document.getElementById('btn-local-fix').hidden, key: !document.getElementById('btn-local-key').hidden, keep: !document.getElementById('btn-local-keep').hidden,
+    byVid: Object.keys(window.__DSC.local.byVid).length, visuals: window.__DSC.spec.rows.reduce((n, r) => n + r.visuals.length, 0) }));
+  check(band.conf > 0 && band.conf < 1 && /estimated match about \d+%/.test(band.stats) && /Looks complete|Check it before sharing|A draft/.test(band.band), `the replica shows how sure the builder is, as a band and a rough number ("${band.band} ${band.stats}")`);
+  check(band.byVid === band.visuals, `every visual has its own confidence (${band.byVid})`);
+  check(band.conf >= 0.9 || (band.fix && band.key && band.keep), 'below 90%, the three choices are offered: Fix it here, Use my AI key, Keep this result');
+  await page.click('#btn-local-fix');
+  const fx = await page.evaluate(() => ({ open: !document.getElementById('fix-panel').hidden, rows: document.querySelectorAll('#fix-list .fixrow').length, checks: document.querySelectorAll('#fix-list .conf.check').length }));
+  check(fx.open && fx.rows === band.visuals, `"Fix it here" lists every visual (${fx.rows}, ${fx.checks} marked Check)`);
+  // rename the column chart, turn it into a bar chart, then remove the footer text block
+  const colRow = page.locator('#fix-list .fixrow').filter({ has: page.locator('select option:checked', { hasText: 'Column chart' }) }).first();
+  await colRow.locator('input').fill('Revenue by Market'); await colRow.locator('input').press('Tab'); await wait(300);
+  check(/Revenue by Market/.test(await page.locator('#replica').textContent()), 'renaming a visual in the list renames it in the replica');
+  const vid = await colRow.getAttribute('data-vid');
+  await colRow.locator('select').selectOption('bar'); await wait(400);
+  const asBar = await page.evaluate(id => { const v = window.__DSC.spec.rows.flatMap(r => r.visuals).find(x => x.id === id); const card = document.querySelector(`#replica [data-vid="${id}"]`); return { type: v.type, horizontal: v.horizontal, title: v.title, chart: !!(card && card.querySelector('.rp-chart svg')) }; }, vid);
+  check(asBar.type === 'bar' && asBar.horizontal && asBar.title === 'Revenue by Market' && asBar.chart, 'changing a visual\'s type redraws it and keeps its title and data shape');
+  const cardsBefore = await page.locator('#replica .rp-card').count();
+  await page.locator('#fix-list .fixrow').filter({ has: page.locator('select option:checked', { hasText: 'Text' }) }).first().locator('button', { hasText: 'Remove' }).click(); await wait(300);
+  check(await page.locator('#replica .rp-card').count() === cardsBefore - 1 && (await page.evaluate(() => window.__DSC.spec.rows.every(r => r.visuals.reduce((s, v) => s + v.span, 0) <= 12))), 'removing a visual takes it out of the replica and the row still fits the grid');
+  await page.click('#btn-fix-done');
+  await page.click('#btn-local-keep');
+  check(await page.locator('#btn-local-keep').isHidden() && /You kept this result/.test(await page.locator('#local-stats').textContent()) && await page.locator('#btn-local-key').isVisible(), '"Keep this result" settles it; your own key stays one click away');
   await page.locator('#modes button[data-mode="generic"]').click(); await wait(400);
   check(!/EMEA|Net Revenue by Country|Monthly Net Revenue/.test(await page.locator('#replica').textContent()), 'Generic mode hides the titles of a locally built replica too');
   await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);

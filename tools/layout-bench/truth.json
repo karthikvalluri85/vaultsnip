@@ -1,154 +1,1105 @@
 {
-  "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), table, map, scatter, treemap, waterfall, combo (bars + line), text.",
-  "dashboards": [
+ "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), table, map, scatter, treemap, waterfall, combo (bars + line), text.",
+ "dashboards": [
+  {
+   "id": "sample-it-spend_it3",
+   "tool": "Power BI",
+   "size": [
+    2284,
+    1167
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-it-spend/it3.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     340,
+     40,
+     800,
+     95
+    ]
+   ],
+   "visuals": [
     {
-      "id": "sample-it-spend_it3", "tool": "Power BI", "size": [2284, 1167],
-      "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-it-spend/it3.png", "terms": "Microsoft Learn documentation, CC BY 4.0",
-      "ignore": [[340, 40, 800, 95]],
-      "visuals": [
-        { "type": "column", "title": "Var Plan % by Sales Region", "bbox": [23, 154, 1079, 634] },
-        { "type": "scatter", "title": "Var Plan, Var Plan % and Actual by Business Area", "bbox": [1113, 46, 2238, 594] },
-        { "type": "line", "title": "Var Plan % by Date", "bbox": [17, 685, 1073, 1136] },
-        { "type": "area", "title": "Var Plan by IT Area", "bbox": [1148, 622, 2244, 1096] }
-      ]
+     "type": "column",
+     "title": "Var Plan % by Sales Region",
+     "bbox": [
+      23,
+      154,
+      1079,
+      634
+     ]
     },
     {
-      "id": "sample-procurement_discount-analysis", "tool": "Power BI", "size": [2454, 1159],
-      "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-procurement/discount-analysis.png", "terms": "Microsoft Learn documentation, CC BY 4.0",
-      "ignore": [[687, 37, 1055, 92]],
-      "visuals": [
-        { "type": "kpi", "title": "Discount %", "bbox": [1549, 37, 1718, 76] },
-        { "type": "kpi", "title": "Discount Savings", "bbox": [1847, 37, 2012, 76] },
-        { "type": "combo", "title": "Total Invoice and Discount % by Month", "bbox": [18, 166, 1233, 644] },
-        { "type": "column", "title": "Discount % by Tier", "bbox": [1276, 157, 2429, 613] },
-        { "type": "area", "title": "Discount Savings by Month", "bbox": [18, 681, 1227, 1123] },
-        { "type": "treemap", "title": "Total Invoice by City", "bbox": [1261, 653, 2442, 1119] }
-      ]
+     "type": "scatter",
+     "title": "Var Plan, Var Plan % and Actual by Business Area",
+     "bbox": [
+      1113,
+      46,
+      2238,
+      594
+     ]
     },
     {
-      "id": "sample-human-resources_hr-3", "tool": "Power BI", "size": [986, 575],
-      "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-human-resources/hr-3.png", "terms": "Microsoft Learn documentation, CC BY 4.0",
-      "ignore": [[410, 25, 570, 70], [930, 0, 986, 20]],
-      "visuals": [
-        { "type": "combo", "title": "New Hire Count, New Hires SPLY and Actives YoY % Change by Month", "bbox": [10, 85, 470, 300] },
-        { "type": "combo", "title": "New Hire Count and Active Employee Count by Region and Ethnicity", "bbox": [483, 83, 975, 322] },
-        { "type": "line", "title": "New Hire Count by Month and Employment Type", "bbox": [10, 342, 470, 537] },
-        { "type": "pie", "title": "New Hire Count by Gender", "bbox": [483, 365, 680, 510] },
-        { "type": "waterfall", "title": "New Hires YoY Var by Age Group", "bbox": [690, 360, 975, 548] }
-      ]
+     "type": "line",
+     "title": "Var Plan % by Date",
+     "bbox": [
+      17,
+      685,
+      1073,
+      1136
+     ]
     },
     {
-      "id": "sample-procurement_spend-overview", "tool": "Power BI", "size": [674, 341],
-      "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-procurement/spend-overview.png", "terms": "Microsoft Learn documentation, CC BY 4.0",
-      "ignore": [[280, 5, 395, 25]],
-      "visuals": [
-        { "type": "line", "title": "Total Invoice by Month and Category", "bbox": [5, 38, 330, 165] },
-        { "type": "map", "title": "Total Invoice by Country/Region", "bbox": [340, 38, 670, 165] },
-        { "type": "column", "title": "Total Invoice by Sub Category", "bbox": [5, 185, 330, 320] },
-        { "type": "bar", "title": "Total Invoice by Tier", "bbox": [340, 185, 670, 325] }
-      ]
-    },
-    {
-      "id": "FinanceDashboard", "tool": "Tableau", "size": [1400, 977],
-      "source": "https://public.tableau.com/app/profile/holly.andersen/viz/FinanceDashboard_17887995614070/ApexFinanceDashboard", "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
-      "ignore": [[30, 30, 700, 100], [30, 115, 1370, 150], [45, 605, 1360, 640], [0, 945, 1400, 977]],
-      "visuals": [
-        { "type": "kpi", "title": "Revenue", "bbox": [40, 165, 355, 275] },
-        { "type": "kpi", "title": "Profit", "bbox": [371, 165, 686, 275] },
-        { "type": "kpi", "title": "COGS", "bbox": [714, 165, 1029, 275] },
-        { "type": "kpi", "title": "Expenses", "bbox": [1046, 165, 1361, 275] },
-        { "type": "bar", "title": "Revenue | Business Unit", "bbox": [52, 312, 350, 430] },
-        { "type": "bar", "title": "Profit | Business Unit", "bbox": [377, 312, 672, 430] },
-        { "type": "bar", "title": "COGS | Business Unit", "bbox": [727, 312, 1020, 430] },
-        { "type": "bar", "title": "Expenses | Business Unit", "bbox": [1052, 312, 1350, 430] },
-        { "type": "bar", "title": "Revenue | Region", "bbox": [52, 457, 350, 577] },
-        { "type": "bar", "title": "Profit | Region", "bbox": [377, 457, 672, 577] },
-        { "type": "bar", "title": "COGS | Region", "bbox": [727, 457, 1020, 577] },
-        { "type": "bar", "title": "Expenses | Region", "bbox": [1052, 457, 1350, 577] },
-        { "type": "bar", "title": "Revenue Variance | Region and Business Unit", "bbox": [50, 662, 365, 905] },
-        { "type": "column", "title": "Revenue | Monthly", "bbox": [392, 660, 690, 772] },
-        { "type": "column", "title": "Profit | Monthly", "bbox": [392, 797, 690, 908] },
-        { "type": "column", "title": "COGS | Monthly", "bbox": [717, 660, 1005, 772] },
-        { "type": "column", "title": "Expenses | Monthly", "bbox": [717, 797, 1005, 908] },
-        { "type": "bar", "title": "Total Costs and Expenses | Department", "bbox": [1050, 662, 1350, 900] }
-      ]
-    },
-    {
-      "id": "ClinicPerformanceDashboard", "tool": "Tableau", "size": [1450, 977],
-      "source": "https://public.tableau.com/app/profile/israel.joseph5937/viz/ClinicPerformanceDashboard_17909729018800/Dashboard1", "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
-      "ignore": [[10, 95, 200, 660], [0, 945, 1450, 977]],
-      "visuals": [
-        { "type": "kpi", "title": "Total Patient", "bbox": [250, 55, 445, 137] },
-        { "type": "kpi", "title": "Avg Visit Duration", "bbox": [470, 55, 665, 137] },
-        { "type": "kpi", "title": "Total Appointment", "bbox": [689, 55, 884, 137] },
-        { "type": "kpi", "title": "Total Revenue", "bbox": [907, 55, 1102, 137] },
-        { "type": "kpi", "title": "Total Prescription", "bbox": [1121, 58, 1316, 140] },
-        { "type": "combo", "title": "Appointments & Revenue Trend", "bbox": [250, 177, 799, 535] },
-        { "type": "bar", "title": "Top Lab Tests by Patient Volume", "bbox": [816, 177, 1405, 535] },
-        { "type": "bar", "title": "Revenue by Payment Method", "bbox": [250, 546, 649, 900] },
-        { "type": "pie", "title": "Patient Status", "bbox": [666, 548, 971, 900] },
-        { "type": "bar", "title": "Top Medications Prescribed", "bbox": [988, 550, 1406, 905] }
-      ]
-    },
-    {
-      "id": "KPI-Progress-Status", "tool": "Tableau", "size": [1200, 827],
-      "source": "https://public.tableau.com/app/profile/frederick2489/viz/KPI-Progress-Status/KPIOverviewDashboard", "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
-      "ignore": [[20, 20, 300, 60], [30, 65, 1170, 125], [280, 735, 920, 765], [0, 797, 1200, 827]],
-      "visuals": [
-        { "type": "kpi", "title": "AD CLICK-THROUGH RATE", "bbox": [27, 154, 401, 322] },
-        { "type": "kpi", "title": "AVERAGE ORDER VALUE GROWTH", "bbox": [413, 154, 787, 322] },
-        { "type": "kpi", "title": "CONVERSION RATE", "bbox": [799, 154, 1173, 322] },
-        { "type": "kpi", "title": "CUSTOMER SATISFACTION SCORE", "bbox": [27, 349, 401, 522] },
-        { "type": "kpi", "title": "EMAIL OPEN RATE", "bbox": [413, 349, 787, 522] },
-        { "type": "kpi", "title": "FIRST RESPONSE TIME SLA", "bbox": [799, 349, 1173, 522] },
-        { "type": "kpi", "title": "MOBILE TRAFFIC SHARE", "bbox": [27, 549, 401, 722] },
-        { "type": "kpi", "title": "NET PROMOTER SCORE", "bbox": [413, 549, 787, 722] },
-        { "type": "kpi", "title": "REPEAT CUSTOMER RATE", "bbox": [799, 549, 1173, 722] }
-      ]
-    },
-    {
-      "id": "HRAnalytics", "tool": "Tableau", "size": [1300, 827],
-      "source": "https://public.tableau.com/app/profile/oyedele.samuel/viz/HRAnalytics_17575255034700/Dashboard1", "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
-      "ignore": [[39, 32, 184, 767], [207, 28, 1262, 122], [0, 797, 1300, 827]],
-      "visuals": [
-        { "type": "kpi", "title": "Employees Hired", "bbox": [207, 142, 423, 388] },
-        { "type": "kpi", "title": "Average Salary", "bbox": [443, 142, 659, 388] },
-        { "type": "map", "title": "Employees by Store Location", "bbox": [679, 142, 1262, 388] },
-        { "type": "bar", "title": "Employees by Job Role", "bbox": [207, 409, 608, 767] },
-        { "type": "pie", "title": "Employees by Store Type", "bbox": [628, 409, 812, 767] },
-        { "type": "table", "title": "Top Performing Employees", "bbox": [833, 409, 1262, 767] }
-      ]
-    },
-    {
-      "id": "new-dashboard-example-2206", "tool": "Looker", "size": [1600, 1716],
-      "source": "https://docs.cloud.google.com/static/looker/docs/images/new-dashboard-example-2206.png", "terms": "Google Cloud documentation, CC BY 4.0",
-      "ignore": [[40, 40, 1560, 300]],
-      "visuals": [
-        { "type": "map", "title": "Users by State", "bbox": [68, 346, 794, 946] },
-        { "type": "pie", "title": "Top Sales by Category", "bbox": [818, 346, 1544, 946] },
-        { "type": "column", "title": "Users Acquired over Time", "bbox": [68, 970, 794, 1672] },
-        { "type": "line", "title": "Sales Over Time", "bbox": [818, 970, 1544, 1672] }
-      ]
-    },
-    {
-      "id": "looker-tabbed-dashboard-example", "tool": "Looker", "size": [1436, 606],
-      "source": "https://docs.cloud.google.com/static/looker/docs/images/looker-tabbed-dashboard-example.png", "terms": "Google Cloud documentation, CC BY 4.0",
-      "ignore": [[20, 20, 1400, 155]],
-      "visuals": [
-        { "type": "kpi", "title": "Completed orders", "bbox": [38, 174, 477, 556] },
-        { "type": "table", "title": "Order status by state", "bbox": [492, 174, 931, 556] },
-        { "type": "column", "title": "Completed vs. cancelled orders", "bbox": [947, 174, 1386, 556] }
-      ]
-    },
-    {
-      "id": "add-text-results-2218", "tool": "Looker", "size": [1770, 1048],
-      "source": "https://docs.cloud.google.com/static/looker/docs/images/add-text-results-2218.png", "terms": "Google Cloud documentation, CC BY 4.0",
-      "ignore": [[20, 20, 1750, 300]],
-      "visuals": [
-        { "type": "text", "title": "Order Information", "bbox": [40, 380, 1730, 600] },
-        { "type": "pie", "title": "Orders by category", "bbox": [38, 662, 870, 1030] },
-        { "type": "map", "title": "Users by state", "bbox": [894, 662, 1726, 1030] }
-      ]
+     "type": "area",
+     "title": "Var Plan by IT Area",
+     "bbox": [
+      1148,
+      622,
+      2244,
+      1096
+     ]
     }
-  ]
+   ]
+  },
+  {
+   "id": "sample-procurement_discount-analysis",
+   "tool": "Power BI",
+   "size": [
+    2454,
+    1159
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-procurement/discount-analysis.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     687,
+     37,
+     1055,
+     92
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Discount %",
+     "bbox": [
+      1549,
+      37,
+      1718,
+      76
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Discount Savings",
+     "bbox": [
+      1847,
+      37,
+      2012,
+      76
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Total Invoice and Discount % by Month",
+     "bbox": [
+      18,
+      166,
+      1233,
+      644
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Discount % by Tier",
+     "bbox": [
+      1276,
+      157,
+      2429,
+      613
+     ]
+    },
+    {
+     "type": "area",
+     "title": "Discount Savings by Month",
+     "bbox": [
+      18,
+      681,
+      1227,
+      1123
+     ]
+    },
+    {
+     "type": "treemap",
+     "title": "Total Invoice by City",
+     "bbox": [
+      1261,
+      653,
+      2442,
+      1119
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sample-human-resources_hr-3",
+   "tool": "Power BI",
+   "size": [
+    986,
+    575
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-human-resources/hr-3.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     410,
+     25,
+     570,
+     70
+    ],
+    [
+     930,
+     0,
+     986,
+     20
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "combo",
+     "title": "New Hire Count, New Hires SPLY and Actives YoY % Change by Month",
+     "bbox": [
+      10,
+      85,
+      470,
+      300
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "New Hire Count and Active Employee Count by Region and Ethnicity",
+     "bbox": [
+      483,
+      83,
+      975,
+      322
+     ]
+    },
+    {
+     "type": "line",
+     "title": "New Hire Count by Month and Employment Type",
+     "bbox": [
+      10,
+      342,
+      470,
+      537
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "New Hire Count by Gender",
+     "bbox": [
+      483,
+      365,
+      680,
+      510
+     ]
+    },
+    {
+     "type": "waterfall",
+     "title": "New Hires YoY Var by Age Group",
+     "bbox": [
+      690,
+      360,
+      975,
+      548
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sample-procurement_spend-overview",
+   "tool": "Power BI",
+   "size": [
+    674,
+    341
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-procurement/spend-overview.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     280,
+     5,
+     395,
+     25
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "line",
+     "title": "Total Invoice by Month and Category",
+     "bbox": [
+      5,
+      38,
+      330,
+      165
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Total Invoice by Country/Region",
+     "bbox": [
+      340,
+      38,
+      670,
+      165
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Total Invoice by Sub Category",
+     "bbox": [
+      5,
+      185,
+      330,
+      320
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Total Invoice by Tier",
+     "bbox": [
+      340,
+      185,
+      670,
+      325
+     ]
+    }
+   ]
+  },
+  {
+   "id": "FinanceDashboard",
+   "tool": "Tableau",
+   "size": [
+    1400,
+    977
+   ],
+   "source": "https://public.tableau.com/app/profile/holly.andersen/viz/FinanceDashboard_17887995614070/ApexFinanceDashboard",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     30,
+     30,
+     700,
+     100
+    ],
+    [
+     30,
+     115,
+     1370,
+     150
+    ],
+    [
+     45,
+     605,
+     1360,
+     640
+    ],
+    [
+     0,
+     945,
+     1400,
+     977
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Revenue",
+     "bbox": [
+      40,
+      165,
+      355,
+      275
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Profit",
+     "bbox": [
+      371,
+      165,
+      686,
+      275
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "COGS",
+     "bbox": [
+      714,
+      165,
+      1029,
+      275
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Expenses",
+     "bbox": [
+      1046,
+      165,
+      1361,
+      275
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Revenue | Business Unit",
+     "bbox": [
+      52,
+      312,
+      350,
+      430
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Profit | Business Unit",
+     "bbox": [
+      377,
+      312,
+      672,
+      430
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "COGS | Business Unit",
+     "bbox": [
+      727,
+      312,
+      1020,
+      430
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Expenses | Business Unit",
+     "bbox": [
+      1052,
+      312,
+      1350,
+      430
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Revenue | Region",
+     "bbox": [
+      52,
+      457,
+      350,
+      577
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Profit | Region",
+     "bbox": [
+      377,
+      457,
+      672,
+      577
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "COGS | Region",
+     "bbox": [
+      727,
+      457,
+      1020,
+      577
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Expenses | Region",
+     "bbox": [
+      1052,
+      457,
+      1350,
+      577
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Revenue Variance | Region and Business Unit",
+     "bbox": [
+      50,
+      662,
+      365,
+      905
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Revenue | Monthly",
+     "bbox": [
+      392,
+      660,
+      690,
+      772
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Profit | Monthly",
+     "bbox": [
+      392,
+      797,
+      690,
+      908
+     ]
+    },
+    {
+     "type": "column",
+     "title": "COGS | Monthly",
+     "bbox": [
+      717,
+      660,
+      1005,
+      772
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Expenses | Monthly",
+     "bbox": [
+      717,
+      797,
+      1005,
+      908
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Total Costs and Expenses | Department",
+     "bbox": [
+      1050,
+      662,
+      1350,
+      900
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ClinicPerformanceDashboard",
+   "tool": "Tableau",
+   "size": [
+    1450,
+    977
+   ],
+   "source": "https://public.tableau.com/app/profile/israel.joseph5937/viz/ClinicPerformanceDashboard_17909729018800/Dashboard1",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     10,
+     95,
+     200,
+     660
+    ],
+    [
+     0,
+     945,
+     1450,
+     977
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Total Patient",
+     "bbox": [
+      250,
+      55,
+      445,
+      137
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Avg Visit Duration",
+     "bbox": [
+      470,
+      55,
+      665,
+      137
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Appointment",
+     "bbox": [
+      689,
+      55,
+      884,
+      137
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Revenue",
+     "bbox": [
+      907,
+      55,
+      1102,
+      137
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Prescription",
+     "bbox": [
+      1121,
+      58,
+      1316,
+      140
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Appointments & Revenue Trend",
+     "bbox": [
+      250,
+      177,
+      799,
+      535
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Top Lab Tests by Patient Volume",
+     "bbox": [
+      816,
+      177,
+      1405,
+      535
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Revenue by Payment Method",
+     "bbox": [
+      250,
+      546,
+      649,
+      900
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "Patient Status",
+     "bbox": [
+      666,
+      548,
+      971,
+      900
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Top Medications Prescribed",
+     "bbox": [
+      988,
+      550,
+      1406,
+      905
+     ]
+    }
+   ]
+  },
+  {
+   "id": "KPI-Progress-Status",
+   "tool": "Tableau",
+   "size": [
+    1200,
+    827
+   ],
+   "source": "https://public.tableau.com/app/profile/frederick2489/viz/KPI-Progress-Status/KPIOverviewDashboard",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     20,
+     20,
+     300,
+     60
+    ],
+    [
+     30,
+     65,
+     1170,
+     125
+    ],
+    [
+     280,
+     735,
+     920,
+     765
+    ],
+    [
+     0,
+     797,
+     1200,
+     827
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "AD CLICK-THROUGH RATE",
+     "bbox": [
+      27,
+      154,
+      401,
+      322
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "AVERAGE ORDER VALUE GROWTH",
+     "bbox": [
+      413,
+      154,
+      787,
+      322
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "CONVERSION RATE",
+     "bbox": [
+      799,
+      154,
+      1173,
+      322
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "CUSTOMER SATISFACTION SCORE",
+     "bbox": [
+      27,
+      349,
+      401,
+      522
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "EMAIL OPEN RATE",
+     "bbox": [
+      413,
+      349,
+      787,
+      522
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "FIRST RESPONSE TIME SLA",
+     "bbox": [
+      799,
+      349,
+      1173,
+      522
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "MOBILE TRAFFIC SHARE",
+     "bbox": [
+      27,
+      549,
+      401,
+      722
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "NET PROMOTER SCORE",
+     "bbox": [
+      413,
+      549,
+      787,
+      722
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "REPEAT CUSTOMER RATE",
+     "bbox": [
+      799,
+      549,
+      1173,
+      722
+     ]
+    }
+   ]
+  },
+  {
+   "id": "HRAnalytics",
+   "tool": "Tableau",
+   "size": [
+    1300,
+    827
+   ],
+   "source": "https://public.tableau.com/app/profile/oyedele.samuel/viz/HRAnalytics_17575255034700/Dashboard1",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     39,
+     32,
+     184,
+     767
+    ],
+    [
+     207,
+     28,
+     1262,
+     122
+    ],
+    [
+     0,
+     797,
+     1300,
+     827
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Employees Hired",
+     "bbox": [
+      207,
+      142,
+      423,
+      388
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Average Salary",
+     "bbox": [
+      443,
+      142,
+      659,
+      388
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Employees by Store Location",
+     "bbox": [
+      679,
+      142,
+      1262,
+      388
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Employees by Job Role",
+     "bbox": [
+      207,
+      409,
+      608,
+      767
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "Employees by Store Type",
+     "bbox": [
+      628,
+      409,
+      812,
+      767
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Top Performing Employees",
+     "bbox": [
+      833,
+      409,
+      1262,
+      767
+     ]
+    }
+   ]
+  },
+  {
+   "id": "new-dashboard-example-2206",
+   "tool": "Looker",
+   "size": [
+    1600,
+    1716
+   ],
+   "source": "https://docs.cloud.google.com/static/looker/docs/images/new-dashboard-example-2206.png",
+   "terms": "Google Cloud documentation, CC BY 4.0",
+   "ignore": [
+    [
+     40,
+     40,
+     1560,
+     300
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "map",
+     "title": "Users by State",
+     "bbox": [
+      68,
+      346,
+      794,
+      946
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "Top Sales by Category",
+     "bbox": [
+      818,
+      346,
+      1544,
+      946
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Users Acquired over Time",
+     "bbox": [
+      68,
+      970,
+      794,
+      1672
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Sales Over Time",
+     "bbox": [
+      818,
+      970,
+      1544,
+      1672
+     ]
+    }
+   ]
+  },
+  {
+   "id": "looker-tabbed-dashboard-example",
+   "tool": "Looker",
+   "size": [
+    1436,
+    606
+   ],
+   "source": "https://docs.cloud.google.com/static/looker/docs/images/looker-tabbed-dashboard-example.png",
+   "terms": "Google Cloud documentation, CC BY 4.0",
+   "ignore": [
+    [
+     20,
+     20,
+     1400,
+     155
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Completed orders",
+     "bbox": [
+      38,
+      174,
+      477,
+      556
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Order status by state",
+     "bbox": [
+      492,
+      174,
+      931,
+      556
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Completed vs. cancelled orders",
+     "bbox": [
+      947,
+      174,
+      1386,
+      556
+     ]
+    }
+   ]
+  },
+  {
+   "id": "add-text-results-2218",
+   "tool": "Looker",
+   "size": [
+    1770,
+    1048
+   ],
+   "source": "https://docs.cloud.google.com/static/looker/docs/images/add-text-results-2218.png",
+   "terms": "Google Cloud documentation, CC BY 4.0",
+   "ignore": [
+    [
+     20,
+     20,
+     1750,
+     300
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "text",
+     "title": "Order Information",
+     "bbox": [
+      40,
+      380,
+      1730,
+      600
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "Orders by category",
+     "bbox": [
+      38,
+      662,
+      870,
+      1030
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Users by state",
+     "bbox": [
+      894,
+      662,
+      1726,
+      1030
+     ]
+    }
+   ]
+  },
+  {
+   "id": "kestrelmoor",
+   "tool": "VaultSnip",
+   "size": [
+    1600,
+    1000
+   ],
+   "source": "web/samples/kestrelmoor.png (VaultSnip's own fictional demo, Apache-2.0)",
+   "terms": "Apache-2.0",
+   "ignore": [
+    [
+     0,
+     0,
+     1600,
+     120
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Net Revenue",
+     "bbox": [
+      32,
+      135,
+      392,
+      265
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Units Sold",
+     "bbox": [
+      420,
+      135,
+      780,
+      265
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Gross Margin",
+     "bbox": [
+      808,
+      135,
+      1168,
+      265
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Active Accounts",
+     "bbox": [
+      1196,
+      135,
+      1556,
+      265
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Net Revenue by Country",
+     "bbox": [
+      40,
+      290,
+      760,
+      610
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Monthly Net Revenue",
+     "bbox": [
+      820,
+      290,
+      1560,
+      610
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Top 5 Accounts",
+     "bbox": [
+      30,
+      625,
+      1570,
+      920
+     ]
+    },
+    {
+     "type": "text",
+     "title": "Confidential footer",
+     "bbox": [
+      30,
+      950,
+      1000,
+      980
+     ]
+    }
+   ]
+  }
+ ]
 }

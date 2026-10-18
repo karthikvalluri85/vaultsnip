@@ -1067,7 +1067,8 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
       S.spec = r.spec; S.seed = 1000 + Math.floor(Math.random() * 9000);
       $('dlg-send').close();
       fresh();
-      S.local = { visuals: r.spec.rows.reduce((n, row) => n + row.visuals.length, 0), coverage: r.coverage, ms: r.ms };
+      S.local = { visuals: r.spec.rows.reduce((n, row) => n + row.visuals.length, 0), coverage: r.coverage, ms: r.ms, confidence: r.confidence,
+        byVid: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.confidence])), kept: false };
       showReplica();
     } catch (e) {
       err.textContent = 'The on-device builder could not read this image: ' + (e && e.message || e); err.hidden = false;
@@ -1078,6 +1079,75 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   };
   // the fallback: the same review and payload preview, then the user's own provider
   $('btn-local-key').onclick = () => { if (S.img) $('btn-send').onclick(); };
+
+  /* ---------------- Phase 3: how sure the local build is, and the three choices ---------------- */
+  // The estimate is approximate (on the benchmark it lands within about 15 points of the truth, and it errs low), so
+  // it is shown as a band with a rough number. Below the line, the user chooses: fix it here, use their own key, or
+  // keep the result. Nothing is decided for them.
+  const LINE = (window.VSLayout && VSLayout.CONFIDENCE_THRESHOLD) || 0.9;
+  function localBand(c) {
+    return c >= LINE ? { cls: 'band-high', text: 'Looks complete.' } : c >= 0.6 ? { cls: 'band-mid', text: 'Check it before sharing.' } : { cls: 'band-low', text: 'A draft: check it carefully.' };
+  }
+  function renderLocalBanner() {
+    const L = S.local;
+    $('local-banner').hidden = !L || S.shared;
+    if (!L) { $('fix-panel').hidden = true; return; }
+    const band = localBand(L.confidence || 0), pct = Math.round((L.confidence || 0) * 100);
+    $('local-band').textContent = band.text; $('local-band').className = band.cls;
+    $('local-stats').textContent = `${L.visuals} visual${L.visuals === 1 ? '' : 's'} found, estimated match about ${pct}%${L.coverage < 0.85 ? ', and some content may have been missed' : ''}.`;
+    // below the line: three choices; once the user keeps the result, only the key fallback stays available
+    const below = (L.confidence || 0) < LINE;
+    $('btn-local-fix').hidden = !below && !L.fixing; $('btn-local-keep').hidden = !below || L.kept;
+    $('btn-local-key').textContent = below ? 'Use my AI key' : 'Use my AI key for a precise layout';
+    if (L.kept) $('local-stats').textContent += ' You kept this result.';
+  }
+  $('btn-local-keep').onclick = () => { if (!S.local) return; S.local.kept = true; $('fix-panel').hidden = true; renderLocalBanner(); };
+  $('btn-local-fix').onclick = () => { if (!S.local) return; S.local.fixing = true; renderFixList(); $('fix-panel').hidden = false; $('fix-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+  $('btn-fix-done').onclick = () => { $('fix-panel').hidden = true; if (S.local) S.local.fixing = false; renderLocalBanner(); };
+
+  // "Fix it here": every visual with its type, title and how sure the builder was; changes redraw the replica
+  const FIX_TYPES = [['kpi', 'KPI card'], ['column', 'Column chart'], ['bar', 'Bar chart'], ['line', 'Line chart'], ['area', 'Area chart'], ['pie', 'Pie chart'], ['donut', 'Donut chart'],
+    ['treemap', 'Treemap'], ['scatter', 'Scatter plot'], ['table', 'Table'], ['pivot', 'Matrix (pivot)'], ['text', 'Text'], ['placeholder', 'Something else']];
+  const DEFAULT_MEMBERS = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
+  // a visual changed to another type keeps what still applies and gets sensible defaults for the rest
+  function convertVisual(v, type) {
+    const keep = { id: v.id, span: v.span, title: v.title || '' };
+    const measure = v.measure || (v.measures && v.measures[0]) || { name: v.title || 'Value', format: 'number' };
+    const dimension = v.dimension || (v.rowDims && v.rowDims[0]) || { name: 'Category', members: DEFAULT_MEMBERS };
+    const series = Array.isArray(v.series) && v.series.length ? v.series : [{ name: measure.name, shape: dimension.members.map((_, i) => Math.max(10, 100 - i * 18)) }];
+    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...(v.stacked ? { stacked: true } : {}) });
+    if (type === 'kpi') return Object.assign(keep, { type, title: '', measure: { ...measure, name: measure.name || v.title || 'KPI' }, sparkline: false });
+    if (type === 'scatter') return Object.assign(keep, { type, xMeasure: { name: 'X', format: 'number' }, yMeasure: { name: measure.name || 'Y', format: measure.format || 'number' }, points: Array.from({ length: 16 }, (_, i) => [5 + ((i * 37) % 90), 5 + ((i * 53) % 90), 50]) });
+    if (type === 'table') return Object.assign(keep, { type, rowCount: v.rowCount || 6, columns: Array.isArray(v.columns) && v.columns.length ? v.columns : [{ name: dimension.name, kind: 'category', members: dimension.members }, { name: measure.name, kind: measure.format === 'currency' ? 'currency' : 'number', ...(measure.currency ? { currency: measure.currency } : {}) }] });
+    if (type === 'pivot') return Object.assign(keep, { type, rowDims: v.rowDims || [dimension], colDims: v.colDims || [{ name: 'Period', members: ['Q1', 'Q2', 'Q3', 'Q4'] }], measures: v.measures || [measure], subtotals: false, grandTotal: true });
+    if (type === 'text') return Object.assign(keep, { type, content: v.content || '' });
+    return Object.assign(keep, { type: 'placeholder', originalType: v.originalType || 'visual' });
+  }
+  function redrawLocal() { DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); }
+  function renderFixList() {
+    const box = $('fix-list'); box.innerHTML = '';
+    const conf = (S.local && S.local.byVid) || {};
+    S.spec.rows.forEach((row, ri) => row.visuals.forEach((v, vi) => {
+      const sure = conf[v.id] == null ? 1 : conf[v.id];
+      const d = document.createElement('div'); d.className = 'fixrow'; d.dataset.vid = v.id;
+      d.innerHTML = `<span class="conf ${sure < 0.5 ? 'check' : 'ok'}" title="How sure the builder was: about ${Math.round(sure * 100)}%">${sure < 0.5 ? 'Check' : 'OK'}</span><input type="text" aria-label="Title"><select aria-label="Visual type"></select><button type="button">Remove</button>`;
+      const title = d.querySelector('input'), sel = d.querySelector('select');
+      const isKpi = v.type === 'kpi';
+      title.value = isKpi ? ((v.measure && v.measure.name) || '') : (v.title || ''); title.placeholder = isKpi ? 'KPI label' : 'Title';
+      FIX_TYPES.forEach(([t, l]) => { const o = document.createElement('option'); o.value = t; o.textContent = l; sel.appendChild(o); });
+      sel.value = FIX_TYPES.some(([t]) => t === v.type) ? v.type : 'placeholder';
+      title.onchange = () => { if (v.type === 'kpi') v.measure = { ...(v.measure || {}), name: title.value }; else v.title = title.value; redrawLocal(); };
+      sel.onchange = () => { row.visuals[vi] = convertVisual(v, sel.value); if (S.local) S.local.byVid[v.id] = 1; redrawLocal(); renderFixList(); };
+      d.querySelector('button').onclick = () => {
+        row.visuals.splice(vi, 1);
+        if (!row.visuals.length) S.spec.rows.splice(ri, 1);
+        else { const total = row.visuals.reduce((a, x) => a + (x.span || 1), 0); row.visuals.forEach(x => { x.span = Math.max(1, Math.round((x.span || 1) * 12 / total)); }); }
+        if (S.local) S.local.visuals = S.spec.rows.reduce((n, r) => n + r.visuals.length, 0);
+        redrawLocal(); renderFixList(); renderLocalBanner();
+      };
+      box.appendChild(d);
+    }));
+  }
 
   /* ---------------- Screen 3 ---------------- */
   const MODE_HELP = {
@@ -1093,8 +1163,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     if (rankOf(S.mode) < rankOf(S.minMode)) S.mode = S.minMode;
     show('s-replica');
     $('shared-banner').hidden = !S.shared;
-    $('local-banner').hidden = !S.local || S.shared;
-    if (S.local) $('local-stats').textContent = S.local.visuals + ' visual' + (S.local.visuals === 1 ? '' : 's') + ' found' + (S.local.coverage < 0.85 ? ', and some content may have been missed' : '') + '.';
+    renderLocalBanner();
     $('modehelp').textContent = MODE_HELP[S.mode] + (S.shared && S.minMode !== 'shape' ? ' This link was shared as ' + MODE_NAMES[S.minMode] + ', so less private modes are not available.' : '');
     document.querySelectorAll('#modes button').forEach(b => {
       b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode));

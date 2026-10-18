@@ -104,6 +104,17 @@ a{color:var(--accent)}
 @media (max-width:600px){.hide-sm{display:none}.top{gap:8px;padding:10px 14px}}
 .canvaswrap.zoom{overflow:auto;max-height:78vh}.canvaswrap.zoom canvas{width:200%;max-width:none}
 details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;color:var(--muted);font-weight:600}
+.banner.local{align-items:flex-start}.lb-text{display:grid;gap:4px}.lb-score{font-size:13.5px}.lb-actions{display:flex;flex-wrap:wrap;gap:8px}
+.band-high{color:var(--good)}.band-mid{color:var(--warn)}.band-low{color:var(--bad)}
+.fixer{margin-bottom:14px}.fixer-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.fixlist{display:grid;gap:6px;margin-top:8px}
+.fixrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:13.5px;padding:6px 8px;border:1px solid var(--line);border-radius:8px}
+.fixrow input[type=text]{min-width:0;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.fixrow select{font:inherit;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.fixrow .conf{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:99px;white-space:nowrap}
+.fixrow .conf.ok{background:var(--good-soft);color:var(--good)}.fixrow .conf.check{background:var(--warn-soft);color:var(--warn)}
+.fixrow button{font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+@media (max-width:640px){.fixrow{grid-template-columns:auto minmax(0,1fr)}.fixrow select,.fixrow button{grid-column:2}}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .kpi{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:1px;background:var(--sunken)}
 .kpi b{font-size:24px;line-height:1.15}.kpi span{font-size:13px;font-weight:600}.kpi small{font-size:11.5px;color:var(--muted)}
@@ -250,9 +261,21 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <span><b>Shared replica.</b> Every value is generated; the person who shared it chose what the link keeps.</span>
       <button class="btn primary" id="btn-own" type="button">Make one from your own screenshot</button>
     </div>
-    <div class="banner" id="local-banner" hidden>
-      <span><b>Built on this device (beta).</b> The layout, chart types and shapes were read from the masked image here; nothing was sent. Compare it with your original: <span id="local-stats"></span></span>
-      <button class="btn" id="btn-local-key" type="button">Use my AI key for a precise layout</button>
+    <div class="banner local" id="local-banner" hidden>
+      <div class="lb-text">
+        <span><b>Built on this device (beta).</b> Read from the masked image here; nothing was sent.</span>
+        <span class="lb-score"><b id="local-band"></b> <span id="local-stats"></span></span>
+      </div>
+      <div class="lb-actions" id="local-actions">
+        <button class="btn" id="btn-local-fix" type="button">Fix it here</button>
+        <button class="btn" id="btn-local-key" type="button">Use my AI key for a precise layout</button>
+        <button class="btn" id="btn-local-keep" type="button">Keep this result</button>
+      </div>
+    </div>
+    <div class="panel fixer" id="fix-panel" hidden>
+      <div class="fixer-head"><h3>Fix the layout</h3><button class="btn" id="btn-fix-done" type="button">Done</button></div>
+      <p class="hint">Change what a visual is, rename it, or remove it. Visuals marked <b>Check</b> are the ones the builder was least sure about. The replica updates as you go; values are still generated.</p>
+      <div class="fixlist" id="fix-list"></div>
     </div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="Privacy mode" id="modes">

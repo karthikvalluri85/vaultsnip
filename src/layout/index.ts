@@ -14,6 +14,7 @@ import { area, height, medianHeight, toRgb, width, wordsIn, type Box, type Img, 
 import { findPanels, type Panel } from './panels';
 import { looksLikeTable, readPanel, splitTitle, formatOf, type ChartType } from './charts';
 import { readTable, tableVisual } from './tables';
+import { panelConfidence, pageConfidence, swallowedVisuals, CONFIDENCE_THRESHOLD } from './confidence';
 
 export interface BuildInput {
   image: Img;
@@ -21,13 +22,21 @@ export interface BuildInput {
   /** The mask boxes drawn on the image (visible as grey boxes): masked numbers that OCR did not return as words. */
   masks?: { x: number; y: number; w: number; h: number }[];
 }
-export interface PanelReport { box: Box; type: string; certainty: number; title: string; features: Record<string, number> }
+export interface PanelReport {
+  box: Box; type: string; certainty: number; title: string; features: Record<string, number>;
+  /** 0-1: estimated probability that this panel is a real visual of this type (src/layout/confidence.ts). */
+  confidence: number;
+  /** The id of the visual it became in the spec, when it became one. */
+  vid?: string;
+}
 export interface BuildResult {
   spec: Record<string, unknown> & { rows: { height: string; visuals: Record<string, unknown>[] }[] };
   panels: PanelReport[];
   /** Share of the page's content (words and marks) that lies inside a detected panel, 0-1. */
   coverage: number;
   ms: number;
+  /** 0-1: estimated share of the replica that matches the original (src/layout/confidence.ts). */
+  confidence: number;
 }
 
 const MAX_VISUALS = 20;
@@ -84,7 +93,7 @@ export function buildSpec(input: BuildInput): BuildResult {
 
   // the page title: large visible words above every panel, or a full-width text strip at the top
   const firstY = panels.length ? Math.min(...panels.map((p) => p.b[1])) : H;
-  let pageSubtitle = '';
+  let pageSubtitle = '', headingBottom = 0;
   let pageTitle = titleOf(words.filter((w) => w.y + w.h <= firstY + 2), pageBox, med * 3).text;
   const readings = panels.map((p) => {
     const t = titleOf(p.words, p.b, med);
@@ -103,8 +112,8 @@ export function buildSpec(input: BuildInput): BuildResult {
     const visual: Record<string, unknown> = { id: 'v1', span: 12, title: title || '', ...tableVisual(report, title) };
     return {
       spec: { title: title || 'Report', subtitle: '', parameters: report.parameters, filters: [], rows: [{ height: 'l', visuals: [visual] }] },
-      panels: [{ box: pageBox, type: String(visual.type), certainty: 0.7, title, features: { columns: report.columns.length, headerLevels: report.headerLevels, dataRows: report.dataRows } }],
-      coverage: 1, ms: Date.now() - t0,
+      panels: [{ box: pageBox, type: String(visual.type), certainty: 0.7, title, features: { columns: report.columns.length, headerLevels: report.headerLevels, dataRows: report.dataRows }, confidence: 0.7, vid: 'v1' }],
+      coverage: 1, confidence: 0.7, ms: Date.now() - t0,
     };
   }
   // a header band: text-only pieces at the very top (a title bar, possibly in large type) are the page title, not
@@ -117,14 +126,14 @@ export function buildSpec(input: BuildInput): BuildResult {
     const show = (list: Word[]) => list.map((w) => (w.kept && w.text ? w.text : '[Client]')).join(' ').replace(/(\[Client\]\s*)+/g, '[Client] ').replace(/\s*\|\s*/g, ' | ').trim();
     if (ws.some((w) => w.kept && w.text)) {
       pageTitle = show(groups[0]); pageSubtitle = groups.slice(1).map(show).join(' · ');
-      topBand.forEach((t) => readings.splice(readings.indexOf(t), 1));
+      topBand.forEach((t) => { headingBottom = Math.max(headingBottom, t.p.b[3]); readings.splice(readings.indexOf(t), 1); });
     }
   }
   // the page heading: a short text strip above every other panel (or a wide strip at the very top)
   const others = (r: (typeof readings)[number]) => readings.filter((o) => o !== r);
   const head = readings.find((x) => (x.r.type === 'text' || x.r.type === 'placeholder') && height(x.p.b) < H * 0.12 && x.p.words.length <= 10
     && (others(x).every((o) => o.p.b[1] >= x.p.b[3] - 2) || (x.p.b[1] <= firstY + 2 && width(x.p.b) > W * 0.5)));
-  if (head) { if (!pageTitle) pageTitle = head.title; readings.splice(readings.indexOf(head), 1); }
+  if (head) { if (!pageTitle) pageTitle = head.title; headingBottom = Math.max(headingBottom, head.p.b[3]); readings.splice(readings.indexOf(head), 1); }
 
   // second look, with the readings in hand: a chart cut into pieces (bars far apart, nothing framing them) is re-read as
   // one panel, and a title strip sitting right above a chart becomes its title
@@ -178,6 +187,7 @@ export function buildSpec(input: BuildInput): BuildResult {
       height: h,
       visuals: row.map((x, i) => {
         const id = 'v' + ++n;
+        (x as { vid?: string }).vid = id;
         if (x.r.type === 'table') {
           const tw = wordsIn(ocrWords, x.p.b).filter((w) => !x.titleWords.some((t) => t.x === w.x && t.y === w.y));
           const t = readTable(tw, x.p.b);
@@ -204,18 +214,29 @@ export function buildSpec(input: BuildInput): BuildResult {
 
   // coverage: words and panels; content outside every panel is content the replica will miss
   const inPanel = (w: Word) => readings.some((x) => w.x + w.w / 2 >= x.p.b[0] && w.x + w.w / 2 <= x.p.b[2] && w.y + w.h / 2 >= x.p.b[1] && w.y + w.h / 2 <= x.p.b[3]);
-  const below = words.filter((w) => w.y > firstY - 2);
+  // (below the page heading, which is the title, not a visual the replica misses)
+  const below = words.filter((w) => w.y > Math.max(firstY, headingBottom) - 2);
   const coverage = below.length ? below.filter(inPanel).length / below.length : readings.length ? 1 : 0;
+
+  const reports: PanelReport[] = readings.map((x) => {
+    const signals = { type: x.r.type, certainty: x.r.certainty, area: area(x.p.b) / (W * H), titled: !!x.title, features: x.features };
+    return { box: x.p.b.map(Math.round) as Box, type: x.r.type, certainty: Math.round(x.r.certainty * 100) / 100, title: x.title, features: x.features,
+      confidence: Math.round(panelConfidence(signals) * 100) / 100, vid: (x as { vid?: string }).vid };
+  });
+  const coverageR = Math.round(coverage * 100) / 100;
 
   return {
     spec: { title, subtitle: pageSubtitle, ...(theme.length ? { theme: { primary: theme[0], secondary: theme[1] || theme[0] } } : {}), filters: [], rows: specRows.filter((r) => r.visuals.length) },
-    panels: readings.map((x) => ({ box: x.p.b.map(Math.round) as Box, type: x.r.type, certainty: Math.round(x.r.certainty * 100) / 100, title: x.title, features: x.features })),
-    coverage: Math.round(coverage * 100) / 100,
+    panels: reports,
+    coverage: coverageR,
+    confidence: Math.round(pageConfidence(reports.filter((r) => r.vid).map((r) => r.confidence), coverageR,
+      swallowedVisuals(reports.map((r) => area(r.box) / (W * H)), reports.map((r) => r.type))) * 100) / 100,
     ms: Date.now() - t0,
   };
 }
 
 export { findPanels, readPanel, readTable, tableVisual, splitTitle, formatOf };
 export { findMarks, background } from "./marks";
+export { panelConfidence, pageConfidence, CONFIDENCE_THRESHOLD };
 export { findRegions, edges, PANEL_OPTS } from "./panels";
 export type { Panel, Img, Word, Box };
