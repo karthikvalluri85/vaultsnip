@@ -170,6 +170,21 @@ try {
   check(table.on.every(r => /^ACC-\d{5}$/.test(r[1]) && /\S+ \S+/.test(r[2]) && !/^(Account|Person) \d+$/.test(r[0] + r[2])), `table cells fit their columns: ${table.on[0].slice(0, 3).join(' · ')}`);
   check(table.off.every(r => /^Account \d+$/.test(r[0]) && /^Person \d$/.test(r[2])), 'with the switch off, the same table shows neutral placeholders');
   check(table.on.every(r => table.csv.includes(r[2])), 'the CSV download carries the same names as the screen');
+  const health = await page.evaluate(() => {
+    const root = document.getElementById('replica');
+    const spec = { title: '[Client] | Patient Outcomes', filters: [{ label: 'Hospital', members: ['Item 1', 'Item 2', 'Item 3'] }], rows: [{ visuals: [
+      { id: 'k', type: 'kpi', span: 4, title: 'Readmission rate', measure: { name: 'Readmission rate', format: 'percent' } },
+      { id: 't', type: 'table', span: 8, title: 'Top Providers', rowCount: 4, columns: [{ name: 'Health System', kind: 'org' }, { name: 'Attending Physician', kind: 'person' }, { name: 'Payer', kind: 'text' }, { name: 'Encounters', kind: 'number' }] }] }] };
+    DSCReplica.render(root, spec, { mode: 'shape', seed: 4127, resetSelection: true });
+    const out = { title: root.querySelector('.rp-head h2').textContent, chips: [...root.querySelectorAll('.rp-filters .rp-chip')].map(c => c.textContent), rows: [...root.querySelectorAll('.rp-table tbody tr')].map(tr => [...tr.children].slice(0, 3).map(td => td.textContent)) };
+    DSCReplica.render(root, spec, { mode: 'generic', seed: 4127, resetSelection: true });
+    out.generic = [...root.querySelectorAll('.rp-filters .rp-chip')].map(c => c.textContent);
+    return out;
+  });
+  const HEALTH = /Health|Medical|Hospital|Clinic|Care|Practice|Life Sciences/;
+  check(health.chips.length === 3 && health.chips.every(c => HEALTH.test(c) && !/^Item \d/.test(c)), `covered hospitals get healthcare-style names, not "Item 1" (${health.chips.join(', ')})`);
+  check(HEALTH.test(health.title) && health.rows.every(r => HEALTH.test(r[0]) && /^Dr\. /.test(r[1]) && /Plan|Benefits|Insurance|Assurance/.test(r[2])), `health systems, clinicians and payers read like healthcare (${health.rows[0].join(' · ')})`);
+  check(health.generic.every(c => /^Item \d$/.test(c)), 'Generic mode keeps neutral labels');
   await page.click('#btn-regen'); await wait(200);
 
   console.log('Design export (Figma SVG, React code)');
