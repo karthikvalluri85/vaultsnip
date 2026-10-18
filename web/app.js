@@ -216,11 +216,24 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       workerP = Tesseract.createWorker('eng', 1, {
         workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
         workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
-        logger: m => { if (m.status && typeof m.progress === 'number') setStatus(`${humanStatus(m.status)} ${Math.round(m.progress * 100)}%`, true); }
+        logger: m => { if (m.status && typeof m.progress === 'number') showProgress(m.status, m.progress); }
       }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
         .catch(e => { workerP = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
     }
     return workerP;
+  }
+  // One progress figure for a whole job: every reading pass, and for a new screenshot the check that follows. Each pass
+  // counts by how much image it reads (scale squared), and the figure never goes back, so it climbs to 100% once
+  // instead of restarting with every pass.
+  const READ_PASSES = [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']];
+  const CHECK_SCALES = [2, 1.5, 3, 3, 3, 2];
+  const weightOf = scales => scales.reduce((a, k) => a + k * k, 0);
+  let job = null;
+  function showProgress(status, p) {
+    if (!job || !/recognizing/i.test(status)) { if (!/recognizing/i.test(status)) setStatus(humanStatus(status), true); return; }
+    const pct = Math.min(99, Math.floor(((job.done + p * job.cur) / job.total) * 100));
+    job.shown = Math.max(job.shown, pct);
+    setStatus(`${job.label} ${job.shown}%`, true);
   }
   function humanStatus(s) {
     if (/loading language|loading tesseract|initializ/i.test(s)) return 'Loading the on-device text reader (first run only)…';
@@ -288,13 +301,21 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     return out;
   }
   // Several passes, merged: a word found by a later pass is kept only if no earlier pass found it.
-  async function readAll(src, passes) {
+  async function readAll(src, passes, label) {
     let all = [];
+    const mine = !job;
+    if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, cur: 0, shown: 0 };
+    const j = job;   // this run's own figure, even if a newer screenshot starts another
+    j.label = label || 'Reading text on this device…';
+    try {
     for (const [scale, kind, own] of passes) {
+      j.cur = scale * scale;
       const got = await ocr(own || src, scale, kind);
+      j.done += j.cur; j.cur = 0;
       // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
       all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
     }
+    } finally { if (mine && job === j) job = null; }
     return plausible(all);
   }
   // C: the reader sometimes sees chart graphics as giant "words" (10-25x taller than real text, low confidence).
@@ -568,7 +589,7 @@ customer service staff agent team people everyone nobody someone something nothi
       .filter(f => !S.masks.some(m => m.on && m.x <= f.x + 1 && m.y <= f.y + 1 && m.x + m.w >= f.x + f.w - 1 && m.y + m.h >= f.y + f.h - 1));
     if (extra.length) { S.masks.push(...extra); renderTypes(); draw(); }
     const m2 = maskedCanvas(1), img0 = S.img;
-    const all = await readAll(m2, [[2, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'block'], [3, 'ink', maskedCanvas(1, '#ff00ff')], [2, 'delta']]);
+    const all = await readAll(m2, [[CHECK_SCALES[0], 'normal'], [CHECK_SCALES[1], 'inverted'], [CHECK_SCALES[2], 'contrast'], [CHECK_SCALES[3], 'block'], [CHECK_SCALES[4], 'ink', maskedCanvas(1, '#ff00ff')], [CHECK_SCALES[5], 'delta']], 'Checking the masked image on this device…');
     if (S.img !== img0) return;   // a newer screenshot replaced this one; its own check decides its gate
     const active = S.masks.filter(m => m.on);
     // spots the user looked at and chose to show (a mask they switched off, or a finding marked not sensitive)
@@ -798,7 +819,9 @@ customer service staff agent team people everyone nobody someone something nothi
     const seq = ++reviewSeq, current = () => seq === reviewSeq && S.img === canvas;
     try {
       setStatus('Loading the on-device text reader…', true);
-      const words = await readAll(canvas, [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']]);
+      // one figure for reading and the check that follows
+      job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
+      const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…');
       if (!current()) return;
       S.words = words;
       S.comments = findComments(S.words);
@@ -810,10 +833,13 @@ customer service staff agent team people everyone nobody someone something nothi
       $('btn-reapply').disabled = false;
       await verify();
     } catch (err) {
+      job = null;
       if (!current()) return;
       console.error(err);
       setStatus('The on-device reader could not start: ' + (err && err.message || err), false);
       if (window.VSFeedback) VSFeedback.problem(err, 'On-device reader');
+    } finally {
+      if (current()) job = null;
     }
   }
 
