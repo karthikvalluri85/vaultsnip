@@ -19,7 +19,7 @@ describe('DOM to React (Feature 8)', () => {
     const cards = [...src.matchAll(/<(\w+Card) v=\{r\.visual\(("(?:[^"\\]|\\.)*"), "(\w+)"\)\} span=\{(\d+)\}/g)].map((m) => [m[1], JSON.parse(m[2]), m[3], +m[4]]);
     expect(cards).toEqual([['KpiCard', 'k1', 'kpi', 3], ['ChartCard', 'c1', 'chart', 9], ['TableCard', 't"1', 'table', 12], ['PlaceholderCard', 'p1', 'placeholder', 6]]);
     expect(src).toMatch(/<ChartCard [^\n]*height=\{340\} onToggle=\{r\.toggle\}/);
-    expect(src).toMatch(/import \{ Replica, Header, Ribbon, FilterBar, Grid, Footer, KpiCard, ChartCard, TableCard, PlaceholderCard \} from '\.\/components';/);
+    expect(src).toMatch(/import \{ Replica, Header, Ribbon, ParameterBar, FilterBar, Grid, Footer, KpiCard, ChartCard, TableCard, PlaceholderCard \} from '\.\/components';/);
     expect(src).toMatch(/<FilterBar /);
     expect(pageTsx({ ...layout, filters: false }, { name: 'X', mode: 'shape', seed: 1, realistic: false })).not.toMatch(/<FilterBar /);
   });
@@ -46,6 +46,6 @@ describe('DOM to React (Feature 8)', () => {
   it('draws everything from the model: no values in the components or types', () => {
     expect(COMPONENTS_TSX).toMatch(/c\.setOption\(v\.option as echarts\.EChartsOption, true\)/);
     expect(COMPONENTS_TSX).toMatch(/SYNTHETIC DATA/);
-    expect(TYPES_TS).toMatch(/export type VisualModel = KpiModel \| ChartModel \| TableModel \| FeedModel \| TextModel \| PlaceholderModel;/);
+    expect(TYPES_TS).toMatch(/export type VisualModel = KpiModel \| ChartModel \| TableModel \| PivotModel \| FeedModel \| TextModel \| PlaceholderModel;/);
   });
 });

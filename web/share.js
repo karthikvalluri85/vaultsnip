@@ -51,10 +51,12 @@
     const measure = m => m && Object.assign({}, m, { name: met(m.name) });
     const s = stripShapes(spec);
     const out = { title: 'Dashboard', subtitle: '', theme: s.theme, rows: [] };
+    // report parameters keep only that they exist: no labels, no values
+    out.parameters = (s.parameters || []).filter(q => q && q.label).map((q, i) => ({ label: 'Parameter ' + (i + 1), value: '' }));
     out.filters = (s.filters || []).map(f => ({ label: dim(f.label), members: (f.members || []).map(mem) }));
     out.rows = (s.rows || []).map(r => ({ height: r.height, visuals: (r.visuals || []).filter(Boolean).map(v => {
       const g = { id: 'v' + (++vi), type: v.type, span: v.span, title: 'Visual ' + vi };
-      ['horizontal', 'stacked', 'stackedPercent', 'valueLabels', 'sparkline', 'sorted', 'rowCount', 'pointCount', 'mapKind', 'originalType', 'delta', 'higherIsBetter', 'min', 'max', 'lastIsTotal', 'colorIndex', 'zeroBased'].forEach(k => { if (v[k] !== undefined) g[k] = v[k]; });
+      ['horizontal', 'stacked', 'stackedPercent', 'valueLabels', 'sparkline', 'sorted', 'rowCount', 'pointCount', 'mapKind', 'originalType', 'delta', 'higherIsBetter', 'min', 'max', 'lastIsTotal', 'colorIndex', 'zeroBased', 'subtotals', 'grandTotal', 'totalColumn'].forEach(k => { if (v[k] !== undefined) g[k] = v[k]; });
       if (v.basemap) g.basemap = v.basemap;
       if (v.measure) g.measure = measure(v.measure);
       if (v.xMeasure) g.xMeasure = measure(v.xMeasure);
@@ -69,6 +71,11 @@
       if (Array.isArray(v.tasks)) g.tasks = v.tasks.map(t => ({ name: task(t && typeof t === 'object' ? t.name : t) }));
       if (Array.isArray(v.timeLabels)) g.timeLabels = v.timeLabels.map(tl);
       if (Array.isArray(v.points) && !v.points.every(Array.isArray)) g.points = v.points.map(p => ({ name: loc(p && p.name) }));
+      // report structures: pivot dimensions and measures, and the columns a table groups by, are renamed like any other
+      if (Array.isArray(v.rowDims)) g.rowDims = v.rowDims.filter(Boolean).map(d => ({ name: dim(d.name), members: (d.members || []).map(mem) }));
+      if (Array.isArray(v.colDims)) g.colDims = v.colDims.filter(Boolean).map(d => ({ name: dim(d.name), members: (d.members || []).map(mem) }));
+      if (Array.isArray(v.measures)) g.measures = v.measures.filter(Boolean).map(measure);
+      if (Array.isArray(v.groupBy)) g.groupBy = v.groupBy.map(dim);
       if (Array.isArray(v.flows)) g.flows = v.flows.map(f => ({ from: loc(f.from), to: loc(f.to) }));
       return g;
     }) }));

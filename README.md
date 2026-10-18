@@ -28,7 +28,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 | Area | Status |
 |---|---|
-| Samples first on screen 1 (no key needed) | ✅ 3 samples; the first runs the full redaction demo |
+| Samples first on screen 1 (no key needed) | ✅ 4 samples; the first runs the full redaction demo, the last is a paginated report |
 | Upload, paste, extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
 | Mask by default, allowlist to keep | ✅ client names, numbers/money, IDs, emails, unlisted text |
@@ -40,6 +40,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Exact-payload preview before anything is sent | ✅ |
 | Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
 | Replica: KPI, bar, column, stacked, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table | ✅ Apache ECharts |
+| **Paginated reports** (SSRS, Crystal, BusinessObjects) | ✅ matrix / cross-tab with grouped headers, subtotals and grand totals; grouped tables with subtotals; report parameters; in every export and share link |
 | Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
 | Privacy modes: Shape-preserving, Structure-only, Generic | ✅ |

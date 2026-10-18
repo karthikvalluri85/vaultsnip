@@ -94,6 +94,7 @@
 a an and or of the to in on at by for from with per vs versus via all any each other others total totals subtotal grand
 top bottom first last next previous prior current new old high medium low average avg mean median min max sum count share rate ratio index
 revenue sales net gross margin profit loss income cost costs expense expenses spend budget forecast actual actuals target targets plan variance
+quantity quantities qty subcategory subcategories store stores identifier detail details invoice invoices balance balances tax taxes shipping shipped freight description descriptions group groups subgroup parameter parameters fiscal employee employees line lines code codes number numbers
 growth change delta trend trends performance overview summary dashboard report reports scorecard kpi kpis metric metrics measure value values amount amounts
 units unit orders order customers customer accounts account clients client users user sessions session visitors visits pageviews views page pages
 bounce conversion conversions clicks click impressions ctr cpc cpm roi roas leads lead pipeline opportunities deals bookings quota attainment
@@ -871,13 +872,14 @@ Rules:
 - Output JSON only, no prose, matching this shape:
 {"title":string,"subtitle":string,"theme":{"primary":"#hex","secondary":"#hex"},
  "filters":[{"label":string,"members":[string]}],
+ "parameters":[{"label":string,"value":string}] (report prompts or parameter boxes above a paginated report, e.g. "Store identifier?" with a value box; value only when it is visible and not covered, else ""),
  "rows":[{"height":"s"|"m"|"l","visuals":[VISUAL]}]}
 VISUAL fields: "id", "type", "span" (1-12 grid columns; a row's spans sum to 12), "title",
  "measure":{"name":string,"format":"currency"|"number"|"percent"|"integer"|"ratio"|"duration","currency":"$"|"€"|"£"|"₹"|"","unit":string (optional suffix such as "min", "h", "days", "pts", "ms"),"outOf":number (ratio only: the scale maximum, e.g. 5 for "4.5 / 5"),"scaleHint":number (optional: a plausible typical magnitude for this kind of measure, e.g. 40 for days, 900 for headcount; never copy a visible value),"higherIsBetter":bool (false when a rise is bad: error, crash, ANR, bounce, churn, cost, response time, backlog)},
  "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line","measure":{…} (only on a combo series that uses its own axis, e.g. a % line over $ bars)}],
  "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool.
  kpi: "shapeValue":0-100 for percentages (where the value sits on 0-100). Use format "ratio" with "outOf" for scores like "4.52 / 5", "duration" with a unit for times like "38 min", "integer" with unit "pts" for points.
-Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, gantt, table, text, map, placeholder.
+Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, gantt, table, pivot, text, map, placeholder.
  Orientation: "column" = vertical bars rising from the x-axis (categories along the bottom). "bar" = horizontal bars (categories down the left side) and must have "horizontal":true. Never send "column" with "horizontal":true.
  Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item.
  heatmap: "rows":{"name","members"},"columns":{"name","members"},"matrix":[[0-100 or null]] with null for an empty cell (for example the blank triangle of a cohort table).
@@ -895,6 +897,8 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
  table: "columns":[{"name":string,"kind":"text"|"org"|"person"|"id"|"category"|"date"|"number"|"currency"|"percent"|"verbatim","members":[string],"scaleHint":number (optional, a plausible typical value for that column, e.g. 4.5 for a 5-point rating, 50 for a price per seat)}],"rowCount":int,"sorted":bool. Put the column that labels each row first, as kind "category" with its members in row order.
  Customer comments (verbatims, quotes, reviews, free-text feedback), whether in a table or a list with a name line above each: make a table with one row per comment and a column of kind "verbatim" holding "values":[string], the readable wording of each comment in order, copied word for word. Write […] wherever a grey box covers words inside a comment; never fill them in. If a comment is entirely covered, use an empty string. Give the commenter and company columns kinds "person" and "org", and any score badge kind "number".
  Any number column in a table may add "shape":[0-100 per row]: the relative size from a visible in-cell bar, or from a badge colour when the number is covered (green = high, amber = middle, red = low). Omit it when there is no visual cue.
+ Grouped report tables (SSRS, Crystal Reports, BusinessObjects): add "groupBy":[column name] for columns whose value is shown once per group and blank below (outermost first), "subtotals":true when each group ends with a Total row, "grandTotal":true when a Total row closes the table.
+ pivot (matrix, cross-tab: rows AND columns are dimension values): "rowDims":[{"name":string,"members":[string]}] outermost first (1-2 levels), "colDims":[{"name":string,"members":[string]}] outermost first (0-2 levels), "measures":[{"name":string,"format":…,"currency":…}] (the value names repeated under each column, e.g. Sales and Quantity), "subtotals":bool, "grandTotal":bool, "totalColumn":bool. Use pivot rather than table whenever column headers are dimension values (products, months, store numbers) instead of field names.
  placeholder: "originalType":string for anything else.
 - Titles and labels: copy only text that is visible and not covered. If part of a title is covered, write [Client] for it. If axis or legend labels are covered, use "Item 1", "Item 2"…
 - Shapes: estimate each mark's relative size from the visible geometry, largest = 100. For lines use relative height within the plot. Do not read numbers.

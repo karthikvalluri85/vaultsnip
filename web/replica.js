@@ -566,6 +566,12 @@
   const HIDDEN = /\[(?:…|\.\.\.|hidden|redacted|masked|client|name)\]/gi;
   // the quote as text pieces; a hidden passage sits between two pieces
   const quoteParts = q => String(q).replace(/^[\s"“”']+|[\s"“”']+$/g, '').slice(0, 400).split(HIDDEN);
+  // A table drawn from a grid: header rows and body rows of cells with optional spans; body rows can be subtotals
+  // (rp-sub) or the grand total (rp-grand); a cell with a filter [dimension, member] filters the page when clicked.
+  const cellHtml = (tag, c) => `<${tag}${c.colspan > 1 ? ` colspan="${c.colspan}"` : ''}${c.rowspan > 1 ? ` rowspan="${c.rowspan}"` : ''}${c.num ? ' class="n"' : c.filter ? ' class="rp-hd"' : ''}${c.filter ? ` data-dim="${escH(c.filter[0])}" data-raw="${escH(c.filter[1])}" title="Filter by this"` : ''}>${escH(c.text)}</${tag}>`;
+  function gridHtml(head, body, cls) {
+    return `<div class="rp-table ${cls}"><table><thead>${head.map(r => '<tr>' + r.map(c => cellHtml('th', c)).join('') + '</tr>').join('')}</thead><tbody>${body.map(r => `<tr${r.cls ? ` class="${r.cls}"` : ''}>` + r.cells.map(c => cellHtml('td', c)).join('') + '</tr>').join('')}</tbody></table></div>`;
+  }
   function quoteHtml(q) {
     const t = String(q).replace(/^[\s"“”']+|[\s"“”']+$/g, '').slice(0, 400);
     return '“' + t.split(HIDDEN).map(escH).join('<span class="rp-redact" role="img" aria-label="hidden"></span>') + '”';
@@ -640,6 +646,14 @@
 .rp-badge.good{background:#e3f4e8;color:#1d7a3a}.rp-badge.mid{background:#fdf1d8;color:#8a5a00}.rp-badge.bad{background:#fbe3e2;color:#b03c38}
 .rp-redact{display:inline-block;width:3.4em;height:.85em;margin:0 .1em;border-radius:3px;background:var(--rp-muted);opacity:.45;vertical-align:-.05em}
 .rp-row{cursor:pointer}.rp-row:hover td{background:var(--rp-bg)}
+.rp-hd[data-dim]{cursor:pointer}.rp-hd[data-dim]:hover{background:var(--rp-bg)}
+.rp-pivot th,.rp-grouped th{text-align:center}.rp-pivot th.n,.rp-grouped th.n{text-align:right}
+.rp-table tr.rp-sub td{font-weight:600;background:var(--rp-bg)}
+.rp-table tr.rp-grand td{font-weight:700;border-top:2px solid var(--rp-ink)}
+.rp-params{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:8px 18px;background:var(--rp-surface);border-bottom:1px solid var(--rp-line)}
+.rp-param{display:inline-flex;gap:8px;align-items:center;font-size:12.5px}
+.rp-param .lbl{color:var(--rp-muted)}
+.rp-pv{padding:3px 10px;border:1px solid var(--rp-line);border-radius:4px;background:var(--rp-bg);min-width:6em}
 .rp-pill{background:#e8f1fb;border-color:#2a78d6;color:#14181e}
 .rp-clear{border-style:dashed}
 .rp-ph{display:grid;place-items:center;height:var(--h,200px);border:1px dashed var(--rp-line);border-radius:6px;color:var(--rp-muted);font-size:12.5px;text-align:center;padding:12px}
@@ -681,7 +695,7 @@
 
     const visuals = [];
     // Normalise what different models call the same visual.
-    const TYPE_ALIAS = { timeline: 'gantt', roadmap: 'gantt', 'gantt chart': 'gantt', 'stacked bar': 'bar', 'stacked column': 'column', doughnut: 'donut', choropleth: 'map', 'filled map': 'map' };
+    const TYPE_ALIAS = { matrix: 'pivot', crosstab: 'pivot', 'cross-tab': 'pivot', 'cross tab': 'pivot', 'pivot table': 'pivot', timeline: 'gantt', roadmap: 'gantt', 'gantt chart': 'gantt', 'stacked bar': 'bar', 'stacked column': 'column', doughnut: 'donut', choropleth: 'map', 'filled map': 'map' };
     const normType = v => {
       let ty = String(v.type || '').toLowerCase().trim(); ty = TYPE_ALIAS[ty] || ty;
       if (ty === 'placeholder' && /gantt|timeline|roadmap/i.test(v.originalType || '')) ty = 'gantt';
@@ -716,6 +730,7 @@
       if (v.type === 'map') setShares(mapDimName(v), mapMembers(v), (v.points && v.points.length ? v.points.map(p => p && p.shape) : (v.series && v.series[0] && v.series[0].shape)));
       if (v.type === 'gantt' && Array.isArray(v.tasks)) setShares('task · ' + (v.title || v.id), v.tasks.map((tk, i) => String(tk && typeof tk === 'object' ? (tk.name != null ? tk.name : 'Task ' + (i + 1)) : tk)));
       if (v.type === 'sankey') setShares('node · ' + (v.title || v.id), v.nodes && v.nodes.length ? v.nodes : ['Source A', 'Source B', 'Middle', 'End X', 'End Y']);
+      if (v.type === 'pivot') [].concat(v.rowDims || [], v.colDims || []).forEach(d => { if (d && Array.isArray(d.members)) setShares(d.name, d.members); });
     });
     Object.keys(state.filters).forEach(k => { if (!state.filters[k] || !state.filters[k].length) delete state.filters[k]; });
     const active = Object.keys(state.filters);
@@ -764,7 +779,11 @@
     const quotes = !L.generic && visuals.some(v => v.type === 'table' && (Array.isArray(v.columns) ? v.columns : []).some(c => isVerbatim(c) && Array.isArray(c.values) && c.values.length));
     const footNote = quotes ? 'Synthetic replica · numbers are generated · customer comments are quoted with personal details hidden' : 'Synthetic replica · no source values included';
     // The same page as data (Feature 8): what each part shows, for components that draw it themselves (DSCReplica.model).
+    // report parameters (SSRS prompts, Crystal parameters, BusinessObjects prompts): shown, not interactive
+    const parameters = (Array.isArray(spec.parameters) ? spec.parameters : []).filter(q => q && q.label).slice(0, 8)
+      .map((q, i) => ({ label: L.generic ? 'Parameter ' + (i + 1) : L.text(String(q.label)), value: L.generic ? 'All' : (q.value ? L.text(String(q.value)) : 'All') }));
     const model = root._model = {
+      parameters,
       title: L.generic ? 'Dashboard 1' : L.text(spec.title || 'Dashboard'), subtitle: L.generic ? '' : L.text(spec.subtitle || ''),
       mode, modeName: MODE_NAME[mode], seed, footNote,
       filtered: active.length ? 'Filtered: ' + active.map(k => (L.generic ? 'filter' : keyLabel(k)) + ' (' + state.filters[k].length + ')').join(', ') : '',
@@ -777,6 +796,7 @@
     root.innerHTML = `
       <div class="rp-head"><h2>${esc(model.title)}</h2><span>${esc(model.subtitle)}</span></div>
       <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span>${activeNote}</div>
+      ${parameters.length ? `<div class="rp-params">${parameters.map(q => `<span class="rp-param"><span class="lbl">${esc(q.label)}</span><span class="rp-pv">${esc(q.value)}</span></span>`).join('')}</div>` : ''}
       ${filterBar ? `<div class="rp-filters">${filterBar}</div>` : ''}
       <div class="rp-grid"></div>
       <div class="rp-foot"><span>${esc(footNote)} · <button type="button" class="rp-csv">Download data (CSV)</button></span><a href="${PRODUCT_URL}?ref=export" target="_blank" rel="noopener">${FOOTER_TEXT}</a></div>`;
@@ -902,6 +922,59 @@
           card.insertAdjacentHTML('beforeend', `<div class="rp-feed">${items}</div>`);
           return;
         }
+        // A grouped report table (SSRS, Crystal, BusinessObjects style): group columns show their value once per group,
+        // each group ends with a subtotal row, and a grand total closes the table. Totals are sums of the rows shown.
+        const gNorm = s => String(s || '').toLowerCase().trim();
+        const wantG = (Array.isArray(v.groupBy) ? v.groupBy : []).map(gNorm);
+        const gCols = cols.map((c, ci) => ({ c, ci })).filter(({ c }) => wantG.includes(gNorm(c.name)) && !['number', 'currency', 'percent', 'verbatim'].includes(c.kind)).slice(0, 2);
+        if (gCols.length || v.subtotals === true || v.grandTotal === true) {
+          const numCols = cols.map((c, ci) => ci).filter(ci => ['number', 'currency', 'percent'].includes(cols[ci].kind));
+          const n = Math.max(1, Math.min(25, v.rowCount || 8));
+          const g0 = gCols[0], g1 = gCols[1];
+          const membersOf = c => { if (!c.members || !c.members.length) return null; const on = state.filters[dk(c.name)]; const l = on && on.length ? c.members.filter(m => selHas(on, m)) : c.members; return l.length ? l : c.members; };
+          const G = g0 ? ((membersOf(g0.c) || []).length || Math.max(2, Math.round(n / 3))) : 1;
+          const per = Math.max(1, Math.ceil(n / G)), half = Math.max(1, Math.ceil(per / 2));
+          const groupText = (gc, idx) => { const l = membersOf(gc.c); if (l) { const m = l[idx % l.length]; return { text: L.member(gc.c.name, m, gc.c.members.indexOf(m)), raw: m }; } return { text: cellOf(gc.c, gc.ci, idx * 7).text, raw: null }; };
+          const dataRows = Array.from({ length: Math.min(n, G * per) }, (_, ri) => {
+            const gi = Math.floor(ri / per), si = Math.floor((ri % per) / half);
+            const cells = cols.map((c, ci) => {
+              if (c === rowCat && !gCols.some(g => g.ci === ci)) { const m = pick(c, ri); const t = L.member(c.name, m, c.members.indexOf(m)); return { text: t, html: esc(t), cls: '', k: 'category' }; }
+              return cellOf(c, ci, ri);
+            });
+            if (g0) { const t = groupText(g0, gi); cells[g0.ci] = { ...cells[g0.ci], text: t.text, html: esc(t.text), raw: t.raw, cls: '' }; }
+            if (g1) { const t = groupText(g1, gi * 2 + si); cells[g1.ci] = { ...cells[g1.ci], text: t.text, html: esc(t.text), raw: t.raw, cls: '' }; }
+            cells.forEach((o, ci) => csvCell(cols[ci], ri, o));
+            return { gi, si, cells };
+          });
+          const fmtSum = (ci, xs) => {
+            if (!xs.length) return '';
+            const c = cols[ci], s = xs.reduce((a, b) => a + b, 0);
+            if (c.kind === 'percent') return (s / xs.length).toFixed(1) + (L.generic ? '' : '%');
+            if (c.kind === 'currency') return fmt(s, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic);
+            return Math.abs(s) < 1e4 ? Math.round(s).toLocaleString('en-US') : abbr(s);
+          };
+          const labelAt = g0 ? (g1 ? g1.ci : Math.max(g0.ci, cols.findIndex((c, ci) => ci > g0.ci && !numCols.includes(ci)))) : 0;
+          const totalRow = (list, cls) => {
+            const cells = cols.map(() => ({ text: '', cls: '' }));
+            cells[cls === 'rp-grand' ? 0 : labelAt] = { text: 'Total', cls: '' };
+            numCols.forEach(ci => { cells[ci] = { text: fmtSum(ci, list.map(r => r.cells[ci].x).filter(x => x != null && Number.isFinite(x))), cls: 'n' }; });
+            return { cls, cells, filter: null };
+          };
+          const display = [];
+          dataRows.forEach((r, i) => {
+            const prev = dataRows[i - 1], next = dataRows[i + 1];
+            const repeat = ci => (g0 && ci === g0.ci && prev && prev.gi === r.gi) || (g1 && ci === g1.ci && prev && prev.gi === r.gi && prev.si === r.si);
+            display.push({ cls: '', cells: r.cells.map((c, ci) => (repeat(ci) ? { ...c, text: '' } : c)), filter: g0 && r.cells[g0.ci].raw != null ? [dk(g0.c.name), r.cells[g0.ci].raw] : null });
+            if (v.subtotals !== false && g0 && (!next || next.gi !== r.gi)) display.push(totalRow(dataRows.filter(x => x.gi === r.gi), 'rp-sub'));
+          });
+          if (v.grandTotal !== false) display.push(totalRow(dataRows, 'rp-grand'));
+          kind('table');
+          vm.columns = cols.map(c => (L.generic ? L.dim(c.name) : c.name)); vm.rowLabel = g0 ? g0.c.name : ''; vm.grouped = true;
+          vm.rows = display.map(r => ({ filter: r.filter, cls: r.cls, cells: r.cells.map(c => ({ text: c.text, cls: c.cls || '' })) }));
+          const body = display.map(r => ({ cls: r.cls, cells: r.cells.map((c, ci) => ({ text: c.text, num: c.cls === 'n', filter: g0 && ci === g0.ci && c.text && r.filter ? r.filter : null })) }));
+          card.insertAdjacentHTML('beforeend', gridHtml([cols.map(c => ({ text: L.generic ? L.dim(c.name) : c.name, num: ['number', 'currency', 'percent'].includes(c.kind) }))], body, 'rp-grouped'));
+          return;
+        }
         kind('table');
         vm.columns = cols.map(c => (L.generic ? L.dim(c.name) : c.name));
         vm.rowLabel = rowCat ? rowCat.name : '';
@@ -912,6 +985,71 @@
           return `<td class="${o.cls}">${o.html}</td>`;
         }).join('') + '</tr>').join('');
         card.insertAdjacentHTML('beforeend', `<div class="rp-table"><table><thead><tr>${cols.map(c => `<th>${esc(L.generic ? L.dim(c.name) : c.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`);
+        return;
+      }
+      if (v.type === 'pivot') {
+        // a matrix / cross-tab: row and column dimension hierarchies with measures in the cells; subtotals and totals
+        // are computed from the cells they cover, so they always add up (percentages and ratios average instead)
+        const okDim = d => d && Array.isArray(d.members) && d.members.length;
+        const rd = (Array.isArray(v.rowDims) ? v.rowDims : []).filter(okDim).slice(0, 2);
+        const cd = (Array.isArray(v.colDims) ? v.colDims : []).filter(okDim).slice(0, 2);
+        const ms = (Array.isArray(v.measures) && v.measures.length ? v.measures : [v.measure || { name: v.title || 'Value', format: 'number' }]).slice(0, 4);
+        if (!rd.length) rd.push({ name: 'Item', members: ['Item 1', 'Item 2', 'Item 3'] });
+        const keptOf = d => { const on = state.filters[dk(d.name)]; const list = on && on.length ? d.members.filter(m => selHas(on, m)) : d.members; return (list.length ? list : d.members).map(m => ({ d, m, i: d.members.indexOf(m) })); };
+        const lab = p => L.member(p.d.name, p.m, p.i);
+        const share = p => { const s = shares[dk(p.d.name)] || {}; return (s[p.m] != null ? s[p.m] : 1 / p.d.members.length) * p.d.members.length; };
+        const additive = mm => !['percent', 'ratio'].includes(mm.format);
+        const own = rd.concat(cd).map(d => dk(d.name)), fk = F.factor(v.id, own, 0);
+        const leaf = new Map();
+        const val = (rp, cp, mi) => {
+          const key = rp.map(p => p.m).join('\u0001') + '\u0002' + cp.map(p => p.m).join('\u0001') + '\u0002' + mi;
+          if (leaf.has(key)) return leaf.get(key);
+          const mm = ms[mi], rr = rng(hashStr(v.id + '|' + key + '|' + mode));
+          const x = mm.format === 'percent' ? 5 + rr() * 80
+            : mm.format === 'ratio' ? (num(mm.outOf) > 0 ? num(mm.outOf) : 5) * (0.5 + rr() * 0.5)
+            : scaleFor(mm, rng(hashStr(v.id + '|scale|' + mi))) * rp.concat(cp).reduce((a, p) => a * share(p), 1) * (0.75 + 0.5 * rr()) * fk;
+          leaf.set(key, x); return x;
+        };
+        const colsList = [];
+        if (!cd.length) colsList.push({ path: [], type: 'leaf' });
+        else if (cd.length === 1) keptOf(cd[0]).forEach(p => colsList.push({ path: [p], type: 'leaf' }));
+        else keptOf(cd[0]).forEach(o => { keptOf(cd[1]).forEach(p => colsList.push({ path: [o, p], type: 'leaf' })); if (v.subtotals !== false) colsList.push({ path: [o], type: 'sub' }); });
+        if (cd.length && v.totalColumn !== false) colsList.push({ path: [], type: 'grand' });
+        const rowsList = [];
+        if (rd.length === 1) keptOf(rd[0]).forEach(p => rowsList.push({ path: [p], type: 'leaf' }));
+        else keptOf(rd[0]).forEach(o => { keptOf(rd[1]).forEach(p => rowsList.push({ path: [o, p], type: 'leaf' })); if (v.subtotals !== false) rowsList.push({ path: [o], type: 'sub' }); });
+        if (v.grandTotal !== false) rowsList.push({ path: [], type: 'grand' });
+        const covers = (list, x) => (x.type === 'leaf' ? [x.path] : list.filter(l => l.type === 'leaf' && x.path.every((p, i) => l.path[i].m === p.m)).map(l => l.path));
+        const cellVal = (r, c, mi) => { const xs = []; covers(rowsList, r).forEach(rp => covers(colsList, c).forEach(cp => xs.push(val(rp, cp, mi)))); const s = xs.reduce((a, b) => a + b, 0); return additive(ms[mi]) ? s : s / Math.max(1, xs.length); };
+        const mN = ms.length, head = [];
+        if (cd.length) {
+          const r0 = [{ text: '', colspan: rd.length, rowspan: cd.length }];
+          if (cd.length === 1) colsList.forEach(c => r0.push({ text: c.type === 'grand' ? 'Total' : lab(c.path[0]), colspan: mN }));
+          else {
+            keptOf(cd[0]).forEach(o => r0.push({ text: lab(o), colspan: colsList.filter(c => c.path[0] && c.path[0].m === o.m).length * mN }));
+            if (v.totalColumn !== false) r0.push({ text: 'Total', colspan: mN, rowspan: 2 });
+            head.push(r0);
+            head.push(colsList.filter(c => c.type !== 'grand').map(c => ({ text: c.type === 'sub' ? 'Total' : lab(c.path[1]), colspan: mN })));
+          }
+          if (cd.length === 1) head.push(r0);
+        }
+        head.push(rd.map(d => ({ text: L.dim(d.name) })).concat(...colsList.map(() => ms.map(mm => ({ text: L.meas(mm.name), num: true })))));
+        const body = rowsList.map((r, ri) => {
+          const cells = [];
+          if (r.type === 'grand') cells.push({ text: 'Total', colspan: rd.length });
+          else if (r.type === 'sub') cells.push({ text: '' }, { text: 'Total' });
+          else if (rd.length === 1) cells.push({ text: lab(r.path[0]), filter: [dk(rd[0].name), r.path[0].m] });
+          else {
+            const first = ri === 0 || rowsList[ri - 1].type !== 'leaf' || rowsList[ri - 1].path[0].m !== r.path[0].m;
+            cells.push(first ? { text: lab(r.path[0]), filter: [dk(rd[0].name), r.path[0].m] } : { text: '' }, { text: lab(r.path[1]), filter: [dk(rd[1].name), r.path[1].m] });
+          }
+          colsList.forEach(c => ms.forEach((mm, mi) => { const x = cellVal(r, c, mi); cells.push({ text: fmt(x, mm, L.generic), num: true, x }); }));
+          return { cls: r.type === 'leaf' ? '' : r.type === 'sub' ? 'rp-sub' : 'rp-grand', cells };
+        });
+        rowsList.filter(r => r.type === 'leaf').forEach(r => colsList.filter(c => c.type === 'leaf').forEach(c => ms.forEach((mm, mi) => rows.push({
+          v, dim: rd.map(d => L.dim(d.name)).join(' / '), member: r.path.map(lab).join(' / '), series: c.path.map(lab).concat([L.meas(mm.name)]).join(' / '), value: val(r.path, c.path, mi), format: mm.format || 'number' }))));
+        kind('pivot'); Object.assign(vm, { head, body });
+        card.insertAdjacentHTML('beforeend', gridHtml(head, body, 'rp-pivot'));
         return;
       }
       if (v.type === 'text') { kind('text'); vm.text = L.generic ? 'Text block' : L.text(v.content || 'Text block (content masked)'); card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(vm.text)}</p>`); return; }
@@ -936,7 +1074,7 @@
       root._charts.push(chart);
     });
 
-    root.querySelectorAll('.rp-chip[data-dim], .rp-row').forEach(b => b.addEventListener('click', () => toggle(b.getAttribute('data-dim'), b.getAttribute('data-raw'))));
+    root.querySelectorAll('.rp-chip[data-dim], .rp-row, .rp-hd[data-dim]').forEach(b => b.addEventListener('click', () => toggle(b.getAttribute('data-dim'), b.getAttribute('data-raw'))));
     const clr = root.querySelector('.rp-clear'); if (clr) clr.addEventListener('click', () => { state.filters = {}; render(root, spec, reopts); });
     const csvBtn = root.querySelector('.rp-csv'); if (csvBtn) csvBtn.addEventListener('click', () => downloadCsv(root));
     root._title = L.generic ? '' : (spec.title || ''); root._generic = L.generic;

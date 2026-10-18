@@ -12,12 +12,12 @@
  */
 import { componentName, zip, type ZipEntry } from '../export/design-export';
 
-export type Component = 'kpi' | 'chart' | 'table' | 'feed' | 'text' | 'placeholder';
+export type Component = 'kpi' | 'chart' | 'table' | 'pivot' | 'feed' | 'text' | 'placeholder';
 
 export interface CardLayout { vid: string; component: Component; span: number; height: number; title: string }
 export interface PageLayout { title: string; filters: boolean; cards: CardLayout[] }
 
-const COMPONENTS: Record<Component, string> = { kpi: 'KpiCard', chart: 'ChartCard', table: 'TableCard', feed: 'FeedCard', text: 'TextCard', placeholder: 'PlaceholderCard' };
+const COMPONENTS: Record<Component, string> = { kpi: 'KpiCard', chart: 'ChartCard', table: 'TableCard', pivot: 'PivotCard', feed: 'FeedCard', text: 'TextCard', placeholder: 'PlaceholderCard' };
 const isComponent = (s: string | null): s is Component => !!s && s in COMPONENTS;
 const clean = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
@@ -51,7 +51,7 @@ export function pageTsx(layout: PageLayout, o: { name: string; mode: string; see
   const cards = layout.cards.map((c) => {
     const v = `r.visual(${JSON.stringify(c.vid)}, ${JSON.stringify(c.component)})`;
     const props = c.component === 'chart' ? ` height={${c.height || 260}} onToggle={r.toggle}`
-      : c.component === 'table' ? ' onToggle={r.toggle}'
+      : c.component === 'table' || c.component === 'pivot' ? ' onToggle={r.toggle}'
       : c.component === 'placeholder' ? ` height={${c.height || 200}}` : '';
     return `        {/* ${comment(c.title || COMPONENTS[c.component])} */}\n        <${COMPONENTS[c.component]} v={${v}} span={${c.span}}${props} />`;
   }).join('\n');
@@ -64,7 +64,7 @@ export function pageTsx(layout: PageLayout, o: { name: string; mode: string; see
  */
 import { useReplica } from './useReplica';
 import type { Mode } from './types';
-import { Replica, Header, Ribbon, FilterBar, Grid, Footer, ${used.join(', ')} } from './components';
+import { Replica, Header, Ribbon, ParameterBar, FilterBar, Grid, Footer, ${used.join(', ')} } from './components';
 
 export interface ${o.name}Props {
   /** Any whole number; a new seed generates new values. */
@@ -81,6 +81,7 @@ export default function ${o.name}({ seed = ${o.seed}, mode = ${JSON.stringify(o.
     <Replica>
       <Header model={r.model} />
       <Ribbon model={r.model} />
+      <ParameterBar model={r.model} />
 ${layout.filters ? '      <FilterBar model={r.model} onToggle={r.toggle} onClear={r.clear} />\n' : ''}      <Grid>
 ${cards}
       </Grid>
@@ -110,15 +111,19 @@ export interface ChartModel extends VisualBase {
 }
 /** A table cell; a customer comment carries its text in parts, with a hidden passage between two parts. */
 export interface Cell { text: string; cls: string; parts?: string[] }
-export interface TableModel extends VisualBase { kind: 'table'; columns: string[]; rowLabel: string; rows: { filter: Pair | null; cells: Cell[] }[] }
+export interface TableModel extends VisualBase { kind: 'table'; columns: string[]; rowLabel: string; grouped?: boolean; rows: { filter: Pair | null; cls?: string; cells: Cell[] }[] }
+/** A grid cell of a pivot: spans, a numeric flag, and the dimension member a click on it filters by. */
+export interface GridCell { text: string; colspan?: number; rowspan?: number; num?: boolean; filter?: Pair | null; x?: number }
+export interface PivotModel extends VisualBase { kind: 'pivot'; head: GridCell[][]; body: { cls: string; cells: GridCell[] }[] }
 export interface FeedModel extends VisualBase { kind: 'feed'; items: { meta: string[]; quotes: string[][]; badges: { text: string; tone: string }[] }[] }
 export interface TextModel extends VisualBase { kind: 'text'; text: string }
 export interface PlaceholderModel extends VisualBase { kind: 'placeholder'; text: string }
-export type VisualModel = KpiModel | ChartModel | TableModel | FeedModel | TextModel | PlaceholderModel;
+export type VisualModel = KpiModel | ChartModel | TableModel | PivotModel | FeedModel | TextModel | PlaceholderModel;
 export type VisualOf<K extends VisualModel['kind']> = Extract<VisualModel, { kind: K }>;
 
 export interface ReplicaModel {
   title: string; subtitle: string; mode: Mode; modeName: string; seed: number; footNote: string; filtered: string; active: boolean;
+  parameters: { label: string; value: string }[];
   filters: { label: string; key: string; chips: { raw: string; label: string; pressed: boolean }[] }[];
   pills: { key: string; raw: string; label: string }[];
   visuals: VisualModel[];
@@ -184,7 +189,7 @@ export function useReplica({ seed, mode, realistic }: ReplicaOptions) {
 export const COMPONENTS_TSX = `/* The replica's building blocks. They draw what the model says; styles come from the engine (classes rp-*). */
 import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import * as echarts from 'echarts';
-import type { ChartModel, FeedModel, KpiModel, Pair, PlaceholderModel, ReplicaModel, TableModel, TextModel } from './types';
+import type { ChartModel, FeedModel, GridCell, KpiModel, Pair, PivotModel, PlaceholderModel, ReplicaModel, TableModel, TextModel } from './types';
 
 type Toggle = (pairs: Pair[]) => void;
 const vars = (o: Record<string, string | number>) => o as CSSProperties;
@@ -296,7 +301,7 @@ export function TableCard({ v, span, onToggle }: { v?: TableModel; span: number;
             {v.rows.map((row, i) => {
               const f = row.filter;
               return (
-                <tr key={i} className={f ? 'rp-row' : undefined} data-dim={f ? f[0] : undefined} data-raw={f ? f[1] : undefined}
+                <tr key={i} className={[f && !v.grouped ? 'rp-row' : '', row.cls || ''].join(' ').trim() || undefined} data-dim={f && !v.grouped ? f[0] : undefined} data-raw={f && !v.grouped ? f[1] : undefined}
                   title={f ? 'Filter by this ' + v.rowLabel : undefined} onClick={f ? () => onToggle([f]) : undefined}>
                   {row.cells.map((c, j) => <td key={j} className={c.cls}>{c.parts ? <Quote parts={c.parts} /> : c.text}</td>)}
                 </tr>
@@ -306,6 +311,41 @@ export function TableCard({ v, span, onToggle }: { v?: TableModel; span: number;
         </table>
       </div>
     </Card>
+  );
+}
+
+/** A matrix / cross-tab: grouped column headers, row groups, subtotal and total rows. Clicking a row label filters the page. */
+export function PivotCard({ v, span, onToggle }: { v?: PivotModel; span: number; onToggle: Toggle }) {
+  if (!v) return null;
+  const span2 = (c: GridCell) => ({ colSpan: c.colspan && c.colspan > 1 ? c.colspan : undefined, rowSpan: c.rowspan && c.rowspan > 1 ? c.rowspan : undefined });
+  return (
+    <Card span={span} kind="pivot" vid={v.id} title={v.title}>
+      <div className="rp-table rp-pivot">
+        <table>
+          <thead>{v.head.map((r, i) => <tr key={i}>{r.map((c, j) => <th key={j} className={c.num ? 'n' : undefined} {...span2(c)}>{c.text}</th>)}</tr>)}</thead>
+          <tbody>
+            {v.body.map((r, i) => (
+              <tr key={i} className={r.cls || undefined}>
+                {r.cells.map((c, j) => {
+                  const f = c.filter;
+                  return <td key={j} className={c.num ? 'n' : f ? 'rp-hd' : undefined} {...span2(c)} data-dim={f ? f[0] : undefined} data-raw={f ? f[1] : undefined} onClick={f ? () => onToggle([f]) : undefined}>{c.text}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+/** Report parameters (prompts above a paginated report), shown as label and value. */
+export function ParameterBar({ model }: { model: ReplicaModel }) {
+  if (!model.parameters || !model.parameters.length) return null;
+  return (
+    <div className="rp-params">
+      {model.parameters.map((q, i) => <span key={i} className="rp-param"><span className="lbl">{q.label}</span><span className="rp-pv">{q.value}</span></span>)}
+    </div>
   );
 }
 
