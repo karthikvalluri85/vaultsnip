@@ -2,6 +2,7 @@ const ALLOW_WORDS = `
 a an and or of the to in on at by for from with per vs versus via all any each other others total totals subtotal grand
 top bottom first last next previous prior current new old high medium low average avg mean median min max sum count share rate ratio index
 revenue sales net gross margin profit loss income cost costs expense expenses spend budget forecast actual actuals target targets plan variance
+quantity quantities qty subcategory subcategories store stores identifier detail details invoice invoices balance balances tax taxes shipping shipped freight description descriptions group groups subgroup parameter parameters fiscal employee employees line lines code codes number numbers
 growth change delta trend trends performance overview summary dashboard report reports scorecard kpi kpis metric metrics measure value values amount amounts
 units unit orders order customers customer accounts account clients client users user sessions session visitors visits pageviews views page pages
 bounce conversion conversions clicks click impressions ctr cpc cpm roi roas leads lead pipeline opportunities deals bookings quota attainment
