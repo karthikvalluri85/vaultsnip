@@ -331,3 +331,38 @@ describe('robustness', () => {
     expect(Date.now() - t0).toBeLessThan(15000);
   });
 });
+
+describe('confidence (Phase 3)', () => {
+  const base = { type: 'column', certainty: 0.9, area: 0.12, titled: true, features: { marks: 8 } };
+  it('each signal moves the score the right way', async () => {
+    const { panelConfidence } = await import('../../src/layout/confidence');
+    const c = panelConfidence(base);
+    expect(c).toBeGreaterThan(0.6);
+    expect(panelConfidence({ ...base, titled: false })).toBeLessThan(c);
+    expect(panelConfidence({ ...base, area: 0.002 })).toBeLessThan(c * 0.7);
+    expect(panelConfidence({ ...base, features: { marks: 0 } })).toBeLessThan(c * 0.4);
+    expect(panelConfidence({ ...base, certainty: 0.2 })).toBeLessThan(c);
+    expect(panelConfidence({ ...base, area: 0.6 })).toBeLessThan(c * 0.5);
+    expect(panelConfidence({ ...base, type: 'kpi', area: 0.2 })).toBeLessThan(panelConfidence({ ...base, type: 'kpi', area: 0.02 }));
+    expect(panelConfidence({ ...base, type: 'placeholder' })).toBeLessThan(0.1);
+    for (const p of [base, { ...base, type: 'unknown' }, { ...base, certainty: NaN }]) { const v = panelConfidence(p); expect(v).toBeGreaterThanOrEqual(0.02); expect(v).toBeLessThanOrEqual(0.98); }
+  });
+  it('the page score counts missed content and swallowed visuals against the replica', async () => {
+    const { pageConfidence, swallowedVisuals } = await import('../../src/layout/confidence');
+    expect(pageConfidence([0.8, 0.8], 1)).toBeCloseTo(0.8, 5);
+    expect(pageConfidence([0.8, 0.8], 0.5)).toBeLessThan(0.8);
+    expect(pageConfidence([0.8], 1, 3)).toBeCloseTo(0.2, 5);
+    expect(pageConfidence([], 1)).toBe(0);
+    expect(swallowedVisuals([0.6, 0.1], ['line', 'kpi'])).toBe(4);
+    expect(swallowedVisuals([0.6], ['table'])).toBe(0);
+  });
+  it('the builder reports a confidence per visual and for the page', () => {
+    const img = canvas(400, 300);
+    [200, 140, 80].forEach((h, i) => fill(img, [40 + i * 100, 260 - h, 100 + i * 100, 260], BLUE));
+    const r = buildSpec({ image: img, words: [word('Revenue', 40, 10, 50), word('by', 94, 10, 14), word('Region', 112, 10, 44)] });
+    expect(r.confidence).toBeGreaterThan(0); expect(r.confidence).toBeLessThanOrEqual(1);
+    const vids = r.spec.rows.flatMap((row) => row.visuals.map((v) => v.id));
+    expect(r.panels.filter((p) => p.vid).map((p) => p.vid).sort()).toEqual([...vids].sort());
+    r.panels.forEach((p) => { expect(p.confidence).toBeGreaterThan(0); expect(p.confidence).toBeLessThan(1); });
+  });
+});
