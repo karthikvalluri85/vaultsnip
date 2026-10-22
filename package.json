@@ -43,7 +43,10 @@
     "build:react": "node tools/build-react.mjs",
     "build:privacy": "node tools/build-privacy.mjs",
     "build:layout": "node tools/build-layout.mjs",
-    "bench:layout": "node tools/layout-bench/run.mjs"
+    "bench:fetch": "node tools/layout-bench/fetch.mjs",
+    "bench:ocr": "node tools/layout-bench/ocr.mjs",
+    "bench:layout": "node tools/layout-bench/run.mjs",
+    "bench": "node tools/layout-bench/fetch.mjs && node tools/layout-bench/ocr.mjs && node tools/layout-bench/run.mjs"
   },
   "dependencies": {
     "@faker-js/faker": "10.6.0",

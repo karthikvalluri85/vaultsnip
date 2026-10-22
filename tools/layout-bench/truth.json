@@ -1101,5 +1101,42 @@
     }
    ]
   }
+ ],
+ "reports": [
+  {
+   "id": "ssrs_report-builder-expand-matrix",
+   "source": "https://learn.microsoft.com/en-us/sql/reporting-services/media/report-builder-expand-matrix.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "want": {
+    "type": "pivot",
+    "subtotals": true,
+    "grandTotal": true,
+    "rowDims": 2,
+    "parameters": 0
+   }
+  },
+  {
+   "id": "ssrs_ssrs-tutorial-basic-table-report",
+   "source": "https://learn.microsoft.com/en-us/sql/reporting-services/media/ssrs-tutorial-basic-table-report.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "want": {
+    "type": "table",
+    "subtotals": true,
+    "grandTotal": true,
+    "groupBy": 2,
+    "parameters": 0
+   }
+  },
+  {
+   "id": "ssrs_param-view-report",
+   "source": "https://learn.microsoft.com/en-us/sql/reporting-services/media/ssrb-parameter-tutorial-view-report.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "want": {
+    "type": "pivot",
+    "grandTotal": true,
+    "rowDims": 1,
+    "parameters": 1
+   }
+  }
  ]
 }
