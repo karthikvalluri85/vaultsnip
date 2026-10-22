@@ -22,3 +22,15 @@ Realistic synthetic names, bundled in `web/lib/vs-faker.js` (and in HTML exports
 - [Faker](https://github.com/faker-js/faker) 10.6.0 (`@faker-js/faker`), MIT License, Copyright (c) 2022-present Faker. The library and a slim copy of its name, company, place and product lists for 15 locales (`src/replica/faker-locales.json`, made by `tools/build-faker.mjs`).
 
 Map outlines in `web/maps` are simplified from [Natural Earth](https://www.naturalearthdata.com) (public domain) by `tools/maps/build_maps.py`. The world and India outlines follow Natural Earth's India point of view, matching official Indian boundaries.
+
+Development only, never shipped in the web app, the extension or any export. Used by `tools/synth-bench` to draw the
+fictional dashboards of the masking benchmark, installed as pinned `devDependencies`:
+
+- [Vega](https://github.com/vega/vega) 6.4.0 and [Vega-Lite](https://github.com/vega/vega-lite) 6.4.3, BSD 3-Clause License
+- [Plotly.js](https://github.com/plotly/plotly.js) 4.1.2 (`plotly.js-dist-min`), MIT License
+- Fonts through [Fontsource](https://fontsource.org): [Inter](https://github.com/rsms/inter) 5.3.0 and
+  [IBM Plex Mono](https://github.com/IBM/plex) 5.3.0 under the SIL Open Font License 1.1, and
+  [Roboto Slab](https://github.com/googlefonts/robotoslab) 5.3.0 under the Apache License 2.0
+
+The public dashboards of the layout benchmark (`tools/layout-bench/truth.json`) are not redistributed: `fetch.mjs`
+downloads them from their sources for local evaluation, and `truth.json` records each source and its terms.

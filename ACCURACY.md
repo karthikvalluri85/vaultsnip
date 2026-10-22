@@ -31,8 +31,17 @@ right structure and the right shapes.
 | **Reading time** | Seconds from dropping an image in to the end of the pre-flight check, on the machine that ran the benchmark | Lower |
 | **Honest confidence** | How far the on-device build's own confidence estimate is from its true score (`confidence-check.mjs`) | Lower |
 
-Leaked area and over-masking need every word in an image annotated. They arrive with the generated test set in Phase 1.
-Until then, *check caught leftovers* stands in for them.
+Leaked area, over-masking and false alarms need every word in an image annotated, so they are measured on generated
+dashboards (Phase 1, below), where every word's position and kind is known. Precisely:
+
+- A sensitive word is **exposed** when more than 15% of its ink is not covered. Coverage is sampled over the word's ink
+  box, the pixels its letters actually occupy, so a half-visible ID counts.
+- **After masking** counts the masks alone; **after the check** also counts the pre-flight check's findings, which the
+  user must resolve before anything can be sent. Exposure after the check is what would leak.
+- **Leaked area** counts upright words only: a rotated label's box is mostly background. Rotated words are reported
+  separately.
+- A **false alarm** is a check finding that touches no sensitive word the masks left exposed.
+- Word rates carry a 95% Wilson interval in brackets.
 
 ## Baseline (Phase 0)
 
@@ -65,6 +74,38 @@ The benchmark set is small: 11 public dashboards (4 Power BI, 4 Tableau, 3 Looke
 reports. Treat its figures as a direction, not a guarantee: one dashboard more or less moves them by several points.
 The set grows to about 40 in Phase 1. The images are fetched from their public sources for evaluation and never
 committed; `truth.json` records each source and its terms.
+
+## Masking baseline (Phase 1)
+
+Measured on 23 October 2026 at v0.6.0 on 60 generated dashboards (5,027 sensitive words, 1,975 safe words). The exact
+figures are in [`tools/synth-bench/baseline.json`](tools/synth-bench/baseline.json).
+
+| Figure | Baseline |
+|---|---|
+| Sensitive words exposed after masking | **11.6%** [10.7–12.5] |
+| Sensitive words exposed after the check | **10.2%** [9.4–11.1], 515 words, 222 of them rotated labels |
+| Leaked area after the check (upright words) | **3.1%** |
+| Safe words masked anyway | **9.0%** [7.8–10.4] |
+| Check findings that are false alarms | **57%** [51–63] of 264 |
+| By kind, exposed after the check | IDs 1.5%, emails 6.7%, numbers 8.3%, places 10.9%, organisations 12.4%, people 12.4%, products 14.3% |
+
+**This is the most important finding so far.** About one sensitive word in ten stays readable, mostly whole words the
+reader never found, so neither the masks nor the check knew they were there. Typical cases are labels next to bars,
+labels around a pie, rotated axis labels, and text in low-contrast or dark themes. On four of the 60 images the check
+passed while words were still exposed. The check catches only what it can read, and it also raises more false alarms
+than real ones. That is exactly what Phase 2 addresses: find every patch of text first, whether or not it can be read,
+and mask what is not confidently safe.
+
+The generated set is deliberately hard: dense, small text, rotated labels, low contrast and JPEG compression on
+purpose. Its rates describe these conditions, not every screenshot. They are still a real warning: until Phase 2 ships,
+looking over the masked image in *Preview masked image* before sending is not optional.
+
+Phase 1 status: the generated set, false-alarm labelling and the CI gates are done. Two parts are still open:
+
+- **The real set grown to about 40.** Each new dashboard needs its visuals annotated by a person. Ground truth is never
+  guessed.
+- **The AI-key path scored.** Recording answers needs a maintainer's own key and costs a little per run. Only the masked
+  images of public or generated dashboards are ever sent.
 
 ## The plan
 

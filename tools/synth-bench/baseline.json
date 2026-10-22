@@ -1,0 +1,77 @@
+{
+ "measured": "2026-10-22",
+ "version": "0.6.0",
+ "images": 60,
+ "sensitiveWords": 5027,
+ "safeWords": 1975,
+ "unknownWords": 82,
+ "firstPassExposed": {
+  "pct": 11.58,
+  "lo": 10.72,
+  "hi": 12.49,
+  "k": 582,
+  "n": 5027
+ },
+ "residualExposed": {
+  "pct": 10.24,
+  "lo": 9.44,
+  "hi": 11.11,
+  "k": 515,
+  "n": 5027
+ },
+ "residualRotated": 222,
+ "firstPassLeakedAreaPct": 3.88,
+ "residualLeakedAreaPct": 3.1,
+ "overMasked": {
+  "pct": 9.01,
+  "lo": 7.83,
+  "hi": 10.36,
+  "k": 178,
+  "n": 1975
+ },
+ "falseAlarms": {
+  "pct": 56.82,
+  "lo": 50.79,
+  "hi": 62.65,
+  "k": 150,
+  "n": 264
+ },
+ "byKind": {
+  "number": {
+   "words": 2204,
+   "firstPassExposedPct": 10.16,
+   "residualExposedPct": 8.26
+  },
+  "name": {
+   "words": 676,
+   "firstPassExposedPct": 13.02,
+   "residualExposedPct": 12.43
+  },
+  "org": {
+   "words": 890,
+   "firstPassExposedPct": 13.26,
+   "residualExposedPct": 12.36
+  },
+  "email": {
+   "words": 119,
+   "firstPassExposedPct": 7.56,
+   "residualExposedPct": 6.72
+  },
+  "id": {
+   "words": 137,
+   "firstPassExposedPct": 1.46,
+   "residualExposedPct": 1.46
+  },
+  "place": {
+   "words": 413,
+   "firstPassExposedPct": 12.59,
+   "residualExposedPct": 10.9
+  },
+  "product": {
+   "words": 588,
+   "firstPassExposedPct": 15.14,
+   "residualExposedPct": 14.29
+  }
+ },
+ "medianSeconds": 26.201
+}

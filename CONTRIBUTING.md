@@ -39,8 +39,15 @@ A change to reading, masking or the on-device layout builder should also show it
 ```bash
 npm run bench             # downloads the public benchmark images to .bench/ (not committed), reads each one with the
                           # app's own review step, then scores the on-device build against tools/layout-bench/truth.json
-npm run bench:layout -- --json result.json   # scores again without re-reading; compare result.json with baseline.json
+npm run bench:layout -- --json result.json   # scores again without re-reading
+npm run bench:synth       # draws 60 fictional dashboards (seeded, nothing downloaded) and scores masking on them
+node tools/synth-bench/run.mjs --reuse --json synth.json   # scores again without re-reading
+npm run bench:gate -- synth.json tools/synth-bench/baseline.json   # fails if a figure got worse than its baseline
 ```
+
+CI runs the masking benchmark on 8 generated dashboards for every pull request and both full benchmarks nightly. A
+change that improves a figure raises its baseline file in the same pull request. `node tools/synth-bench/overlay.mjs
+.bench/synth/<id>.truth.json` draws one dashboard's truth, masks and findings over it, to see what a figure means.
 
 [ACCURACY.md](ACCURACY.md) defines what each figure means, records the baseline and sets out the plan for raising it.
 

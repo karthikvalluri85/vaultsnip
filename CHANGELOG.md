@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 - **Accuracy you can rerun (Phase 0).** `npm run bench` downloads the public benchmark images, reads each one with the app's own review step in headless Chromium, and scores the on-device build against the hand annotations, so the benchmark no longer depends on files made by hand. [ACCURACY.md](ACCURACY.md) defines each figure, records the baseline (`tools/layout-bench/baseline.json`) and sets out the phases for raising it. Developer tool only: nothing changes for users, and the images are never committed.
+- **Masking measured (Phase 1).** `tools/synth-bench` draws fictional dashboards with Vega-Lite, Plotly and HTML (never ECharts, which draws the replicas), with invented, seeded data and the position and kind of every word known, and scores the app's masking on them: words left readable after masking and after the pre-flight check, leaked area, safe words masked, and check false alarms, each with a 95% interval. Baseline on 60 dashboards: 10.2% of sensitive words still readable after the check, mostly words the reader never found; this is what Phase 2 targets. CI runs 8 of them on every pull request and the full set and the real-world layout benchmark nightly, failing if a figure gets worse than its baseline (`tools/bench-gate.mjs`). New development-only packages (Vega, Vega-Lite, Plotly.js, three Fontsource fonts) are pinned and listed in `THIRD_PARTY_NOTICES.md`; none ships in the app.
 
 ## [0.6.0] - 2026-10-22
 
