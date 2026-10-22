@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-22
+
 ### Added
 - **Numbers are replaced with invented values instead of grey boxes.** In the masked image, every number (amounts, percentages, scores, temperatures, counts, changes) becomes a different, made-up value of the same size, so the image still reads like a real report: $4.2M might become $5.6M, 62.4% might become 41.9%, never the real value. Axis ticks are rebuilt as an even scale in the same order, years stay, and dates and times stay valid. Names, labels, emails and IDs stay masked. A note below the image, and above the masked view, says its numbers are made up. On by default; switch it off under *Redaction policy* for grey boxes. The pre-flight check still reads solid boxes, which cover exactly the same pixels.
 - **How sure the on-device build is (Phase 3).** A replica built on this device now says how closely it is likely to match: *Looks complete*, *Check it before sharing* or *A draft*, with a rough percentage. Below 90% you choose what happens: **Fix it here** (a list of every visual with the uncertain ones marked *Check*, where you can change a visual's type, rename it or remove it, and the replica redraws), **Use my AI key**, or **Keep this result**. The estimate comes from measurable signals (how reliable each kind of visual is, fragments, titles, marks, panels that swallowed several visuals) and errs on the low side; developers can check it with `tools/layout-bench/confidence-check.mjs`.
@@ -147,7 +149,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.4.0...v0.5.0
