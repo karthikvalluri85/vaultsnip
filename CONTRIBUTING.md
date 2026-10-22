@@ -34,6 +34,16 @@ npm run e2e               # browser end-to-end test (first run: npx playwright i
 
 CI runs these on every pull request, plus the extension and on-device name-check suites, and checks that every committed bundle matches its source (see *Built files* below).
 
+A change to reading, masking or the on-device layout builder should also show its effect on the accuracy benchmark:
+
+```bash
+npm run bench             # downloads the public benchmark images to .bench/ (not committed), reads each one with the
+                          # app's own review step, then scores the on-device build against tools/layout-bench/truth.json
+npm run bench:layout -- --json result.json   # scores again without re-reading; compare result.json with baseline.json
+```
+
+[ACCURACY.md](ACCURACY.md) defines what each figure means, records the baseline and sets out the plan for raising it.
+
 ## Project layout
 
 | Path | What it is |

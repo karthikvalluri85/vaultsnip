@@ -9,3 +9,6 @@ test-samples/
 *.zip
 
 
+
+# Benchmark images and OCR runs (fetched for local evaluation only, never committed)
+.bench/

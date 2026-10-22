@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Accuracy you can rerun (Phase 0).** `npm run bench` downloads the public benchmark images, reads each one with the app's own review step in headless Chromium, and scores the on-device build against the hand annotations, so the benchmark no longer depends on files made by hand. [ACCURACY.md](ACCURACY.md) defines each figure, records the baseline (`tools/layout-bench/baseline.json`) and sets out the phases for raising it. Developer tool only: nothing changes for users, and the images are never committed.
+
 ## [0.6.0] - 2026-10-22
 
 ### Added

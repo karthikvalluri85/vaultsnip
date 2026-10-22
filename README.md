@@ -122,7 +122,7 @@ build.sh          builds dist/web, dist/extension, dist/hf-space and zips
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md). In short: no real data anywhere, no new data flows, and `npm run check` plus `npm run e2e` must pass. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md). In short: no real data anywhere, no new data flows, and `npm run check` plus `npm run e2e` must pass. Changes are listed in [CHANGELOG.md](CHANGELOG.md). How accuracy is measured, today's figures and the plan for raising them are in [ACCURACY.md](ACCURACY.md).
 
 ## License
 

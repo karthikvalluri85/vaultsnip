@@ -1,0 +1,68 @@
+{
+ "version": "0.6.0",
+ "measured": "2026-10-22",
+ "opts": {},
+ "dashboards": {
+  "count": 12,
+  "visuals": 80,
+  "found": 64,
+  "foundPct": 80,
+  "extraPanels": 31,
+  "typesRightLenient": 41,
+  "typesRightStrict": 38,
+  "typesRightPct": 64.1,
+  "endToEndPct": 51.3,
+  "byTool": {
+   "Power BI": {
+    "dashboards": 4,
+    "visuals": 19,
+    "found": 17,
+    "typesRight": 10,
+    "foundPct": 89.5,
+    "typesRightPct": 58.8
+   },
+   "Tableau": {
+    "dashboards": 4,
+    "visuals": 43,
+    "found": 30,
+    "typesRight": 19,
+    "foundPct": 69.8,
+    "typesRightPct": 63.3
+   },
+   "Looker": {
+    "dashboards": 3,
+    "visuals": 10,
+    "found": 9,
+    "typesRight": 4,
+    "foundPct": 90,
+    "typesRightPct": 44.4
+   },
+   "VaultSnip": {
+    "dashboards": 1,
+    "visuals": 8,
+    "found": 8,
+    "typesRight": 8,
+    "foundPct": 100,
+    "typesRightPct": 100
+   }
+  }
+ },
+ "reports": {
+  "count": 3,
+  "checksRight": 8,
+  "checks": 14
+ },
+ "review": {
+  "images": 15,
+  "checkPassedFirstTime": 1,
+  "checkCaughtLeftovers": 14,
+  "findings": 100,
+  "blocking": 63,
+  "findingsByType": {
+   "Number or money": 63,
+   "Text not on allowlist": 37
+  },
+  "medianSeconds": 18.438,
+  "slowestSeconds": 35.104
+ }
+}
