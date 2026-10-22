@@ -19,8 +19,9 @@
 - **Exports** are files saved to your computer. They contain generated data, a watermark and a link to VaultSnip, and only the labels their privacy mode shows. They make no network calls by themselves.
 - **Design exports.** *Export for Figma (SVG)* saves one SVG drawing of the replica (text, shapes, chart vectors and the SYNTHETIC DATA watermark). *Export React code* saves a zip, either an editable TypeScript project (one typed component per card, a hook and types) or a one-file component, with the VaultSnip replica engine, the replica's spec and the map outlines it uses; the component generates its values when it runs. Both are made in your browser from the replica in its current privacy mode (a Generic export holds no original titles or labels, not even in hidden fields) and saved to your computer; nothing is sent or stored.
 - **Feedback is your choice.** The Feedback button prepares a report (VaultSnip version, browser, the step you were on, chart types and any error message, never your screenshot or dashboard text). Nothing is sent until you choose to continue on GitHub, where it is posted under your GitHub account, or to email it from your own mail app. GitHub's or your email provider's terms apply.
+- **Developer benchmarks are not part of the app.** The accuracy tools in `tools/` run only when a developer starts them, or in this project's CI. They draw fictional dashboards from invented data, and download a small set of public dashboard images (from Microsoft Learn, Google Cloud documentation and Tableau Public) to score against; nothing of yours is involved, and the app and extension never run them.
 - **No analytics, cookies or tracking.**
 
-_Last updated: 18 October 2026._
+_Last updated: 22 October 2026._
 
 Contact: use **Feedback** in the app, open an issue or discussion on [GitHub](https://github.com/karthikvalluri85/vaultsnip), or report security concerns privately as described in [SECURITY.md](SECURITY.md).

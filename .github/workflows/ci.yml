@@ -109,3 +109,27 @@ jobs:
           name: vaultsnip-packages
           path: dist/*.zip
           retention-days: 14
+
+  accuracy:
+    name: Masking accuracy (generated smoke set)
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # fictional dashboards drawn on this runner from a fixed seed: no download, no real data
+      - run: node tools/synth-bench/gen.mjs --count 8
+      - run: node tools/synth-bench/run.mjs --json synth-smoke.json
+      - run: node tools/bench-gate.mjs synth-smoke.json tools/synth-bench/baseline-smoke.json
+      - if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: accuracy-smoke
+          path: synth-smoke.json
+          retention-days: 14
