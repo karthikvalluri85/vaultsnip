@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 *Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes).*
 
-## Features (v0.5.2)
+## Features (v0.6.0)
 
 | Area | Status |
 |---|---|
