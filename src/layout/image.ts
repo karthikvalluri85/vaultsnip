@@ -67,6 +67,29 @@ export function isMark(r: number, g: number, b: number) {
 /** A masked big number: a box much taller than text and wider than tall (tall thin strips are masked axis labels). */
 export const isBigBox = (w: { w: number; h: number }, med: number) => w.h > med * 1.55 && w.h < med * 8 && w.w >= w.h * 0.8;
 
+/**
+ * Masked words that sit in a tight vertical stack of three or more (the masked category labels along a bar chart's
+ * axis, or the rows of a masked column): aligned on the left, the right or the centre, of similar height, each at
+ * most 1.2 of its height below the last. Such a box is a label, never a KPI's big value, however tall its mask; KPI
+ * tiles stacked in a sidebar are further apart, with their titles in between.
+ */
+export function labelStacks(words: Word[], med: number): Set<Word> {
+  const masked = words.filter((w) => !w.kept).sort((a, b) => a.y - b.y);
+  const tol = (a: Word, b: Word) => Math.max(med, Math.min(a.h, b.h) * 0.5);
+  const aligned = (a: Word, b: Word) => Math.abs(a.x - b.x) <= tol(a, b) || Math.abs(a.x + a.w - (b.x + b.w)) <= tol(a, b)
+    || Math.abs(a.x + a.w / 2 - (b.x + b.w / 2)) <= tol(a, b);
+  const similar = (a: Word, b: Word) => Math.max(a.h, b.h) <= Math.min(a.h, b.h) * 1.6;
+  const out = new Set<Word>(), used = new Set<Word>();
+  for (const start of masked) {
+    if (used.has(start)) continue;
+    const run = [start];
+    for (let last = start, next: Word | undefined; (next = masked.find((w) => !used.has(w) && !run.includes(w) && w.y > last.y
+      && w.y - (last.y + last.h) <= last.h * 1.2 && aligned(last, w) && similar(last, w))); last = next) run.push(next);
+    if (run.length >= 3) run.forEach((w) => { out.add(w); used.add(w); });
+  }
+  return out;
+}
+
 /** Colour bucket (4 bits per channel): pixels of one series share a bucket even with antialiasing at the edges. */
 export const colorKey = (r: number, g: number, b: number) => ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
 export const keyHex = (k: number) => '#' + [(k >> 8) & 15, (k >> 4) & 15, k & 15].map((v) => (v * 16 + 8).toString(16).padStart(2, '0')).join('');

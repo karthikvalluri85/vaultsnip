@@ -7,7 +7,7 @@
  * and given as 0-100 shapes, the same form the AI path returns; the replica engine generates every value from them.
  * Labels come only from words that stayed visible; masked labels become "Item N".
  */
-import { height, isBigBox, keyHex, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
+import { height, isBigBox, isMaskGrey, keyHex, labelStacks, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
 import { bySeries, findMarks, inkTest, isTextSpeck, sameColor, splitColumns, type Mark } from './marks';
 
 export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'table' | 'text' | 'placeholder';
@@ -184,12 +184,26 @@ function pie(c: Ctx): Reading | null {
 function bars(c: Ctx): Reading | null {
   const rs = c.rects.filter((m) => m.n >= 20);
   if (rs.length < 2) return null;
-  const bottom = mode(rs.map((m) => m.b[3]), 3), left = mode(rs.map((m) => m.b[0]), 3);
+  // the shared baseline: a bar sits on it when it starts there, or when everything between the baseline and its visible
+  // start is mask grey (a mask over a category label can cover a bar's first pixels; it hides the bar, it does not end it)
+  const grey = (x: number, y: number) => x >= 0 && y >= 0 && x < c.img.width && y < c.img.height && isMaskGrey(...rgbAt(c.img, x, y));
+  const hiddenX = (m: Mark, at: number) => { const y = Math.round((m.b[1] + m.b[3]) / 2); for (let x = Math.round(at); x < m.b[0]; x++) if (!grey(x, y)) return false; return true; };
+  const hiddenY = (m: Mark, at: number) => { const x = Math.round((m.b[0] + m.b[2]) / 2); for (let y = m.b[3]; y < Math.round(at); y++) if (!grey(x, y)) return false; return true; };
+  // (a tolerance in proportion to the bars' thickness: an axis line or antialiasing can take a few pixels off a bar's start)
+  const med = (xs: number[]) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
+  const tolX = Math.max(3, med(rs.map((m) => height(m.b))) * 0.3), tolY = Math.max(3, med(rs.map((m) => width(m.b))) * 0.3);
+  const atLeft = (m: Mark, at: number) => Math.abs(m.b[0] - at) <= tolX || (m.b[0] > at && hiddenX(m, at));
+  const atBottom = (m: Mark, at: number) => Math.abs(m.b[3] - at) <= tolY || (m.b[3] < at && hiddenY(m, at));
+  const baseline = (cands: number[], on: (m: Mark, at: number) => boolean) => cands.reduce((best, at) => {
+    const n = rs.filter((m) => on(m, at)).length;
+    return n > best.n ? { at, n } : best;
+  }, { at: 0, n: 0 });
+  const bottom = baseline(rs.map((m) => m.b[3]), atBottom), left = baseline(rs.map((m) => m.b[0]), atLeft);
   const vert = bottom.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => width(m.b))) < 0.35;
   const horiz = left.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => height(m.b))) < 0.35;
   if (!vert && !horiz) return null;
   const isCol = vert && (!horiz || bottom.n > left.n || (bottom.n === left.n && height(hull(rs)) >= width(hull(rs))));
-  const on = rs.filter((m) => (isCol ? Math.abs(m.b[3] - bottom.at) <= 3 || rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2) : Math.abs(m.b[0] - left.at) <= 3 || rs.some((o) => o !== m && Math.abs(o.b[2] - m.b[0]) <= 2)));
+  const on = rs.filter((m) => (isCol ? atBottom(m, bottom.at) || rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2) : atLeft(m, left.at) || rs.some((o) => o !== m && Math.abs(o.b[2] - m.b[0]) <= 2)));
   const keys = bySeries(on).slice(0, 6);
   const cats = (isCol ? categories(on, (m) => m.b[0], (m) => m.b[2], keys.length > 1) : categories(on, (m) => m.b[1], (m) => m.b[3], keys.length > 1)).slice(0, 30);
   if (cats.length < 2) return null;
@@ -298,7 +312,8 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const body = all.filter((m) => !swatchSet.has(m) && !isTextSpeck(m) && m.n >= Math.max(12, pa * 0.0002));
   const ink = inkTest(img, b);
   const markArea = body.reduce((a, m) => a + m.n, 0), coverage = markArea / Math.max(1, pa);
-  const bigMasked = words.filter((w) => !w.kept && isBigBox(w, med));
+  const stacked = labelStacks(words, med);
+  const bigMasked = words.filter((w) => !w.kept && isBigBox(w, med) && !stacked.has(w));
   const grid = looksLikeTable(gridWords, med);
   const series = bySeries(body);
   const sat = (k: number) => { const r = (k >> 8) & 15, g = (k >> 4) & 15, b = k & 15; return Math.max(r, g, b) - Math.min(r, g, b); };
@@ -316,8 +331,11 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
 
   // a KPI: one to three big masked values (numbers are masked by default) and a short label
   const barReading = bars(c);
-  // (the value is large for its card: masked data labels inside a big chart are not KPI values)
-  const bigH = Math.max(0, ...bigMasked.map((w) => w.h)), prominent = bigH >= height(b) * 0.12;
+  // (the value is large for its card: masked data labels inside a big chart are not KPI values; a card holding a big
+  // value, a few words and next to no marks (a coloured delta or arrow at most) is a KPI however tall the grid
+  // stretches it)
+  const bigH = Math.max(0, ...bigMasked.map((w) => w.h));
+  const prominent = bigH >= height(b) * 0.12 || (bigMasked.length >= 1 && coverage < 0.012 && body.length <= 4 && words.length <= 6);
   if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3)) return done(kpi(c, 0.85))!;
   return done(pie(c)) || done(treemap(c)) || done(barReading) || (grid ? done({ type: 'table', certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} }) : null)
     || done(lines(c)) || done(scatter(c))

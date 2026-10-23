@@ -9,7 +9,7 @@
  *    strip peeled off the top or bottom (a title, legend or axis) stays with its visual.
  * 4. Text-only strips join the panel below or above them; panels nested inside others are dropped.
  */
-import { area, center, inside, isBigBox, medianHeight, wordsIn, type Box, type Img, type Word } from './image';
+import { area, center, inside, isBigBox, isMaskGrey, labelStacks, medianHeight, wordsIn, type Box, type Img, type Word } from './image';
 import { looksLikeTable } from './charts';
 
 export function edges(img: Img, T = 12) {
@@ -199,6 +199,63 @@ export function findCards(img: Img): Box[] {
   return cards.length >= 2 && covered >= W * H * 0.1 ? cards : [];
 }
 
+/**
+ * Outlined cards: the same colour as the page, set apart only by a thin border (Tableau and Looker tiles, light
+ * themes). Long thin straight lines of one quiet colour are paired into rectangles: a top and a bottom edge spanning
+ * the same width, closed by a left and a right edge (rounded corners leave short gaps, which are allowed). Only the
+ * outermost rectangles count, so a chart's own plot frame inside a card is not a card. Returns [] when there are fewer
+ * than two.
+ */
+export function findOutlinedCards(img: Img): Box[] {
+  const { data, channels: C, width: W, height: H } = img;
+  const minH = Math.max(40, W * 0.06), minV = Math.max(30, H * 0.05), R = Math.max(14, Math.round(Math.min(W, H) * 0.02));
+  const rgb = (x: number, y: number): [number, number, number] => { const i = (y * W + x) * C; return [data[i], data[i + 1], data[i + 2]]; };
+  // the page: the commonest colour over the whole image (not along its edge, which may be a frame drawn around it)
+  const page = (() => {
+    const m = new Map<number, number>(), step = Math.max(1, Math.round(Math.min(W, H) / 200));
+    for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) { const [r, g, b] = rgb(x, y), k = (r << 16) | (g << 8) | b; m.set(k, (m.get(k) || 0) + 1); }
+    const k = [...m].sort((a, b) => b[1] - a[1])[0][0];
+    return [(k >> 16) & 255, (k >> 8) & 255, k & 255];
+  })();
+  const differs = (c: number[]) => Math.max(Math.abs(c[0] - page[0]), Math.abs(c[1] - page[1]), Math.abs(c[2] - page[2])) > 12;
+  const quiet = (c: number[]) => Math.max(...c) - Math.min(...c) <= 24 && !isMaskGrey(c[0], c[1], c[2]);   // border greys, not series colours or masks
+  const line = (x: number, y: number) => { const c = rgb(x, y); return differs(c) && quiet(c); };
+  // thin: the pixels a few rows (columns) away on both sides are the page, so a bar or a filled shape is not a line
+  const hSegs: [number, number, number][] = [], vSegs: [number, number, number][] = [];
+  for (let y = 3; y < H - 3; y++) {
+    for (let x = 0, s = -1; x <= W; x++) {
+      const on = x < W && line(x, y) && !differs(rgb(x, y - 3)) && !differs(rgb(x, y + 3));
+      if (on && s < 0) s = x;
+      if (!on && s >= 0) { if (x - s >= minH) hSegs.push([y, s, x]); s = -1; }
+    }
+  }
+  for (let x = 3; x < W - 3; x++) {
+    for (let y = 0, s = -1; y <= H; y++) {
+      const on = y < H && line(x, y) && !differs(rgb(x - 3, y)) && !differs(rgb(x + 3, y));
+      if (on && s < 0) s = y;
+      if (!on && s >= 0) { if (y - s >= minV) vSegs.push([x, s, y]); s = -1; }
+    }
+  }
+  const rects: Box[] = [];
+  for (const [ty, tx0, tx1] of hSegs) {
+    for (const [by, bx0, bx1] of hSegs) {
+      if (by - ty < minV || Math.abs(bx0 - tx0) > R || Math.abs(bx1 - tx1) > R) continue;
+      const x0 = Math.min(tx0, bx0) - R, x1 = Math.max(tx1, bx1) + R;
+      const side = (x: number) => vSegs.some(([vx, vy0, vy1]) => Math.abs(vx - x) <= R && vy0 <= ty + R && vy1 >= by - R && vy1 - vy0 >= (by - ty) * 0.6);
+      const left = vSegs.filter(([vx]) => vx >= x0 && vx <= tx0 + R), right = vSegs.filter(([vx]) => vx <= x1 && vx >= tx1 - R);
+      if (!left.some(([vx]) => side(vx)) || !right.some(([vx]) => side(vx))) continue;
+      // the nearest edge on each side (with a narrow gutter, the next card's border is within reach too)
+      const nearest = (xs: number[], to: number) => xs.reduce((a, b) => (Math.abs(b - to) < Math.abs(a - to) ? b : a));
+      const lx = nearest(left.filter(([vx]) => side(vx)).map(([vx]) => vx), tx0), rx = nearest(right.filter(([vx]) => side(vx)).map(([vx]) => vx), tx1);
+      rects.push([lx, ty, rx + 1, by + 1]);
+      break;   // the nearest bottom edge closes this card
+    }
+  }
+  const inner = (a: Box, b: Box) => a !== b && a[0] >= b[0] - 2 && a[1] >= b[1] - 2 && a[2] <= b[2] + 2 && a[3] <= b[3] + 2;
+  const cards = rects.filter((r, i) => area(r) < W * H * 0.9 && !rects.some((o, j) => j !== i && inner(r, o) && !(inner(o, r) && j > i)));
+  return cards.length >= 2 ? cards : [];
+}
+
 export interface Panel { b: Box; words: Word[]; med: number }
 
 /**
@@ -207,7 +264,8 @@ export interface Panel { b: Box; words: Word[]; med: number }
  */
 export function assemblePanels(regions: Box[], words: Word[], W: number, H: number, medH?: number): Panel[] {
   const med = medH ?? medianHeight(words);
-  const big = (p: { words: Word[] }) => p.words.some((w) => isBigBox(w, med));
+  const stacked = labelStacks(words, med);
+  const big = (p: { words: Word[] }) => p.words.some((w) => isBigBox(w, med) && !stacked.has(w));
   let ps = regions.filter((b) => area(b) > W * H * 0.0008 && b[2] - b[0] > 6 && b[3] - b[1] > 6).map((b) => ({ b: [...b] as Box, words: wordsIn(words, b) }));
   const textOnly = (p: { b: Box; words: Word[] }) => {
     if (!p.words.length) return false;
@@ -251,8 +309,11 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
   for (let merged = true; merged;) {
     merged = false;
     for (const p of ps) {
-      const q = ps.find((q) => q !== p && (!p.words.length || !q.words.length || untitled(p)) && !big(p) && !big(q)
-        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6)) || (near(p.b, q.b, 'y') && Math.abs(p.b[0] - q.b[0]) <= 4)));
+      // (stacked pieces only when one has no words: two charts one above the other, each with its axis labels, are two
+      // visuals even when the upper one's title is masked)
+      const q = ps.find((q) => q !== p && !big(p) && !big(q)
+        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length || untitled(p)))
+          || (near(p.b, q.b, 'y') && Math.abs(p.b[0] - q.b[0]) <= 4 && (!p.words.length || !q.words.length))));
       if (!q) continue;
       q.b = [Math.min(p.b[0], q.b[0]), Math.min(p.b[1], q.b[1]), Math.max(p.b[2], q.b[2]), Math.max(p.b[3], q.b[3])];
       q.words = wordsIn(words, q.b); ps = ps.filter((x) => x !== p); merged = true; break;
@@ -263,7 +324,9 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
 }
 
 export function findPanels(img: Img, words: Word[], med?: number): Panel[] {
-  const cards = findCards(img);
+  // filled cards first; on a page whose cards are its own colour, their outlines
+  let cards = findCards(img);
+  if (!cards.length) cards = findOutlinedCards(img);
   if (!cards.length) return assemblePanels(findRegions(img), words, img.width, img.height, med);
   // one visual per card, unless the card clearly holds several (each part at least a fifth of the card)
   const regions: Box[] = [];

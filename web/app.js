@@ -810,7 +810,12 @@ customer service staff agent team people everyone nobody someone something nothi
     for (const r of todo) {
       const slanted = r.len && Math.abs(r.angle) > 10 && Math.abs(r.angle) < 170 && r.len >= 1.5 * r.thick;
       const k = r.core || r, glyphSized = k.w <= 1.2 * textH && k.h <= 2 * textH;
+      // a region far taller than a line of text is not one line: the detector merged labels and chart marks into one
+      // blob. Masking it whole would hide charts, so only the words the second look reads there and cannot vouch for
+      // are masked, where they are.
+      const blob = !slanted && k.h > 3 * textH;
       let best = { words: [], conf: 0 }, sawCharacters = false;
+      const unsafe = [];
       read: for (const kind of ['normal', 'contrast']) {
         for (const flip of slanted ? [0, 180] : [0]) {   // a slanted label may read upwards or downwards
           if (S.img !== img) return;
@@ -825,11 +830,16 @@ customer service staff agent team people everyone nobody someone something nothi
           }
           const words = await ocrPass(c, 3, kind);
           if (words.some(w => /[\p{L}\p{N}]/u.test(w.text))) sawCharacters = true;
+          if (blob) {   // every reading counts: a word unsafe in either is masked (positions in the image's pixels)
+            words.filter(w => w.conf < SECOND_LOOK_CONF || classify(w.text)).forEach(w => unsafe.push({ x: w.x + r.x - pad, y: w.y + r.y - pad, w: w.w, h: w.h }));
+            continue;
+          }
           const conf = words.length ? Math.min(...words.map(w => w.conf)) : 0;
           if (conf > best.conf) best = { words, conf };
           if (best.conf >= SECOND_LOOK_CONF) break read;
         }
       }
+      if (blob) { r.blob = true; r.unsafe = unsafe; r.seen = `blob, ${unsafe.length} unsafe`; continue; }
       r.seen = best.words.map(w => w.text + ':' + Math.round(w.conf)).join(' ');   // what the second look read (tests and the benchmark)
       r.safe = (best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text)))
         // a mark the size of one character in which no letter or digit can be found, however it is read: a line marker,
@@ -839,13 +849,13 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   function unreadMasks(base) {
     if (!S.unread.on || !S.unread.regions || !window.VSContext) return [];
-    const on = base.filter(m => m.on);
-    return VSContext.unreadParts(S.unread.regions.filter(r => !r.safe), unreadCover(base)).map(p => {
-      let b = { x: p.x - 2, y: p.y - 2, w: p.w + 4, h: p.h + 4 };
-      // whole pixels: a box edge drawn between pixels blends grey into the background, and those blended pixels would
-      // look like chart marks to the on-device layout builder
-      const x0 = Math.floor(b.x), y0 = Math.floor(b.y);
-      return { x: x0, y: y0, w: Math.ceil(b.x + b.w) - x0, h: Math.ceil(b.y + b.h) - y0, type: VSContext.UNREAD_TYPE, text: '(unread text)', on: true, src: 'auto' };
+    // No padding of its own: the detector's region already reaches past the letters, and a mask taller than its text
+    // looks like a KPI's big number to the on-device layout builder. Whole pixels, outward: a box edge drawn between
+    // pixels blends grey into the background, and the builder would take those pixels for chart marks.
+    const blobs = S.unread.regions.filter(r => r.blob).flatMap(r => r.unsafe);
+    return VSContext.unreadParts(S.unread.regions.filter(r => !r.safe && !r.blob), unreadCover(base)).concat(blobs).map(p => {
+      const x0 = Math.floor(p.x), y0 = Math.floor(p.y);
+      return { x: x0, y: y0, w: Math.ceil(p.x + p.w) - x0, h: Math.ceil(p.y + p.h) - y0, type: VSContext.UNREAD_TYPE, text: '(unread text)', on: true, src: 'auto' };
     });
   }
   const allMasks = () => { const base = buildMasks(S.words).concat(contextMasks()); return base.concat(unreadMasks(base)); };

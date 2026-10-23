@@ -42,6 +42,7 @@ npm run bench             # downloads the public benchmark images to .bench/ (no
 npm run bench:layout -- --json result.json   # scores again without re-reading
 npm run bench:synth       # draws 60 fictional dashboards (seeded, nothing downloaded) and scores masking on them
 node tools/synth-bench/run.mjs --reuse --json synth.json   # scores again without re-reading
+node tools/synth-bench/layout.mjs --json layout.json   # the on-device layout builder on the same dashboards
 npm run bench:gate -- synth.json tools/synth-bench/baseline.json   # fails if a figure got worse than its baseline
 ```
 

@@ -20,8 +20,8 @@
   "n": 610
  },
  "residualRotated": 8,
- "firstPassLeakedAreaPct": 0.45,
- "residualLeakedAreaPct": 0.45,
+ "firstPassLeakedAreaPct": 0.48,
+ "residualLeakedAreaPct": 0.48,
  "overMasked": {
   "pct": 11.11,
   "lo": 7.94,
@@ -31,10 +31,10 @@
  },
  "falseAlarms": {
   "pct": 100,
-  "lo": 77.19,
+  "lo": 74.12,
   "hi": 100,
-  "k": 13,
-  "n": 13
+  "k": 11,
+  "n": 11
  },
  "byKind": {
   "number": {
@@ -73,5 +73,5 @@
    "residualExposedPct": 0
   }
  },
- "medianSeconds": 26.078
+ "medianSeconds": 27.675
 }

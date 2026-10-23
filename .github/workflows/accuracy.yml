@@ -26,11 +26,13 @@ jobs:
       - run: node tools/synth-bench/gen.mjs --count 60
       - run: node tools/synth-bench/run.mjs --json synth-full.json
       - run: node tools/bench-gate.mjs synth-full.json tools/synth-bench/baseline.json
+      - run: node tools/synth-bench/layout.mjs --json synth-layout.json
+      - run: node tools/bench-gate.mjs synth-layout.json tools/synth-bench/layout-baseline.json
       - if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: accuracy-masking
-          path: synth-full.json
+          path: synth-*.json
           retention-days: 30
 
   layout:

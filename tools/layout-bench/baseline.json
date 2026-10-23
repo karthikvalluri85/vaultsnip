@@ -5,29 +5,29 @@
  "dashboards": {
   "count": 12,
   "visuals": 80,
-  "found": 61,
-  "foundPct": 76.3,
-  "extraPanels": 35,
-  "typesRightLenient": 40,
-  "typesRightStrict": 36,
-  "typesRightPct": 65.6,
-  "endToEndPct": 50,
+  "found": 75,
+  "foundPct": 93.8,
+  "extraPanels": 13,
+  "typesRightLenient": 56,
+  "typesRightStrict": 51,
+  "typesRightPct": 74.7,
+  "endToEndPct": 70,
   "byTool": {
    "Power BI": {
     "dashboards": 4,
     "visuals": 19,
-    "found": 15,
-    "typesRight": 10,
-    "foundPct": 78.9,
-    "typesRightPct": 66.7
+    "found": 17,
+    "typesRight": 12,
+    "foundPct": 89.5,
+    "typesRightPct": 70.6
    },
    "Tableau": {
     "dashboards": 4,
     "visuals": 43,
-    "found": 29,
-    "typesRight": 18,
-    "foundPct": 67.4,
-    "typesRightPct": 62.1
+    "found": 41,
+    "typesRight": 32,
+    "foundPct": 95.3,
+    "typesRightPct": 78
    },
    "Looker": {
     "dashboards": 3,
@@ -56,13 +56,13 @@
   "images": 15,
   "checkPassedFirstTime": 2,
   "checkCaughtLeftovers": 13,
-  "findings": 50,
-  "blocking": 30,
+  "findings": 56,
+  "blocking": 34,
   "findingsByType": {
-   "Number or money": 30,
-   "Text not on allowlist": 20
+   "Number or money": 34,
+   "Text not on allowlist": 22
   },
-  "medianSeconds": 20.114,
-  "slowestSeconds": 37.881
+  "medianSeconds": 23.688,
+  "slowestSeconds": 41.469
  }
 }

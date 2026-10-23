@@ -1,0 +1,58 @@
+{
+ "measured": "2026-10-23",
+ "version": "0.6.0",
+ "synthLayout": {
+  "dashboards": 60,
+  "visuals": 377,
+  "found": 350,
+  "foundPct": 92.8,
+  "extraPanels": 29,
+  "typesRight": 263,
+  "typesRightPct": 75.1,
+  "endToEndPct": 69.8,
+  "byType": {
+   "pie": {
+    "visuals": 55,
+    "found": 55,
+    "typesRight": 38,
+    "foundPct": 100,
+    "typesRightPct": 69.1
+   },
+   "bar": {
+    "visuals": 99,
+    "found": 94,
+    "typesRight": 59,
+    "foundPct": 94.9,
+    "typesRightPct": 62.8
+   },
+   "table": {
+    "visuals": 42,
+    "found": 40,
+    "typesRight": 34,
+    "foundPct": 95.2,
+    "typesRightPct": 85
+   },
+   "column": {
+    "visuals": 43,
+    "found": 39,
+    "typesRight": 21,
+    "foundPct": 90.7,
+    "typesRightPct": 53.8
+   },
+   "kpi": {
+    "visuals": 97,
+    "found": 83,
+    "typesRight": 83,
+    "foundPct": 85.6,
+    "typesRightPct": 100
+   },
+   "line": {
+    "visuals": 41,
+    "found": 39,
+    "typesRight": 28,
+    "foundPct": 95.1,
+    "typesRightPct": 71.8
+   }
+  }
+ }
+}
