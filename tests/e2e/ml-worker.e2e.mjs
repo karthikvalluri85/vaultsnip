@@ -42,7 +42,15 @@ try {
   const loadMs = performance.now() - t0;
   const t1 = performance.now();
   const r = await ask({ id: 2, type: 'score', lines });
-  window.__result = { ok: true, scores: r.scores, loadMs, scoreMs: performance.now() - t1, maxGap, longTasks };
+  const scoreMs = performance.now() - t1;
+  // the text-region detector: one label on a blank canvas at the detector's input size (multiples of 32)
+  const cv = document.createElement('canvas'); cv.width = 320; cv.height = 96;
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, 320, 96);
+  cx.fillStyle = '#222'; cx.font = '20px sans-serif'; cx.fillText('Revenue 4,821', 20, 40);
+  const d = cx.getImageData(0, 0, 320, 96);
+  const t2 = performance.now();
+  const det = await ask({ id: 3, type: 'detect', image: { width: d.width, height: d.height, data: d.data } });
+  window.__result = { ok: true, scores: r.scores, loadMs, scoreMs, regions: det.regions, detectMs: performance.now() - t2, maxGap, longTasks };
 } catch (e) {
   window.__result = { ok: false, error: String(e && e.message || e) };
 }
@@ -98,6 +106,9 @@ try {
     const ent = (line, word) => r.scores[line][word][0] + r.scores[line][word][1];
     check(ent(0, 1) > 0.8 && ent(1, 0) > 0.8 && ent(2, 1) > 0.8,
       `"May", "Max" and "Delta" read as names, as in Node (${[ent(0, 1), ent(1, 0), ent(2, 1)].map((v) => v.toFixed(2)).join(', ')})`);
+    const on = (b, px, py) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+    check(r.regions.some((b) => on(b, 40, 33) && on(b, 120, 33)) && !r.regions.some((b) => b.y > 60),
+      `the text detector finds the label and nothing in the blank space (${r.regions.length} region(s) in ${r.detectMs.toFixed(0)} ms)`);
     check(r.maxGap < 50, `main thread never blocked for 50 ms or more (longest gap ${r.maxGap.toFixed(0)} ms)`);
     check(r.longTasks.length === 0, `no long tasks on the main thread (${r.longTasks.length})`);
   }
@@ -111,7 +122,10 @@ try {
   const leaked = requests.filter((q) => PII.some((p) => decodeURIComponent(q.url).includes(p) || q.body.includes(p)));
   check(leaked.length === 0, `no request carries the scanned text (${requests.length} requests checked)`);
   check(requests.some((q) => q.url.startsWith(modelSite) && q.url.endsWith('.onnx.gz')) && requests.some((q) => q.url.startsWith(base) && q.url.endsWith('.wasm')), 'gzipped model came from the model site, runtime from the app');
-  check(requests.filter((q) => q.url.endsWith('.onnx.gz')).length === 1, `model downloaded once (${requests.filter((q) => q.url.endsWith('.onnx.gz')).length})`);
+  const entries = requests.filter((q) => new URL(q.url).pathname === '/ml/ml-worker.js');
+  check(entries.length === 1, `the worker script runs once (${entries.length})`);
+  const models = requests.filter((q) => q.url.endsWith('.onnx.gz')).map((q) => new URL(q.url).pathname);
+  check(models.length === 2 && new Set(models).size === 2, `each model downloaded once (${models.join(', ')})`);
   check(consoleErrors.length === 0, `no console errors${consoleErrors.length ? ': ' + consoleErrors.join(' | ') : ''}`);
 } finally {
   await browser.close();

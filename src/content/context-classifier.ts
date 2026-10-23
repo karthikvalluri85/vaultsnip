@@ -7,14 +7,18 @@
  * "Delta Airlines") or a name inside comment text. It can only add masks. If the worker fails, the caller
  * keeps the rules' result.
  */
-import type { MlRequest, MlResponse, WordScore } from '../background/ml-protocol';
+import type { MlRequest, MlResponse, Pixels, WordScore } from '../background/ml-protocol';
+import type { Region } from '../shared/text-regions';
 
-export type { WordScore };
+export { detectorSize, unreadParts, type Box, type Region } from '../shared/text-regions';
+
+export type { Pixels, WordScore };
 export const CONTEXT_TYPE = 'Name in context';
+export const UNREAD_TYPE = 'Unread text';
 
 /** The subset of Worker the client uses; tests pass a fake. */
 export interface WorkerLike {
-  postMessage(msg: MlRequest): void;
+  postMessage(msg: MlRequest, transfer?: Transferable[]): void;
   terminate(): void;
   addEventListener(type: 'message', fn: (e: MessageEvent<MlResponse>) => void): void;
   addEventListener(type: 'error' | 'messageerror', fn: (e: Event) => void): void;
@@ -28,8 +32,11 @@ export interface ClientOptions {
 /** MlRequest without its id, kept per variant (a plain Omit would merge the union and drop `lines`). */
 type RequestBody = MlRequest extends infer R ? (R extends MlRequest ? Omit<R, 'id'> : never) : never;
 
+/** What a successful answer carries. */
+type Answer = Extract<MlResponse, { ok: true }>;
+
 interface Pending {
-  resolve(scores: WordScore[][] | undefined): void;
+  resolve(answer: Answer): void;
   reject(e: Error): void;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -57,18 +64,28 @@ export class ContextClassifier {
   /** One [P(person), P(organisation)] pair per word, shaped like `lines`. */
   async score(lines: string[][], signal?: AbortSignal): Promise<WordScore[][]> {
     if (lines.length === 0) return [];
-    const scores = await this.request({ type: 'score', lines }, signal);
+    const { scores } = await this.request({ type: 'score', lines }, signal);
     if (!scores || scores.length !== lines.length || scores.some((s, i) => s.length !== lines[i].length)) {
       throw new Error('ML worker returned scores that do not match the lines sent');
     }
     return scores;
   }
 
+  /**
+   * Boxes around the text in an image, in its pixels. The image must already be at the detector's input size
+   * (detectorSize); its pixels are transferred to the worker, so the caller must not use them afterwards.
+   */
+  async detect(image: Pixels, signal?: AbortSignal): Promise<Region[]> {
+    const { regions } = await this.request({ type: 'detect', image }, signal, [image.data.buffer]);
+    if (!Array.isArray(regions)) throw new Error('ML worker returned no text regions');
+    return regions;
+  }
+
   dispose(): void {
     this.reset(new Error('Contextual scanner was closed'));
   }
 
-  private request(body: RequestBody, signal?: AbortSignal): Promise<WordScore[][] | undefined> {
+  private request(body: RequestBody, signal?: AbortSignal, transfer: Transferable[] = []): Promise<Answer> {
     if (signal?.aborted) return Promise.reject(abortError());
     const worker = this.ensureWorker();
     const id = this.nextId++;
@@ -77,7 +94,7 @@ export class ContextClassifier {
       this.pending.set(id, { resolve, reject, timer });
       // An aborted request is dropped here; the worker still finishes it and its answer is ignored.
       signal?.addEventListener('abort', () => this.settle(id, (p) => p.reject(abortError())), { once: true });
-      worker.postMessage({ ...body, id } as MlRequest);
+      worker.postMessage({ ...body, id } as MlRequest, transfer);
     });
   }
 
@@ -86,7 +103,7 @@ export class ContextClassifier {
     const w = this.spawn();
     w.addEventListener('message', (e: MessageEvent<MlResponse>) => {
       const r = e.data;
-      this.settle(r.id, (p) => (r.ok ? p.resolve(r.scores) : p.reject(new Error(r.error))));
+      this.settle(r.id, (p) => (r.ok ? p.resolve(r) : p.reject(new Error(r.error))));
     });
     const crash = (what: string) => () => { if (this.worker === w) this.reset(new Error(what)); };
     w.addEventListener('error', crash('ML worker crashed'));

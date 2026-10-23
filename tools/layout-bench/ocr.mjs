@@ -2,7 +2,7 @@
 // (developer tool): run/<id>.ocr.json = { width, height, words: [{ text, x, y, w, h, kept }], masks: [{ x, y, w, h }],
 // gate, findings: [{ type, severity, x, y, w, h }], ms }. Masked words carry no text. Run fetch.mjs first.
 //   node tools/layout-bench/ocr.mjs [bench dir, default .bench] [--only id,id]
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEFAULT_BENCH, items } from './items.mjs';
 import { reviewer } from './review.mjs';
@@ -14,12 +14,17 @@ const todo = items(bench).filter((it) => !only || only.has(it.id));
 
 await mkdir(join(bench, 'run'), { recursive: true });
 const app = await reviewer();
+const failed = [];
 try {
   for (const it of todo) {
-    const out = await app.read(it.file);
+    // an old result never stands in for a new one: a failed read leaves no file, and run.mjs then stops on it
+    await rm(it.ocr, { force: true });
+    let out;
+    try { out = await app.read(it.file); } catch (e) { failed.push(it.id); console.error(`  ✗ ${it.id}: ${e.message}`); continue; }
     await writeFile(it.ocr, JSON.stringify(out));
     console.log(`  ✓ ${it.id}: ${out.words.length} words (${out.words.filter((w) => w.kept).length} readable), ${out.masks.length} masks, check ${out.gate} (${out.findings.length} to resolve), ${(out.ms / 1000).toFixed(1)} s`);
   }
 } finally {
   await app.close();
 }
+if (failed.length) { console.error(`${failed.length} image(s) could not be read: ${failed.join(', ')}`); process.exit(1); }

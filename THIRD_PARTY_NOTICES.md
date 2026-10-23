@@ -8,14 +8,22 @@ Bundled in `web/lib` and `web/lang`, each under the Apache License 2.0:
 
 On-device name check, in `web/ml`, `web/lib/vs-context.js` and `web/models`:
 
-- [Transformers.js](https://github.com/huggingface/transformers.js) 4.3.0, Apache License 2.0 (bundled in `web/ml/ner-model.js`)
-- [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) 1.31, MIT License (`web/ml/ner-model.js`, `web/ml/assets/ort-wasm-simd-threaded.wasm`)
+- [Transformers.js](https://github.com/huggingface/transformers.js) 4.3.0, Apache License 2.0 (bundled in `web/ml/models.js`)
+- [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) 1.31, MIT License (`web/ml/models.js`, `web/ml/assets/ort-wasm-simd-threaded.wasm`)
 - [gravitee-io/bert-small-pii-detection](https://huggingface.co/gravitee-io/bert-small-pii-detection), revision `f8c27a8`, Apache License 2.0
   (int8 ONNX weights, gzipped; tokenizer and config unchanged). Fine-tuned from
   [prajjwal1/bert-small](https://huggingface.co/prajjwal1/bert-small) (MIT License) on
   [gravitee-io/pii-detection-dataset](https://huggingface.co/datasets/gravitee-io/pii-detection-dataset) (Apache License 2.0,
   built from MIT and Apache-2.0 sources, mostly synthetic). `npm run fetch:model -- --check` verifies the files against the
   pinned revision.
+
+Unread-text check, in `web/ml/models.js` and `web/models/pp-ocrv5-det`:
+
+- [PP-OCRv5_mobile_det](https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx), the PaddleOCR team's own ONNX
+  export, revision `e6f4fa8`, Apache License 2.0, Copyright (c) PaddlePaddle Authors
+  ([PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)). Weights unchanged (gzipped). Its post-processing in
+  `src/shared/text-regions.ts` follows PaddleOCR's DBPostProcess and was written for VaultSnip; no PaddleOCR code is
+  copied. `npm run fetch:model -- --check` verifies the file against the pinned revision.
 
 Realistic synthetic names, bundled in `web/lib/vs-faker.js` (and in HTML exports that use them):
 

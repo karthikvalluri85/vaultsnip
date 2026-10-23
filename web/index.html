@@ -251,6 +251,8 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
           <p class="hint">$4.2M might show as $6.8M, 62% as 47%: never the real value, and labels stay masked. The image is tagged "Numbers are synthetic". Untick to cover numbers with grey boxes instead.</p>
           <label class="chk"><input type="checkbox" id="ctx-on" checked><span>Find names among safe words (on-device AI)</span></label>
           <p class="hint" id="ctx-note">Catches safe words used as names, such as "May Chen" or "Delta Airlines". Runs on this device; the 19 MB model downloads once. It only adds masks.</p>
+          <label class="chk"><input type="checkbox" id="unread-on" checked><span>Mask text the reader could not read (on-device AI)</span></label>
+          <p class="hint">Finds every patch of text, including tiny, rotated or faint labels the reader missed, and masks any that is not a word it read and kept (purple boxes). Runs on this device; the 5 MB model downloads once. It only adds masks.</p>
           <details class="more" id="kept"><summary>Words kept as safe (<span id="kept-n">0</span>)</summary>
             <p class="note">Common report words are kept so the layout stays readable. If any of these is a client, product or person name, click it to mask it.</p>
             <div class="chips" id="kept-words"></div></details>

@@ -35,6 +35,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Mask by default, allowlist to keep | ✅ client names, IDs, emails and unlisted text are masked; numbers are replaced with invented values of the same size (or masked, if you prefer) |
 | Blur text in charts on any page (extension) | ✅ right-click → "Blur text in charts on this page" or Alt+Shift+B: charts drawn on canvas (Power BI, Tableau, ECharts…) are read on your device and sensitive text is blurred in place; run again to remove |
 | On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |
+| Unread-text check (AI) | ✅ a 5 MB text-region model (PP-OCRv5) finds every patch of text, and masks any the reader missed or could not read; only adds masks; can be switched off |
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ four independent re-reads of the masked image, plus "Mask all" |
 | Review: click to toggle, drag to add masks | ✅ |
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in; replicas quote only words that were readable in the approved image |
@@ -112,8 +113,8 @@ web/              the app (static, no build step), published as-is
   feedback.js     in-app feedback and error reporting
   samples.js      bundled fictional samples
   maps/           map outlines (Natural Earth, simplified)
-  lib/ lang/      tesseract.js + OCR model, echarts, vs-context.js (name check client)
-  ml/ models/     name check: Web Worker + ONNX runtime (built by npm run build:ml), PII model (npm run fetch:model)
+  lib/ lang/      tesseract.js + OCR model, echarts, vs-context.js (on-device AI client)
+  ml/ models/     on-device AI: Web Worker + ONNX runtime (npm run build:ml), PII and text-region models (npm run fetch:model)
 extension/        manifest.json; background.js, canvas-ocr.js, offscreen.*, wasm/ built from src/ (npm run build:ext)
 src/              TypeScript sources: name check, chart blur (background/, content/), exports (export/, exporters/), realistic names (replica/)
 tools/            check.mjs, e2e.mjs, build-ml.mjs, fetch-model.mjs, maps/build_maps.py

@@ -45,9 +45,9 @@ dashboards (Phase 1, below), where every word's position and kind is known. Prec
 
 ## Baseline (Phase 0)
 
-Measured on 22 October 2026 at v0.6.0 with the on-device build ("Build on this device"), no AI key. The exact figures
-are in [`tools/layout-bench/baseline.json`](tools/layout-bench/baseline.json), which is the record; this table rounds
-them.
+Measured on 22 October 2026 at v0.6.0 with the on-device build ("Build on this device"), no AI key. This table rounds
+the figures. [`tools/layout-bench/baseline.json`](tools/layout-bench/baseline.json) holds the latest accepted level
+(Phase 2, below); its history holds this one.
 
 | Figure | Baseline | Note |
 |---|---|---|
@@ -77,8 +77,9 @@ committed; `truth.json` records each source and its terms.
 
 ## Masking baseline (Phase 1)
 
-Measured on 23 October 2026 at v0.6.0 on 60 generated dashboards (5,027 sensitive words, 1,975 safe words). The exact
-figures are in [`tools/synth-bench/baseline.json`](tools/synth-bench/baseline.json).
+Measured on 23 October 2026 at v0.6.0 on 60 generated dashboards (5,027 sensitive words, 1,975 safe words), before
+Phase 2. [`tools/synth-bench/baseline.json`](tools/synth-bench/baseline.json) holds the latest accepted level (Phase 2,
+below); its history holds this one.
 
 | Figure | Baseline |
 |---|---|
@@ -107,6 +108,47 @@ Phase 1 status: the generated set, false-alarm labelling and the CI gates are do
 - **The AI-key path scored.** Recording answers needs a maintainer's own key and costs a little per run. Only the masked
   images of public or generated dashboards are ever sent.
 
+## Phase 2: nothing unread stays visible
+
+Measured on 23 October 2026 with the unread-text check on (its default). It runs on the same 60 generated dashboards
+and 15 public ones as the baselines above. The baseline files now hold these figures, so CI guards the new level.
+
+| Figure | Phase 1 | Phase 2 |
+|---|---|---|
+| Sensitive words exposed after the check | 10.2% [9.4–11.1] | **3.6%** [3.1–4.2] |
+| Leaked area after the check (upright words) | 3.1% | **1.2%** |
+| Check findings for the user to resolve, generated set | 264 | **136** |
+| Items to resolve on the public dashboards | 100 | **50** |
+| Safe words masked anyway | 9.0% | **13.9%** [12.5–15.5] |
+| Visuals found, public dashboards | 80% | **76%** |
+| Chart type right / end to end, public dashboards | 64% / 51% | **66% / 50%** |
+| Report structure checks | 8 of 14 | **7 of 14** |
+
+How it works: a 5 MB text-region model (PP-OCRv5, Apache-2.0, on the device) finds every patch of text without reading
+it. A patch that no mask and no confidently read safe word accounts for gets a *second look*: it is cut out
+(straightened if slanted) and read again at a larger scale, as it is and with the contrast raised. It stays readable
+only if every word is read confidently and is safe by the usual rules. A mark no bigger than one character in which no
+letter or digit can be found (a line marker, a tick, a divider) is not text and stays as it is. Everything else is
+masked as *unread text*.
+
+The trade-off, accepted on purpose:
+
+- **Gained.** Leaks fell to about a third, and users have half as many items to resolve. On VaultSnip's own demo, the
+  end of the confidential client name in the header was readable before and is now masked.
+- **Cost: labels.** About 5 more safe words in 100 are masked, mostly faint or slanted axis labels that cannot be read
+  even on the second look. Text that cannot be read cannot be shown to be safe.
+- **Cost: detection.** Visuals found on the public dashboards fell from 80% to 76% (3 of 80 visuals), and one report
+  check was lost. The on-device layout builder reads a vertical stack of masked axis labels as several small KPI
+  cards instead of one bar chart, and Phase 2 masks more such labels. Phase 4(a) fixes this first, and is done only
+  when visuals found is back above 80%.
+- **The false-alarm rate rose (57% → 83%)**, but there are fewer false alarms in absolute terms (113 against 150):
+  almost all real misses are now masked before the check runs, so what it still flags is mostly noise.
+
+The builder also learned one thing here: mask grey is never a panel's background. Without that, a page header made
+mostly of masked text read as a bar chart.
+
+Still open from this phase: the extension's *Blur text in charts on this page* does not use the detector yet.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after
@@ -120,7 +162,7 @@ data flow.
 | **2. Nothing unread stays visible** | A small on-device text-region detector (an Apache-2.0 model, run in the browser) finds every patch of text, whether or not the reader could read it. Any region not covered by a confidently read, allowlisted word is masked. Applies to the app and to the extension's chart blur. Numbers the first pass misses are then masked before the check runs, instead of being left for the user | Text the reader misses (tiny, rotated, coloured) is masked instead of leaking, and the check stops asking the user to fix the first pass's misses | Leaked area falls; items to resolve per image fall from about 7 towards 1; over-masking rises no more than an agreed margin; reading time no slower than 18 s median |
 | **2b. Better reader, if it wins** | Compare a stronger on-device reader with Tesseract on the Phase 1 set; switch only if it wins | More words kept readable, so better titles and labels | Data-backed decision either way |
 | **3. A catalogue of chart types** | One schema of every chart type VaultSnip draws, with the data shape each needs. The AI prompt, a strict answer format for each provider, a check that each type is drawn, and a public gallery are all generated from it | Fewer malformed or invented answers from the AI; users can see what is supported | No malformed answers across recorded runs; adding a type means changing one file |
-| **4. Spend effort where it is unsure** | (a) Fix the on-device build's largest misses: KPI cards, pages split into too many panels, and maps. (b) The on-device build places the panels; only the panels it is unsure of are sent, as close-ups, to the user's AI. (c) The replica is compared with the masked image on the device and the panels that differ are flagged | Hard dashboards get more attention, easy ones stay fast and cheap; the key-free draft becomes good enough to share more often | Key-free end to end from 51% towards 70%; AI-key end to end rises while AI calls per screenshot stay about the same; confidence estimates within 10 points |
+| **4. Spend effort where it is unsure** | (a) Fix the on-device build's largest misses: stacks of masked axis labels read as KPI cards (since Phase 2), KPI cards, pages split into too many panels, and maps. (b) The on-device build places the panels; only the panels it is unsure of are sent, as close-ups, to the user's AI. (c) The replica is compared with the masked image on the device and the panels that differ are flagged | Hard dashboards get more attention, easy ones stay fast and cheap; the key-free draft becomes good enough to share more often | Visuals found back above 80%; key-free end to end from 50% towards 70%; AI-key end to end rises while AI calls per screenshot stay about the same; confidence estimates within 10 points |
 | **5. More chart types** | The types the benchmark shows we miss most, in that order (candidates: radar, sunburst, bullet, small multiples, slicers) | Fewer placeholders in replicas | "Chart types we cannot draw" falls |
 
 What is deliberately not in the plan:

@@ -1,8 +1,9 @@
 // Builds the contextual PII check (Feature 2) into web/, which is served as-is (no build step on deploy):
-//   web/ml/ml-worker.js, web/ml/ner-model.js, web/ml/assets/ort-wasm-simd-threaded.wasm   (Web Worker)
+//   web/ml/ml-worker.js, web/ml/models.js, web/ml/assets/ort-wasm-simd-threaded.wasm   (Web Worker: name check, text detector)
 //   web/lib/vs-context.js                                                                  (page client, window.VSContext)
 // Like web/lib, these are committed. Re-run after changing src/background or src/content/context-classifier.ts.
 // The model itself comes from npm run fetch:model (web/models/).
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
@@ -26,6 +27,14 @@ await build({
     },
   },
 });
+
+// A chunk importing from the worker entry makes the browser run the entry twice (it is loaded once with its ?models=
+// query and once without), so the second copy installs its own handler and loads the models again.
+for (const f of await readdir(join(root, 'web/ml'))) {
+  if (f.endsWith('.js') && f !== 'ml-worker.js' && /from\s*["']\.\/ml-worker\.js["']/.test(await readFile(join(root, 'web/ml', f), 'utf8'))) {
+    throw new Error(`web/ml/${f} imports from ml-worker.js: import only types into src/background/ml-worker.ts`);
+  }
+}
 
 await build({
   configFile: false,
