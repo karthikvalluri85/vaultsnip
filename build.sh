@@ -27,7 +27,8 @@ if [[ $BUNDLE -eq 0 ]]; then
   printf "window.VAULTSNIP_CONFIG = { langPath: '%s', mlModels: '%s' };\n" "$MODEL_URL" "$ML_URL" > dist/extension/app/config.js
 else
   # Store reviewers (Edge) refuse packages that contain compressed files, so the bundled model ships uncompressed.
-  gunzip dist/extension/app/lang/eng.traineddata.gz dist/extension/app/models/pii-bert-small/onnx/model_quantized.onnx.gz
+  gunzip dist/extension/app/lang/eng.traineddata.gz dist/extension/app/models/pii-bert-small/onnx/model_quantized.onnx.gz \
+    dist/extension/app/models/pp-ocrv5-det/inference.onnx.gz
   printf "window.VAULTSNIP_CONFIG = { langPath: 'lang', langGzip: false, mlModels: 'models/', mlGzip: false };\n" > dist/extension/app/config.js
 fi
 

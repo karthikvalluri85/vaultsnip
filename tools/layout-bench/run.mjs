@@ -7,7 +7,7 @@
 // The bench dir holds the images (powerbi/, tableau/, looker/, reports/; fetch.mjs) and run/<id>.ocr.json from
 // VaultSnip's own review step (ocr.mjs): { width, height, words: [{ text, x, y, w, h, kept }], masks: [{ x, y, w, h }] }.
 // --json writes the summary figures (the format of baseline.json).
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { DEFAULT_BENCH, ROOT, items, truth } from './items.mjs';
@@ -16,6 +16,8 @@ const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.i
 const bench = (process.argv[2] && !process.argv[2].startsWith('--')) ? process.argv[2] : DEFAULT_BENCH;
 const opts = arg('--opts') ? JSON.parse(arg('--opts')) : {};
 const byId = Object.fromEntries(items(bench).map((it) => [it.id, it]));
+// a run that stops early must not leave an older result behind for the gate to read
+if (arg('--json')) await rm(arg('--json'), { force: true });
 
 const browser = await chromium.launch();
 const page = await browser.newPage();

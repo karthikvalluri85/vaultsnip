@@ -281,8 +281,10 @@ try {
   check(await rp.locator('.rp-kpi .v').first().textContent() !== live.kpi, 'filter chips cross-filter the page inside the React component');
   const [csvR] = await Promise.all([rp.waitForEvent('download'), rp.locator('.rp-csv').click()]);
   check(/^visual,visual_type,/.test((await readFile(await csvR.path(), 'utf8')).replace(/^﻿/, '')), '"Download data (CSV)" works inside the React component');
-  await rp.evaluate(() => window.__mount({ seed: 99 })); await rp.waitForTimeout(800);
-  check(await rp.locator('.rp-kpi .v').first().textContent() !== live.kpi, 'a new seed prop generates new values');
+  await rp.evaluate(() => window.__mount({ seed: 99 }));
+  // waits for the re-render rather than a fixed time: CI runners can be slow (it still fails if the value never changes)
+  const reseeded = await rp.waitForFunction(v => document.querySelector('.rp-kpi .v')?.textContent !== v, live.kpi, { timeout: 10000 }).then(() => true, () => false);
+  check(reseeded, 'a new seed prop generates new values');
   check(errs.length === 0, 'the React component makes no network requests and throws no errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
   await rp.close();
 
@@ -338,8 +340,9 @@ try {
   check(await t1.rp.locator('.rp-kpi .v').first().textContent() === tl.kpi, 'Clear all filters restores the values');
   const [csvT] = await Promise.all([t1.rp.waitForEvent('download'), t1.rp.locator('.rp-csv').click()]);
   check(csvT.suggestedFilename() === 'website-performance-synthetic-data.csv' && /^visual,visual_type,/.test((await readFile(await csvT.path(), 'utf8')).replace(/^﻿/, '')), '"Download data (CSV)" works in the TypeScript components');
-  await t1.rp.evaluate(() => window.__mount({ seed: 99 })); await t1.rp.waitForTimeout(600);
-  check(await t1.rp.locator('.rp-kpi .v').first().textContent() !== tl.kpi, 'a new seed prop generates new values');
+  await t1.rp.evaluate(() => window.__mount({ seed: 99 }));
+  const reseededTs = await t1.rp.waitForFunction(v => document.querySelector('.rp-kpi .v')?.textContent !== v, tl.kpi, { timeout: 10000 }).then(() => true, () => false);
+  check(reseededTs, 'a new seed prop generates new values');
   check(t1.errs.length === 0, 'the TypeScript components make no network requests and throw no errors' + (t1.errs.length ? ': ' + t1.errs.join(' | ') : ''));
   await t1.rp.close();
   const edited = Object.assign({}, tsx);

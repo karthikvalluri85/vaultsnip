@@ -3,7 +3,50 @@ var VSContext = (function(exports) {
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
+  function detectorSize(width, height, limit) {
+    const k = Math.min(1, limit / Math.max(width, height));
+    return { width: Math.max(32, Math.round(width * k / 32) * 32), height: Math.max(32, Math.round(height * k / 32) * 32) };
+  }
+  const UNREAD_DEFAULTS = { minGap: 0.6, pad: 0.35, maxUncovered: 0.25 };
+  function unreadParts(regions, cover, opts = {}) {
+    const o = { ...UNREAD_DEFAULTS, ...opts };
+    const out = [];
+    for (const r of regions) {
+      const k = r.core ?? r;
+      const near = cover.filter((c) => c.x < k.x + k.w && c.x + c.w > k.x && c.y < k.y + k.h && c.y + c.h > k.y);
+      if (k.w >= 2 * k.h) {
+        const pad = o.pad * k.h;
+        const spans = near.filter((c) => Math.min(c.y + c.h, k.y + k.h) - Math.max(c.y, k.y) >= 0.5 * Math.min(c.h, k.h)).map((c) => [Math.max(k.x, c.x - pad), Math.min(k.x + k.w, c.x + c.w + pad)]).sort((a, b) => a[0] - b[0]);
+        let at = k.x;
+        const gaps = [];
+        for (const [a, b] of spans) {
+          if (a > at) gaps.push([at, a]);
+          at = Math.max(at, b);
+        }
+        if (at < k.x + k.w) gaps.push([at, k.x + k.w]);
+        for (const [a, b] of gaps) {
+          if (b - a < o.minGap * k.h) continue;
+          const x0 = a <= k.x ? r.x : a, x1 = b >= k.x + k.w ? r.x + r.w : b;
+          out.push({ x: x0, y: r.y, w: x1 - x0, h: r.h });
+        }
+      } else if (uncovered(k, near) > o.maxUncovered) {
+        out.push({ x: r.x, y: r.y, w: r.w, h: r.h });
+      }
+    }
+    return out;
+  }
+  function uncovered(b, boxes) {
+    if (!boxes.length) return 1;
+    const nx = 12, ny = 12;
+    let miss = 0;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const px = b.x + (i + 0.5) / nx * b.w, py = b.y + (j + 0.5) / ny * b.h;
+      if (!boxes.some((m) => px >= m.x && px <= m.x + m.w && py >= m.y && py <= m.y + m.h)) miss++;
+    }
+    return miss / (nx * ny);
+  }
   const CONTEXT_TYPE = "Name in context";
+  const UNREAD_TYPE = "Unread text";
   class ContextClassifier {
     constructor(spawn, opts = {}) {
       __publicField(this, "spawn");
@@ -21,16 +64,25 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     /** One [P(person), P(organisation)] pair per word, shaped like `lines`. */
     async score(lines, signal) {
       if (lines.length === 0) return [];
-      const scores = await this.request({ type: "score", lines }, signal);
+      const { scores } = await this.request({ type: "score", lines }, signal);
       if (!scores || scores.length !== lines.length || scores.some((s, i) => s.length !== lines[i].length)) {
         throw new Error("ML worker returned scores that do not match the lines sent");
       }
       return scores;
     }
+    /**
+     * Boxes around the text in an image, in its pixels. The image must already be at the detector's input size
+     * (detectorSize); its pixels are transferred to the worker, so the caller must not use them afterwards.
+     */
+    async detect(image, signal) {
+      const { regions } = await this.request({ type: "detect", image }, signal, [image.data.buffer]);
+      if (!Array.isArray(regions)) throw new Error("ML worker returned no text regions");
+      return regions;
+    }
     dispose() {
       this.reset(new Error("Contextual scanner was closed"));
     }
-    request(body, signal) {
+    request(body, signal, transfer = []) {
       if (signal?.aborted) return Promise.reject(abortError());
       const worker = this.ensureWorker();
       const id = this.nextId++;
@@ -38,7 +90,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
         const timer = setTimeout(() => this.reset(new Error(`ML worker did not answer within ${this.timeoutMs} ms`)), this.timeoutMs);
         this.pending.set(id, { resolve, reject, timer });
         signal?.addEventListener("abort", () => this.settle(id, (p) => p.reject(abortError())), { once: true });
-        worker.postMessage({ ...body, id });
+        worker.postMessage({ ...body, id }, transfer);
       });
     }
     ensureWorker() {
@@ -46,7 +98,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       const w = this.spawn();
       w.addEventListener("message", (e) => {
         const r = e.data;
-        this.settle(r.id, (p) => r.ok ? p.resolve(r.scores) : p.reject(new Error(r.error)));
+        this.settle(r.id, (p) => r.ok ? p.resolve(r) : p.reject(new Error(r.error)));
       });
       const crash = (what) => () => {
         if (this.worker === w) this.reset(new Error(what));
@@ -99,8 +151,11 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
   exports.CONTEXT_TYPE = CONTEXT_TYPE;
   exports.ContextClassifier = ContextClassifier;
   exports.DEFAULT_THRESHOLDS = DEFAULT_THRESHOLDS;
+  exports.UNREAD_TYPE = UNREAD_TYPE;
   exports.contextualHits = contextualHits;
+  exports.detectorSize = detectorSize;
   exports.moduleWorker = moduleWorker;
+  exports.unreadParts = unreadParts;
   Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
   return exports;
 })({});

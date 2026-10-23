@@ -27,12 +27,17 @@ export function inkTest(img: Img, box: Box) {
   };
 }
 
-/** The panel's background colour: the most common colour along its inner border and across it. */
+/**
+ * The panel's background colour: the most common colour along its inner border and across it. Mask grey is never the
+ * background: in a panel made mostly of masked text (a header with a masked client name) it would otherwise win, and
+ * the real background around the masks would read as bars.
+ */
 export function background(img: Img, box: Box): [number, number, number] {
   const counts = new Map<number, { n: number; rgb: [number, number, number] }>();
   const { data, channels: C, width: iw } = img;
   const add = (x: number, y: number) => {
     const i = (y * iw + x) * C, r = data[i], g = data[i + 1], b = data[i + 2];
+    if (isMaskGrey(r, g, b)) return;
     const k = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3), e = counts.get(k);
     if (e) e.n++; else counts.set(k, { n: 1, rgb: [r, g, b] });
   };

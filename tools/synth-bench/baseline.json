@@ -1,77 +1,77 @@
 {
- "measured": "2026-10-22",
+ "measured": "2026-10-23",
  "version": "0.6.0",
  "images": 60,
  "sensitiveWords": 5027,
  "safeWords": 1975,
  "unknownWords": 82,
  "firstPassExposed": {
-  "pct": 11.58,
-  "lo": 10.72,
-  "hi": 12.49,
-  "k": 582,
+  "pct": 3.96,
+  "lo": 3.45,
+  "hi": 4.53,
+  "k": 199,
   "n": 5027
  },
  "residualExposed": {
-  "pct": 10.24,
-  "lo": 9.44,
-  "hi": 11.11,
-  "k": 515,
+  "pct": 3.6,
+  "lo": 3.12,
+  "hi": 4.15,
+  "k": 181,
   "n": 5027
  },
- "residualRotated": 222,
- "firstPassLeakedAreaPct": 3.88,
- "residualLeakedAreaPct": 3.1,
+ "residualRotated": 35,
+ "firstPassLeakedAreaPct": 1.27,
+ "residualLeakedAreaPct": 1.2,
  "overMasked": {
-  "pct": 9.01,
-  "lo": 7.83,
-  "hi": 10.36,
-  "k": 178,
+  "pct": 13.92,
+  "lo": 12.47,
+  "hi": 15.52,
+  "k": 275,
   "n": 1975
  },
  "falseAlarms": {
-  "pct": 56.82,
-  "lo": 50.79,
-  "hi": 62.65,
-  "k": 150,
-  "n": 264
+  "pct": 83.09,
+  "lo": 75.9,
+  "hi": 88.46,
+  "k": 113,
+  "n": 136
  },
  "byKind": {
   "number": {
    "words": 2204,
-   "firstPassExposedPct": 10.16,
-   "residualExposedPct": 8.26
+   "firstPassExposedPct": 6.31,
+   "residualExposedPct": 5.54
   },
   "name": {
    "words": 676,
-   "firstPassExposedPct": 13.02,
-   "residualExposedPct": 12.43
+   "firstPassExposedPct": 2.66,
+   "residualExposedPct": 2.51
   },
   "org": {
    "words": 890,
-   "firstPassExposedPct": 13.26,
-   "residualExposedPct": 12.36
+   "firstPassExposedPct": 1.69,
+   "residualExposedPct": 1.69
   },
   "email": {
    "words": 119,
-   "firstPassExposedPct": 7.56,
-   "residualExposedPct": 6.72
+   "firstPassExposedPct": 0.84,
+   "residualExposedPct": 0.84
   },
   "id": {
    "words": 137,
-   "firstPassExposedPct": 1.46,
-   "residualExposedPct": 1.46
+   "firstPassExposedPct": 0,
+   "residualExposedPct": 0
   },
   "place": {
    "words": 413,
-   "firstPassExposedPct": 12.59,
-   "residualExposedPct": 10.9
+   "firstPassExposedPct": 3.39,
+   "residualExposedPct": 3.39
   },
   "product": {
    "words": 588,
-   "firstPassExposedPct": 15.14,
-   "residualExposedPct": 14.29
+   "firstPassExposedPct": 2.04,
+   "residualExposedPct": 2.04
   }
  },
- "medianSeconds": 26.201
+ "medianSeconds": 27.213
 }

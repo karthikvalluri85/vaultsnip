@@ -1,7 +1,8 @@
 // Masking benchmark on the generated dashboards (developer tool): reviews each image with VaultSnip's own review step
 // and scores the result against the truth gen.mjs wrote.
-//   node tools/synth-bench/run.mjs [--dir .bench/synth] [--reuse] [--json result.json]
-// --reuse scores existing <id>.review.json files instead of reading the images again.
+//   node tools/synth-bench/run.mjs [--dir .bench/synth] [--reuse | --resume] [--json result.json]
+// --reuse scores existing <id>.review.json files instead of reading the images again; --resume reads only the images
+// that have none yet (to finish an interrupted run).
 //
 // What is scored (definitions in ACCURACY.md):
 //   exposed     a sensitive word with more than EXPOSED of its box not covered (measured by sampling points in the box)
@@ -10,7 +11,7 @@
 //   over-masked a safe word with more than half its box covered by a mask
 //   false alarm a check finding that touches no sensitive word the first pass left exposed
 // Rates carry a 95% Wilson interval: with a few thousand words, a difference smaller than the interval is noise.
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ROOT } from '../layout-bench/items.mjs';
 import { reviewer } from '../layout-bench/review.mjs';
@@ -18,7 +19,9 @@ import { EXPOSED, covered, overlap, wilson } from './metrics.mjs';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
 const DIR = arg('--dir', join(ROOT, '.bench', 'synth'));
-const reuse = process.argv.includes('--reuse');
+const reuse = process.argv.includes('--reuse'), resume = process.argv.includes('--resume');
+// a run that stops early must not leave an older result behind for the gate to read
+if (arg('--json')) await rm(arg('--json'), { force: true });
 
 const files = (await readdir(DIR)).filter((f) => f.endsWith('.truth.json')).sort();
 if (!files.length) { console.error(`no generated dashboards in ${DIR}: run tools/synth-bench/gen.mjs first`); process.exit(1); }
@@ -32,7 +35,9 @@ try {
     const truth = JSON.parse(await readFile(join(DIR, f), 'utf8'));
     const reviewFile = join(DIR, truth.id + '.review.json');
     let r;
-    if (reuse) r = JSON.parse(await readFile(reviewFile, 'utf8'));
+    const saved = (reuse || resume) ? await readFile(reviewFile, 'utf8').then(JSON.parse, () => null) : null;
+    if (saved) r = saved;
+    else if (reuse) throw new Error(`${reviewFile} is missing: run without --reuse`);
     else { r = await app.read(join(DIR, truth.file)); await writeFile(reviewFile, JSON.stringify(r)); }
     times.push(r.ms / 1000);
     const k = r.width / truth.width;                                   // truth is in file pixels, the review in the app's

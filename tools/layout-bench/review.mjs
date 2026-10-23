@@ -13,7 +13,8 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 
 /** Starts the app and a browser; read(file) reviews one image in a fresh page; close() stops both. */
 export async function reviewer() {
-  const web = join(ROOT, 'web');
+  // VAULTSNIP_WEB serves another build's web/ (to compare builds with the same harness)
+  const web = process.env.VAULTSNIP_WEB || join(ROOT, 'web');
   const server = createServer(async (req, res) => {
     const file = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^([/\\])+/, '') || 'index.html';
     try { const body = await readFile(join(web, file)); res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream' }); res.end(body); }
@@ -21,16 +22,25 @@ export async function reviewer() {
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}/`;
-  const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 
-  async function read(file) {
-    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });   // a fresh app for every image
+  // One image in a fresh browser, as a user's tab would be: in a long run, one shared browser slowly degraded until
+  // a page stalled while reading. A page that has not finished after TIMEOUT (a normal image takes under a minute) is
+  // reported with the step it was stuck on, and the image is tried once more.
+  const TIMEOUT = 180000;
+  async function attempt(file) {
+    const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
+    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     try {
       await page.goto(base);
       const t0 = Date.now();
       await page.setInputFiles('#file', file);
       // polled by time: animation frames can stop in a headless page
-      await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 300000, polling: 1000 });
+      try {
+        await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: TIMEOUT, polling: 1000 });
+      } catch (e) {
+        const at = await page.evaluate(() => document.getElementById('status')?.textContent?.trim()).catch(() => '?');
+        throw new Error(`no result after ${TIMEOUT / 1000} s, stuck at "${at}"`);
+      }
       const out = await page.evaluate(() => {
         const S = window.__DSC, input = S.test.layoutInput();
         return { width: input.image.width, height: input.image.height, words: input.words, masks: input.masks, gate: S.gate,
@@ -39,8 +49,12 @@ export async function reviewer() {
       out.ms = Date.now() - t0;
       return out;
     } finally {
-      await page.close();
+      await browser.close();
     }
   }
-  return { read, close: async () => { await browser.close(); server.close(); } };
+  async function read(file) {
+    try { return await attempt(file); }
+    catch (e) { console.warn(`  ! ${file}: ${e.message}; trying again`); return attempt(file); }
+  }
+  return { read, close: async () => { server.close(); } };
 }

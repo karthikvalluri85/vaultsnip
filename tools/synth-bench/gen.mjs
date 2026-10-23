@@ -170,7 +170,12 @@ async function render(d) {
       const k = norm(m[0]);
       const kind = d.kinds[k] || (/\d/.test(k) ? 'number' : k ? 'unknown' : 'punctuation');
       // rotated text gets its upright bounding box, which also holds background; such words are marked
-      const rotated = !!pe.closest('[transform*="rotate"]');
+      // chart libraries wrap every label in a transform, often rotate(0): only a real angle counts
+      let rotated = false;
+      for (let a = pe; a && a !== dash; a = a.parentElement) {
+        const m = /rotate\(\s*(-?[\d.]+)/.exec(a.getAttribute('transform') || '');
+        if (m && Math.abs(parseFloat(m[1])) % 180 > 1) { rotated = true; break; }
+      }
       words.push({ text: m[0], x: x0 - R.left, y: y0 - R.top, w: x1 - x0, h: y1 - y0, kind, clipped: x1 - x0 < b.width - 1 || y1 - y0 < b.height - 1, rotated });
     }
   }
