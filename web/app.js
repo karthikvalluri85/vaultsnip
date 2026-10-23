@@ -217,7 +217,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       workerP = Tesseract.createWorker('eng', 1, {
         workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
         workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
-        logger: m => { lastBeat = Date.now(); if (m.status && typeof m.progress === 'number') showProgress(m.status, m.progress); }
+        logger: m => { heartbeat(m); if (m.status && typeof m.progress === 'number') showProgress(m.status, m.progress); }
       }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
         .catch(e => { workerP = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
     }
@@ -283,17 +283,25 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     ocrQueue = run.catch(() => {});
     return run;
   }
-  // Watchdog: the reader reports progress all the time it works. On a busy machine it can occasionally stop answering
-  // altogether, which used to leave the progress figure frozen for good. When it has been silent for STALL_MS, the
-  // stuck reader is ended and the pass runs once more with a fresh one; a second stall is reported to the user.
-  const STALL_MS = 30000;
-  let lastBeat = 0;
+  // Watchdog: the reader reports its progress all the time it works. On a busy machine it can occasionally get stuck,
+  // which used to leave the progress figure frozen for good: sometimes silent, sometimes repeating the same figure.
+  // When its progress has not moved for STALL_MS, or one pass has run longer than PASS_MAX_MS (a pass normally takes
+  // seconds), the stuck reader is ended and the pass runs once more with a fresh one; a second stall is reported.
+  const STALL_MS = 30000, PASS_MAX_MS = 120000;
+  let lastBeat = 0, lastProgress = '';
+  function heartbeat(m) {
+    const at = m.status + ':' + m.progress;   // only progress that moves counts
+    if (at !== lastProgress) { lastProgress = at; lastBeat = Date.now(); }
+  }
   class ReaderStalled extends Error {}
   function watched(promise) {
-    lastBeat = Date.now();
+    const start = lastBeat = Date.now();
+    lastProgress = '';
     let timer;
-    const limit = S.test && S.test.stallMs || STALL_MS;
-    const stalled = new Promise((_, reject) => { timer = setInterval(() => { if (Date.now() - lastBeat > limit) reject(new ReaderStalled('reader stalled')); }, 500); });
+    const still = S.test && S.test.stallMs || STALL_MS, most = S.test && S.test.passMaxMs || PASS_MAX_MS;
+    const stalled = new Promise((_, reject) => {
+      timer = setInterval(() => { const now = Date.now(); if (now - lastBeat > still || now - start > most) reject(new ReaderStalled('reader stalled')); }, 500);
+    });
     return Promise.race([promise, stalled]).finally(() => clearInterval(timer));
   }
   async function recognize(canvas, kind) {
@@ -302,7 +310,11 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
       try {
         // tests can make the next readings hang, to prove the watchdog recovers
-        const run = S.test && S.test.stalls > 0 ? (S.test.stalls--, new Promise(() => {})) : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
+        // (silent, or repeating the same progress figure for a while)
+        const spin = () => { const t = setInterval(() => heartbeat({ status: 'recognizing text', progress: 0.06 }), 200); setTimeout(() => clearInterval(t), 10000); };
+        const run = S.test && S.test.stalls > 0 ? (S.test.stalls--, new Promise(() => {}))
+          : S.test && S.test.spins > 0 ? (S.test.spins--, spin(), new Promise(() => {}))
+          : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
         run.catch(() => {});   // an abandoned reading may still fail once its reader is ended
         return (await watched(run)).data;
       } catch (e) {
