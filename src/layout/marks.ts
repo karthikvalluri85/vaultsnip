@@ -72,9 +72,13 @@ export function findMarks(img: Img, box: Box, words: Word[] = [], minPixels = 6)
     for (let y = Math.max(0, Math.floor(w.y - y0) - 1); y < Math.min(H, Math.ceil(w.y + w.h - y0) + 1); y++)
       for (let x = Math.max(0, Math.floor(w.x - x0) - 1); x < Math.min(W, Math.ceil(w.x + w.w - x0) + 1); x++) on[y * W + x] = 0;
   }
+  // a neutral grey pixel never joins a coloured one: a chart line would otherwise join every gridline it crosses
+  // through their antialiased pixels, and no longer look thin
+  // (light greys only: gridlines are light, while a dark grey is as likely a data series, such as Power BI's charcoal)
+  const neutral = (p: number) => { const i = ((y0 + ((p / W) | 0)) * iw + x0 + (p % W)) * C, hi = Math.max(data[i], data[i + 1], data[i + 2]); return hi >= 150 && hi - Math.min(data[i], data[i + 1], data[i + 2]) <= 16; };
   const close = (p: number, q: number) => {
     const i = ((y0 + ((p / W) | 0)) * iw + x0 + (p % W)) * C, j = ((y0 + ((q / W) | 0)) * iw + x0 + (q % W)) * C;
-    return Math.abs(data[i] - data[j]) < 40 && Math.abs(data[i + 1] - data[j + 1]) < 40 && Math.abs(data[i + 2] - data[j + 2]) < 40;
+    return Math.abs(data[i] - data[j]) < 40 && Math.abs(data[i + 1] - data[j + 1]) < 40 && Math.abs(data[i + 2] - data[j + 2]) < 40 && neutral(p) === neutral(q);
   };
   const seen = new Uint8Array(W * H), out: Mark[] = [], stack: number[] = [];
   for (let s = 0; s < W * H; s++) {

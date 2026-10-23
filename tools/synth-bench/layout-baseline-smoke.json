@@ -7,9 +7,9 @@
   "found": 50,
   "foundPct": 98,
   "extraPanels": 2,
-  "typesRight": 35,
-  "typesRightPct": 70,
-  "endToEndPct": 68.6,
+  "typesRight": 37,
+  "typesRightPct": 74,
+  "endToEndPct": 72.5,
   "byType": {
    "pie": {
     "visuals": 8,
@@ -21,9 +21,9 @@
    "bar": {
     "visuals": 14,
     "found": 14,
-    "typesRight": 8,
+    "typesRight": 9,
     "foundPct": 100,
-    "typesRightPct": 57.1
+    "typesRightPct": 64.3
    },
    "table": {
     "visuals": 8,
@@ -49,9 +49,9 @@
    "line": {
     "visuals": 7,
     "found": 7,
-    "typesRight": 5,
+    "typesRight": 6,
     "foundPct": 100,
-    "typesRightPct": 71.4
+    "typesRightPct": 85.7
    }
   }
  }
