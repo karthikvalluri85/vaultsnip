@@ -217,7 +217,7 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
       workerP = Tesseract.createWorker('eng', 1, {
         workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
         workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
-        logger: m => { if (m.status && typeof m.progress === 'number') showProgress(m.status, m.progress); }
+        logger: m => { lastBeat = Date.now(); if (m.status && typeof m.progress === 'number') showProgress(m.status, m.progress); }
       }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
         .catch(e => { workerP = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
     }
@@ -283,14 +283,44 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     ocrQueue = run.catch(() => {});
     return run;
   }
+  // Watchdog: the reader reports progress all the time it works. On a busy machine it can occasionally stop answering
+  // altogether, which used to leave the progress figure frozen for good. When it has been silent for STALL_MS, the
+  // stuck reader is ended and the pass runs once more with a fresh one; a second stall is reported to the user.
+  const STALL_MS = 30000;
+  let lastBeat = 0;
+  class ReaderStalled extends Error {}
+  function watched(promise) {
+    lastBeat = Date.now();
+    let timer;
+    const limit = S.test && S.test.stallMs || STALL_MS;
+    const stalled = new Promise((_, reject) => { timer = setInterval(() => { if (Date.now() - lastBeat > limit) reject(new ReaderStalled('reader stalled')); }, 500); });
+    return Promise.race([promise, stalled]).finally(() => clearInterval(timer));
+  }
+  async function recognize(canvas, kind) {
+    for (let attempt = 0; ; attempt++) {
+      const w = await worker();
+      if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
+      try {
+        // tests can make the next readings hang, to prove the watchdog recovers
+        const run = S.test && S.test.stalls > 0 ? (S.test.stalls--, new Promise(() => {})) : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
+        run.catch(() => {});   // an abandoned reading may still fail once its reader is ended
+        return (await watched(run)).data;
+      } catch (e) {
+        if (!(e instanceof ReaderStalled)) throw e;
+        console.warn('The on-device reader stopped responding; restarting it.');
+        workerP = null;
+        w.terminate().catch(() => {});
+        if (attempt >= 1) throw new Error('it stopped responding twice. Please try again; closing other tabs can help.');
+        continue;
+      } finally {
+        if (kind === 'block' && workerP) await (await workerP).setParameters({ tessedit_pageseg_mode: '11' }).catch(() => {});
+      }
+    }
+  }
   async function ocrPass(src, scale, kind) {
     kind = kind === true ? 'inverted' : (kind || 'normal');
     const invert = kind === 'inverted';
-    const w = await worker();
-    if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
-    let data;
-    try { ({ data } = await w.recognize(prep(src, scale, kind), {}, { tsv: true, text: false, blocks: false, hocr: false })); }
-    finally { if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '11' }); }
+    const data = await recognize(prep(src, scale, kind), kind);
     const out = [];
     (data.tsv || '').split('\n').forEach(line => {
       const c = line.split('\t');
@@ -983,7 +1013,7 @@ customer service staff agent team people everyone nobody someone something nothi
       job = null;
       if (!current()) return;
       console.error(err);
-      setStatus('The on-device reader could not start: ' + (err && err.message || err), false);
+      setStatus('The on-device reader could not finish: ' + (err && err.message || err), false);
       if (window.VSFeedback) VSFeedback.problem(err, 'On-device reader');
     } finally {
       if (current()) job = null;

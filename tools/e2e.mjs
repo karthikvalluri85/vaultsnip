@@ -873,6 +873,25 @@ try {
   check(!/BAD000/.test(await page.evaluate(() => VSFeedback.context().error)), 'the rejected key never appears in a feedback report');
   await page.keyboard.press('Escape');
 
+  console.log('Reader watchdog');
+  // the reader can stop answering on a busy machine: the app must restart it, and say so if it happens twice
+  {
+    await page.goto(base);
+    const small = await page.screenshot({ clip: { x: 0, y: 0, width: 360, height: 140 } });
+    const warnings = []; const onWarn = m => { if (m.type() === 'warning') warnings.push(m.text()); };
+    page.on('console', onWarn);
+    await page.evaluate(() => { window.__DSC.test.stalls = 1; window.__DSC.test.stallMs = 2000; });
+    await page.setInputFiles('#file', { name: 'stall-once.png', mimeType: 'image/png', buffer: small });
+    const ok = await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 60000, polling: 500 }).then(() => true, () => false);
+    check(ok && warnings.some(w => /stopped responding; restarting/.test(w)), 'a reader that stops answering is restarted and the reading finishes');
+    await page.goto(base);
+    await page.evaluate(() => { window.__DSC.test.stalls = 2; window.__DSC.test.stallMs = 2000; });
+    await page.setInputFiles('#file', { name: 'stall-twice.png', mimeType: 'image/png', buffer: small });
+    const told = await page.waitForFunction(() => /could not finish: it stopped responding twice/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 60000, polling: 500 }).then(() => true, () => false);
+    check(told, 'a reader that stops answering twice gives a clear message instead of a frozen progress figure');
+    page.off('console', onWarn);
+  }
+
   console.log('Two screenshots in quick succession');
   // The first screenshot is still being read when the second arrives: its late results must not land on the second.
   await page.goto(base);
