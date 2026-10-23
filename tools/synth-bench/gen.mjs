@@ -20,6 +20,7 @@ import { ROOT } from '../layout-bench/items.mjs';
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
 const COUNT = +arg('--count', 60), SEED = +arg('--seed', 1), OUT = arg('--out', join(ROOT, '.bench', 'synth'));
 const ALLOW = new Set(ALLOW_WORDS);
+const MAPS = Object.fromEntries(await Promise.all(['world', 'europe', 'usa', 'india', 'brazil'].map(async (m) => [m, JSON.parse(await readFile(join(ROOT, 'web', 'maps', m + '.json'), 'utf8'))])));
 
 /* ---------- vocabulary: safe words come only from VaultSnip's allowlist, so "safe" means safe by its policy ---------- */
 const allowed = (s) => s.split(/\s+/).every((w) => ALLOW.has(w.toLowerCase()));
@@ -77,8 +78,20 @@ function dashboard(i) {
     const k = type === 'line' ? 'month' : dk;
     const cats = type === 'line' ? MONTHS.slice(0, f.number.int({ min: 5, max: 12 })).map((x) => note(x, ALLOW.has(x.toLowerCase()) ? 'label' : 'period'))
       : Array.from({ length: f.number.int({ min: 3, max: type === 'pie' ? 5 : 7 }) }, () => entity(dk));
-    const values = cats.map(() => f.number.int({ min: 5, max: 950 }) * pick(f, [1, 10, 1000]));
+    // one order of magnitude per chart, as real series are (a value a thousand times its neighbours left the others
+    // too short to see)
+    const magnitude = pick(f, [1, 10, 1000]);
+    const values = cats.map(() => f.number.int({ min: 120, max: 950 }) * magnitude);
     panels.push({ type, title: title(m, cap(type === 'line' ? 'month' : pick(f, DIMS[k] || DIMS.place))), cats, values, measure: label(cap(m)), rotate: f.datatype.boolean() ? -45 : 0 });
+  }
+  // about one dashboard in three also carries a choropleth map, from its own random stream so that adding maps left the
+  // other panels of every dashboard as they were. Outlines: VaultSnip's own web/maps (Natural Earth, public domain).
+  const fm = new Faker({ locale: [en], seed: SEED * 7919 + i });
+  if (fm.number.int({ min: 0, max: 2 }) === 0) {
+    const mm = pick(fm, MEASURES), file = pick(fm, ['world', 'europe', 'usa', 'india', 'brazil']);
+    const geo = MAPS[file];
+    panels.push({ type: 'map', title: label(cap(`${mm} by ${file === 'world' || file === 'europe' ? 'country' : 'region'}`)), measure: label(cap(mm)),
+      geo: { ...geo, features: geo.features.map((ft) => ({ ...ft, properties: { name: ft.properties.name, v: fm.number.int({ min: 1, max: 999 }) } })) } });
   }
   const style = {
     font: pick(f, ['Inter', 'Roboto Slab', 'IBM Plex Mono']),
@@ -121,7 +134,7 @@ async function render(d) {
       if (p.delta) c.appendChild(el('div', `color:${p.delta.startsWith('+') ? '#2e9e5b' : '#d04545'};margin-top:4px`, p.delta));
       continue;
     }
-    const span = Math.min(s.cols, p.type === 'table' ? 2 : 1 + (p.cats.length > 5 ? 1 : 0));
+    const span = Math.min(s.cols, p.type === 'table' || p.type === 'map' ? 2 : 1 + (p.cats.length > 5 ? 1 : 0));
     const c = card(p, span), w = W * span + 14 * (span - 1) - 26;
     if (p.type === 'table') {
       const t = el('table', `border-collapse:collapse;width:100%;font-size:${s.size}px`);
@@ -131,6 +144,15 @@ async function render(d) {
     }
     const box = el('div'); c.appendChild(box);
     const h = Math.round(w * 0.55);
+    if (p.type === 'map') {
+      const vm = { $schema: 'https://vega.github.io/schema/vega-lite/v6.json', width: w, height: h, autosize: { type: 'fit', contains: 'padding' }, background: T.panel,
+        data: { values: p.geo, format: { type: 'json', property: 'features' } }, projection: { type: 'identity', reflectY: true },   // planar: these outlines' ring order would fill the sphere otherwise
+        mark: { type: 'geoshape', stroke: T.panel, strokeWidth: 0.5 },
+        encoding: { color: { field: 'properties.v', type: 'quantitative', title: p.measure, scale: { scheme: s.theme === 'dark' ? 'tealblues' : 'blues' } } },
+        config: { font: FONT, legend: { labelColor: T.fg, titleColor: T.muted, labelFontSize: s.size, titleFontSize: s.size }, view: { stroke: null } } };
+      await new vega.View(vega.parse(vegaLite.compile(vm).spec), { renderer: 'svg', container: box }).runAsync();
+      continue;
+    }
     if (p.type === 'pie' || p.type === 'hbar') {
       const data = p.type === 'pie' ? [{ type: 'pie', labels: p.cats, values: p.values, textinfo: 'percent', sort: false, marker: { colors: T.series } }]
         : [{ type: 'bar', orientation: 'h', y: p.cats, x: p.values, marker: { color: T.series[0] } }];

@@ -2,76 +2,76 @@
  "measured": "2026-10-23",
  "version": "0.6.0",
  "images": 8,
- "sensitiveWords": 610,
- "safeWords": 279,
- "unknownWords": 10,
+ "sensitiveWords": 825,
+ "safeWords": 250,
+ "unknownWords": 15,
  "firstPassExposed": {
-  "pct": 2.62,
-  "lo": 1.62,
-  "hi": 4.22,
-  "k": 16,
-  "n": 610
+  "pct": 4.73,
+  "lo": 3.48,
+  "hi": 6.4,
+  "k": 39,
+  "n": 825
  },
  "residualExposed": {
-  "pct": 2.62,
-  "lo": 1.62,
-  "hi": 4.22,
-  "k": 16,
-  "n": 610
+  "pct": 4.12,
+  "lo": 2.96,
+  "hi": 5.7,
+  "k": 34,
+  "n": 825
  },
- "residualRotated": 8,
- "firstPassLeakedAreaPct": 0.48,
- "residualLeakedAreaPct": 0.48,
+ "residualRotated": 10,
+ "firstPassLeakedAreaPct": 1.39,
+ "residualLeakedAreaPct": 1.19,
  "overMasked": {
-  "pct": 11.11,
-  "lo": 7.94,
-  "hi": 15.34,
+  "pct": 12.4,
+  "lo": 8.87,
+  "hi": 17.06,
   "k": 31,
-  "n": 279
+  "n": 250
  },
  "falseAlarms": {
-  "pct": 100,
-  "lo": 74.12,
-  "hi": 100,
+  "pct": 64.71,
+  "lo": 41.3,
+  "hi": 82.69,
   "k": 11,
-  "n": 11
+  "n": 17
  },
  "byKind": {
   "number": {
-   "words": 240,
-   "firstPassExposedPct": 3.33,
-   "residualExposedPct": 3.33
+   "words": 297,
+   "firstPassExposedPct": 7.07,
+   "residualExposedPct": 5.39
   },
   "name": {
-   "words": 111,
-   "firstPassExposedPct": 5.41,
-   "residualExposedPct": 5.41
+   "words": 105,
+   "firstPassExposedPct": 1.9,
+   "residualExposedPct": 1.9
   },
   "org": {
-   "words": 93,
-   "firstPassExposedPct": 2.15,
-   "residualExposedPct": 2.15
-  },
-  "email": {
-   "words": 21,
-   "firstPassExposedPct": 0,
-   "residualExposedPct": 0
-  },
-  "id": {
-   "words": 22,
-   "firstPassExposedPct": 0,
-   "residualExposedPct": 0
-  },
-  "place": {
-   "words": 66,
-   "firstPassExposedPct": 0,
-   "residualExposedPct": 0
+   "words": 136,
+   "firstPassExposedPct": 6.62,
+   "residualExposedPct": 6.62
   },
   "product": {
-   "words": 57,
+   "words": 193,
+   "firstPassExposedPct": 2.59,
+   "residualExposedPct": 2.59
+  },
+  "place": {
+   "words": 59,
+   "firstPassExposedPct": 3.39,
+   "residualExposedPct": 3.39
+  },
+  "id": {
+   "words": 25,
+   "firstPassExposedPct": 0,
+   "residualExposedPct": 0
+  },
+  "email": {
+   "words": 10,
    "firstPassExposedPct": 0,
    "residualExposedPct": 0
   }
  },
- "medianSeconds": 27.675
+ "medianSeconds": 28.12
 }

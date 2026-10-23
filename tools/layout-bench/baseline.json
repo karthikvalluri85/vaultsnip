@@ -8,10 +8,10 @@
   "found": 75,
   "foundPct": 93.8,
   "extraPanels": 13,
-  "typesRightLenient": 56,
-  "typesRightStrict": 51,
-  "typesRightPct": 74.7,
-  "endToEndPct": 70,
+  "typesRightLenient": 57,
+  "typesRightStrict": 52,
+  "typesRightPct": 76,
+  "endToEndPct": 71.3,
   "byTool": {
    "Power BI": {
     "dashboards": 4,
@@ -25,17 +25,17 @@
     "dashboards": 4,
     "visuals": 43,
     "found": 41,
-    "typesRight": 32,
+    "typesRight": 31,
     "foundPct": 95.3,
-    "typesRightPct": 78
+    "typesRightPct": 75.6
    },
    "Looker": {
     "dashboards": 3,
     "visuals": 10,
     "found": 9,
-    "typesRight": 4,
+    "typesRight": 6,
     "foundPct": 90,
-    "typesRightPct": 44.4
+    "typesRightPct": 66.7
    },
    "VaultSnip": {
     "dashboards": 1,

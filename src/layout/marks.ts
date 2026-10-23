@@ -12,6 +12,7 @@ export interface Mark {
   n: number;              // pixel count
   fill: number;           // n / bounding-box area
   cx: number; cy: number; // centroid
+  colors: number;         // colour buckets holding at least 4% of its pixels (a choropleth's shades; a bar has one)
 }
 
 /** How far (per channel) a pixel must be from the panel background to count as ink: low enough for pale grey bars on an off-white card. */
@@ -106,7 +107,8 @@ export function findMarks(img: Img, box: Box, words: Word[] = [], minPixels = 6)
     if (bw > W * 0.92 && bh > H * 0.92) continue;
     let key = 0, best = -1;
     for (const [k, m] of keys) if (m > best) { best = m; key = k; }
-    out.push({ key, b: [x0 + bx0, y0 + by0, x0 + bx1 + 1, y0 + by1 + 1], n, fill: n / (bw * bh), cx: x0 + sx / n, cy: y0 + sy / n });
+    const colors = [...keys.values()].filter((m) => m >= n * 0.04).length;
+    out.push({ key, b: [x0 + bx0, y0 + by0, x0 + bx1 + 1, y0 + by1 + 1], n, fill: n / (bw * bh), cx: x0 + sx / n, cy: y0 + sy / n, colors });
   }
   return out.sort((a, b) => b.n - a.n);
 }
@@ -139,7 +141,7 @@ export function splitColumns(img: Img, m: Mark, ink: (x: number, y: number) => b
   if (Math.max(...widths) > Math.min(...widths) * 3) return [m];
   return segs.map(([a, b]) => {
     const t = Math.min(...top.slice(a, b)), n = cnt.slice(a, b).reduce((s, v) => s + v, 0), bw = b - a, bh = Math.max(1, y1 - t);
-    return { key: m.key, b: [x0 + a, t, x0 + b, y1] as Box, n, fill: Math.min(1, n / (bw * bh)), cx: x0 + (a + b) / 2, cy: (t + y1) / 2 };
+    return { key: m.key, b: [x0 + a, t, x0 + b, y1] as Box, n, fill: Math.min(1, n / (bw * bh)), cx: x0 + (a + b) / 2, cy: (t + y1) / 2, colors: 1 };
   });
 }
 

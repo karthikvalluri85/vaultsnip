@@ -184,6 +184,37 @@ What changed:
 Still open, in order of size: bars read as tables or lines when only a few of them are long enough to see, line charts
 read as text, and maps (all four in the public set are still mistyped).
 
+## The generated set, version 3 (24 October 2026)
+
+Two changes to the generator, so the set measures real dashboards better. The figures from here on are on this set
+and are not comparable with the ones above:
+
+- **Realistic magnitudes.** Each chart's values now stay within one order of magnitude. Before, a value could be a
+  thousand times its neighbours, leaving most bars a pixel long; that made the builder look worse on bars than it is.
+- **Maps.** About one dashboard in three gets a filled map (world, Europe, USA, India or Brazil, from VaultSnip's own
+  Natural Earth outlines) with a numeric legend: 27 maps in all.
+
+| Figure (generated set v3) | Without map reading | With it |
+|---|---|---|
+| Visuals found | 89.1% | 89.1% |
+| Type right, of those found | 81.1% | **85.8%** |
+| End to end | 72.3% | **76.5%** |
+| Maps typed right | 8 of 27 | **25 of 27** |
+| Sensitive words exposed after the check | 5.8% [5.2–6.5] | (masking unchanged) |
+| Safe words masked | 14.3% | |
+
+**Maps.** The builder now reads filled maps: either many irregular regions touching one another, or one large
+irregular mark holding many shades (neighbouring regions in close shades join), as long as the bar reader does not
+find bars on a shared baseline in it and it is not round like a pie. On the public dashboards, the two Looker maps are
+now read as maps (57 of 75 visuals typed right, 56 before); the Power BI map over street tiles and the Tableau map are
+not yet.
+
+**Masking on this set** is harder than on version 2: more numbers per dashboard, and map legends. Numbers are the
+weakest kind (8.1% exposed after the check), which is the next masking target.
+
+The extension's *Blur text in charts on this page* now runs the same unread-text check as the app (without the
+app's second look, so a region far thicker than a line of text is left alone rather than blurring a whole chart).
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

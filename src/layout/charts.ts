@@ -10,7 +10,7 @@
 import { height, isBigBox, isMaskGrey, keyHex, labelStacks, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
 import { bySeries, findMarks, inkTest, isTextSpeck, sameColor, splitColumns, type Mark } from './marks';
 
-export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'table' | 'text' | 'placeholder';
+export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'map' | 'table' | 'text' | 'placeholder';
 
 export interface Reading {
   type: ChartType;
@@ -275,6 +275,31 @@ function scatter(c: Ctx): Reading | null {
 }
 
 /** Treemap: solid tiles of several sizes filling a rectangle. */
+/**
+ * A filled map: many irregular regions (countries, states) that touch one another and together cover a good share of
+ * the panel. Neither solid rectangles (bars, treemap tiles) nor thin strokes (lines). Which map it is cannot be told
+ * from the outlines, so the replica draws a world map and borrows its places from the rest of the dashboard.
+ */
+function map(c: Ctx): Reading | null {
+  const pa = width(c.b) * height(c.b);
+  const thinSet = new Set(c.thin);
+  const regions = c.body.filter((m) => !thinSet.has(m) && m.fill >= 0.12 && m.fill < 0.8 && m.n >= pa * 0.0003 && Math.min(width(m.b), height(m.b)) >= 3);
+  // (solid rectangles among the marks themselves: the column splitting behind c.rects slices irregular regions too)
+  const solid = c.body.filter((m) => m.fill >= 0.85).length;
+  const asMap = { type: 'map' as const, certainty: 0.55, fields: { basemap: 'world', mapKind: 'filled', dimension: { name: c.dName || 'Region', members: [] }, measure: c.measure, series: [{ name: c.measure.name, shape: [] }] } };
+  // neighbouring regions in close shades join into one mark: one large irregular mark holding many shades is a map too
+  // (an area chart's fill is one colour)
+  // (not bars that touch, which the bar reader finds on a shared baseline, nor a pie, which is round and evenly filled)
+  const round = (m: Mark) => { const r = width(m.b) / Math.max(1, height(m.b)); return r > 0.85 && r < 1.18 && m.fill > 0.68; };
+  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m))) return asMap;
+  if (regions.length < 6 || c.thin.length > 2 || solid > regions.length * 0.5) return null;
+  if (regions.reduce((a, m) => a + m.n, 0) < pa * 0.08) return null;
+  // neighbouring regions share borders: most of them touch another
+  const touch = (a: Mark, b: Mark) => a.b[0] <= b.b[2] + 2 && b.b[0] <= a.b[2] + 2 && a.b[1] <= b.b[3] + 2 && b.b[1] <= a.b[3] + 2;
+  if (regions.filter((m) => regions.some((o) => o !== m && touch(m, o))).length < regions.length * 0.6) return null;
+  return asMap;
+}
+
 function treemap(c: Ctx): Reading | null {
   const rs = c.rects.filter((m) => m.n >= 40);
   if (rs.length < 3) return null;
@@ -337,7 +362,7 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const bigH = Math.max(0, ...bigMasked.map((w) => w.h));
   const prominent = bigH >= height(b) * 0.12 || (bigMasked.length >= 1 && coverage < 0.012 && body.length <= 4 && words.length <= 6);
   if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3)) return done(kpi(c, 0.85))!;
-  return done(pie(c)) || done(treemap(c)) || done(barReading) || (grid ? done({ type: 'table', certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} }) : null)
+  return done(pie(c)) || done(treemap(c)) || done(map(c)) || done(barReading) || (grid ? done({ type: 'table', certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} }) : null)
     || done(lines(c)) || done(scatter(c))
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)

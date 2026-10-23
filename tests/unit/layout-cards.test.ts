@@ -73,6 +73,26 @@ describe('outlined cards', () => {
   });
 });
 
+describe('maps', () => {
+  it('irregular regions in shades of one colour, touching one another, read as a filled map', () => {
+    const img = canvas(520, 360);
+    // countries: the cells of 18 seed points (each pixel goes to its nearest seed) inside an oval continent, in shades of
+    // one blue, with 1 px white borders where two cells meet
+    const shades: RGB[] = [[198, 219, 239], [158, 202, 225], [107, 174, 214], [66, 146, 198], [33, 113, 181], [8, 81, 156]];
+    const seeds: [number, number][] = [];
+    for (let i = 0; i < 18; i++) seeds.push([90 + ((i * 97) % 340), 70 + ((i * 53) % 230)]);
+    for (let y = 40; y < 330; y++) for (let x = 40; x < 480; x++) {
+      if (((x - 260) / 215) ** 2 + ((y - 185) / 140) ** 2 > 1) continue;
+      const d = seeds.map(([sx, sy], k) => [(x - sx) ** 2 + (y - sy) ** 2, k]).sort((a, b) => a[0] - b[0]);
+      if (Math.sqrt(d[1][0]) - Math.sqrt(d[0][0]) < 1.2) continue;   // a border
+      img.data.set(shades[d[0][1] % shades.length], (y * img.width + x) * 3);
+    }
+    const words = [word('Sales', 10, 8)];
+    const r = buildSpec({ image: img, words, masks: [] });
+    expect(r.spec.rows.flatMap((row) => row.visuals.map((v) => v.type))).toContain('map');
+  });
+});
+
 describe('masked labels and KPI values', () => {
   it('a tight vertical stack of masked boxes is labels, a sidebar of KPI values is not', () => {
     const axis = [0, 1, 2, 3].map((i) => masked(40, 100 + i * 26, 60, 22));
