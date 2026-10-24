@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-24
+
 ### Added
 - **Combo and waterfall charts.** *Build on this device* now recognises columns with a line of their own over them (drawn on a second axis in the replica, with only the columns stacked) and waterfall charts, and reads stacked columns and grouped monthly columns more reliably. On the public dashboards 88% of visuals are now typed right (86% before).
 - **Fewer stray panels.** A small figure inside a KPI card (a sub-total, a "vs LY" change) stays part of that card in the replica instead of becoming a panel of its own.
@@ -168,7 +170,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.0...v0.5.1
