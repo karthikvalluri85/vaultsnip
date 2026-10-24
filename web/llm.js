@@ -28,6 +28,7 @@
         });
         if (!r.ok) throw await httpError(this, r);
         const j = await r.json();
+        countUsage(j.usage && j.usage.input_tokens, j.usage && j.usage.output_tokens);
         if (j.stop_reason === 'max_tokens') throw new Error('Claude ran out of room before finishing the layout. Try a smaller crop.');
         return (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
       }
@@ -53,6 +54,7 @@
         });
         if (!r.ok) throw await httpError(this, r);
         const j = await r.json();
+        countUsage(j.usage && j.usage.prompt_tokens, j.usage && j.usage.completion_tokens);
         const c = j.choices && j.choices[0];
         if (c && c.finish_reason === 'length') throw new Error('OpenAI ran out of room before finishing the layout. Try a smaller crop.');
         if (c && c.message && c.message.refusal) throw new Error('OpenAI declined the request: ' + c.message.refusal);
@@ -60,6 +62,11 @@
       }
     }
   };
+
+  // Tokens used since the page loaded, as the provider reported them (shown to no one; read by the AI-path benchmark
+  // in tools/ai-bench to report what a run cost)
+  const usage = { input: 0, output: 0, requests: 0 };
+  function countUsage(input, output) { usage.input += input || 0; usage.output += output || 0; usage.requests++; }
 
   async function httpError(p, r) {
     let msg = r.status + ' ' + r.statusText;
@@ -95,5 +102,5 @@
     return p.ask(opts);
   }
 
-  global.VSLLM = { PROVIDERS, detect, models, ask, pickDefault };
+  global.VSLLM = { PROVIDERS, detect, models, ask, pickDefault, usage };
 })(window);
