@@ -338,6 +338,33 @@ Two masking ideas were measured and dropped, both for privacy:
 - **The pre-flight check skipping chart shapes.** It cut findings from 179 to 168 on the generated set, but the check is
   the independent second layer: filtering it with the same tests as the first reading would let one mistake pass both.
 
+## Phase 5: combo and waterfall charts (24 October 2026)
+
+The replica already drew combos and waterfalls; the builder now reads them, so a replica shows what the original
+shows instead of a plain column chart:
+
+- **Combo.** Columns with a line over them in a colour of its own (a "% change" over counts, a total over stacked
+  columns). The line is read at each category, on a scale of its own, so the replica draws it on a second axis. It
+  must cross each column of pixels once and keep changing height: a gridline network of a tinted grey (dark themes) is
+  not a line. In the replica only a combo's columns stack.
+- **Waterfall.** Columns that do not share a baseline but chain, each starting where the one before ended, with
+  totals on the baseline; read before columns, since two of its columns stand on the baseline.
+- **Stacked columns** count segments standing on another segment as standing (the bar reader had missed a stacked
+  chart whose segments mostly float on one another).
+- **Grouped columns** split categories at the threshold that best separates the gaps (Otsu's method): one unusually
+  wide gap, where a mask hides a column, had merged eleven months into two.
+- A broken line's pieces must not overlap across, so gridlines at several heights never join into a "line".
+
+| Public dashboards | Before | After |
+|---|---|---|
+| Visuals typed right (lenient) | 65 of 76 | **67 of 76** (88.2%) |
+| Typed exactly right (strict) | 61 | **64** |
+| End to end | 81.3% | **83.8%** |
+
+The Power BI HR page is now read entirely right: its stacked combo, its waterfall, and its grouped monthly columns
+with every month. On the generated set (which has no combos or waterfalls) nothing changes: 94.9% typed right. The
+clustered combo on that page is still read as columns: its line is not found yet.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

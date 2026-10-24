@@ -10,7 +10,7 @@
 import { height, isBigBox, isMaskGrey, keyHex, labelStacks, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
 import { bySeries, findMarks, inkTest, isTextSpeck, sameColor, splitColumns, type Mark } from './marks';
 
-export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'map' | 'table' | 'text' | 'placeholder';
+export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'map' | 'table' | 'text' | 'placeholder' | 'combo' | 'waterfall';
 
 export interface Reading {
   type: ChartType;
@@ -20,6 +20,8 @@ export interface Reading {
   fields: Record<string, unknown>;
   /** Main mark colour, for the page theme. */
   color?: string;
+  /** Columns only (not in the spec): each category's centre, the baseline and the bar series' colours. */
+  at?: number[]; base?: number; keys?: number[];
 }
 
 const round = (x: number) => Math.max(0, Math.min(100, Math.round(x)));
@@ -97,8 +99,19 @@ function categories(rs: Mark[], lo: (m: Mark) => number, hi: (m: Mark) => number
   if (!grouped || clusters.length < 4) return clusters;
   // grouped bars: bars of one category sit close; categories are separated by the wider gaps
   const gaps = clusters.slice(1).map((c, i) => c.lo - clusters[i].hi);
-  const sortedGaps = [...gaps].sort((a, b) => a - b), split = (sortedGaps[0] + sortedGaps[sortedGaps.length - 1]) / 2;
+  // (the line between "within a category" and "between categories" splits the gaps into the two most distinct groups,
+  // as Otsu's threshold does: halfway between the smallest and largest gap, one unusually wide gap, where a mask hides a
+  // column, merged every category)
+  const sortedGaps = [...gaps].sort((a, b) => a - b);
   if (sortedGaps[sortedGaps.length - 1] - sortedGaps[0] < 3) return clusters;
+  const total = sortedGaps.reduce((a, g) => a + g, 0);
+  let best = -1, split = sortedGaps[sortedGaps.length - 1], below = 0;
+  for (let i = 1; i < sortedGaps.length; i++) {
+    below += sortedGaps[i - 1];
+    if (sortedGaps[i] === sortedGaps[i - 1]) continue;
+    const n0 = i, n1 = sortedGaps.length - i, m0 = below / n0, m1 = (total - below) / n1, between = n0 * n1 * (m1 - m0) ** 2;
+    if (between > best) { best = between; split = (sortedGaps[i] + sortedGaps[i - 1]) / 2; }
+  }
   const merged: typeof clusters = [{ ...clusters[0], ms: [...clusters[0].ms] }];
   gaps.forEach((g, i) => { const c = clusters[i + 1]; if (g < split) { const m = merged[merged.length - 1]; m.ms.push(...c.ms); m.hi = c.hi; } else merged.push({ ...c, ms: [...c.ms] }); });
   return merged;
@@ -214,7 +227,10 @@ function bars(c: Ctx): Reading | null {
     return n > best.n ? { at, n } : best;
   }, { at: 0, n: 0 });
   const bottom = baseline(rs.map((m) => m.b[3]), atBottom), left = baseline(rs.map((m) => m.b[0]), atLeft);
-  const vert = bottom.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => width(m.b))) < 0.35;
+  // (in stacked columns most segments stand on another segment, not on the baseline: they count as standing)
+  const stackedOn = (m: Mark) => rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2 && Math.min(o.b[2], m.b[2]) - Math.max(o.b[0], m.b[0]) >= width(m.b) * 0.6);
+  const standing = rs.filter((m) => atBottom(m, bottom.at) || stackedOn(m)).length;
+  const vert = bottom.n >= 2 && standing >= rs.length * 0.5 && cv(rs.map((m) => width(m.b))) < 0.35;
   const horiz = left.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => height(m.b))) < 0.35;
   if (!vert && !horiz) return null;
   const isCol = vert && (!horiz || bottom.n > left.n || (bottom.n === left.n && height(hull(rs)) >= width(hull(rs))));
@@ -233,7 +249,8 @@ function bars(c: Ctx): Reading | null {
   const series = keys.map((k, i) => ({ name: c.nameOf(k.key) || (keys.length === 1 ? c.measure.name : `Series ${i + 1}`), shape: raw[i].map((v) => round((v / max) * 100)) }));
   const strength = (isCol ? bottom.n : left.n) / rs.length;
   return { type: isCol ? 'column' : 'bar', certainty: Math.min(1, 0.45 + strength * 0.5),
-    fields: { dimension: { name: c.dName || 'Category', members }, measure: c.measure, series, stacked, ...(isCol ? {} : { horizontal: true }) } };
+    fields: { dimension: { name: c.dName || 'Category', members }, measure: c.measure, series, stacked, ...(isCol ? {} : { horizontal: true }) },
+    ...(isCol ? { at: cats.map((k) => (k.lo + k.hi) / 2), base: bottom.at, keys: keys.map((k) => k.key) } : {}) };
 }
 
 /** Area (a wide filled shape) or line (long thin strokes): heights sampled under the axis labels. */
@@ -315,6 +332,37 @@ function map(c: Ctx): Reading | null {
   return asMap;
 }
 
+/**
+ * A waterfall: columns side by side that do not share a baseline but chain, each starting where the one before ended
+ * (up from its top, or down from it), with totals standing on the baseline. Shape: the first column as 100, then each
+ * step signed, then the total.
+ */
+function waterfall(c: Ctx): Reading | null {
+  // (a legend's swatch among them is far narrower than a column)
+  const all = c.rects.filter((m) => m.n >= 20), medW = [...all.map((m) => width(m.b))].sort((a, b) => a - b)[all.length >> 1] || 0;
+  const rs = all.filter((m) => width(m.b) >= medW * 0.6).sort((a, b) => a.b[0] - b.b[0]);
+  if (rs.length < 3 || rs.some((m, i) => i > 0 && m.b[0] < rs[i - 1].b[2] - 1)) return null;
+  const ws = rs.map((m) => width(m.b)), mw = ws.reduce((a, b) => a + b, 0) / ws.length;
+  if (ws.some((w) => Math.abs(w - mw) > mw * 0.35)) return null;
+  const base = Math.max(...rs.map((m) => m.b[3])), tol = Math.max(3, mw * 0.15);
+  const onBase = (m: Mark) => Math.abs(m.b[3] - base) <= tol;
+  if (!onBase(rs[0])) return null;
+  let level = rs[0].b[1], floating = 0;
+  const steps = [height(rs[0].b)];
+  for (let i = 1; i < rs.length; i++) {
+    const m = rs[i], h = height(m.b);
+    if (Math.abs(m.b[3] - level) <= tol && !onBase(m)) { steps.push(h); level = m.b[1]; floating++; }
+    else if (Math.abs(m.b[1] - level) <= tol && !onBase(m)) { steps.push(-h); level = m.b[3]; floating++; }
+    else if (i === rs.length - 1 && onBase(m) && Math.abs(m.b[1] - level) <= tol) steps.push(h);
+    else return null;
+  }
+  if (floating < 2) return null;
+  const cats = rs.map((m) => ({ lo: m.b[0], hi: m.b[2] }));
+  const members = axisLabels(c.words, cats, 'x', [base - 2, base + c.med * 4], c.med);
+  return { type: 'waterfall', certainty: 0.85, fields: { dimension: { name: c.dName || 'Category', members }, measure: c.measure,
+    series: [{ name: c.measure.name, shape: steps.map((h) => Math.round((h / steps[0]) * 100)) }] } };
+}
+
 function treemap(c: Ctx): Reading | null {
   const rs = c.rects.filter((m) => m.n >= 40);
   if (rs.length < 3) return null;
@@ -370,6 +418,8 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
     if (s.marks.length < 2 || thin.some((t) => sameColor(t.key, s.key))) continue;
     const u = hull(s.marks);
     if (width(u) < width(b) * 0.4) continue;
+    // (a line has one height at each x, so its pieces do not overlap across: gridlines at several heights do)
+    if (s.marks.reduce((a, m) => a + width(m.b), 0) > width(u) * 1.3) continue;
     thin.push({ key: s.key, b: u, n: s.n, fill: s.n / Math.max(1, width(u) * height(u)), cx: (u[0] + u[2]) / 2, cy: (u[1] + u[3]) / 2, colors: 1 });
   }
   // solid rectangles, with touching dense columns split apart first (a block of columns of nearly one height, joined by
@@ -380,6 +430,45 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const c: Ctx = { img, b, words, med, title, ink, body, rects, thin, markArea, coverage, nameOf, measure, dName, plot: plotBox(b, words, med) };
   const done = (r: Reading | null) => (r ? { ...r, color } : null);
 
+  // columns with a line over them in a colour of its own (a trend over monthly counts, a total over stacked columns) are
+  // a combo: the line is read at each category, from the baseline, on a scale of its own
+  const combo = (col: Reading | null): Reading | null => {
+    if (!col || col.type !== 'column' || !col.at || col.base === undefined || !col.keys) return col;
+    // (a series line rises and falls: a gridline's pieces between the columns join into a long, flat, tinted mark)
+    // (and crosses each column of pixels once, in one run, at heights that keep changing: gridlines of one colour make
+    // several runs, or, where columns hide all but one, sit at a few fixed heights)
+    const oneRun = (t: Mark) => {
+      let ok = 0, seen = 0;
+      const heights = new Set<number>();
+      for (let i = 0; i < 24; i++) {
+        const x = Math.round(t.b[0] + ((i + 0.5) / 24) * width(t.b)), ys: number[] = [];
+        for (let y = Math.floor(t.b[1]); y < t.b[3]; y++) if (sameColor(keyAt(img, x, y), t.key)) ys.push(y);
+        if (!ys.length) continue;
+        seen++; if (ys.every((y, j) => j === 0 || y - ys[j - 1] <= 3)) { ok++; heights.add(Math.round((ys[0] + ys[ys.length - 1]) / 4)); }
+      }
+      return seen >= 8 && ok >= seen * 0.8 && heights.size >= 6;
+    };
+    const lines = thin.filter((t) => sat(t.key) >= 3 && !col.keys!.some((k) => sameColor(k, t.key)) && width(t.b) >= width(b) * 0.4 && height(t.b) >= Math.max(4, med * 0.5) && oneRun(t)).slice(0, 2);
+    const extra = lines.map((t) => {
+      const ys = col.at!.map((x0) => {
+        for (const dx of [0, -1, 1, -2, 2]) {
+          const x = Math.round(x0 + dx), hits: number[] = [];
+          for (let y = Math.max(0, Math.floor(b[1])); y < col.base!; y++) if (sameColor(keyAt(img, x, y), t.key)) hits.push(y);
+          // (a line crosses a category once: hits spread far apart are gridlines of that colour)
+          if (hits.length) return hits[hits.length - 1] - hits[0] <= Math.max(6, med) ? hits.reduce((a, v) => a + v, 0) / hits.length : null;
+        }
+        return null;
+      });
+      if (ys.filter((y) => y !== null).length < ys.length * 0.6) return null;
+      const known = ys.filter((y): y is number => y !== null), fill = (i: number) => ys[i] ?? known[0];
+      // (on a scale of its own: the replica gives a series with its own measure its own axis, as the original has)
+      const name = nameOf(t.key) || 'Line';
+      return { name, kind: 'line', measure: { name, ...formatOf(name) }, shape: norm100(ys.map((_, i) => col.base! - fill(i))) };
+    }).filter(Boolean);
+    if (!extra.length) return col;
+    const series = (col.fields.series as { name: string; shape: number[] }[]).map((x) => ({ ...x, kind: 'bar' }));
+    return { ...col, type: 'combo', fields: { ...col.fields, series: [...series, ...extra] } };
+  };
   // a KPI: one to three big masked values (numbers are masked by default) and a short label
   // (a table's zebra stripes are not bars: four or more bands of exactly one length, starting at one x, each a row
   // tall with the row's words in its band, under words on a grid. Masked names over a stripe cut it, but the pieces still
@@ -403,7 +492,8 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // rules and stripes are grey or one colour): then a line or scatter reading comes first and the table is the fallback
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;
   const colourful = vivid.length >= 2 || thin.some((t) => sat(t.key) >= 3);
-  return done(pie(c)) || done(treemap(c)) || done(map(c)) || done(barReading) || (table && !colourful ? done(table) : null)
+  // (a waterfall is read before columns: two of its columns may stand on the baseline, but its steps float)
+  return done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
     || done(lines(c)) || done(scatter(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)

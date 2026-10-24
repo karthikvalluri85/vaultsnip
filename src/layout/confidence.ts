@@ -27,11 +27,11 @@ export interface PanelSignals {
  */
 const PRIOR: Record<string, number> = {
   bar: 0.85, column: 0.85, pie: 0.85, donut: 0.85, treemap: 0.75, map: 0.85, scatter: 0.55, bubble: 0.55, line: 0.7,
-  area: 0.45, table: 0.55, pivot: 0.7, kpi: 0.75, text: 0.25, placeholder: 0.05,
+  area: 0.45, table: 0.55, pivot: 0.7, kpi: 0.75, text: 0.25, placeholder: 0.05, combo: 0.7, waterfall: 0.7,
 };
 /** A panel over this share of the page has almost always swallowed several visuals (tables and reports aside). */
 const HUGE = 0.55;
-const CHARTS = ['bar', 'column', 'line', 'area', 'pie', 'donut', 'scatter', 'bubble', 'treemap'];
+const CHARTS = ['bar', 'column', 'line', 'area', 'pie', 'donut', 'scatter', 'bubble', 'treemap', 'combo', 'waterfall'];
 
 /** Probability, 0-1, that a panel is a real visual and its type is right. */
 export function panelConfidence(p: PanelSignals): number {

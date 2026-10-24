@@ -376,7 +376,8 @@
           const sm = (second && ownMeas(s)) || meas;
           return {
             yAxisIndex: second && ownMeas(s) ? 1 : 0, tooltip: { valueFormatter: x => fmt(x, sm, generic) },
-            name: L.meas(s.name || meas.name), type: kind, stack: v.stacked ? 'total' : undefined,
+            // (in a combo only the columns stack: a line over stacked columns is a total or a rate of its own)
+            name: L.meas(s.name || meas.name), type: kind, stack: v.stacked && kind === 'bar' ? 'total' : undefined,
             areaStyle: v.type === 'area' ? { opacity: v.stacked ? 0.7 : 0.18 } : undefined,
             smooth: false, symbolSize: 7, barMaxWidth: 46, barGap: '15%',
             itemStyle: { borderRadius: v.stacked ? 0 : (horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]) },

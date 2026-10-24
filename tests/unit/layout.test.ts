@@ -184,6 +184,46 @@ describe('chart types and shapes', () => {
     const r = readPanel(img, [0, 0, 330, 130], [masked(20, 108, 100, 18), word('Invoice', 10, 4, 42), word('by', 56, 4, 12), word('Month', 72, 4, 34)], med, 'Invoice by Month');
     expect(r.type).toBe('line');
   });
+  it('grouped columns keep every category when one gap is unusually wide', () => {
+    const img = canvas(520, 240);
+    let x = 20;
+    for (let m = 0; m < 9; m++) {
+      fill(img, [x, 120 - m * 5, x + 14, 210], BLUE); fill(img, [x + 15, 150 - m * 4, x + 29, 210], ORANGE);
+      x += 29 + (m === 3 ? 22 : 9);   // pairs touch; months 9 px apart; one gap of 22 px where a column is hidden
+    }
+    const r = readPanel(img, [0, 0, 520, 240], [], med, 'Hires by Month');
+    expect(r.type).toBe('column');
+    expect((r.fields as { dimension: { members: string[] } }).dimension.members.length).toBe(9);
+  });
+  it('combo: columns with a line of its own colour over them', () => {
+    const img = canvas(420, 240);
+    const tops = [150, 120, 130, 90, 110, 70, 100];
+    tops.forEach((t, i) => fill(img, [30 + i * 54, t, 70 + i * 54, 210], BLUE));
+    polyline(img, tops.map((_, i) => [50 + i * 54, 60 + ((i * 37) % 50)] as [number, number]), ORANGE);
+    const r = readPanel(img, [0, 0, 420, 240], [], med, 'Hires and YoY % by Month');
+    expect(r.type).toBe('combo');
+    const series = (r.fields as { series: { kind: string; shape: number[] }[] }).series;
+    expect(series.map((s) => s.kind)).toEqual(['bar', 'line']);
+    expect(series[1].shape.length).toBe(7);
+  });
+  it('waterfall: columns that chain from one to the next, with totals on the baseline', () => {
+    const img = canvas(400, 260);
+    fill(img, [40, 120, 100, 230], GREEN);    // start: 110 up from the baseline
+    fill(img, [120, 80, 180, 120], GREEN);    // +40, from the level the first ended at
+    fill(img, [200, 80, 260, 100], ORANGE);   // -20, down from that level
+    fill(img, [280, 100, 340, 230], BLUE);    // total, on the baseline, up to where the steps ended
+    const r = readPanel(img, [0, 0, 400, 260], [], med, 'Revenue to EBITDA');
+    expect(r.type).toBe('waterfall');
+    expect((r.fields as { series: { shape: number[] }[] }).series[0].shape).toEqual([100, 36, -18, 118]);
+  });
+  it('columns over gridlines of a tinted grey stay columns', () => {
+    const img = canvas(420, 240, [32, 36, 44]);
+    const LINE: RGB = [52, 62, 82];
+    for (let y = 30; y <= 210; y += 20) fill(img, [30, y, 410, y + 1], LINE);
+    fill(img, [30, 30, 31, 211], LINE);   // the axis, joining the gridlines into one mark
+    [[40, 60], [170, 110], [300, 150]].forEach(([x, t]) => fill(img, [x, t, x + 110, 210], [105, 160, 255]));
+    expect(readPanel(img, [0, 0, 420, 240], [], med, 'Visits by User').type).toBe('column');
+  });
   it('pie chart with an edge hidden under a mask', () => {
     const img = canvas(300, 300);
     pie(img, 150, 150, 100, [0.5, 0.3, 0.2], [BLUE, ORANGE, GREEN]);
