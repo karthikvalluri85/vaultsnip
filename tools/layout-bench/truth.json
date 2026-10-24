@@ -1137,6 +1137,48 @@
     "rowDims": 1,
     "parameters": 1
    }
+  },
+  {
+   "id": "ssrs_kpi-report",
+   "source": "https://learn.microsoft.com/en-us/sql/reporting-services/media/report-builder-kpi-report.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "want": {
+    "type": "table",
+    "subtotals": true,
+    "grandTotal": true,
+    "groupBy": 2,
+    "parameters": 0
+   }
+  },
+  {
+   "id": "ssrs_matrix-tutorial",
+   "source": "https://learn.microsoft.com/en-us/sql/reporting-services/media/report-builder-matrix-tutorial.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "want": {
+    "type": "pivot",
+    "subtotals": true,
+    "grandTotal": true,
+    "rowDims": 2,
+    "parameters": 0
+   }
+  },
+  {
+   "id": "ssrs_map-in-portal",
+   "source": "https://learn.microsoft.com/en-us/sql/reporting-services/media/report-builder-map-in-portal.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "want": {
+    "type": "map",
+    "parameters": 0
+   }
+  },
+  {
+   "id": "ssrs_bar-chart",
+   "source": "https://learn.microsoft.com/en-us/sql/reporting-services/media/report-builder-bar-chart.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "want": {
+    "type": "bar",
+    "parameters": 0
+   }
   }
  ]
 }

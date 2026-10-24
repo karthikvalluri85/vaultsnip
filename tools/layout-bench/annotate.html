@@ -39,6 +39,7 @@ li button { padding: 1px 7px; font-size: 12px; }
 <header>
   <h1>Benchmark labeller</h1>
   <label class="row">Image <input type="file" id="file" accept="image/png,image/jpeg"></label>
+  <label class="row" title="Optional: a candidates.json listing id, tool, source and terms; an image whose file name holds its id is filled in from it">List <input type="file" id="listfile" accept="application/json,.json"></label>
   <span class="hint" id="size">Load a dashboard image to start.</span>
   <span class="row"><label class="row"><input type="radio" name="mode" value="visual" checked> Draw visuals</label>
   <label class="row"><input type="radio" name="mode" value="ignore"> Draw areas to ignore</label></span>
@@ -48,7 +49,7 @@ li button { padding: 1px 7px; font-size: 12px; }
   <div class="side">
     <section class="card"><h2>Dashboard</h2>
       <label>ID (short, unique) <input id="id" placeholder="powerbi-retail-analysis"></label>
-      <label>Tool <select id="tool"><option>Power BI</option><option>Tableau</option><option>Looker</option><option>Qlik</option><option>Excel</option><option>SSRS</option><option>Other</option></select></label>
+      <label>Tool <select id="tool"><option>Power BI</option><option>Tableau</option><option>Looker</option><option>Qlik</option><option>Excel</option><option>Superset</option><option>SSRS</option><option>Other</option></select></label>
       <label>Source URL (the image's own address) <input id="source" placeholder="https://..."></label>
       <label>Licence or terms <input id="terms" placeholder="CC BY 4.0 / author's content, used for local evaluation only"></label>
     </section>
@@ -66,7 +67,8 @@ li button { padding: 1px 7px; font-size: 12px; }
     <section class="card"><h2>Boxes</h2><ol id="list"></ol></section>
     <section class="card"><h2>Entry for truth.json</h2>
       <textarea id="out" readonly></textarea>
-      <div class="row"><button class="primary" id="copy" type="button">Copy entry</button><span class="hint" id="copied"></span></div>
+      <div class="row"><button class="primary" id="copy" type="button">Copy entry</button><button id="save" type="button">Save as file</button><span class="hint" id="copied"></span></div>
+      <p class="hint">Boxes are kept in this browser while you work, so reloading the same image brings them back.</p>
     </section>
   </div>
 </main>
@@ -76,7 +78,16 @@ li button { padding: 1px 7px; font-size: 12px; }
   let img = null, scale = 1, drag = null;
   const st = { visuals: [], ignore: [] };
   const mode = () => document.querySelector('input[name="mode"]:checked').value;
+  let list = [];
+  const KEY = 'vs-annotate:';
+  const stash = () => { try { if (img && $('id').value.trim()) localStorage.setItem(KEY + $('id').value.trim(), JSON.stringify(st)); } catch (e) { /* storage unavailable: nothing kept */ } };
+  const unstash = (id) => { try { const s = JSON.parse(localStorage.getItem(KEY + id) || 'null'); return s && Array.isArray(s.visuals) ? s : null; } catch (e) { return null; } };
 
+  $('listfile').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try { list = JSON.parse(await f.text()); if (!Array.isArray(list)) throw new Error(); $('size').textContent = list.length + ' dashboards in the list. Now load an image.'; }
+    catch (err) { list = []; $('size').textContent = 'That list is not a JSON array.'; }
+  });
   $('file').addEventListener('change', (e) => {
     const f = e.target.files[0]; if (!f) return;
     const im = new Image();
@@ -84,8 +95,14 @@ li button { padding: 1px 7px; font-size: 12px; }
       img = im; scale = Math.min(1, 1400 / im.width);
       cv.width = Math.round(im.width * scale); cv.height = Math.round(im.height * scale);
       $('size').textContent = im.width + ' × ' + im.height + ' px' + (scale < 1 ? ' (shown at ' + Math.round(scale * 100) + '%)' : '');
-      if (!$('id').value) $('id').value = f.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      st.visuals = []; st.ignore = []; draw(); render();
+      const base = f.name.replace(/\.[^.]+$/, '').replace(/^\d+_/, '');
+      const known = list.find((c) => c.id === base);
+      if (known) { $('id').value = known.id; $('tool').value = known.tool; $('source').value = known.source || ''; $('terms').value = known.terms || ''; }
+      else $('id').value = base.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const kept = unstash($('id').value.trim());
+      st.visuals = kept ? kept.visuals : []; st.ignore = kept ? kept.ignore || [] : [];
+      if (kept) $('size').textContent += ' · your earlier boxes are back';
+      draw(); render();
     };
     im.src = URL.createObjectURL(f);
   });
@@ -132,11 +149,19 @@ li button { padding: 1px 7px; font-size: 12px; }
     const entry = { id: $('id').value.trim(), tool: $('tool').value, size: img ? [img.width, img.height] : [], source: $('source').value.trim(),
       terms: $('terms').value.trim(), ...(st.ignore.length ? { ignore: st.ignore } : {}), visuals: st.visuals };
     $('out').value = JSON.stringify(entry, null, 1);
+    stash();
   }
   ['id', 'tool', 'source', 'terms'].forEach((k) => $(k).addEventListener('input', render));
   $('copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText($('out').value); $('copied').textContent = 'Copied.'; }
     catch (e) { $('out').select(); $('copied').textContent = 'Press Ctrl+C to copy.'; }
+  });
+  $('save').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([$('out').value + '\n'], { type: 'application/json' }));
+    a.download = ($('id').value.trim() || 'entry') + '.truth.json';
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    $('copied').textContent = 'Saved ' + a.download + ' to your downloads.';
   });
   render();
 })();
