@@ -8,34 +8,34 @@
   "found": 76,
   "foundPct": 95,
   "extraPanels": 16,
-  "typesRightLenient": 59,
-  "typesRightStrict": 55,
-  "typesRightPct": 77.6,
-  "endToEndPct": 73.8,
+  "typesRightLenient": 65,
+  "typesRightStrict": 61,
+  "typesRightPct": 85.5,
+  "endToEndPct": 81.3,
   "byTool": {
    "Power BI": {
     "dashboards": 4,
     "visuals": 19,
     "found": 18,
-    "typesRight": 14,
+    "typesRight": 15,
     "foundPct": 94.7,
-    "typesRightPct": 77.8
+    "typesRightPct": 83.3
    },
    "Tableau": {
     "dashboards": 4,
     "visuals": 43,
     "found": 41,
-    "typesRight": 31,
+    "typesRight": 35,
     "foundPct": 95.3,
-    "typesRightPct": 75.6
+    "typesRightPct": 85.4
    },
    "Looker": {
     "dashboards": 3,
     "visuals": 10,
     "found": 9,
-    "typesRight": 6,
+    "typesRight": 7,
     "foundPct": 90,
-    "typesRightPct": 66.7
+    "typesRightPct": 77.8
    },
    "VaultSnip": {
     "dashboards": 1,
@@ -56,13 +56,13 @@
   "images": 15,
   "checkPassedFirstTime": 1,
   "checkCaughtLeftovers": 14,
-  "findings": 53,
-  "blocking": 26,
+  "findings": 52,
+  "blocking": 27,
   "findingsByType": {
-   "Number or money": 26,
-   "Text not on allowlist": 27
+   "Number or money": 27,
+   "Text not on allowlist": 25
   },
-  "medianSeconds": 19.816,
-  "slowestSeconds": 36.616
+  "medianSeconds": 20.01,
+  "slowestSeconds": 36.61
  }
 }

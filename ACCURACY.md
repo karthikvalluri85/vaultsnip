@@ -290,6 +290,42 @@ points low on average, and every page scored 90 or more on v4 really is.
 finds more words for the check to ask about. The builder's largest misses are small pies read as KPIs or tables,
 Tableau's dense or grey monthly columns, and KPI cards with a sparkline; masking still covers some map regions as text.
 
+## Pies, dense columns and generated set v5 (24 October 2026)
+
+**Generator v5.** A pie's legend sits below it with a row of room per item (in v4 the legend was cut off and the pie
+shrank to a dot). Figures from here on are on v5.
+
+**A piece of a pie is not a word.** The reader took parts of pie slices for words, and the whole pie was masked. A
+"word" taller than one and a half lines of text made of at least two thick regions of one colour each (slices, the
+background), with any other pixels only on the seams between them, is now left visible, in the app and in the
+extension. A value printed inside a slice, a letter's stroke and large KPI digits (even across a two-tone card) all
+fail the test and stay masked. On the v4 images, masking held: exposed after the check 2.72% (2.74% committed), safe
+words masked 9.59% (9.64%).
+
+| Figure | v4 (committed) | v5 now |
+|---|---|---|
+| Sensitive words exposed after the check | 2.74% | **2.48%** [2.08–2.95] |
+| Safe words masked anyway | 9.64% | **9.34%** |
+| Generated: type right, of those found | 92.0% | **94.9%** |
+| Generated: end to end | 85.4% | **87.9%** |
+| Pies typed right (generated) | 33 of 48 found | **46 of 49** |
+| Public dashboards: type right | 77.6% | **85.5%** (65 of 76) |
+| Public dashboards: end to end | 73.8% | **81.3%** |
+
+Builder changes, each checked on both sets:
+
+- dense columns joined by 1 px lighter separators are split into columns even when the block is solid (Tableau's
+  monthly columns: FinanceDashboard 12 to 15 of 18);
+- a pie's outline ignores legend swatches and divider rules, and a pie cut by the panel's edge is still a pie (a
+  Tableau donut, a Looker pie cut by the screenshot);
+- two or more long coloured lines make a line chart, never a KPI, whatever its masks look like (a small Power BI
+  line chart);
+- the line prior of the confidence score rises to 0.7: the 90% line stays honest (every page scored 90 or more
+  really is), and the panel Brier score is 0.154 on the public dashboards.
+
+A rule to keep a KPI's sparkline from reading as a map (a map's outline has no straight bottom) was tried and dropped:
+it lost a Looker map cut by its panel.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

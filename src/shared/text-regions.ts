@@ -267,3 +267,84 @@ export function isBar(px: Pixels, textH: number): boolean {
   for (let y = y0 + 1; y < y1; y++) for (let x = x0 + 1; x < x1; x++) if (!near(y * w + x)) off++;
   return off <= 2;
 }
+
+/**
+ * Whether a box the reader took for a word is a piece of a chart's shapes (a pie's slices, a map's regions) rather than
+ * text. It passes only when the box is taller than one and a half lines of text and is made of at least two large
+ * regions of one colour each (slices, the background), every one of them thick: it holds a square of at least
+ * \`textH\` x 0.8 and of 0.3 of the box's smaller side, which no letter's stroke does. A thin region of one colour is
+ * allowed only as a straight 1-2 px line (a gridline) or a small sliver at the box's edge (a slice the box cuts off).
+ * Every other pixel must lie on the seam between two regions (the
+ * anti-aliased edge between slices): a value printed inside a slice is a set of pixels with one region around them,
+ * and fails, as does any letter.
+ */
+export function isShapes(px: Pixels, textH: number): boolean {
+  const { data, width: w, height: h } = px;
+  if (h < 1.5 * textH || w < 3) return false;
+  const n = w * h;
+  const q = (i: number) => ((data[i * 4] >> 4) << 8) | ((data[i * 4 + 1] >> 4) << 4) | (data[i * 4 + 2] >> 4);
+  const counts = new Map<number, number>();
+  for (let i = 0; i < n; i++) counts.set(q(i), (counts.get(q(i)) || 0) + 1);
+  const palette = [...counts.entries()].filter(([, c]) => c >= n * 0.03).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => {
+    let i = 0; while (q(i) !== k) i++;
+    return [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]];
+  });
+  if (palette.length < 2) return false;
+  // each pixel to its nearest palette colour, or none (-1) when no colour is close
+  const label = new Int8Array(n);
+  for (let i = 0; i < n; i++) {
+    let best = -1, bd = 60;
+    palette.forEach((c, k) => { const d = Math.hypot(data[i * 4] - c[0], data[i * 4 + 1] - c[1], data[i * 4 + 2] - c[2]); if (d <= bd) { bd = d; best = k; } });
+    label[i] = best;
+  }
+  // pixels of no colour must sit on a seam: two different regions next to them
+  let foreign = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (label[y * w + x] >= 0) continue;
+    const seen = new Set<number>();
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx >= 0 && yy >= 0 && xx < w && yy < h && label[yy * w + xx] >= 0) seen.add(label[yy * w + xx]);
+    }
+    if (seen.size < 2 && ++foreign > 3) return false;
+  }
+  // thickness: distance (in pixels, 8-connected) to the nearest pixel of another label; the box's edge does not count
+  const dist = new Int32Array(n).fill(1 << 20);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, l = label[i];
+    if ((x > 0 && label[i - 1] !== l) || (x < w - 1 && label[i + 1] !== l) || (y > 0 && label[i - w] !== l) || (y < h - 1 && label[i + w] !== l)) dist[i] = 0;
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (x > 0) dist[i] = Math.min(dist[i], dist[i - 1] + 1);
+    if (y > 0) dist[i] = Math.min(dist[i], dist[i - w] + 1, x > 0 ? dist[i - w - 1] + 1 : 1 << 20, x < w - 1 ? dist[i - w + 1] + 1 : 1 << 20);
+  }
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+    const i = y * w + x;
+    if (x < w - 1) dist[i] = Math.min(dist[i], dist[i + 1] + 1);
+    if (y < h - 1) dist[i] = Math.min(dist[i], dist[i + w] + 1, x < w - 1 ? dist[i + w + 1] + 1 : 1 << 20, x > 0 ? dist[i + w - 1] + 1 : 1 << 20);
+  }
+  const need = Math.max(0.8 * textH, 0.3 * Math.min(w, h));
+  // every connected region of one label is thick, a straight thin line, or a speck
+  const seen = new Uint8Array(n), stack = new Int32Array(n);
+  let thick = 0;
+  for (let s = 0; s < n; s++) {
+    if (seen[s] || label[s] < 0) continue;
+    const l = label[s];
+    let top = 0, count = 0, r = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+    stack[top++] = s; seen[s] = 1;
+    while (top) {
+      const p = stack[--top], x = p % w, y = (p - x) / w;
+      count++; r = Math.max(r, dist[p]);
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (const nb of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) {
+        if (nb >= 0 && !seen[nb] && label[nb] === l) { seen[nb] = 1; stack[top++] = nb; }
+      }
+    }
+    if (2 * r + 1 >= need) thick++;
+    else if (count > 4 && Math.min(x1 - x0 + 1, y1 - y0 + 1) > 2
+      // (a small sliver of a slice cut off by the box's edge is not a stroke)
+      && !((x0 === 0 || y0 === 0 || x1 === w - 1 || y1 === h - 1) && count <= n * 0.3)) return false;   // a stroke: text
+  }
+  return thick >= 2;
+}

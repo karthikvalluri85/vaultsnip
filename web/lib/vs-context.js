@@ -168,6 +168,85 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     for (let y = y0 + 1; y < y1; y++) for (let x = x0 + 1; x < x1; x++) if (!near(y * w + x)) off++;
     return off <= 2;
   }
+  function isShapes(px, textH) {
+    const { data, width: w, height: h } = px;
+    if (h < 1.5 * textH || w < 3) return false;
+    const n = w * h;
+    const q = (i) => data[i * 4] >> 4 << 8 | data[i * 4 + 1] >> 4 << 4 | data[i * 4 + 2] >> 4;
+    const counts = /* @__PURE__ */ new Map();
+    for (let i = 0; i < n; i++) counts.set(q(i), (counts.get(q(i)) || 0) + 1);
+    const palette = [...counts.entries()].filter(([, c]) => c >= n * 0.03).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => {
+      let i = 0;
+      while (q(i) !== k) i++;
+      return [data[i * 4], data[i * 4 + 1], data[i * 4 + 2]];
+    });
+    if (palette.length < 2) return false;
+    const label = new Int8Array(n);
+    for (let i = 0; i < n; i++) {
+      let best = -1, bd = 60;
+      palette.forEach((c, k) => {
+        const d = Math.hypot(data[i * 4] - c[0], data[i * 4 + 1] - c[1], data[i * 4 + 2] - c[2]);
+        if (d <= bd) {
+          bd = d;
+          best = k;
+        }
+      });
+      label[i] = best;
+    }
+    let foreign = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (label[y * w + x] >= 0) continue;
+      const seen2 = /* @__PURE__ */ new Set();
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx >= 0 && yy >= 0 && xx < w && yy < h && label[yy * w + xx] >= 0) seen2.add(label[yy * w + xx]);
+      }
+      if (seen2.size < 2 && ++foreign > 3) return false;
+    }
+    const dist = new Int32Array(n).fill(1 << 20);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, l = label[i];
+      if (x > 0 && label[i - 1] !== l || x < w - 1 && label[i + 1] !== l || y > 0 && label[i - w] !== l || y < h - 1 && label[i + w] !== l) dist[i] = 0;
+    }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (x > 0) dist[i] = Math.min(dist[i], dist[i - 1] + 1);
+      if (y > 0) dist[i] = Math.min(dist[i], dist[i - w] + 1, x > 0 ? dist[i - w - 1] + 1 : 1 << 20, x < w - 1 ? dist[i - w + 1] + 1 : 1 << 20);
+    }
+    for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+      const i = y * w + x;
+      if (x < w - 1) dist[i] = Math.min(dist[i], dist[i + 1] + 1);
+      if (y < h - 1) dist[i] = Math.min(dist[i], dist[i + w] + 1, x < w - 1 ? dist[i + w + 1] + 1 : 1 << 20, x > 0 ? dist[i + w - 1] + 1 : 1 << 20);
+    }
+    const need = Math.max(0.8 * textH, 0.3 * Math.min(w, h));
+    const seen = new Uint8Array(n), stack = new Int32Array(n);
+    let thick = 0;
+    for (let s = 0; s < n; s++) {
+      if (seen[s] || label[s] < 0) continue;
+      const l = label[s];
+      let top = 0, count = 0, r = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+      stack[top++] = s;
+      seen[s] = 1;
+      while (top) {
+        const p = stack[--top], x = p % w, y = (p - x) / w;
+        count++;
+        r = Math.max(r, dist[p]);
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+        for (const nb of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) {
+          if (nb >= 0 && !seen[nb] && label[nb] === l) {
+            seen[nb] = 1;
+            stack[top++] = nb;
+          }
+        }
+      }
+      if (2 * r + 1 >= need) thick++;
+      else if (count > 4 && Math.min(x1 - x0 + 1, y1 - y0 + 1) > 2 && !((x0 === 0 || y0 === 0 || x1 === w - 1 || y1 === h - 1) && count <= n * 0.3)) return false;
+    }
+    return thick >= 2;
+  }
   const CONTEXT_TYPE = "Name in context";
   const UNREAD_TYPE = "Unread text";
   class ContextClassifier {
@@ -285,6 +364,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
   exports.detectorSize = detectorSize;
   exports.flatMarksOnly = flatMarksOnly;
   exports.isBar = isBar;
+  exports.isShapes = isShapes;
   exports.moduleWorker = moduleWorker;
   exports.unreadParts = unreadParts;
   Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });

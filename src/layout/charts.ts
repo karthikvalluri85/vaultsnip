@@ -152,16 +152,25 @@ const hull = (ms: Mark[]): Box => [Math.min(...ms.map((m) => m.b[0])), Math.min(
 
 /** Pie or donut: the big marks together fill a circle; slice shares are read around a ring. */
 function pie(c: Ctx): Reading | null {
-  const big = c.body.filter((m) => m.n >= c.markArea * 0.02 && m.fill > 0.25);
+  // (a legend's swatches are small solid squares: they are not slices, and would stretch the outline)
+  const largest = Math.max(0, ...c.body.map((m) => m.n));
+  const swatch = (m: Mark) => m.fill > 0.9 && m.n < largest * 0.15 && width(m.b) / height(m.b) > 0.7 && width(m.b) / height(m.b) < 1.4;
+  // (nor are rules and dividers, a few pixels thick)
+  const big = c.body.filter((m) => m.n >= c.markArea * 0.02 && m.fill > 0.25 && !swatch(m) && Math.min(width(m.b), height(m.b)) > 3);
   if (!big.length) return null;
   const u = hull(big), uw = width(u), uh = height(u), r = Math.max(uw, uh) / 2;
-  if (uw / uh < 0.8 || uw / uh > 1.25 || r < Math.min(width(c.b), height(c.b)) * 0.12) return null;
+  // a pie is round, unless the screenshot or the panel cuts it: then its short side lies on the panel's edge
+  const cut = (uw > uh ? Math.min(u[1] - c.b[1], c.b[3] - u[3]) : Math.min(u[0] - c.b[0], c.b[2] - u[2])) <= 3;
+  const ratio = uw / uh;
+  if (!(ratio >= 0.8 && ratio <= 1.25) && !(cut && ratio >= 0.45 && ratio <= 2.2)) return null;
+  if (r < Math.min(width(c.b), height(c.b)) * 0.12) return null;
   // the circle: a mask over a slice's label can hide an edge of the pie, so the hull may be short on one side; the
   // radius comes from its longer side, and the centre is tried at either end of the shorter side as well as its middle
   const centres = (lo: number, hi: number) => (hi - lo < 2 * r - 2 ? [(lo + hi) / 2, lo + r, hi - r] : [(lo + hi) / 2]);
   const fit = (cx: number, cy: number) => {
     let ring = 0, ringN = 0, corner = 0, cornerN = 0, mid = 0, midN = 0;
     for (let y = Math.floor(cy - r); y < cy + r; y += 2) for (let x = Math.floor(cx - r); x < cx + r; x += 2) {
+      if (x < c.b[0] || y < c.b[1] || x >= c.b[2] || y >= c.b[3]) continue;   // only what the panel shows
       const d = Math.hypot(x - cx, y - cy) / r, on = c.ink(x, y) ? 1 : 0;
       if (d > 0.7 && d < 0.92) { ring += on; ringN++; } else if (d > 1.1) { corner += on; cornerN++; } else if (d < 0.35) { mid += on; midN++; }
     }
@@ -363,8 +372,10 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
     if (width(u) < width(b) * 0.4) continue;
     thin.push({ key: s.key, b: u, n: s.n, fill: s.n / Math.max(1, width(u) * height(u)), cx: (u[0] + u[2]) / 2, cy: (u[1] + u[3]) / 2, colors: 1 });
   }
-  // solid rectangles, with touching dense columns split apart first
-  const rects = body.flatMap((m) => (m.fill >= 0.8 ? [m] : splitColumns(img, m, ink).filter((s) => s !== m))).filter((m) => m.fill >= 0.8 && Math.min(width(m.b), height(m.b)) >= 3);
+  // solid rectangles, with touching dense columns split apart first (a block of columns of nearly one height, joined by
+  // 1 px separators of a lighter shade, is solid too, so every mark is tried)
+  const rects = body.flatMap((m) => { const parts = splitColumns(img, m, ink); return parts.length > 1 ? parts : m.fill >= 0.8 ? [m] : []; })
+    .filter((m) => m.fill >= 0.8 && Math.min(width(m.b), height(m.b)) >= 3);
   Object.assign(features, { coverage: Math.round(coverage * 1000) / 1000, marks: body.length, rects: rects.length, thin: thin.length, series: series.length, words: words.length, bigMasked: bigMasked.length, grid: grid ? 1 : 0, swatches: swatches.length, vivid: vivid.length });
   const c: Ctx = { img, b, words, med, title, ink, body, rects, thin, markArea, coverage, nameOf, measure, dName, plot: plotBox(b, words, med) };
   const done = (r: Reading | null) => (r ? { ...r, color } : null);
@@ -385,7 +396,9 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // stretches it)
   const bigH = Math.max(0, ...bigMasked.map((w) => w.h));
   const prominent = bigH >= height(b) * 0.12 || (bigMasked.length >= 1 && coverage < 0.012 && body.length <= 4 && words.length <= 6);
-  if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3)) return done(kpi(c, 0.85))!;
+  // (a KPI card has one sparkline at most: two or more long coloured lines are a line chart, whatever its masks look like)
+  const lineChart = thin.filter((t) => sat(t.key) >= 3).length >= 2;
+  if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3) && !lineChart) return done(kpi(c, 0.85))!;
   // words on a grid make a table, unless the panel also holds coloured strokes or several vivid colours (a table's
   // rules and stripes are grey or one colour): then a line or scatter reading comes first and the table is the fallback
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;

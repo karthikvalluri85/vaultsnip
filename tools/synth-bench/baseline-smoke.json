@@ -2,55 +2,55 @@
  "measured": "2026-10-24",
  "version": "0.6.0",
  "images": 8,
- "sensitiveWords": 751,
+ "sensitiveWords": 753,
  "safeWords": 249,
  "unknownWords": 24,
  "firstPassExposed": {
-  "pct": 2.8,
-  "lo": 1.84,
-  "hi": 4.24,
-  "k": 21,
-  "n": 751
+  "pct": 3.59,
+  "lo": 2.48,
+  "hi": 5.17,
+  "k": 27,
+  "n": 753
  },
  "residualExposed": {
-  "pct": 2.66,
-  "lo": 1.73,
-  "hi": 4.08,
-  "k": 20,
-  "n": 751
+  "pct": 3.45,
+  "lo": 2.37,
+  "hi": 5.01,
+  "k": 26,
+  "n": 753
  },
- "residualRotated": 3,
- "firstPassLeakedAreaPct": 0.8,
- "residualLeakedAreaPct": 0.79,
+ "residualRotated": 4,
+ "firstPassLeakedAreaPct": 0.66,
+ "residualLeakedAreaPct": 0.65,
  "overMasked": {
-  "pct": 5.62,
-  "lo": 3.38,
-  "hi": 9.22,
-  "k": 14,
+  "pct": 6.02,
+  "lo": 3.68,
+  "hi": 9.7,
+  "k": 15,
   "n": 249
  },
  "falseAlarms": {
-  "pct": 95.45,
-  "lo": 78.2,
-  "hi": 99.19,
-  "k": 21,
-  "n": 22
+  "pct": 95,
+  "lo": 76.39,
+  "hi": 99.11,
+  "k": 19,
+  "n": 20
  },
  "byKind": {
   "number": {
    "words": 292,
-   "firstPassExposedPct": 1.71,
-   "residualExposedPct": 1.71
+   "firstPassExposedPct": 4.11,
+   "residualExposedPct": 4.11
   },
   "name": {
-   "words": 94,
-   "firstPassExposedPct": 6.38,
-   "residualExposedPct": 5.32
+   "words": 96,
+   "firstPassExposedPct": 3.13,
+   "residualExposedPct": 2.08
   },
   "org": {
    "words": 133,
-   "firstPassExposedPct": 0,
-   "residualExposedPct": 0
+   "firstPassExposedPct": 0.75,
+   "residualExposedPct": 0.75
   },
   "product": {
    "words": 138,
@@ -59,8 +59,8 @@
   },
   "place": {
    "words": 59,
-   "firstPassExposedPct": 1.69,
-   "residualExposedPct": 1.69
+   "firstPassExposedPct": 3.39,
+   "residualExposedPct": 3.39
   },
   "id": {
    "words": 25,
@@ -73,5 +73,5 @@
    "residualExposedPct": 0
   }
  },
- "medianSeconds": 35.602
+ "medianSeconds": 39.859
 }

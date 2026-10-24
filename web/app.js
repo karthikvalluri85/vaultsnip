@@ -817,13 +817,17 @@ customer service staff agent team people everyone nobody someone something nothi
       return null;
     }
   }
-  // The reader sometimes takes a chart's bar for a word, and masking it hides the chart. A "word" whose box is one
-  // solid rectangle of colour with no hole in it (VSContext.isBar) is not text and is dropped; text on a coloured chip
-  // is a set of holes in it, so it stays.
+  // The reader sometimes takes a chart's bar or a piece of a pie for a word, and masking it hides the chart. A "word"
+  // whose box is one solid rectangle of colour with no hole in it (VSContext.isBar), or thick regions of one colour each
+  // such as slices (VSContext.isShapes), is not text and is dropped; text on a chip or in a slice still fails both.
   function notMarks(img, words) {
     if (!window.VSContext || !VSContext.isBar) return words;
     const hs = words.map(w => w.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
-    return words.filter(w => !(Math.max(w.w, w.h) >= textH && VSContext.isBar(pixelsOf(img, w), textH)));
+    return words.filter(w => {
+      if (Math.max(w.w, w.h) < textH) return true;
+      const px = pixelsOf(img, w);
+      return !(VSContext.isBar(px, textH) || (VSContext.isShapes && VSContext.isShapes(px, textH)));
+    });
   }
   // the RGBA pixels of a box of the image, in whole pixels
   function pixelsOf(img, b) {

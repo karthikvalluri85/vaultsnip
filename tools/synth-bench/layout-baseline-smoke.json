@@ -4,26 +4,26 @@
  "synthLayout": {
   "dashboards": 8,
   "visuals": 54,
-  "found": 52,
-  "foundPct": 96.3,
-  "extraPanels": 2,
-  "typesRight": 47,
-  "typesRightPct": 90.4,
-  "endToEndPct": 87,
+  "found": 53,
+  "foundPct": 98.1,
+  "extraPanels": 1,
+  "typesRight": 49,
+  "typesRightPct": 92.5,
+  "endToEndPct": 90.7,
   "byType": {
    "pie": {
     "visuals": 10,
-    "found": 9,
-    "typesRight": 5,
-    "foundPct": 90,
-    "typesRightPct": 55.6
+    "found": 10,
+    "typesRight": 9,
+    "foundPct": 100,
+    "typesRightPct": 90
    },
    "column": {
     "visuals": 11,
     "found": 11,
-    "typesRight": 11,
+    "typesRight": 9,
     "foundPct": 100,
-    "typesRightPct": 100
+    "typesRightPct": 81.8
    },
    "kpi": {
     "visuals": 8,

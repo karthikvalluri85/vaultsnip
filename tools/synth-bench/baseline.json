@@ -2,65 +2,65 @@
  "measured": "2026-10-24",
  "version": "0.6.0",
  "images": 60,
- "sensitiveWords": 4994,
+ "sensitiveWords": 4999,
  "safeWords": 2055,
  "unknownWords": 87,
  "firstPassExposed": {
-  "pct": 2.8,
-  "lo": 2.38,
-  "hi": 3.3,
-  "k": 140,
-  "n": 4994
+  "pct": 2.58,
+  "lo": 2.18,
+  "hi": 3.06,
+  "k": 129,
+  "n": 4999
  },
  "residualExposed": {
-  "pct": 2.74,
-  "lo": 2.33,
-  "hi": 3.23,
-  "k": 137,
-  "n": 4994
+  "pct": 2.48,
+  "lo": 2.08,
+  "hi": 2.95,
+  "k": 124,
+  "n": 4999
  },
- "residualRotated": 19,
- "firstPassLeakedAreaPct": 1.07,
- "residualLeakedAreaPct": 1.07,
+ "residualRotated": 15,
+ "firstPassLeakedAreaPct": 0.71,
+ "residualLeakedAreaPct": 0.71,
  "overMasked": {
-  "pct": 9.64,
-  "lo": 8.43,
-  "hi": 10.99,
-  "k": 198,
+  "pct": 9.34,
+  "lo": 8.16,
+  "hi": 10.68,
+  "k": 192,
   "n": 2055
  },
  "falseAlarms": {
-  "pct": 97.8,
-  "lo": 94.49,
-  "hi": 99.14,
-  "k": 178,
-  "n": 182
+  "pct": 97.21,
+  "lo": 93.63,
+  "hi": 98.8,
+  "k": 174,
+  "n": 179
  },
  "byKind": {
   "number": {
    "words": 2372,
-   "firstPassExposedPct": 3.16,
-   "residualExposedPct": 3.08
+   "firstPassExposedPct": 3.63,
+   "residualExposedPct": 3.46
   },
   "name": {
-   "words": 729,
-   "firstPassExposedPct": 3.16,
-   "residualExposedPct": 3.02
+   "words": 731,
+   "firstPassExposedPct": 2.46,
+   "residualExposedPct": 2.33
   },
   "org": {
    "words": 734,
-   "firstPassExposedPct": 2.04,
-   "residualExposedPct": 2.04
+   "firstPassExposedPct": 0.54,
+   "residualExposedPct": 0.54
   },
   "product": {
-   "words": 483,
-   "firstPassExposedPct": 3.93,
-   "residualExposedPct": 3.93
+   "words": 486,
+   "firstPassExposedPct": 2.88,
+   "residualExposedPct": 2.88
   },
   "place": {
    "words": 406,
-   "firstPassExposedPct": 1.72,
-   "residualExposedPct": 1.72
+   "firstPassExposedPct": 1.48,
+   "residualExposedPct": 1.48
   },
   "id": {
    "words": 133,
@@ -73,5 +73,5 @@
    "residualExposedPct": 0.73
   }
  },
- "medianSeconds": 37.414
+ "medianSeconds": 38.649
 }

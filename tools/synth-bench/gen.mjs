@@ -159,12 +159,14 @@ async function render(d) {
     if (p.type === 'pie' || p.type === 'hbar') {
       const fit = Math.max(4, Math.floor(labelPx / (s.size * 0.65)));
       const cats = p.type === 'hbar' ? p.cats.map((c) => (c.length > fit ? c.slice(0, fit - 1).trimEnd() + '…' : c)) : p.cats;
+      const legendH = Math.round(p.cats.length * s.size * 2.2 + 16);   // one row per item, in the space it needs
       const data = p.type === 'pie' ? [{ type: 'pie', labels: p.cats, values: p.values, textinfo: 'percent', sort: false, marker: { colors: T.series } }]
         : [{ type: 'bar', orientation: 'h', y: cats, x: p.values, marker: { color: T.series[0] } }];
-      await Plotly.newPlot(box, data, { width: w, height: h, margin: { l: p.type === 'hbar' ? labelPx : 10, r: 10, t: 10, b: p.type === 'pie' ? 70 : 30 }, paper_bgcolor: T.panel, plot_bgcolor: T.panel,
+      await Plotly.newPlot(box, data, { width: w, height: p.type === 'pie' ? h + legendH : h, margin: { l: p.type === 'hbar' ? labelPx : 10, r: 10, t: 10, b: p.type === 'pie' ? legendH : 30 }, paper_bgcolor: T.panel, plot_bgcolor: T.panel,
         font: { family: FONT, size: s.size, color: T.fg }, showlegend: p.type === 'pie',
-        // (legend below the pie: beside it, Plotly let the legend's box cover half the pie)
-        legend: { orientation: 'h', x: 0, y: -0.08 }, xaxis: { gridcolor: T.line }, yaxis: { automargin: p.type !== 'hbar' } }, { staticPlot: true, displayModeBar: false });
+        // (legend below the pie, with room for one row per item: beside it, Plotly let the legend's box cover half the
+        // pie, and with a fixed margin the legend ran out of the panel)
+        legend: { orientation: 'h', x: 0, y: -0.04, yanchor: 'top' }, xaxis: { gridcolor: T.line }, yaxis: { automargin: p.type !== 'hbar' } }, { staticPlot: true, displayModeBar: false });
       continue;
     }
     const vl = {

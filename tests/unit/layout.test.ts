@@ -156,6 +156,34 @@ describe('chart types and shapes', () => {
     expect(r.type).toBe('pie');
     expect(near((r.fields as { series: { shape: number[] }[] }).series[0].shape, [100, 60, 40], 3)).toBe(true);
   });
+  it('dense monthly columns of nearly one height, joined by lighter 1 px separators', () => {
+    const img = canvas(320, 160);
+    const LIGHT: RGB = [125, 200, 235], SKY: RGB = [100, 190, 230];
+    for (let i = 0; i < 36; i++) {
+      const x = 20 + i * 7, top = 60 - (i % 5);
+      fill(img, [x, top, x + 6, 140], SKY);
+      fill(img, [x + 6, top, x + 7, 140], LIGHT);   // the separator, a lighter shade of the same colour
+    }
+    expect(readPanel(img, [0, 0, 320, 160], [], med, 'Revenue by Month').type).toBe('column');
+  });
+  it('a donut with its legend swatches beside it, and a pie the screenshot cuts in half', () => {
+    const donut = canvas(400, 300);
+    pie(donut, 140, 170, 90, [0.43, 0.42, 0.15], [BLUE, ORANGE, GREEN], 55);
+    [BLUE, ORANGE, GREEN].forEach((c, i) => fill(donut, [260, 40 + i * 20, 274, 54 + i * 20], c));   // swatches, labels masked
+    fill(donut, [10, 20, 390, 22], GREY);   // a divider under the card's title
+    expect(readPanel(donut, [0, 0, 400, 300], [], med, 'Patient Status').type).toBe('donut');
+    const half = canvas(500, 400);
+    pie(half, 250, 200, 180, [0.4, 0.35, 0.25], [BLUE, ORANGE, GREEN]);   // the panel (top half) ends at the centre
+    expect(readPanel(half, [0, 0, 500, 200], [], med, 'Orders by Category').type).toBe('pie');
+  });
+  it('a small multi-line chart with one tall mask is a line chart, not a KPI', () => {
+    const img = canvas(330, 130);
+    polyline(img, [[30, 60], [90, 50], [150, 70], [210, 40], [270, 55], [310, 45]], BLUE);
+    polyline(img, [[30, 95], [90, 90], [150, 100], [210, 85], [270, 92], [310, 80]], ORANGE);
+    fill(img, [20, 108, 120, 126], MASK);   // slanted month labels masked as unread text, taller than a word
+    const r = readPanel(img, [0, 0, 330, 130], [masked(20, 108, 100, 18), word('Invoice', 10, 4, 42), word('by', 56, 4, 12), word('Month', 72, 4, 34)], med, 'Invoice by Month');
+    expect(r.type).toBe('line');
+  });
   it('pie chart with an edge hidden under a mask', () => {
     const img = canvas(300, 300);
     pie(img, 150, 150, 100, [0.5, 0.3, 0.2], [BLUE, ORANGE, GREEN]);
