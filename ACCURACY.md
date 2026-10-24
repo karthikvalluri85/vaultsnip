@@ -361,9 +361,14 @@ shows instead of a plain column chart:
 | Typed exactly right (strict) | 61 | **64** |
 | End to end | 81.3% | **83.8%** |
 
-The Power BI HR page is now read entirely right: its stacked combo, its waterfall, and its grouped monthly columns
-with every month. On the generated set (which has no combos or waterfalls) nothing changes: 94.9% typed right. The
-clustered combo on that page is still read as columns: its line is not found yet.
+The Power BI HR page is now read entirely right: both its combos (clustered and stacked columns, each with a line),
+its waterfall, and its grouped monthly columns with every month. On the generated set (which has no combos or
+waterfalls) nothing changes: 94.9% typed right; 65 of 76 visuals on the public dashboards are typed exactly right.
+
+The clustered combo's line crossed eleven pairs of columns and broke into small pieces; small pieces now join a broken
+line, but only as a chain (each starting near where the one before ended, at about its height), so a map's small
+regions of one colour never join into a "line". A flat stretch of line is solid enough to pass for a sliver of a
+column; a colour whose "columns" are all a few pixels tall and that forms a long line is the line.
 
 ## The plan
 

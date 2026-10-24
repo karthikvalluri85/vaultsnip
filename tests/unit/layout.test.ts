@@ -206,6 +206,20 @@ describe('chart types and shapes', () => {
     expect(series.map((s) => s.kind)).toEqual(['bar', 'line']);
     expect(series[1].shape.length).toBe(7);
   });
+  it('combo: a line over grouped columns, broken into short pieces', () => {
+    const img = canvas(460, 240);
+    const under = (x: number, y: number): RGB => { for (let m = 0; m < 8; m++) { const bx = 24 + m * 52; if (x >= bx && x < bx + 20 && y >= 60 + (m % 3) * 15) return BLUE; if (x >= bx + 21 && x < bx + 41 && y >= 120 - (m % 2) * 20) return GREEN; } return WHITE; };
+    for (let m = 0; m < 8; m++) { const x = 24 + m * 52; fill(img, [x, 60 + (m % 3) * 15, x + 20, 210], BLUE); fill(img, [x + 21, 120 - (m % 2) * 20, x + 41, 210], GREEN); }
+    polyline(img, [[30, 170], [120, 150], [210, 130], [300, 100], [390, 110], [440, 90]], ORANGE);
+    // cut the line every 26 px, as anti-aliasing at column edges does: what shows there is what lies under it
+    for (let x = 40; x < 450; x += 26) for (let y = 0; y < 210; y++) for (let dx = 0; dx < 3; dx++) {
+      const i = (y * img.width + x + dx) * 3;
+      if (img.data[i] === ORANGE[0] && img.data[i + 1] === ORANGE[1] && img.data[i + 2] === ORANGE[2]) img.data.set(under(x + dx, y), i);
+    }
+    const r = readPanel(img, [0, 0, 460, 240], [], med, 'Hires and YoY % by Month');
+    expect(r.type).toBe('combo');
+    expect((r.fields as { series: { kind: string }[] }).series.map((x) => x.kind)).toEqual(['bar', 'bar', 'line']);
+  });
   it('waterfall: columns that chain from one to the next, with totals on the baseline', () => {
     const img = canvas(400, 260);
     fill(img, [40, 120, 100, 230], GREEN);    // start: 110 up from the baseline

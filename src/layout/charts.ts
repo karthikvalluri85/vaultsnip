@@ -413,14 +413,28 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const thin = body.filter((m) => m.n / Math.max(width(m.b), height(m.b)) <= 5 && Math.max(width(m.b), height(m.b)) >= width(b) * 0.25 && m.fill < 0.35);
   // a line broken into pieces (a stray word box on it, a mask, a gap at a marker) is still one line: thin, sparse pieces
   // of one colour that together run across most of the panel. Dots (a scatter) are compact and solid, and bars solid.
-  const pieces = body.filter((m) => !thin.includes(m) && m.fill < 0.35 && m.n / Math.max(width(m.b), height(m.b)) <= 6);
+  // (small pieces count too: where a line crosses columns, the bits between them can be a few pixels each)
+  // (a nearly flat piece fills its small box: it counts when it is a few pixels tall)
+  const pieces = all.filter((m) => !swatchSet.has(m) && !thin.includes(m) && m.n >= 6 && (m.fill < 0.35 || height(m.b) <= 4) && m.n / Math.max(width(m.b), height(m.b)) <= 6);
   for (const s of bySeries(pieces)) {
     if (s.marks.length < 2 || thin.some((t) => sameColor(t.key, s.key))) continue;
-    const u = hull(s.marks);
+    // the pieces of one line form a chain, left to right: each starts near where the one before ended, at about its
+    // height (scattered blobs of one colour, such as a map's small regions, do not); the longest chain is the line
+    const sorted = [...s.marks].sort((p, q) => p.b[0] - q.b[0]);
+    const next = (p: Mark, q: Mark) => q.b[0] - p.b[2] <= Math.max(med * 4, width(b) * 0.08) && q.b[0] >= p.b[0]
+      && Math.max(p.b[1], q.b[1]) - Math.min(p.b[3], q.b[3]) <= med * 1.5;
+    let chain: Mark[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const c: Mark[] = [sorted[i]];
+      for (let j = i + 1; j < sorted.length; j++) if (next(c[c.length - 1], sorted[j])) c.push(sorted[j]);
+      if (hull(c)[2] - hull(c)[0] > (chain.length ? width(hull(chain)) : 0)) chain = c;
+    }
+    if (chain.length < 2) continue;
+    const u = hull(chain), n = chain.reduce((a, m) => a + m.n, 0);
     if (width(u) < width(b) * 0.4) continue;
     // (a line has one height at each x, so its pieces do not overlap across: gridlines at several heights do)
-    if (s.marks.reduce((a, m) => a + width(m.b), 0) > width(u) * 1.3) continue;
-    thin.push({ key: s.key, b: u, n: s.n, fill: s.n / Math.max(1, width(u) * height(u)), cx: (u[0] + u[2]) / 2, cy: (u[1] + u[3]) / 2, colors: 1 });
+    if (chain.reduce((a, m) => a + width(m.b), 0) > width(u) * 1.3) continue;
+    thin.push({ key: s.key, b: u, n, fill: n / Math.max(1, width(u) * height(u)), cx: (u[0] + u[2]) / 2, cy: (u[1] + u[3]) / 2, colors: 1 });
   }
   // solid rectangles, with touching dense columns split apart first (a block of columns of nearly one height, joined by
   // 1 px separators of a lighter shade, is solid too, so every mark is tried)
@@ -448,7 +462,10 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
       }
       return seen >= 8 && ok >= seen * 0.8 && heights.size >= 6;
     };
-    const lines = thin.filter((t) => sat(t.key) >= 3 && !col.keys!.some((k) => sameColor(k, t.key)) && width(t.b) >= width(b) * 0.4 && height(t.b) >= Math.max(4, med * 0.5) && oneRun(t)).slice(0, 2);
+    // (a flat stretch of the line is solid enough to pass for a sliver of a column: a colour whose "columns" are all a
+    // few pixels tall and that forms a long line is the line)
+    const slivers = (key: number) => rects.filter((m) => sameColor(m.key, key)).every((m) => height(m.b) <= 4);
+    const lines = thin.filter((t) => sat(t.key) >= 3 && (!col.keys!.some((k) => sameColor(k, t.key)) || slivers(t.key)) && width(t.b) >= width(b) * 0.4 && height(t.b) >= Math.max(4, med * 0.5) && oneRun(t)).slice(0, 2);
     const extra = lines.map((t) => {
       const ys = col.at!.map((x0) => {
         for (const dx of [0, -1, 1, -2, 2]) {
@@ -466,7 +483,8 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
       return { name, kind: 'line', measure: { name, ...formatOf(name) }, shape: norm100(ys.map((_, i) => col.base! - fill(i))) };
     }).filter(Boolean);
     if (!extra.length) return col;
-    const series = (col.fields.series as { name: string; shape: number[] }[]).map((x) => ({ ...x, kind: 'bar' }));
+    const series = (col.fields.series as { name: string; shape: number[] }[]).map((x) => ({ ...x, kind: 'bar' }))
+      .filter((_, i) => !lines.some((t) => sameColor(col.keys![i], t.key)));
     return { ...col, type: 'combo', fields: { ...col.fields, series: [...series, ...extra] } };
   };
   // a KPI: one to three big masked values (numbers are masked by default) and a short label
