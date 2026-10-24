@@ -28,6 +28,9 @@ jobs:
       - run: node tools/bench-gate.mjs synth-full.json tools/synth-bench/baseline.json
       - run: node tools/synth-bench/layout.mjs --json synth-layout.json
       - run: node tools/bench-gate.mjs synth-layout.json tools/synth-bench/layout-baseline.json
+      # resemblance: layout, shape, text and colour, and no generic labels in any rendered replica (tolerance 0)
+      - run: node tools/synth-bench/resemble.mjs --json synth-resemble.json
+      - run: node tools/bench-gate.mjs synth-resemble.json tools/synth-bench/resemble-baseline.json
       - if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

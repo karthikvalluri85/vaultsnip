@@ -68,11 +68,15 @@ export function withMasks(words: Word[], masks: BuildInput['masks']): Word[] {
 }
 
 /** A title from the top line of small words; covered words become one [Client]. */
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
 export function titleOf(ws: Word[], b: Box, med: number) {
   const small = ws.filter((w) => w.h <= med * 1.9);
   if (!small.length) return { text: '', words: [] as Word[] };
   const top = Math.min(...small.map((w) => w.y));
-  const line = small.filter((w) => Math.abs(w.y - top) < med * 0.8 && w.y < b[1] + height(b) * 0.35).sort((a, c) => a.x - c.x);
+  // the title line: words whose middle is on it (a reader's box can be drawn taller than its word, as for a short "By"
+  // between two longer words; a KPI's big value is far taller and stays out)
+  const mid = mean(small.filter((w) => Math.abs(w.y - top) < med * 0.8).map((w) => w.y + w.h / 2));
+  const line = ws.filter((w) => w.h <= med * 2.6 && Math.abs(w.y + w.h / 2 - mid) < med * 0.8 && w.y < b[1] + height(b) * 0.35).sort((a, c) => a.x - c.x);
   const band: Word[] = [];
   for (const w of line) { const last = band[band.length - 1]; if (last && w.x - (last.x + last.w) > med * 2.5) break; band.push(w); }
   if (!band.some((w) => w.kept && w.text)) return { text: '', words: band };
