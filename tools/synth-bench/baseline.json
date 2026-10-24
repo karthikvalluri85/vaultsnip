@@ -1,15 +1,15 @@
 {
  "measured": "2026-10-24",
- "version": "0.6.0",
+ "version": "0.7.0",
  "images": 60,
  "sensitiveWords": 4999,
  "safeWords": 2055,
  "unknownWords": 87,
  "firstPassExposed": {
-  "pct": 2.58,
-  "lo": 2.18,
-  "hi": 3.06,
-  "k": 129,
+  "pct": 2.62,
+  "lo": 2.21,
+  "hi": 3.1,
+  "k": 131,
   "n": 4999
  },
  "residualExposed": {
@@ -20,26 +20,26 @@
   "n": 4999
  },
  "residualRotated": 15,
- "firstPassLeakedAreaPct": 0.71,
+ "firstPassLeakedAreaPct": 0.72,
  "residualLeakedAreaPct": 0.71,
  "overMasked": {
-  "pct": 9.34,
-  "lo": 8.16,
-  "hi": 10.68,
-  "k": 192,
+  "pct": 8.71,
+  "lo": 7.57,
+  "hi": 10.01,
+  "k": 179,
   "n": 2055
  },
  "falseAlarms": {
-  "pct": 97.21,
-  "lo": 93.63,
-  "hi": 98.8,
-  "k": 174,
-  "n": 179
+  "pct": 96.15,
+  "lo": 92.27,
+  "hi": 98.12,
+  "k": 175,
+  "n": 182
  },
  "byKind": {
   "number": {
    "words": 2372,
-   "firstPassExposedPct": 3.63,
+   "firstPassExposedPct": 3.71,
    "residualExposedPct": 3.46
   },
   "name": {
@@ -73,5 +73,5 @@
    "residualExposedPct": 0.73
   }
  },
- "medianSeconds": 38.649
+ "medianSeconds": 41.073
 }

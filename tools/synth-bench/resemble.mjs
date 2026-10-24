@@ -30,7 +30,9 @@ const DIR = arg('--dir', join(ROOT, '.bench', 'synth'));
 if (arg('--json')) await rm(arg('--json'), { force: true });
 const TYPE = { hbar: 'bar' };
 const WHY = process.argv.includes('--why');
-const AI = process.argv.includes('--ai');
+// --closeups scores the Phase 4(b) records (<id>.closeup.json): the device's layout with the uncertain visuals redone
+const CLOSE = process.argv.includes('--closeups');
+const AI = process.argv.includes('--ai') || CLOSE;
 const SHAPED = ['bar', 'column', 'line', 'pie', 'donut', 'area'];
 
 const norm = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -85,7 +87,7 @@ try {
     if (!truth.panels.some((p) => 'title' in p)) { console.error(`${f} has no titles: regenerate with tools/synth-bench/gen.mjs`); process.exit(1); }
     let spec, pairs;
     if (AI) {
-      const rec = await readFile(join(DIR, truth.id + '.ai.json'), 'utf8').then(JSON.parse, () => null);
+      const rec = await readFile(join(DIR, truth.id + (CLOSE ? '.closeup.json' : '.ai.json')), 'utf8').then(JSON.parse, () => null);
       if (!rec?.spec) continue;
       spec = rec.spec;
       pairs = byOrder(truth.panels, placed(spec));
@@ -175,7 +177,7 @@ const result = { resemblance: { dashboards: pages,
   text: { shownPct: pct(all.textShown / Math.max(1, all.text)), readableWords: all.text, titlesPct: pct(all.titleShown / Math.max(1, all.title)), labelsPct: pct(all.catsShown / Math.max(1, all.cats)) },
   colour: { matchPct: pct(all.colourRight / Math.max(1, all.colour)) } } };
 const R = result.resemblance;
-console.log(`RESEMBLANCE on ${pages} generated dashboards (${AI ? 'recorded AI answers' : 'visuals the on-device builder found'}):`);
+console.log(`RESEMBLANCE on ${pages} generated dashboards (${CLOSE ? 'on device, uncertain visuals redone by the AI' : AI ? 'recorded AI answers' : 'visuals the on-device builder found'}):`);
 console.log(`  layout   same row ${R.layout.sameRowPct}% of pairs, width match ${R.layout.widthMatchPct}%`);
 console.log(`  shape    categories right ${R.shape.categoriesRightPct}% of ${R.shape.charts} charts, shape match ${R.shape.shapeMatchPct}% where right`);
 console.log(`  text     ${R.text.shownPct}% of ${R.text.readableWords} readable title and label words shown (titles ${R.text.titlesPct}%, category labels ${R.text.labelsPct}%)`);

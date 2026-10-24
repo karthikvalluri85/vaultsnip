@@ -20,6 +20,8 @@ export interface Reading {
   fields: Record<string, unknown>;
   /** Main mark colour, for the page theme. */
   color?: string;
+  /** A best guess where no reader could type the panel (not in the spec): no evidence against a report. */
+  guess?: boolean;
   /** Columns only (not in the spec): each category's centre, the baseline and the bar series' colours. */
   at?: number[]; base?: number; keys?: number[];
 }
@@ -572,5 +574,17 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
     || done(lines(c)) || done(scatter(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
+    || done(bestGuess())
     || done({ type: 'placeholder', certainty: 0.2, fields: { originalType: coverage > 0.1 ? 'chart' : 'visual' } })!;
+
+  // a chart no reader could type, with marks enough to draw: columns (the commonest chart) from its largest marks, left to
+  // right, at a low certainty, so the replica shows a chart and the confidence score asks the user to check its type
+  function bestGuess(): Reading | null {
+    if (coverage <= 0.1) return null;
+    const ms = [...body].sort((p, q) => q.n - p.n).slice(0, 8).sort((p, q) => p.b[0] - q.b[0]);
+    if (ms.length < 2) return null;
+    const base = Math.max(...ms.map((m) => m.b[3]));
+    const members = axisLabels(words, ms.map((m) => ({ lo: m.b[0], hi: m.b[2] })), 'x', [base - 2, base + med * 4], med);
+    return { type: 'column', certainty: 0.3, guess: true, fields: { dimension: { name: dName || 'Category', members }, measure, series: [{ name: measure.name, shape: norm100(ms.map((m) => height(m.b))) }] } };
+  }
 }

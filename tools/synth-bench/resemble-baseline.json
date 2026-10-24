@@ -4,7 +4,7 @@
   "dashboards": 60,
   "genericLabels": {
    "left": 0,
-   "of": 2294,
+   "of": 2304,
    "examples": []
   },
   "layout": {
@@ -12,8 +12,8 @@
    "widthMatchPct": 76.5
   },
   "shape": {
-   "categoriesRightPct": 72.6,
-   "shapeMatchPct": 96.9,
+   "categoriesRightPct": 72.2,
+   "shapeMatchPct": 97,
    "charts": 223
   },
   "text": {
