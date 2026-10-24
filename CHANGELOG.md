@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **No generic labels in replicas.** A replica never shows a placeholder such as "Item 2", "Value", "Series 2", "Category" or "[Client]" (outside Generic mode, which is neutral on purpose). Covered axis and legend labels are filled from context: months or quarters for a time axis, regions, segments, channels, departments and the like for named dimensions, the dashboard's industry for unnamed ones; "Value" becomes a measure the page names, "Series 2" becomes Actual, Target or Prior year. Nothing is taken from the masked text. With realistic names off, labels are named from their column ("Owner A", "Client A").
+- **Replicas look more like the original.** *Build on this device* reads a line chart's axis labels from the axis itself, keeps short title words such as "By", and counts pie slices and line points more reliably: on the generated benchmark, the share of readable titles and labels that reach the replica rises from 64% to 89%, and charts with the right number of categories from 59% to 71%.
+- **Resemblance is measured** (`tools/synth-bench/resemble.mjs`, developer tool): layout, shape, text and colour match against the original, and generic labels left in the rendered replica, gated nightly in CI.
+
 ## [0.7.0] - 2026-10-24
 
 ### Added

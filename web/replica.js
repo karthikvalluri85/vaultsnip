@@ -80,19 +80,108 @@
     return Array.from({ length: n }, () => 15 + r() * 85);
   }
 
+  /* ---------- no generic labels ----------
+     A replica never shows a placeholder ("Item 2", "Value", "Series 2", "Category", "KPI") outside Generic mode: each is
+     filled from context, from fixed lists chosen by the dimension's name, the chart and the page (never from masked
+     text). Realistic names (`inj`) come first where they apply; these lists catch everything else. */
+  const PLACEHOLDER_MEMBER = /^\s*(?:account|customer|client|company|person|owner|user|item|category|member|value|point|location|series|group|label|entry|bar|slice|node|task|row|column|segment|region|period|[a-e])\s*\d*\s*$/i;
+  const PLACEHOLDER_NAME = /^\s*(?:value|values|item|items|category|categories|series|metric|measure|kpi|line|bar|dimension|period|group|label|amount|total)\s*\d*\s*$/i;
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  // (whole words: an "Account Manager" is not an age group)
+  const LISTS = [
+    [/\b(regions?|zones?|territor(y|ies)|areas?)\b/i, ['North', 'South', 'East', 'West', 'Central', 'Northeast', 'Southwest', 'Northwest', 'Southeast', 'Midwest']],
+    [/\bsegments?\b/i, ['Enterprise', 'Mid-market', 'Small business', 'Consumer', 'Public sector', 'Education', 'Partners']],
+    [/\b(channels?|medium|media)\b/i, ['Online', 'Retail', 'Partner', 'Direct sales', 'Marketplace', 'Mobile app', 'Wholesale']],
+    [/\b(sources?|referr\w*)\b/i, ['Organic search', 'Search ads', 'Social', 'Email', 'Referral', 'Direct', 'Display']],
+    [/\b(departments?|dept|functions?|divisions?|business units?)\b/i, ['Sales', 'Marketing', 'Finance', 'Operations', 'Engineering', 'Support', 'HR', 'Legal']],
+    [/\b(status|stages?)\b/i, ['New', 'In progress', 'On hold', 'Resolved', 'Closed', 'Cancelled']],
+    [/\b(priority|priorities|severity)\b/i, ['Critical', 'High', 'Medium', 'Low']],
+    [/\b(tiers?|levels?|grades?)\b/i, ['Platinum', 'Gold', 'Silver', 'Bronze', 'Standard']],
+    [/\bage( groups?| bands?| ranges?)?\b/i, ['18-24', '25-34', '35-44', '45-54', '55-64', '65+']],
+    [/\b(gender|sex)\b/i, ['Female', 'Male', 'Non-binary', 'Not stated']],
+    [/\b(types?|kinds?|class(es)?)\b/i, ['Standard', 'Premium', 'Basic', 'Custom', 'Other']],
+  ];
+  const BY_INDUSTRY = {
+    healthcare: ['Cardiology', 'Oncology', 'Orthopedics', 'Pediatrics', 'Neurology', 'Radiology', 'Emergency', 'Primary care'],
+    finance: ['Retail banking', 'Wealth', 'Insurance', 'Lending', 'Cards', 'Payments', 'Treasury'],
+    education: ['Arts', 'Sciences', 'Engineering', 'Business', 'Law', 'Medicine', 'Education'],
+    tech: ['Platform', 'Analytics', 'Security', 'Cloud', 'Mobile', 'Integrations', 'AI'],
+  };
+  // what the stand-in members of an unnamed dimension are, by industry
+  const LIST_NAME = { healthcare: 'Department', finance: 'Line of business', education: 'Faculty', tech: 'Product area' };
+  const CATEGORIES = ['Electronics', 'Apparel', 'Home & Garden', 'Sports', 'Beauty', 'Toys', 'Grocery', 'Books', 'Automotive', 'Office', 'Health', 'Pets'];
+  // a table column whose header is a placeholder or a single stray character, named for what it holds
+  const KIND_NAME = { id: 'ID', person: 'Name', org: 'Company', date: 'Date', number: 'Count', currency: 'Amount', percent: 'Rate', verbatim: 'Comment', category: 'Type', text: 'Details' };
+  const SERIES_NAMES = ['Actual', 'Target', 'Prior year', 'Forecast', 'Budget', 'Plan', 'Benchmark'];
+  const isPlaceholderMember = m => PLACEHOLDER_MEMBER.test(String(m == null ? '' : m));
+  const isPlaceholderName = n => !String(n == null ? '' : n).trim() || PLACEHOLDER_NAME.test(String(n));
+  const isTime = (dim, v) => /month|period|date|time|week|quarter|qtr|year|\bfy\b|day/i.test(dim || '') || (isPlaceholderName(dim) && !!v && ['line', 'area', 'combo'].includes(v.type));
+  function timeLabel(dim, i, n) {
+    const d = String(dim || ''), y0 = new Date().getFullYear() - 1;
+    if (/quarter|qtr/i.test(d)) return 'Q' + (i % 4 + 1) + ' ' + (y0 + Math.floor(i / 4));
+    if (/year|\bfy\b/i.test(d)) return String(y0 - Math.max(0, n - 1) + i + 1);
+    if (/week/i.test(d)) return 'Week ' + (i + 1);
+    if (/\bday\b|date/i.test(d) && !/month/i.test(d)) return MONTHS[0] + ' ' + (i + 1);
+    return n > 12 ? MONTHS[i % 12] + ' ' + String(y0 + Math.floor(i / 12)).slice(2) : MONTHS[i % 12];
+  }
+  // a stand-in for a placeholder member, from the dimension's name, the visual and the page's industry
+  function contextMember(dim, i, n, v, industry) {
+    if (isTime(dim, v)) return timeLabel(dim, i, n);
+    const named = LISTS.find(([re]) => re.test(dim || ''));
+    // (an unnamed dimension draws on the industry's list, then the general one; a named one past its list, or with
+    // no list, is its own name with a letter: "Store A")
+    const list = named ? named[1] : isPlaceholderName(dim) ? [...new Set([...(BY_INDUSTRY[industry] || []), ...CATEGORIES])] : null;
+    if (list && i < list.length) return list[i];
+    const base = isPlaceholderName(dim) ? (LIST_NAME[industry] || 'Product category') : String(dim).replace(/s$/i, '');
+    return base + ' ' + (i < 26 ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[i] : i + 1);
+  }
+  // a stand-in for a placeholder measure name: another measure the page names, else one that fits its format
+  function contextMeasure(spec, format) {
+    const named = (spec.rows || []).flatMap(rw => rw.visuals || []).map(v => v.measure && v.measure.name).find(nm => nm && !isPlaceholderName(nm));
+    if (named) return named;
+    return { currency: 'Revenue', percent: 'Rate', integer: 'Count', ratio: 'Score', duration: 'Time' }[format] || 'Total';
+  }
+
   // `inj` (Feature 6, web/lib/vs-faker.js) fills covered labels such as "[Client]" or "Item 2" with realistic synthetic
   // values chosen from context. Only the label shown changes; the raw member stays the filter key.
   function labelsFor(spec, mode, inj) {
     const generic = mode === 'generic';
+    const industry = inj && inj.industry;
     const dimMap = new Map(); let dimCount = 0; let measCount = 0; const measMap = new Map();
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const txt = s => (inj && s ? inj.text(s) : s);
+    // "[Client]" in a title: a realistic company with realistic names on, else "Client A" (never the bare placeholder)
+    const txt = s => (inj && s ? inj.text(s) : generic || !s ? s : String(s).replace(/\[(client|customer|company|account)\]/gi, (_, w) => w[0].toUpperCase() + w.slice(1).toLowerCase() + ' A'));
     return {
       generic, inj,
       text: txt,
-      member(dimName, m, i) { return generic ? (dimShort(dimName) + ' ' + (i + 1)) : (inj && inj.member(dimName, m, i)) || txt(m); },
-      dim(name) { if (!generic) return txt(name); if (!dimMap.has(name)) dimMap.set(name, 'Dimension ' + (++dimCount)); return dimMap.get(name); },
-      meas(name) { if (!generic) return txt(name); if (!measMap.has(name)) measMap.set(name, 'Metric ' + letters[measCount++ % 26]); return measMap.get(name); },
+      member(dimName, m, i, v, n) {
+        if (generic) return dimShort(dimName) + ' ' + (i + 1);
+        const real = inj && inj.member(dimName, m, i);
+        if (real) return real;
+        return isPlaceholderMember(m) ? contextMember(dimName, i, n || 0, v, industry) : txt(m);
+      },
+      dim(name, v) {
+        if (generic) { if (!dimMap.has(name)) dimMap.set(name, 'Dimension ' + (++dimCount)); return dimMap.get(name); }
+        return isPlaceholderName(name) ? (isTime(name, v) ? 'Month' : LIST_NAME[industry] || 'Product category') : txt(name);
+      },
+      meas(name, format) {
+        if (generic) { if (!measMap.has(name)) measMap.set(name, 'Metric ' + letters[measCount++ % 26]); return measMap.get(name); }
+        return isPlaceholderName(name) ? contextMeasure(spec, format) : txt(name);
+      },
+      // a table cell with no realistic value: from the column's list, else the column's own name with a letter
+      cellText(colName, i, kind) {
+        const name = isPlaceholderName(colName) || /^\s*\S?\s*$/.test(String(colName || '')) ? (KIND_NAME[kind] === 'Details' ? '' : KIND_NAME[kind] || '') : colName;
+        return contextMember(name || (kind === 'org' ? 'Account' : kind === 'person' ? 'Owner' : ''), i, 0, null, industry);
+      },
+      col(c) {
+        if (generic) return this.dim(c.name);
+        return isPlaceholderName(c.name) || /^\s*\S?\s*$/.test(String(c.name || '')) ? KIND_NAME[c.kind] || 'Details' : txt(c.name);
+      },
+      // a series name: "Series 2" becomes Actual, Target, Prior year... in the order the legend shows them
+      series(name, i, format) {
+        if (generic || !/^\s*series\s*\d*\s*$/i.test(String(name || ''))) return this.meas(name, format);
+        return SERIES_NAMES[i % SERIES_NAMES.length];
+      },
       title(t, i) { return generic ? 'Visual ' + (i + 1) : txt(t); }
     };
     function dimShort(n) { if (!dimMap.has(n)) dimMap.set(n, 'Dimension ' + (++dimCount)); return dimMap.get(n).replace('Dimension ', 'Item ').replace(/ \d+$/, ''); }
@@ -328,7 +417,7 @@
     const legend = { top: 0, textStyle: { color: t.muted, fontSize: 11 }, type: 'scroll' };
     const dimName = v.dimension && v.dimension.name || 'Category';
     const membersRaw = (v.dimension && v.dimension.members && v.dimension.members.length) ? v.dimension.members : ['A', 'B', 'C', 'D', 'E'];
-    let members = membersRaw.map((m, i) => L.member(dimName, m, i));
+    let members = membersRaw.map((m, i) => L.member(dimName, m, i, v, membersRaw.length));
     let n = members.length;
     const dimOpacity = () => 1;
     const dimKey = F.dk(dimName);
@@ -377,7 +466,7 @@
           return {
             yAxisIndex: second && ownMeas(s) ? 1 : 0, tooltip: { valueFormatter: x => fmt(x, sm, generic) },
             // (in a combo only the columns stack: a line over stacked columns is a total or a rate of its own)
-            name: L.meas(s.name || meas.name), type: kind, stack: v.stacked && kind === 'bar' ? 'total' : undefined,
+            name: L.series(s.name || meas.name, si, meas.format), type: kind, stack: v.stacked && kind === 'bar' ? 'total' : undefined,
             areaStyle: v.type === 'area' ? { opacity: v.stacked ? 0.7 : 0.18 } : undefined,
             smooth: false, symbolSize: 7, barMaxWidth: 46, barGap: '15%',
             itemStyle: { borderRadius: v.stacked ? 0 : (horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]) },
@@ -879,7 +968,7 @@
           if (c.kind !== 'percent' && !(m.lo < 0)) x *= tf;
           return { x, m };
         };
-        const csvCell = (c, ri, o) => rows.push({ v, dim: 'Row', member: String(ri + 1), series: L.generic ? L.dim(c.name) : c.name, value: o.text, format: c.kind || 'text' });
+        const csvCell = (c, ri, o) => rows.push({ v, dim: 'Row', member: String(ri + 1), series: L.col(c), value: o.text, format: c.kind || 'text' });
         const cellOf = (c, ci, ri) => {
           const k = c.kind || 'text';
           const cats = c.members && c.members.length ? c.members : null;
@@ -892,10 +981,12 @@
           // realistic synthetic values chosen from the column's name and kind; an email follows the row's person
           const fake = L.inj && ['person', 'org', 'text', 'id'].includes(k) ? L.inj.cell(c.name, k, v.id + '|' + ri + '|' + ci, firstPerson >= 0 ? v.id + '|' + ri + '|' + firstPerson : undefined, placeCol ? String(placeCol === rowCat ? rowLabels[ri] : pick(placeCol, ri)) : undefined) : null;
           if (fake != null) cell = fake;
-          else if (k === 'person') cell = (L.generic ? 'Owner ' : 'Person ') + (1 + ((ri * 7 + ci) % 9));
-          else if (k === 'org' || k === 'text') cell = (L.generic ? 'Entity ' : (c.placeholder || (k === 'org' ? 'Company' : 'Item')) + ' ') + String(ri + 1).padStart(2, '0');
+          // (without realistic names, a person, organisation or text cell is named from its column, never "Person 3" or
+          // "Item 01": "Owner A", "Account B", or a value from the column's list)
+          else if (k === 'person') cell = L.generic ? 'Owner ' + (1 + ((ri * 7 + ci) % 9)) : L.cellText(c.name, (ri * 7 + ci) % 9, k);
+          else if (k === 'org' || k === 'text') cell = L.generic ? 'Entity ' + String(ri + 1).padStart(2, '0') : L.cellText(c.name, ri, k);
           else if (k === 'id') cell = (L.generic ? 'ID-' : 'TKN-') + ids[ri];
-          else if (k === 'category') { if (cats) { const m = c === rowCat ? rowLabels[ri] : pick(c, ri); cell = L.member(c.name, m, cats.map(String).indexOf(String(m))); } else cell = 'Group ' + 'ABC'[Math.floor(r() * 3)]; }
+          else if (k === 'category') { if (cats) { const m = c === rowCat ? rowLabels[ri] : pick(c, ri); cell = L.member(c.name, m, cats.map(String).indexOf(String(m))); } else cell = L.generic ? 'Group ' + 'ABC'[Math.floor(r() * 3)] : L.cellText(c.name, Math.floor(r() * 3), k); }
           else if (k === 'date') cell = new Date(Date.now() - Math.floor(r() * 120) * 864e5).toISOString().slice(0, 10);
           else if (k === 'percent') { const o = colVal(c, ci, ri); x = o.x; cell = (o.m.signed && x > 0 ? '+' : '') + x.toFixed(1) + (L.generic ? '' : '%'); }
           else if (k === 'currency') { const o = colVal(c, ci, ri); x = o.x; cell = o.m.dp === 2 && x < 1000 ? (L.generic ? '' : (c.currency || (v.measure && v.measure.currency) || '$')) + x.toFixed(2) : fmt(x, { format: 'currency', currency: c.currency || (v.measure && v.measure.currency) }, L.generic); }
@@ -970,14 +1061,14 @@
           });
           if (v.grandTotal !== false) display.push(totalRow(dataRows, 'rp-grand'));
           kind('table');
-          vm.columns = cols.map(c => (L.generic ? L.dim(c.name) : c.name)); vm.rowLabel = g0 ? g0.c.name : ''; vm.grouped = true;
+          vm.columns = cols.map(c => (L.col(c))); vm.rowLabel = g0 ? g0.c.name : ''; vm.grouped = true;
           vm.rows = display.map(r => ({ filter: r.filter, cls: r.cls, cells: r.cells.map(c => ({ text: c.text, cls: c.cls || '' })) }));
           const body = display.map(r => ({ cls: r.cls, cells: r.cells.map((c, ci) => ({ text: c.text, num: c.cls === 'n', filter: g0 && ci === g0.ci && c.text && r.filter ? r.filter : null })) }));
-          card.insertAdjacentHTML('beforeend', gridHtml([cols.map(c => ({ text: L.generic ? L.dim(c.name) : c.name, num: ['number', 'currency', 'percent'].includes(c.kind) }))], body, 'rp-grouped'));
+          card.insertAdjacentHTML('beforeend', gridHtml([cols.map(c => ({ text: L.col(c), num: ['number', 'currency', 'percent'].includes(c.kind) }))], body, 'rp-grouped'));
           return;
         }
         kind('table');
-        vm.columns = cols.map(c => (L.generic ? L.dim(c.name) : c.name));
+        vm.columns = cols.map(c => (L.col(c)));
         vm.rowLabel = rowCat ? rowCat.name : '';
         vm.rows = [];
         const rowsHtml = Array.from({ length: rowsN }, (_, ri) => (vm.rows.push({ filter: rowCat ? [dk(rowCat.name), rowLabels[ri]] : null, cells: [] }), rowCat ? `<tr class="rp-row" data-dim="${esc(dk(rowCat.name))}" data-raw="${esc(rowLabels[ri])}" title="Filter by this ${esc(rowCat.name)}">` : '<tr>') + cols.map((c, ci) => {
@@ -985,7 +1076,7 @@
           vm.rows[ri].cells.push(o.parts ? { text: o.text, cls: o.cls, parts: o.parts } : { text: o.text, cls: o.cls });
           return `<td class="${o.cls}">${o.html}</td>`;
         }).join('') + '</tr>').join('');
-        card.insertAdjacentHTML('beforeend', `<div class="rp-table"><table><thead><tr>${cols.map(c => `<th>${esc(L.generic ? L.dim(c.name) : c.name)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`);
+        card.insertAdjacentHTML('beforeend', `<div class="rp-table"><table><thead><tr>${cols.map(c => `<th>${esc(L.col(c))}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`);
         return;
       }
       if (v.type === 'pivot') {
