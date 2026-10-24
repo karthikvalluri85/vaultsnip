@@ -11,7 +11,11 @@ import { ROOT } from './items.mjs';
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.gz': 'application/gzip', '.wasm': 'application/wasm', '.css': 'text/css' };
 
-/** Starts the app and a browser; read(file) reviews one image in a fresh page; close() stops both. */
+/**
+ * Starts the app and a browser; read(file) reviews one image in a fresh page; close() stops both. read(file, after)
+ * also runs after(page) in that page once the review is done, and returns its result as `after` (the AI-path
+ * benchmark asks the model there, with the app's own code).
+ */
 export async function reviewer() {
   // VAULTSNIP_WEB serves another build's web/ (to compare builds with the same harness)
   const web = process.env.VAULTSNIP_WEB || join(ROOT, 'web');
@@ -27,7 +31,7 @@ export async function reviewer() {
   // a page stalled while reading. A page that has not finished after TIMEOUT (a normal image takes under a minute) is
   // reported with the step it was stuck on, and the image is tried once more.
   const TIMEOUT = 180000;
-  async function attempt(file) {
+  async function attempt(file, after) {
     const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     try {
@@ -47,14 +51,15 @@ export async function reviewer() {
           findings: S.flags.map((f) => ({ type: f.type, severity: f.severity, x: f.x, y: f.y, w: f.w, h: f.h })) };
       });
       out.ms = Date.now() - t0;
+      if (after) out.after = await after(page);
       return out;
     } finally {
       await browser.close();
     }
   }
-  async function read(file) {
-    try { return await attempt(file); }
-    catch (e) { console.warn(`  ! ${file}: ${e.message}; trying again`); return attempt(file); }
+  async function read(file, after) {
+    try { return await attempt(file, after); }
+    catch (e) { console.warn(`  ! ${file}: ${e.message}; trying again`); return attempt(file, after); }
   }
   return { read, close: async () => { server.close(); } };
 }
