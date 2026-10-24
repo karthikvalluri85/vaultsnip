@@ -326,6 +326,18 @@ Builder changes, each checked on both sets:
 A rule to keep a KPI's sparkline from reading as a map (a map's outline has no straight bottom) was tried and dropped:
 it lost a Looker map cut by its panel.
 
+**Sub-figures of a KPI card.** A tiny KPI or placeholder panel with no chart in it ("Current workforce: 6,009" under a
+card's big value) now joins the card that holds it or sits right above or below it: 3 fewer stray panels on the public
+dashboards (89 instead of 92), nothing lost on either set.
+
+Two masking ideas were measured and dropped, both for privacy:
+
+- **Borders between regions as chart shapes** (so map pieces with white borders would stay visible). On a dashboard
+  with a gradient background, a letter's stroke also lies between two shades, and the reader dropped real words
+  ("Budget", "Trends") and three masked ones. A test now pins this: a word on a gradient is text for every shape test.
+- **The pre-flight check skipping chart shapes.** It cut findings from 179 to 168 on the generated set, but the check is
+  the independent second layer: filtering it with the same tests as the first reading would let one mistake pass both.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

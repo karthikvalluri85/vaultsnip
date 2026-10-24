@@ -136,3 +136,19 @@ describe('masked labels and KPI values', () => {
     expect(background(img, [0, 0, 400, 300])).toEqual(WHITE);
   });
 });
+
+describe('sub-figures of a KPI card', () => {
+  const reading = (b: Box, type: string, marks = 0, nWords = 3) => ({ p: { b, words: Array.from({ length: nWords }, () => word('x', b[0], b[1])) }, r: { type }, features: { marks } });
+  it('join the card they belong to; KPI tiles and charts stay apart', async () => {
+    const { foldSubFigures } = await import('../../src/layout/index');
+    const card = reading([200, 140, 420, 270], 'kpi');
+    const sub = reading([215, 295, 380, 330], 'kpi');           // "Current workforce: 6,009" under the card
+    const inside = reading([300, 240, 360, 262], 'kpi');        // a "vs LY" delta inside it
+    const tile = reading([440, 140, 660, 270], 'kpi');          // the next KPI tile: its own visual
+    const chart = reading([200, 400, 600, 760], 'bar', 12, 20);
+    const rs = [card, sub, inside, tile, chart];
+    foldSubFigures(rs, 1300, 830, 12, []);
+    expect(rs).toEqual([card, tile, chart]);
+    expect(card.p.b).toEqual([200, 140, 420, 330]);
+  });
+});

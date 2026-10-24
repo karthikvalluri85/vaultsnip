@@ -7,7 +7,7 @@
   "visuals": 80,
   "found": 76,
   "foundPct": 95,
-  "extraPanels": 16,
+  "extraPanels": 13,
   "typesRightLenient": 65,
   "typesRightStrict": 61,
   "typesRightPct": 85.5,
@@ -62,7 +62,7 @@
    "Number or money": 27,
    "Text not on allowlist": 25
   },
-  "medianSeconds": 20.01,
-  "slowestSeconds": 36.61
+  "medianSeconds": 20.049,
+  "slowestSeconds": 36.968
  }
 }

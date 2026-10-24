@@ -214,3 +214,18 @@ describe('isShapes', () => {
     expect(isShapes(word, 12)).toBe(false);
   });
 });
+
+describe('chart-shape tests on a gradient background', () => {
+  it('a word on a gradient is text, for every test', async () => {
+    const { isShapes, isBar, flatMarksOnly } = await import('../../src/shared/text-regions');
+    // a 40 x 18 word on a background shading from one tone to another, as on a gradient dashboard
+    const w = 40, h = 18, data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const t = Math.round(200 + (x / w) * 50); data.set([t, t - 10, t + 5, 255], (y * w + x) * 4); }
+    const ink = (x0: number, y0: number, x1: number, y1: number) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) data.set([40, 60, 120, 255], (y * w + x) * 4); };
+    for (let i = 0; i < 5; i++) { ink(2 + i * 7, 3, 4 + i * 7, 15); ink(2 + i * 7, 3, 7 + i * 7, 5); ink(2 + i * 7, 13, 7 + i * 7, 15); }
+    const px = { data, width: w, height: h };
+    expect(isShapes(px, 11)).toBe(false);
+    expect(isBar(px, 11)).toBe(false);
+    expect(flatMarksOnly(px, 11)).toBe(false);
+  });
+});
