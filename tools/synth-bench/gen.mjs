@@ -153,11 +153,18 @@ async function render(d) {
       await new vega.View(vega.parse(vegaLite.compile(vm).spec), { renderer: 'svg', container: box }).runAsync();
       continue;
     }
+    // category labels get at most about a third of the panel's width, cut short with an ellipsis as BI tools do (left to
+    // themselves, the chart libraries squeezed a narrow panel's plot to a sliver)
+    const labelPx = Math.round(w * 0.32);
     if (p.type === 'pie' || p.type === 'hbar') {
+      const fit = Math.max(4, Math.floor(labelPx / (s.size * 0.65)));
+      const cats = p.type === 'hbar' ? p.cats.map((c) => (c.length > fit ? c.slice(0, fit - 1).trimEnd() + '…' : c)) : p.cats;
       const data = p.type === 'pie' ? [{ type: 'pie', labels: p.cats, values: p.values, textinfo: 'percent', sort: false, marker: { colors: T.series } }]
-        : [{ type: 'bar', orientation: 'h', y: p.cats, x: p.values, marker: { color: T.series[0] } }];
-      await Plotly.newPlot(box, data, { width: w, height: h, margin: { l: p.type === 'hbar' ? 150 : 10, r: 10, t: 10, b: 30 }, paper_bgcolor: T.panel, plot_bgcolor: T.panel,
-        font: { family: FONT, size: s.size, color: T.fg }, showlegend: p.type === 'pie', xaxis: { gridcolor: T.line }, yaxis: { automargin: true } }, { staticPlot: true, displayModeBar: false });
+        : [{ type: 'bar', orientation: 'h', y: cats, x: p.values, marker: { color: T.series[0] } }];
+      await Plotly.newPlot(box, data, { width: w, height: h, margin: { l: p.type === 'hbar' ? labelPx : 10, r: 10, t: 10, b: p.type === 'pie' ? 70 : 30 }, paper_bgcolor: T.panel, plot_bgcolor: T.panel,
+        font: { family: FONT, size: s.size, color: T.fg }, showlegend: p.type === 'pie',
+        // (legend below the pie: beside it, Plotly let the legend's box cover half the pie)
+        legend: { orientation: 'h', x: 0, y: -0.08 }, xaxis: { gridcolor: T.line }, yaxis: { automargin: p.type !== 'hbar' } }, { staticPlot: true, displayModeBar: false });
       continue;
     }
     const vl = {
@@ -167,7 +174,7 @@ async function render(d) {
       encoding: p.type === 'bar'
         ? { y: { field: 'cat', type: 'nominal', sort: null, title: null }, x: { field: 'v', type: 'quantitative', title: p.measure } }
         : { x: { field: 'cat', type: 'nominal', sort: null, title: null, axis: { labelAngle: p.rotate } }, y: { field: 'v', type: 'quantitative', title: p.measure } },
-      config: { font: FONT, axis: { labelLimit: 140, labelColor: T.fg, titleColor: T.muted, gridColor: T.line, domainColor: T.line, labelFontSize: s.size, titleFontSize: s.size }, view: { stroke: null } },
+      config: { font: FONT, axis: { labelLimit: labelPx, labelOverlap: 'greedy', labelColor: T.fg, titleColor: T.muted, gridColor: T.line, domainColor: T.line, labelFontSize: s.size, titleFontSize: s.size }, view: { stroke: null } },
     };
     const view = new vega.View(vega.parse(vegaLite.compile(vl).spec), { renderer: 'svg', container: box });
     await view.runAsync();

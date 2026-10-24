@@ -2,65 +2,65 @@
  "measured": "2026-10-24",
  "version": "0.6.0",
  "images": 8,
- "sensitiveWords": 825,
- "safeWords": 250,
- "unknownWords": 15,
+ "sensitiveWords": 751,
+ "safeWords": 249,
+ "unknownWords": 24,
  "firstPassExposed": {
-  "pct": 4,
-  "lo": 2.86,
-  "hi": 5.56,
-  "k": 33,
-  "n": 825
+  "pct": 2.8,
+  "lo": 1.84,
+  "hi": 4.24,
+  "k": 21,
+  "n": 751
  },
  "residualExposed": {
-  "pct": 3.88,
-  "lo": 2.76,
-  "hi": 5.42,
-  "k": 32,
-  "n": 825
+  "pct": 2.66,
+  "lo": 1.73,
+  "hi": 4.08,
+  "k": 20,
+  "n": 751
  },
- "residualRotated": 9,
- "firstPassLeakedAreaPct": 1.29,
- "residualLeakedAreaPct": 1.28,
+ "residualRotated": 3,
+ "firstPassLeakedAreaPct": 0.8,
+ "residualLeakedAreaPct": 0.79,
  "overMasked": {
-  "pct": 12,
-  "lo": 8.54,
-  "hi": 16.61,
-  "k": 30,
-  "n": 250
+  "pct": 5.62,
+  "lo": 3.38,
+  "hi": 9.22,
+  "k": 14,
+  "n": 249
  },
  "falseAlarms": {
-  "pct": 86.67,
-  "lo": 62.12,
-  "hi": 96.26,
-  "k": 13,
-  "n": 15
+  "pct": 95.45,
+  "lo": 78.2,
+  "hi": 99.19,
+  "k": 21,
+  "n": 22
  },
  "byKind": {
   "number": {
-   "words": 297,
-   "firstPassExposedPct": 5.39,
-   "residualExposedPct": 5.05
+   "words": 292,
+   "firstPassExposedPct": 1.71,
+   "residualExposedPct": 1.71
   },
   "name": {
-   "words": 105,
-   "firstPassExposedPct": 1.9,
-   "residualExposedPct": 1.9
+   "words": 94,
+   "firstPassExposedPct": 6.38,
+   "residualExposedPct": 5.32
   },
   "org": {
-   "words": 136,
-   "firstPassExposedPct": 5.88,
-   "residualExposedPct": 5.88
+   "words": 133,
+   "firstPassExposedPct": 0,
+   "residualExposedPct": 0
   },
   "product": {
-   "words": 193,
-   "firstPassExposedPct": 2.59,
-   "residualExposedPct": 2.59
+   "words": 138,
+   "firstPassExposedPct": 6.52,
+   "residualExposedPct": 6.52
   },
   "place": {
    "words": 59,
-   "firstPassExposedPct": 3.39,
-   "residualExposedPct": 3.39
+   "firstPassExposedPct": 1.69,
+   "residualExposedPct": 1.69
   },
   "id": {
    "words": 25,
@@ -73,5 +73,5 @@
    "residualExposedPct": 0
   }
  },
- "medianSeconds": 26.19
+ "medianSeconds": 35.602
 }

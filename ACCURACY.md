@@ -234,6 +234,62 @@ and the public dashboards:
 It wins on both sides of masking at once, so it ships, on by default with the rest of the unread-text check. The
 page reader stays the main reader: replacing it everywhere would be a much larger change, for a later measurement.
 
+## Generated set v4, and fixes from what it showed (24 October 2026)
+
+Three changes to the generator, so its dashboards look like real ones: pie legends sit below the pie (beside it,
+Plotly's legend box covered half the pie); category labels get at most a third of the panel's width, shortened with an
+ellipsis as BI tools do (the chart libraries had squeezed a narrow panel's plot to a sliver); and overlapping axis
+labels are hidden. Figures from here on are on this set (v4) unless marked v3.
+
+Masking, both sets, measured with the app as committed in this change:
+
+| Figure | v3 before | v3 now | v4 now |
+|---|---|---|---|
+| Sensitive words exposed after the check | 5.58% | **3.44%** [2.98–3.98] | **2.74%** [2.33–3.23] |
+| Exposed by the masks alone | 5.72% | **3.52%** | **2.80%** |
+| Safe words masked anyway | 13.25% | **10.04%** | **9.64%** |
+
+Two changes did this:
+
+- **A pixel budget instead of a longest side.** The app worked on images with their longest side cut to 2200 px, and
+  the text detector at 1536 px. A tall full-page capture was shrunk by its height, until its text was too small to
+  read, and text that is not read is not masked: one generated page (1920 x 4436) left 84 of its 123 sensitive words
+  readable. Both now keep at most the pixels of a 2200 x 2200 (detector: 1536 x 1536) image, so a square screenshot is
+  unchanged and a tall one costs no more than a large square one. That page now leaves 5.
+- **A chart's bar is not a word.** The reader sometimes took a bar beside its label for a word, which was then masked,
+  and the detector joined label and bar into one line of "unread text". A box that is one solid rectangle of colour
+  with no hole in it, or a part of a line holding only such blocks, thin lines and specks, is no longer text. Glyphs
+  never fill their box as one solid rectangle, and a value printed inside a bar is a hole in it or another colour, so
+  both stay masked. The extension's chart blur does the same.
+
+The on-device builder, v4 and the public dashboards:
+
+| Figure | Before (v3) | Now (v4) | Public dashboards before | Now |
+|---|---|---|---|---|
+| Visuals found | 89.1% | **92.8%** | 94% | **95%** |
+| Type right, of those found | 85.8% | **92.0%** | 74.7% | **77.6%** |
+| End to end | 76.5% | **85.4%** | 70.0% | **73.8%** |
+
+What changed in the builder, each checked on both sets:
+
+- a line drawn in pieces (cut by a word box, a mask or a marker gap) is still one line;
+- words on a grid make a table only when the panel has no coloured strokes and fewer than two vivid colours; otherwise
+  the line and scatter readers come first, and the table is the fallback;
+- a panel's background is the commonest colour along its inner border, not across the whole panel: columns covering
+  most of a chart had been taken for its background, and the gaps between them for marks;
+- a table's zebra stripes (four or more row-tall bands of one length with the row's words in them) are rows, not bars;
+- a pie with an edge hidden under a mask is still found (the circle is fitted from the hull's longer side).
+
+**Confidence (Phase 4(c)).** The rules in `src/layout/confidence.ts` were set on the generated pages
+(`tools/synth-bench/layout.mjs --dump`) and checked on the public dashboards, which they never saw: maps have their
+own prior, KPI and column priors rise, a "KPI" is penalised only over 15% of the page, and only a panel over 55% of the
+page is penalised hard. Panel Brier score on the public dashboards 0.182 (0.190 before); page estimates there are 2.4
+points low on average, and every page scored 90 or more on v4 really is.
+
+**Still to do.** On the public dashboards, users now have 53 items to resolve (45 before): reading at a larger size
+finds more words for the check to ask about. The builder's largest misses are small pies read as KPIs or tables,
+Tableau's dense or grey monthly columns, and KPI cards with a sparkline; masking still covers some map regions as text.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

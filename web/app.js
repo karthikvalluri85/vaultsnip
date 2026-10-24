@@ -799,8 +799,10 @@ customer service staff agent team people everyone nobody someone something nothi
   function unreadCover(base) {
     const on = base.filter(m => m.on);
     const inside = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
-    // words that account for their spot: read confidently and left readable by the rules
-    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && !inside(w)));
+    // words that account for their spot: read confidently and left readable by the rules; and parts of a region that
+    // hold flat marks only (a bar beside its label), found by the second look
+    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && !inside(w)),
+      (S.unread.regions || []).flatMap(r => r.flat || []));
   }
   // One straightened line read by the second-look reader (PP-OCRv5, in the ML worker), as words with the page
   // reader's confidence scale; null when it cannot run, so the page reader takes over.
@@ -815,6 +817,23 @@ customer service staff agent team people everyone nobody someone something nothi
       return null;
     }
   }
+  // The reader sometimes takes a chart's bar for a word, and masking it hides the chart. A "word" whose box is one
+  // solid rectangle of colour with no hole in it (VSContext.isBar) is not text and is dropped; text on a coloured chip
+  // is a set of holes in it, so it stays.
+  function notMarks(img, words) {
+    if (!window.VSContext || !VSContext.isBar) return words;
+    const hs = words.map(w => w.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
+    return words.filter(w => !(Math.max(w.w, w.h) >= textH && VSContext.isBar(pixelsOf(img, w), textH)));
+  }
+  // the RGBA pixels of a box of the image, in whole pixels
+  function pixelsOf(img, b) {
+    const x0 = Math.max(0, Math.floor(b.x)), y0 = Math.max(0, Math.floor(b.y));
+    const w = Math.max(1, Math.min(img.width, Math.ceil(b.x + b.w)) - x0), h = Math.max(1, Math.min(img.height, Math.ceil(b.y + b.h)) - y0);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(img, x0, y0, w, h, 0, 0, w, h);
+    return x.getImageData(0, 0, w, h);
+  }
   async function secondLook(img, regions, base) {
     const cover = unreadCover(base);
     const todo = regions.filter(r => VSContext.unreadParts([r], cover).length).slice(0, SECOND_LOOK_MAX);
@@ -827,6 +846,14 @@ customer service staff agent team people everyone nobody someone something nothi
       // blob. Masking it whole would hide charts, so only the words the second look reads there and cannot vouch for
       // are masked, where they are.
       const blob = !slanted && k.h > 3 * textH;
+      // the detector joins a label and the bar beside it into one line: a part holding only flat marks (a bar, a
+      // legend chip, a gridline) and no letter-like shape accounts for itself, so the chart stays visible
+      if (!slanted && !blob) {
+        const parts = VSContext.unreadParts([r], cover);
+        r.flat = parts.filter(p => VSContext.flatMarksOnly(pixelsOf(img, p), textH));
+        if (r.flat.length === parts.length) { r.safe = true; r.seen = 'flat marks'; continue; }
+        cover.push(...r.flat);
+      }
       let best = { words: [], conf: 0 }, sawCharacters = false;
       const unsafe = [];
       read: for (const kind of ['normal', 'contrast']) {
@@ -1103,11 +1130,14 @@ customer service staff agent team people everyone nobody someone something nothi
   /* ---------------- screens ---------------- */
   function show(id) { ['s-drop', 's-crop', 's-review', 's-replica'].forEach(s => $(s).hidden = s !== id); window.scrollTo(0, 0); }
 
+  const MAX_PIXELS = 2200 * 2200, MAX_SIDE = 8000;
   async function loadImage(src) {
     const img = new Image();
     img.decoding = 'async';
     await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('That file could not be read as an image.')); img.src = src; });
-    const maxD = 2200, k = Math.min(1, maxD / Math.max(img.naturalWidth, img.naturalHeight));
+    // a pixel budget (that of a 2200 x 2200 image), not a longest side: a tall full-page capture shrunk by its height
+    // came out with text too small to read, and text that is not read is not masked
+    const W = img.naturalWidth, H = img.naturalHeight, k = Math.min(1, Math.sqrt(MAX_PIXELS / (W * H)), MAX_SIDE / Math.max(W, H));
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
@@ -1130,7 +1160,7 @@ customer service staff agent team people everyone nobody someone something nothi
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
       const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…');
       if (!current()) return;
-      S.words = words;
+      S.words = notMarks(canvas, words);
       S.comments = findComments(S.words);
       S.masks = buildMasks(S.words);
       if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); if (!current()) return; S.masks = allMasks(); }

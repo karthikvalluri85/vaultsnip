@@ -31,7 +31,7 @@ let F = 0, V = 0, P = 0, TS = 0, TL = 0;
 for (const d of truth.dashboards) {
   const r = await build(d.id);
   const { counted, truths, hits, strict, lenient: len } = scorePage(r.panels, d.visuals, d.ignore);
-  for (const p of counted) { const t = truths.find((t) => t.hit === p); dump.panels.push({ dashboard: d.id, type: p.type, certainty: p.certainty, features: p.features, titled: !!p.title, area: ((p.box[2] - p.box[0]) * (p.box[3] - p.box[1])) / r.imageArea, found: !!t, correct: !!t && same(p.type, t.type, true) }); }
+  for (const p of counted) { const t = truths.find((t) => t.hit === p); dump.panels.push({ dashboard: d.id, type: p.type, certainty: p.certainty, features: p.features, titled: !!p.title, area: ((p.box[2] - p.box[0]) * (p.box[3] - p.box[1])) / r.imageArea, found: !!t, truth: t?.type ?? null, correct: !!t && same(p.type, t.type, true) }); }
   dump.pages.push({ dashboard: d.id, visuals: truths.length, right: len, found: hits.length, predicted: counted.length, coverage: r.coverage, confidence: r.confidence ?? null });
   F += hits.length; V += truths.length; P += counted.length; TS += strict; TL += len;
   const t = tools[d.tool] ||= { dashboards: 0, visuals: 0, found: 0, typesRight: 0 };

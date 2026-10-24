@@ -10,7 +10,7 @@ import { classify } from '../shared/classify';
 import { ALLOW_WORDS } from '../shared/allowlist';
 import type { MaskBox, OcrImage, OcrReply, OcrResult, ToOffscreen } from './canvas-protocol';
 import { maskBoxes, mergePasses, parseTsv, type OcrWord } from './ocr-words';
-import { ContextClassifier, detectorSize, moduleWorker, unreadParts, UNREAD_TYPE } from '../content/context-classifier';
+import { ContextClassifier, detectorSize, flatMarksOnly, isBar, moduleWorker, unreadParts, UNREAD_TYPE } from '../content/context-classifier';
 
 interface TesseractWorker {
   recognize(img: HTMLCanvasElement, opts: object, out: object): Promise<{ data: { tsv?: string } }>;
@@ -83,6 +83,21 @@ function mlWorkerUrl(): URL {
   return new URL('app/ml/ml-worker.js?' + new URLSearchParams({ models, gz: cfg.mlGzip === false ? '0' : '1' }), location.href);
 }
 const READ_CONF = 60;
+/** The RGBA pixels of a box of the image, in whole pixels. */
+function pixelsOf(img: HTMLImageElement, b: { x: number; y: number; w: number; h: number }): ImageData {
+  const x0 = Math.max(0, Math.floor(b.x)), y0 = Math.max(0, Math.floor(b.y));
+  const w = Math.max(1, Math.min(img.naturalWidth, Math.ceil(b.x + b.w)) - x0), h = Math.max(1, Math.min(img.naturalHeight, Math.ceil(b.y + b.h)) - y0);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true })!;
+  x.drawImage(img, x0, y0, w, h, 0, 0, w, h);
+  return x.getImageData(0, 0, w, h);
+}
+const medianH = (words: readonly OcrWord[]) => { const hs = words.map((w) => w.h).sort((a, b) => a - b); return hs.length ? hs[hs.length >> 1] : 12; };
+/** As in the app: a "word" that is one solid rectangle of colour is a chart's bar the reader took for text; blurring it hides the chart. */
+function notBars(img: HTMLImageElement, words: OcrWord[]): OcrWord[] {
+  const textH = medianH(words);
+  return words.filter((w) => !(Math.max(w.w, w.h) >= textH && isBar(pixelsOf(img, w), textH)));
+}
 async function unreadBoxes(img: HTMLImageElement, words: readonly OcrWord[], flagged: readonly MaskBox[]): Promise<{ boxes: MaskBox[]; note: string }> {
   try {
     ml ??= new ContextClassifier(moduleWorker(mlWorkerUrl()), { timeoutMs: 60_000 });
@@ -95,14 +110,15 @@ async function unreadBoxes(img: HTMLImageElement, words: readonly OcrWord[], fla
     const regions = await ml.detect({ width: d.width, height: d.height, data: d.data });
     const kx = img.naturalWidth / size.width, ky = img.naturalHeight / size.height;
     const scale = (b: { x: number; y: number; w: number; h: number }) => ({ x: b.x * kx, y: b.y * ky, w: b.w * kx, h: b.h * ky });
-    const hs = words.map((w) => w.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
+    const textH = medianH(words);
     // a blob is judged by its thickness: a slanted line's upright box is tall, but the line itself is thin
     const slanted = (r: (typeof regions)[number]) => !!r.len && Math.abs(r.angle ?? 0) > 10 && Math.abs(r.angle ?? 0) < 170;
     const lines = regions.filter((r) => (slanted(r) ? (r.thick ?? 0) * ky : (r.core ?? r).h * ky) <= 3 * textH)
       .map((r) => ({ ...scale(r), core: scale(r.core ?? r) }));
     const inside = (w: OcrWord) => flagged.some((m) => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
     const cover = [...flagged, ...words.filter((w) => w.conf >= READ_CONF && !inside(w))];
-    const boxes = unreadParts(lines, cover).map((p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, type: UNREAD_TYPE }));
+    // a part holding only flat marks (a bar beside its label, a gridline) is not text
+    const boxes = unreadParts(lines, cover).filter((p) => !flatMarksOnly(pixelsOf(img, p), textH)).map((p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, type: UNREAD_TYPE }));
     return { boxes, note: String(boxes.length) };
   } catch (e) {
     console.warn("VaultSnip: the text-region check could not run here; the reader's masks stand.", e);
@@ -114,7 +130,7 @@ async function run(images: OcrImage[]): Promise<OcrResult[]> {
   const results: OcrResult[] = [];
   for (const { id, dataUrl } of images) {
     const img = await load(dataUrl);
-    const words = await read(img);
+    const words = notBars(img, await read(img));
     const boxes = maskBoxes(words, scan(words.map((w) => w.text)));
     const unread = await unreadBoxes(img, words, boxes);
     results.push({ id, words: words.length, boxes: boxes.concat(unread.boxes), unread: unread.note });

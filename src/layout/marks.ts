@@ -29,25 +29,37 @@ export function inkTest(img: Img, box: Box) {
 }
 
 /**
- * The panel's background colour: the most common colour along its inner border and across it. Mask grey is never the
- * background: in a panel made mostly of masked text (a header with a masked client name) it would otherwise win, and
- * the real background around the masks would read as bars.
+ * The panel's background colour: the most common colour along its inner border (margins, title strip, axis area),
+ * which marks rarely fill; across the whole panel only when no colour holds a clear share of the border. Counting the
+ * whole panel alone, a chart whose bars cover more of it than the background does took the bars' colour for the
+ * background, and the gaps between bars for marks. Mask grey is never the background: in a panel made mostly of
+ * masked text (a header with a masked client name) it would otherwise win, and the real background around the masks
+ * would read as bars.
  */
 export function background(img: Img, box: Box): [number, number, number] {
-  const counts = new Map<number, { n: number; rgb: [number, number, number] }>();
   const { data, channels: C, width: iw } = img;
-  const add = (x: number, y: number) => {
+  const tally = () => new Map<number, { n: number; rgb: [number, number, number] }>();
+  const ring = tally(), all = tally();
+  let ringN = 0;
+  const add = (counts: ReturnType<typeof tally>, x: number, y: number) => {
     const i = (y * iw + x) * C, r = data[i], g = data[i + 1], b = data[i + 2];
-    if (isMaskGrey(r, g, b)) return;
+    if (isMaskGrey(r, g, b)) return false;
     const k = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3), e = counts.get(k);
     if (e) e.n++; else counts.set(k, { n: 1, rgb: [r, g, b] });
+    return true;
   };
   const x0 = Math.max(0, Math.floor(box[0])), y0 = Math.max(0, Math.floor(box[1])), x1 = Math.min(img.width, Math.ceil(box[2])), y1 = Math.min(img.height, Math.ceil(box[3]));
   const step = Math.max(1, Math.round(Math.sqrt(((x1 - x0) * (y1 - y0)) / 4000)));
-  for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) add(x, y);
-  let best = { n: -1, rgb: [255, 255, 255] as [number, number, number] };
-  for (const e of counts.values()) if (e.n > best.n) best = e;
-  return best.rgb;
+  // the border band: a few percent of the panel's smaller side, inside its edge (past a 1-2 px outline)
+  const band = Math.max(3, Math.round(Math.min(x1 - x0, y1 - y0) * 0.05)), edge = 2;
+  for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) {
+    add(all, x, y);
+    const d = Math.min(x - x0, x1 - 1 - x, y - y0, y1 - 1 - y);
+    if (d >= edge && d < edge + band && add(ring, x, y)) ringN++;
+  }
+  const mode = (counts: ReturnType<typeof tally>) => { let best = { n: -1, rgb: [255, 255, 255] as [number, number, number] }; for (const e of counts.values()) if (e.n > best.n) best = e; return best; };
+  const r = mode(ring);
+  return ringN >= 20 && r.n >= ringN * 0.3 ? r.rgb : mode(all).rgb;
 }
 
 /**

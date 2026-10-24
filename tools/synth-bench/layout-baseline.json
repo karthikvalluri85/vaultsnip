@@ -4,61 +4,61 @@
  "synthLayout": {
   "dashboards": 60,
   "visuals": 404,
-  "found": 360,
-  "foundPct": 89.1,
-  "extraPanels": 51,
-  "typesRight": 309,
-  "typesRightPct": 85.8,
-  "endToEndPct": 76.5,
+  "found": 375,
+  "foundPct": 92.8,
+  "extraPanels": 34,
+  "typesRight": 345,
+  "typesRightPct": 92,
+  "endToEndPct": 85.4,
   "byType": {
    "pie": {
     "visuals": 52,
-    "found": 47,
-    "typesRight": 31,
-    "foundPct": 90.4,
-    "typesRightPct": 66
+    "found": 48,
+    "typesRight": 33,
+    "foundPct": 92.3,
+    "typesRightPct": 68.8
    },
    "column": {
     "visuals": 44,
-    "found": 43,
-    "typesRight": 34,
-    "foundPct": 97.7,
-    "typesRightPct": 79.1
+    "found": 41,
+    "typesRight": 38,
+    "foundPct": 93.2,
+    "typesRightPct": 92.7
    },
    "kpi": {
     "visuals": 101,
-    "found": 74,
-    "typesRight": 73,
-    "foundPct": 73.3,
-    "typesRightPct": 98.6
+    "found": 86,
+    "typesRight": 85,
+    "foundPct": 85.1,
+    "typesRightPct": 98.8
    },
    "map": {
     "visuals": 27,
     "found": 27,
-    "typesRight": 25,
+    "typesRight": 26,
     "foundPct": 100,
-    "typesRightPct": 92.6
+    "typesRightPct": 96.3
    },
    "bar": {
     "visuals": 94,
-    "found": 88,
-    "typesRight": 77,
-    "foundPct": 93.6,
-    "typesRightPct": 87.5
+    "found": 89,
+    "typesRight": 83,
+    "foundPct": 94.7,
+    "typesRightPct": 93.3
    },
    "line": {
     "visuals": 44,
-    "found": 41,
-    "typesRight": 34,
-    "foundPct": 93.2,
-    "typesRightPct": 82.9
+    "found": 43,
+    "typesRight": 41,
+    "foundPct": 97.7,
+    "typesRightPct": 95.3
    },
    "table": {
     "visuals": 42,
-    "found": 40,
-    "typesRight": 35,
-    "foundPct": 95.2,
-    "typesRightPct": 87.5
+    "found": 41,
+    "typesRight": 39,
+    "foundPct": 97.6,
+    "typesRightPct": 95.1
    }
   }
  }

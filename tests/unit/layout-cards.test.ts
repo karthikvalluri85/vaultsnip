@@ -107,4 +107,32 @@ describe('masked labels and KPI values', () => {
     fill(img, [10, 10, 190, 50], MASK);   // a header made mostly of a masked client name
     expect(background(img, [5, 5, 195, 55])).toEqual(NAVY);
   });
+
+  it("a table's zebra stripes are rows, while equal bars are still a bar chart", async () => {
+    const { readPanel } = await import('../../src/layout/charts');
+    const STRIPE: RGB = [214, 230, 240];
+    const table = canvas(420, 300);
+    const words: Word[] = [];
+    for (let r = 0; r < 9; r++) {
+      const y = 20 + r * 28;
+      if (r % 2 === 0) fill(table, [10, y, 410, y + 28], STRIPE);
+      words.push(word('Name', 20, y + 8, 60), word('Manager', 160, y + 8, 70), word('4.5', 330, y + 8, 24));
+    }
+    expect(readPanel(table, [0, 0, 420, 300], words, 12, 'Top Employees').type).toBe('table');
+
+    const chart = canvas(420, 300);
+    const labels: Word[] = [];
+    for (let r = 0; r < 8; r++) {
+      const y = 30 + r * 30;
+      fill(chart, [150, y, 400, y + 9], TEAL);   // every bar the same length, thinner than a row
+      labels.push(word('Platelets', 20, y - 2, 60), word('volume', 84, y - 2, 50));
+    }
+    expect(readPanel(chart, [0, 0, 420, 300], labels, 12, 'Top Lab Tests').type).toBe('bar');
+  });
+
+  it('bars covering most of a panel are not its background', () => {
+    const img = canvas(400, 300);
+    for (let i = 0; i < 6; i++) fill(img, [40 + i * 58, 60, 92 + i * 58, 270], TEAL);   // 6 wide columns, ~55% of the panel
+    expect(background(img, [0, 0, 400, 300])).toEqual(WHITE);
+  });
 });

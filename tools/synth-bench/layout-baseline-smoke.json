@@ -7,16 +7,16 @@
   "found": 52,
   "foundPct": 96.3,
   "extraPanels": 2,
-  "typesRight": 46,
-  "typesRightPct": 88.5,
-  "endToEndPct": 85.2,
+  "typesRight": 47,
+  "typesRightPct": 90.4,
+  "endToEndPct": 87,
   "byType": {
    "pie": {
     "visuals": 10,
-    "found": 10,
+    "found": 9,
     "typesRight": 5,
-    "foundPct": 100,
-    "typesRightPct": 50
+    "foundPct": 90,
+    "typesRightPct": 55.6
    },
    "column": {
     "visuals": 11,
@@ -27,9 +27,9 @@
    },
    "kpi": {
     "visuals": 8,
-    "found": 6,
-    "typesRight": 6,
-    "foundPct": 75,
+    "found": 7,
+    "typesRight": 7,
+    "foundPct": 87.5,
     "typesRightPct": 100
    },
    "map": {

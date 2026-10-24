@@ -10,7 +10,9 @@ export async function layoutBuilder(opts = {}) {
   const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
   const page = await browser.newPage();
   await page.setContent('<body></body>');
-  await page.addScriptTag({ content: await readFile(join(ROOT, 'web', 'lib', 'vs-layout.js'), 'utf8') });
+  // VSLAYOUT_BUNDLE: another build of the builder (tools/build-layout.mjs with VSLAYOUT_OUT), to try a change while a
+  // run is using the committed one
+  await page.addScriptTag({ content: await readFile(process.env.VSLAYOUT_BUNDLE || join(ROOT, 'web', 'lib', 'vs-layout.js'), 'utf8') });
   await page.evaluate((o) => Object.assign(self.VSLayout.PANEL_OPTS, o), opts);
 
   /** As app.js does: the image at the review's size, the masks drawn in the app's grey, masked words without text. */

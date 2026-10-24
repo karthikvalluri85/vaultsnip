@@ -10,7 +10,7 @@
 import type { MlRequest, MlResponse, Pixels, WordScore } from '../background/ml-protocol';
 import type { Region } from '../shared/text-regions';
 
-export { detectorSize, unreadParts, type Box, type Region } from '../shared/text-regions';
+export { detectorSize, flatMarksOnly, isBar, unreadParts, type Box, type Region } from '../shared/text-regions';
 
 export type { Pixels, WordScore };
 export const CONTEXT_TYPE = 'Name in context';

@@ -156,6 +156,12 @@ describe('chart types and shapes', () => {
     expect(r.type).toBe('pie');
     expect(near((r.fields as { series: { shape: number[] }[] }).series[0].shape, [100, 60, 40], 3)).toBe(true);
   });
+  it('pie chart with an edge hidden under a mask', () => {
+    const img = canvas(300, 300);
+    pie(img, 150, 150, 100, [0.5, 0.3, 0.2], [BLUE, ORANGE, GREEN]);
+    fill(img, [40, 70, 80, 230], MASK);   // a masked slice label hiding the left of the pie
+    expect(readPanel(img, [0, 0, 300, 300], [masked(40, 70, 40, 160)], med, 'Share by Channel').type).toBe('pie');
+  });
   it('donut chart', () => {
     const img = canvas(300, 300);
     pie(img, 150, 150, 100, [0.6, 0.4], [BLUE, ORANGE], 55);
@@ -345,6 +351,9 @@ describe('confidence (Phase 3)', () => {
     expect(panelConfidence({ ...base, area: 0.6 })).toBeLessThan(c * 0.5);
     expect(panelConfidence({ ...base, type: 'kpi', area: 0.2 })).toBeLessThan(panelConfidence({ ...base, type: 'kpi', area: 0.02 }));
     expect(panelConfidence({ ...base, type: 'placeholder' })).toBeLessThan(0.1);
+    // a large map or wide chart is often real; only a panel over most of the page is penalised hard
+    expect(panelConfidence({ ...base, area: 0.4 })).toBeGreaterThan(panelConfidence({ ...base, area: 0.6 }) * 2);
+    expect(panelConfidence({ ...base, type: 'map' })).toBeGreaterThan(0.7);
     for (const p of [base, { ...base, type: 'unknown' }, { ...base, certainty: NaN }]) { const v = panelConfidence(p); expect(v).toBeGreaterThanOrEqual(0.02); expect(v).toBeLessThanOrEqual(0.98); }
   });
   it('the page score counts missed content and swallowed visuals against the replica', async () => {
