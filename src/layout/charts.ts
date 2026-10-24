@@ -201,6 +201,17 @@ function pie(c: Ctx): Reading | null {
     if (last && sameColor(last.key, k)) last.n++; else runs.push({ key: k, n: 1 });
   }
   if (runs.length > 1 && sameColor(runs[0].key, runs[runs.length - 1].key)) runs[0].n += runs.pop()!.n;
+  // a label printed inside a slice ("33.9%" in dark text) cuts it into two runs with a short run of the text's colour
+  // between them: a short run between two runs of one colour is part of that slice
+  for (let i = 0; runs.length > 2 && i < runs.length; i++) {
+    const prev = runs[(i - 1 + runs.length) % runs.length], next = runs[(i + 1) % runs.length];
+    if (runs[i].n < 18 && prev !== next && sameColor(prev.key, next.key)) {
+      prev.n += runs[i].n + next.n;
+      const j = runs.indexOf(next);
+      runs.splice(Math.max(i, j), 1); runs.splice(Math.min(i, j), 1);
+      i = -1;
+    }
+  }
   const slices = runs.filter((s) => s.n >= 3);
   if (!slices.length) return null;
   const members = slices.map((s, i) => c.nameOf(s.key) || `Item ${i + 1}`);
@@ -262,10 +273,31 @@ function lines(c: Ctx): Reading | null {
   const isArea = areaSeries.length > 0 && areaSeries[0].n > (lineSeries[0]?.n || 0) * 3;
   const use = isArea ? areaSeries : lineSeries;
   const ms = use.flatMap((s) => s.marks), [x0, yTop, x1, yBot] = hull(ms);
-  const below = phrases(c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y <= yBot + c.med * 4 && w.x + w.w >= x0 - c.med * 3 && w.x <= x1 + c.med * 3), c.med);
+  // the axis labels: the first row of words below the line (its lowest point may sit far above the axis) that holds at
+  // least three words across most of the line's width; else the words just below the line
+  const under = c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y + w.h <= c.b[3] + 1 && w.x + w.w >= x0 - c.med * 3 && w.x <= x1 + c.med * 3).sort((p, q) => p.y - q.y);
+  const labelRows: Word[][] = [];
+  for (const w of under) { const r = labelRows.find((r) => Math.abs(r[0].y - w.y) <= c.med * 0.8); if (r) r.push(w); else labelRows.push([w]); }
+  const axisRow = labelRows.find((r) => r.length >= 3 && Math.max(...r.map((w) => w.x + w.w)) - Math.min(...r.map((w) => w.x)) >= (x1 - x0) * 0.5);
+  const below = phrases(axisRow || c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y <= yBot + c.med * 4 && w.x + w.w >= x0 - c.med * 3 && w.x <= x1 + c.med * 3), c.med);
   const useLabels = below.length >= 3 && below.length <= 40;
-  const xs = useLabels ? below.map((p) => (p.x0 + p.x1) / 2) : Array.from({ length: 12 }, (_, i) => x0 + ((x1 - x0) * (i + 0.5)) / 12);
-  const members = useLabels ? below.map((p, i) => (p.ws.every((w) => w.kept && w.text) ? p.ws.map((w) => w.text).join(' ') : `Item ${i + 1}`)) : xs.map((_, i) => `Item ${i + 1}`);
+  // labels that cannot be read as phrases (slanted, or masked as unread text) still sit in one group per category below
+  // the axis: the groups give the categories' positions; twelve evenly spaced points only when there are none
+  const groups: Word[][] = [];
+  const cx = (w: Word) => w.x + w.w / 2;
+  if (!useLabels) {
+    const near = c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y <= yBot + c.med * 8 && cx(w) >= x0 - c.med && cx(w) <= x1 + c.med * 3)
+      .sort((p, q) => cx(p) - cx(q));
+    for (const w of near) { const g = groups[groups.length - 1]; if (g && cx(w) - cx(g[g.length - 1]) <= c.med * 1.5) g.push(w); else groups.push([w]); }
+  }
+  const byGroups = !useLabels && groups.length >= 3 && groups.length <= 40 && cx(groups[groups.length - 1][0]) - cx(groups[0][0]) >= (x1 - x0) * 0.5;
+  const xs = useLabels ? below.map((p) => (p.x0 + p.x1) / 2)
+    : byGroups ? groups.map((g) => g.reduce((p, w) => p + cx(w), 0) / g.length)
+    : Array.from({ length: 12 }, (_, i) => x0 + ((x1 - x0) * (i + 0.5)) / 12);
+  // (a group's words name its category when they all stayed readable)
+  const members = useLabels ? below.map((p, i) => (p.ws.every((w) => w.kept && w.text) ? p.ws.map((w) => w.text).join(' ') : `Item ${i + 1}`))
+    : byGroups ? groups.map((g, i) => (g.every((w) => w.kept && w.text) ? g.map((w) => w.text).join(' ') : `Item ${i + 1}`))
+    : xs.map((_, i) => `Item ${i + 1}`);
   const ys = use.map((s) => xs.map((x) => {
     const xi = Math.round(Math.min(Math.max(x, x0), x1 - 1));
     for (const dx of [0, -1, 1, -2, 2, -4, 4, -8, 8]) {

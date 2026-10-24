@@ -155,7 +155,7 @@ try {
   const regenTitle = await head();
   check(regenTitle !== realTitle && !/\[client\]/i.test(regenTitle), `"Regenerate data" draws new names too ("${regenTitle}")`);
   await page.locator('#opt-real').uncheck(); await wait(300);
-  check(/^\[Client\] \| Website Performance$/.test(await head()), 'switching "Realistic names" off shows the neutral placeholder again');
+  check(/^Client A \| Website Performance$/.test(await head()), 'switching "Realistic names" off shows a neutral "Client A", never the bare [Client] placeholder');
   await page.locator('#opt-real').check(); await wait(300);
   check(await head() === regenTitle, 'switching it back on gives the same names for the same seed');
   const [dlF] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export')]);
@@ -175,8 +175,23 @@ try {
     return { on, off, csv };
   });
   check(table.on.every(r => /^ACC-\d{5}$/.test(r[1]) && /\S+ \S+/.test(r[2]) && !/^(Account|Person) \d+$/.test(r[0] + r[2])), `table cells fit their columns: ${table.on[0].slice(0, 3).join(' · ')}`);
-  check(table.off.every(r => /^Account \d+$/.test(r[0]) && /^Person \d$/.test(r[2])), 'with the switch off, the same table shows neutral placeholders');
+  // never a generic placeholder ("Account 3", "Person 2"): without realistic names a cell is named from its column
+  check(table.off.every(r => /^Account [A-Z]$/.test(r[0]) && /^Account Manager [A-Z]$/.test(r[2])), `with the switch off, the same table names cells from their columns, no placeholders: ${table.off[0].slice(0, 3).join(' · ')}`);
   check(table.on.every(r => table.csv.includes(r[2])), 'the CSV download carries the same names as the screen');
+  // no generic labels, ever (outside Generic mode): covered axis labels, "Value", "Series 2" are filled from context
+  const plain = await page.evaluate(() => {
+    const spec = { title: 't', rows: [{ height: 'm', visuals: [
+      { id: 'p1', type: 'line', span: 6, title: '', dimension: { name: 'Period', members: ['Item 1', 'Item 2', 'Item 3'] }, measure: { name: 'Value', format: 'currency' }, series: [{ name: 'Series 1', shape: [10, 50, 90] }, { name: 'Series 2', shape: [30, 40, 60] }] },
+      { id: 'p2', type: 'column', span: 6, title: 'Spend by Region', dimension: { name: 'Region', members: ['Item 1', 'Item 2'] }, measure: { name: 'Spend', format: 'currency' }, series: [{ name: 'Spend', shape: [100, 40] }] }] }] };
+    // (drawn into a temporary element, removed after: model() would leave its off-screen copy for the export checks)
+    return [false, true].map(realistic => {
+      const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-30000px;width:1200px'; document.body.appendChild(box);
+      DSCReplica.render(box, spec, { mode: 'shape', seed: 7, realistic });
+      const csv = DSCReplica.toCsv(box); box.remove(); return csv;
+    });
+  });
+  check(plain.every(csv => !/(^|,)(Item|Series|Value|Category|Period) ?\d*(,|$)/m.test(csv) && /,Jan,/.test(csv) && /,Actual,/.test(csv) && /,North,/.test(csv)),
+    'covered axis labels, "Value" and "Series 2" become months, regions and Actual/Target, never placeholders');
   const health = await page.evaluate(() => {
     const root = document.getElementById('replica');
     const spec = { title: '[Client] | Patient Outcomes', filters: [{ label: 'Hospital', members: ['Item 1', 'Item 2', 'Item 3'] }], rows: [{ visuals: [
@@ -273,7 +288,7 @@ try {
   const reactHead = await rp.locator('.rp-head h2').textContent();
   check(P + 'vaultsnip-faker.js' in pkg && reactHead === appHead, `realistic names are generated inside the React component too, the same as in the app ("${reactHead}")`);
   await rp.evaluate(() => window.__mount({ realistic: false })); await rp.waitForTimeout(800);
-  check(/^\[Client\] \| /.test(await rp.locator('.rp-head h2').textContent()), 'its realistic={false} prop shows neutral placeholders');
+  check(/^Client A \| /.test(await rp.locator('.rp-head h2').textContent()), 'its realistic={false} prop names a covered client "Client A", never the bare [Client] placeholder');
   await rp.evaluate(() => window.__mount({})); await rp.waitForTimeout(800);
   const appKpi = await kpi();
   check(live.kpi === appKpi, `with the exported seed it shows the values seen in the app (${live.kpi})`);

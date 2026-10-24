@@ -30,6 +30,11 @@ right structure and the right shapes.
 | **Report structure** | Checks on paginated reports (pivot or table, subtotals, grand total, row levels, parameters) that come out right | Higher |
 | **Reading time** | Seconds from dropping an image in to the end of the pre-flight check, on the machine that ran the benchmark | Lower |
 | **Honest confidence** | How far the on-device build's own confidence estimate is from its true score (`confidence-check.mjs`) | Lower |
+| **Layout match** | Visuals that share a row in the original share one in the replica (pairs), and each visual's width and position overlap its original's | Higher |
+| **Shape match** | Charts with the right number of categories, and how closely their bars, lines and slices follow the original's relative sizes | Higher |
+| **Text match** | Of the title words and category labels left readable by masking, the share the replica shows | Higher |
+| **Colour match** | Dashboards whose replica's main colour is close to the original's main series colour | Higher |
+| **Generic labels left** | Labels in the rendered replica (outside Generic mode) that are placeholders: "Item 1", "Value", "Series 2", "Category", "Period", "KPI" and the like | Lower. The target is 0, and it is non-negotiable |
 
 Leaked area, over-masking and false alarms need every word in an image annotated, so they are measured on generated
 dashboards (Phase 1, below), where every word's position and kind is known. Precisely:
@@ -384,6 +389,20 @@ local evaluation only and are never sent. Answers are recorded, so `--rescore` s
 | Claude Sonnet 5.5 (the app's default model), with a key | **404** | 15 | **96.4%** |
 | On the device, no key | 343 | 17 | **81.5%** |
 
+The run cost **## The AI-key path, measured (24 October 2026)
+
+`tools/ai-bench/run.mjs` measures the optional AI path the way a user meets it: each generated dashboard is read and
+masked by the app, and the approved masked image goes to the provider with the app's own request (same instructions,
+parsing and retry), using the developer's key from the environment. The on-device builder reads the same masked image,
+and both are scored by chart type: each annotated visual is matched to a visual of its type (or a close cousin), and
+extra visuals count against it. Only generated, fictional dashboards are sent; the public dashboards were collected for
+local evaluation only and are never sent. Answers are recorded, so `--rescore` scores them again with no key and no cost.
+
+| 60 generated dashboards (set v5), 404 visuals | Typed right | Extra | End to end |
+|---|---|---|---|
+| Claude Sonnet 5.5 (the app's default model), with a key | **404** | 15 | **96.4%** |
+| On the device, no key | 343 | 17 | **81.5%** |
+
 The run cost **$1.44** (370,234 tokens in, 69,965 out): about 2.4 cents a dashboard. No request failed.
 
 **What this means for the plan.** Phase 3 (a strict answer format) was meant to stop malformed or invented answers.
@@ -395,6 +414,60 @@ model; it stays a candidate if another provider or model misbehaves.
 
 The gap between the two paths (96% and 82% end to end, by type) is mostly visuals the on-device builder misses
 entirely, not visuals it types wrongly: it is the target of the resemblance work below.
+.44** (370,234 tokens in, 69,965 out): about 2.4 cents a dashboard. No request failed.
+
+**What this means for the plan.** Phase 3 (a strict answer format) was meant to stop malformed or invented answers.
+`tools/ai-bench/validate.mjs` checks every answer against the shape the instructions define. The only problem found:
+in 25 of 60 answers, 41 rows whose widths did not add up to the 12-column grid, which made the replica wrap a visual
+onto its own line or leave a gap. No unknown types, no series of the wrong length, no failed parse. The app now fits a
+row's widths to 12 when it reads an answer, keeping their proportions, so a full strict format is not needed for this
+model; it stays a candidate if another provider or model misbehaves.
+
+The gap between the two paths (96% and 82% end to end, by type) is mostly visuals the on-device builder misses
+entirely, not visuals it types wrongly: it is the target of the resemblance work below.
+
+## Phase 4(d): does the replica resemble the original? (24 October 2026)
+
+Finding the visuals and their types does not make a replica recognisably the user's dashboard. The generated set's
+truth now records each visual's title, categories, values (in the order they are drawn) and series colour, and
+`tools/synth-bench/resemble.mjs` compares each visual the on-device builder found with its original. It also renders
+every replica as the app shows it (Shape-preserving mode, realistic names on) and counts placeholder labels.
+
+| Generated set v5, on-device builder | Before | After |
+|---|---|---|
+| Visuals sharing a row in the original share one in the replica (pairs) | 91.6% | 91.6% |
+| Width and position match (overlap) | 76.5% | 76.5% |
+| Charts with the right number of categories | 59.2% | **70.9%** |
+| Bars, lines and slices follow the original, where the count is right | 97.8% | 97.5% |
+| Readable title and label words the replica shows | 64.2%* | **89.3%** |
+| of which titles / category labels | | 95.9% / 46.8% |
+| Main colour right | 85% | 85% |
+| **Generic labels left in the rendered replicas** ("Item 2", "Value", "Series 2", "Category", "[Client]"…) | **357** | **0** of 2,246 |
+
+\* Before the measure was made fair: a KPI's label is its measure name, and a category label counts only when all its
+words stayed readable (one with a masked name in it should not be shown).
+
+**What changed:**
+
+- **No generic labels (non-negotiable).** The replica engine (`web/replica.js`, also shipped in the React exports)
+  never shows a placeholder outside Generic mode. A covered axis or legend label is filled from context: a time
+  dimension (or an unnamed line or area axis) becomes months, quarters, years or weeks in order; a named dimension draws
+  on a fixed list (regions, segments, channels, sources, departments, statuses, priorities, tiers, age groups, types);
+  an unnamed one on the page's industry (departments for healthcare, lines of business for finance…) then general
+  product categories; past a list, the dimension's name with a letter ("Store C"). "Value" or "KPI" becomes a measure
+  the page names, or one that fits its format ("Revenue", "Rate"); "Series 2" becomes Actual, Target, Prior year…;
+  a one-letter or placeholder table header is named for its kind; table cells without realistic names are named from
+  their column ("Owner A", "Account B"); "[Client]" in a title becomes "Client A" when realistic names are off.
+  Realistic names, when on, still come first. Nothing is taken from masked text. The count is gated in CI with a
+  tolerance of 0, and an end-to-end check renders placeholder-filled charts with realistic names off and on.
+- **Real labels where they are visible.** A line chart's axis labels are found on the axis row, not just below the
+  line's lowest point (which can sit far above the axis); slanted labels still give one group per category; a title
+  word whose box the reader drew too tall ("By") stays in the title. Category labels shown: 16.5% to 46.8%.
+- **Category counts.** A label printed inside a pie slice no longer splits the slice in two (pies with too many slices:
+  40 to 11); a line whose labels cannot be read takes its points from the label groups below it instead of a fixed 12.
+
+Next: the side-by-side gallery, the same figures for the recorded AI answers, and the category labels still lost
+(mostly rotated or partly masked axis labels).
 
 ## The plan
 
@@ -410,6 +483,7 @@ data flow.
 | **2b. Better reader, if it wins** | Compare a stronger on-device reader with Tesseract on the Phase 1 set; switch only if it wins | More words kept readable, so better titles and labels | Data-backed decision either way |
 | **3. A catalogue of chart types** | One schema of every chart type VaultSnip draws, with the data shape each needs. The AI prompt, a strict answer format for each provider, a check that each type is drawn, and a public gallery are all generated from it | Fewer malformed or invented answers from the AI; users can see what is supported | No malformed answers across recorded runs; adding a type means changing one file |
 | **4. Spend effort where it is unsure** | (a) Fix the on-device build's largest misses: stacks of masked axis labels read as KPI cards (since Phase 2), KPI cards, pages split into too many panels, and maps. (b) The on-device build places the panels; only the panels it is unsure of are sent, as close-ups, to the user's AI. (c) The replica is compared with the masked image on the device and the panels that differ are flagged | Hard dashboards get more attention, easy ones stay fast and cheap; the key-free draft becomes good enough to share more often | Visuals found back above 80%; key-free end to end from 50% towards 70%; AI-key end to end rises while AI calls per screenshot stay about the same; confidence estimates within 10 points |
+| **4(d). Resembles the original** | (a) Measure resemblance on the generated dashboards, whose truth records each visual's box, title, categories, values and colour (`tools/synth-bench/resemble.mjs`): layout, shape, text and colour match, for the on-device build and the recorded AI answers. (b) A side-by-side gallery of originals (masked) and replicas, to judge by eye. (c) **No generic labels, non-negotiable:** read the real labels wherever they are visible (axis labels found from the axis, not from the line's lowest point; slanted labels grouped per category); fill every other label from context, never with "Item N", "Value" or "Series 2" (a time dimension becomes months or quarters in order, geography real places for the page's country, a business dimension realistic values for the page's industry, else a label built from the dimension's name), in the builder's output, in AI answers and in the rendered replica; never copy masked text. (d) Measure it: generic labels left in the rendered replica, target 0 outside Generic mode | A replica that is recognisably the user's dashboard: "the same visuals in the same places, of the right kind", with real words where the original shows them and believable ones where it hides them | Generic labels left 0; text match and categories right rising; layout and shape match reported for both paths |
 | **5. More chart types** | The types the benchmark shows we miss most, in that order (candidates: radar, sunburst, bullet, small multiples, slicers) | Fewer placeholders in replicas | "Chart types we cannot draw" falls |
 
 **Priority (24 October 2026).** VaultSnip's goal is to find the visuals, charts and KPIs, mask the data and build an

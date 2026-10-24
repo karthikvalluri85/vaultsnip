@@ -1,0 +1,29 @@
+{
+ "measured": "2026-10-24",
+ "resemblance": {
+  "dashboards": 60,
+  "genericLabels": {
+   "left": 0,
+   "of": 2246,
+   "examples": []
+  },
+  "layout": {
+   "sameRowPct": 91.6,
+   "widthMatchPct": 76.5
+  },
+  "shape": {
+   "categoriesRightPct": 70.9,
+   "shapeMatchPct": 97.5,
+   "charts": 223
+  },
+  "text": {
+   "shownPct": 89.3,
+   "readableWords": 1182,
+   "titlesPct": 95.9,
+   "labelsPct": 46.8
+  },
+  "colour": {
+   "matchPct": 85
+  }
+ }
+}

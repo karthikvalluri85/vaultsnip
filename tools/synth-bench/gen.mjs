@@ -1,7 +1,7 @@
 // Generates fictional dashboards with every word's position and kind known, for measuring masking (developer tool).
 //   node tools/synth-bench/gen.mjs [--count 60] [--seed 1] [--out .bench/synth]
 // Writes <id>.png or <id>.jpg and <id>.truth.json: { width, height, words: [{ text, x, y, w, h, kind, sensitive }],
-// panels: [{ type, box }] } in the image's pixels.
+// panels: [{ type, box, title, cats, values, color }] } in the image's pixels (cats and values in drawing order).
 //
 // Independence: charts are drawn by Vega-Lite, Plotly and plain HTML, never by ECharts (which draws VaultSnip's
 // replicas), and each word's kind comes from how it was generated, never from VaultSnip's classifier.
@@ -210,7 +210,14 @@ async function render(d) {
       words.push({ text: m[0], x: x0 - R.left, y: y0 - R.top, w: x1 - x0, h: y1 - y0, kind, clipped: x1 - x0 < b.width - 1 || y1 - y0 < b.height - 1, rotated });
     }
   }
-  for (const c of dash.children) { const b = c.getBoundingClientRect(); panels.push({ type: c.dataset.type, box: [b.left - R.left, b.top - R.top, b.right - R.left, b.bottom - R.top] }); }
+  // each panel with what a replica should resemble: its title, its categories and values in the order they are drawn
+  // (Plotly draws horizontal bars bottom-up, so the first category is at the bottom), and its series colour
+  [...dash.children].forEach((c, i) => {
+    const b = c.getBoundingClientRect(), p = d.panels[i];
+    const drawn = p.cats && p.values ? (p.type === 'hbar' ? { cats: [...p.cats].reverse(), values: [...p.values].reverse() } : { cats: p.cats, values: p.values }) : {};
+    panels.push({ type: c.dataset.type, box: [b.left - R.left, b.top - R.top, b.right - R.left, b.bottom - R.top], title: p.title, ...drawn,
+      ...(p.values && p.type !== 'map' ? { color: T.series[0] } : {}) });
+  });
   return { words, panels, width: R.width, height: R.height };
 }
 
@@ -285,7 +292,7 @@ try {
     if (offsite.length) throw new Error('the page tried to reach ' + offsite.join(', '));
     const words = t.words.map((w, j) => ({ ...w, ...boxes[j], sensitive: ['name', 'org', 'email', 'id', 'place', 'product', 'number'].includes(w.kind) }));
     await writeFile(join(OUT, `${d.id}.truth.json`), JSON.stringify({ id: d.id, file: `${d.id}.${ext}`, width: Math.round(t.width * k), height: Math.round(t.height * k), style: d.style,
-      words, panels: t.panels.map((p) => ({ type: p.type, box: p.box.map(px) })) }));
+      words, panels: t.panels.map((p) => ({ ...p, box: p.box.map(px) })) }));
     const sens = words.filter((w) => w.sensitive).length, unk = words.filter((w) => w.kind === 'unknown');
     console.log(`  ✓ ${d.id} ${d.style.width * k}px ${d.style.theme} ${d.style.font} ${d.style.size}px ${ext}: ${words.length} words, ${sens} sensitive${unk.length ? `, ${unk.length} unknown (${unk.slice(0, 4).map((w) => w.text).join(' ')})` : ''}`);
   }
