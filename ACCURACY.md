@@ -149,6 +149,147 @@ mostly of masked text read as a bar chart.
 
 Still open from this phase: the extension's *Blur text in charts on this page* does not use the detector yet.
 
+## Phase 4(a): the on-device builder finds the visuals
+
+Measured on 24 October 2026. Same 15 public dashboards and 60 generated ones, with Phase 2's masking on. The builder is
+now also scored on the generated dashboards (`tools/synth-bench/layout.mjs`): a fix that only suits the 12 real
+dashboards shows up there, so every change below was kept only if it helped both sets.
+
+| Figure | Phase 1 | Phase 2 | Phase 4(a) |
+|---|---|---|---|
+| Visuals found, public dashboards | 80% | 76% | **94%** |
+| Chart type right, public dashboards | 64% | 66% | **75%** |
+| End to end, public dashboards | 51% | 50% | **70%** |
+| Visuals found, generated dashboards | 62.6% | 62.6% | **92.8%** |
+| End to end, generated dashboards | 41.9% | 40.8% | **69.8%** |
+| KPI cards found and typed right, generated | | 10 of 97 | **83 of 97** |
+| Sensitive words exposed after the check | 10.2% | 3.6% | 3.9% (within tolerance) |
+
+What changed:
+
+- **Outlined cards.** Many Tableau and Looker pages, and light themes, draw cards the page's own colour with only a thin
+  border. The builder knew only filled cards, so it read such pages as dozens of fragments. It now pairs long thin lines
+  into card rectangles, ignores a frame drawn round the whole image, and keeps only the outermost rectangles. This is
+  most of the gain: the KPI page went from 2 of 9 visuals to 9 of 9.
+- **KPI tiles.** A row of KPI cards across the top is no longer swallowed as the page title; a tall card holding a big
+  value, a few words and next to no marks is a KPI however tall it is; a page of separate KPI tiles is not a report.
+- **Charts kept apart.** A tall card is no longer glued to the chart below as if it were a title strip; two charts
+  stacked one above the other stay two even when the upper one's title is masked.
+- **Masks read for what they are.** A tight stack of masked axis labels is labels, not KPI values; a bar's baseline
+  allows for a few pixels lost to an axis line or covered by a label's mask.
+- **Masks the builder can read.** Unread-text masks are as tall as their text (no padding of their own), and a region
+  the detector merged from labels and chart marks is no longer masked whole: only the words the second look reads
+  there and cannot vouch for are masked.
+
+Still open, in order of size: bars read as tables or lines when only a few of them are long enough to see, line charts
+read as text, and maps (all four in the public set are still mistyped).
+
+## The generated set, version 3 (24 October 2026)
+
+Two changes to the generator, so the set measures real dashboards better. The figures from here on are on this set
+and are not comparable with the ones above:
+
+- **Realistic magnitudes.** Each chart's values now stay within one order of magnitude. Before, a value could be a
+  thousand times its neighbours, leaving most bars a pixel long; that made the builder look worse on bars than it is.
+- **Maps.** About one dashboard in three gets a filled map (world, Europe, USA, India or Brazil, from VaultSnip's own
+  Natural Earth outlines) with a numeric legend: 27 maps in all.
+
+| Figure (generated set v3) | Without map reading | With it |
+|---|---|---|
+| Visuals found | 89.1% | 89.1% |
+| Type right, of those found | 81.1% | **85.8%** |
+| End to end | 72.3% | **76.5%** |
+| Maps typed right | 8 of 27 | **25 of 27** |
+| Sensitive words exposed after the check | 5.8% [5.2–6.5] | (masking unchanged) |
+| Safe words masked | 14.3% | |
+
+**Maps.** The builder now reads filled maps: either many irregular regions touching one another, or one large
+irregular mark holding many shades (neighbouring regions in close shades join), as long as the bar reader does not
+find bars on a shared baseline in it and it is not round like a pie. On the public dashboards, the two Looker maps are
+now read as maps (57 of 75 visuals typed right, 56 before); the Power BI map over street tiles and the Tableau map are
+not yet.
+
+**Masking on this set** is harder than on version 2: more numbers per dashboard, and map legends. Numbers are the
+weakest kind (8.1% exposed after the check), which is the next masking target.
+
+The extension's *Blur text in charts on this page* now runs the same unread-text check as the app (without the
+app's second look, so a region far thicker than a line of text is left alone rather than blurring a whole chart).
+
+## Phase 2b: a second reader for hard text
+
+The plan's rule was to switch reader only if a better one wins. PaddleOCR's line reader (en_PP-OCRv5_mobile_rec,
+Apache-2.0, 7 MB, on the device) now reads each patch the unread-text check finds once more, before the page reader
+(Tesseract), which remains the fallback. It is trained on single lines, so it reads small, faint and slanted text the
+page reader misses, and a patch it reads as safe words stays visible. Measured on 24 October 2026 on generated set v3
+and the public dashboards:
+
+| Figure | Without it | With it |
+|---|---|---|
+| Sensitive words exposed after the check | 5.79% | **5.58%** |
+| Safe words masked anyway | 14.26% | **13.25%** |
+| Items to resolve, public dashboards | 56 | **45** |
+| Report structure checks | 7 of 14 | **8 of 14** |
+| Visuals typed right, public dashboards | 76.0% | 74.7% (one visual, within tolerance) |
+
+It wins on both sides of masking at once, so it ships, on by default with the rest of the unread-text check. The
+page reader stays the main reader: replacing it everywhere would be a much larger change, for a later measurement.
+
+## Generated set v4, and fixes from what it showed (24 October 2026)
+
+Three changes to the generator, so its dashboards look like real ones: pie legends sit below the pie (beside it,
+Plotly's legend box covered half the pie); category labels get at most a third of the panel's width, shortened with an
+ellipsis as BI tools do (the chart libraries had squeezed a narrow panel's plot to a sliver); and overlapping axis
+labels are hidden. Figures from here on are on this set (v4) unless marked v3.
+
+Masking, both sets, measured with the app as committed in this change:
+
+| Figure | v3 before | v3 now | v4 now |
+|---|---|---|---|
+| Sensitive words exposed after the check | 5.58% | **3.44%** [2.98–3.98] | **2.74%** [2.33–3.23] |
+| Exposed by the masks alone | 5.72% | **3.52%** | **2.80%** |
+| Safe words masked anyway | 13.25% | **10.04%** | **9.64%** |
+
+Two changes did this:
+
+- **A pixel budget instead of a longest side.** The app worked on images with their longest side cut to 2200 px, and
+  the text detector at 1536 px. A tall full-page capture was shrunk by its height, until its text was too small to
+  read, and text that is not read is not masked: one generated page (1920 x 4436) left 84 of its 123 sensitive words
+  readable. Both now keep at most the pixels of a 2200 x 2200 (detector: 1536 x 1536) image, so a square screenshot is
+  unchanged and a tall one costs no more than a large square one. That page now leaves 5.
+- **A chart's bar is not a word.** The reader sometimes took a bar beside its label for a word, which was then masked,
+  and the detector joined label and bar into one line of "unread text". A box that is one solid rectangle of colour
+  with no hole in it, or a part of a line holding only such blocks, thin lines and specks, is no longer text. Glyphs
+  never fill their box as one solid rectangle, and a value printed inside a bar is a hole in it or another colour, so
+  both stay masked. The extension's chart blur does the same.
+
+The on-device builder, v4 and the public dashboards:
+
+| Figure | Before (v3) | Now (v4) | Public dashboards before | Now |
+|---|---|---|---|---|
+| Visuals found | 89.1% | **92.8%** | 94% | **95%** |
+| Type right, of those found | 85.8% | **92.0%** | 74.7% | **77.6%** |
+| End to end | 76.5% | **85.4%** | 70.0% | **73.8%** |
+
+What changed in the builder, each checked on both sets:
+
+- a line drawn in pieces (cut by a word box, a mask or a marker gap) is still one line;
+- words on a grid make a table only when the panel has no coloured strokes and fewer than two vivid colours; otherwise
+  the line and scatter readers come first, and the table is the fallback;
+- a panel's background is the commonest colour along its inner border, not across the whole panel: columns covering
+  most of a chart had been taken for its background, and the gaps between them for marks;
+- a table's zebra stripes (four or more row-tall bands of one length with the row's words in them) are rows, not bars;
+- a pie with an edge hidden under a mask is still found (the circle is fitted from the hull's longer side).
+
+**Confidence (Phase 4(c)).** The rules in `src/layout/confidence.ts` were set on the generated pages
+(`tools/synth-bench/layout.mjs --dump`) and checked on the public dashboards, which they never saw: maps have their
+own prior, KPI and column priors rise, a "KPI" is penalised only over 15% of the page, and only a panel over 55% of the
+page is penalised hard. Panel Brier score on the public dashboards 0.182 (0.190 before); page estimates there are 2.4
+points low on average, and every page scored 90 or more on v4 really is.
+
+**Still to do.** On the public dashboards, users now have 53 items to resolve (45 before): reading at a larger size
+finds more words for the check to ask about. The builder's largest misses are small pies read as KPIs or tables,
+Tableau's dense or grey monthly columns, and KPI cards with a sparkline; masking still covers some map regions as text.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after
@@ -164,6 +305,12 @@ data flow.
 | **3. A catalogue of chart types** | One schema of every chart type VaultSnip draws, with the data shape each needs. The AI prompt, a strict answer format for each provider, a check that each type is drawn, and a public gallery are all generated from it | Fewer malformed or invented answers from the AI; users can see what is supported | No malformed answers across recorded runs; adding a type means changing one file |
 | **4. Spend effort where it is unsure** | (a) Fix the on-device build's largest misses: stacks of masked axis labels read as KPI cards (since Phase 2), KPI cards, pages split into too many panels, and maps. (b) The on-device build places the panels; only the panels it is unsure of are sent, as close-ups, to the user's AI. (c) The replica is compared with the masked image on the device and the panels that differ are flagged | Hard dashboards get more attention, easy ones stay fast and cheap; the key-free draft becomes good enough to share more often | Visuals found back above 80%; key-free end to end from 50% towards 70%; AI-key end to end rises while AI calls per screenshot stay about the same; confidence estimates within 10 points |
 | **5. More chart types** | The types the benchmark shows we miss most, in that order (candidates: radar, sunburst, bullet, small multiples, slicers) | Fewer placeholders in replicas | "Chart types we cannot draw" falls |
+
+**Priority (24 October 2026).** VaultSnip's goal is to find the visuals, charts and KPIs, mask the data and build an
+interactive replica without any AI key. Work that improves the key-free path comes first: the rest of Phase 4(a), an
+on-device self-check (4c), more chart types the builder reads (5), the detector in the extension's chart blur, and a
+better reader (2b). Work that only improves the AI-key path (scoring it, the strict answer formats of Phase 3 and the
+close-ups of 4b) comes after.
 
 What is deliberately not in the plan:
 

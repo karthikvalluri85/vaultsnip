@@ -29,6 +29,8 @@ export interface OcrResult {
   boxes: MaskBox[];
   /** Words read, masked or not: lets the page tell "nothing sensitive" from "nothing readable". */
   words: number;
+  /** The text-region check: how many boxes it added, or why it could not run (shown on the page for diagnosis). */
+  unread?: string;
 }
 
 export type CaptureReply = { ok: true; dataUrl: string } | { ok: false; error: string };

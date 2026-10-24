@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dbRegions, detectorSize, unreadParts, type Box } from '../../src/shared/text-regions';
+import { dbRegions, detectorSize, flatMarksOnly, unreadParts, type Box } from '../../src/shared/text-regions';
 
 /** A probability map with filled rectangles of a given probability. */
 function map(w: number, h: number, rects: [number, number, number, number, number][]): Float32Array {
@@ -49,8 +49,11 @@ describe('dbRegions', () => {
 });
 
 describe('detectorSize', () => {
-  it('keeps the longest side within the limit, in multiples of 32, never upscaling', () => {
-    expect(detectorSize(2560, 1002, 960)).toEqual({ width: 960, height: 384 });
+  it('keeps the pixels within a limit x limit budget, in multiples of 32, never upscaling', () => {
+    expect(detectorSize(2560, 1002, 960)).toEqual({ width: 1536, height: 608 });
+    // a tall full-page capture keeps its text at half size, not a third
+    expect(detectorSize(1920, 4436, 1536)).toEqual({ width: 1024, height: 2336 });
+    expect(detectorSize(1000, 20000, 1536)).toEqual({ width: 320, height: 6144 });
     expect(detectorSize(500, 300, 960)).toEqual({ width: 512, height: 288 });
     expect(detectorSize(10, 10, 960)).toEqual({ width: 32, height: 32 });
   });
@@ -97,5 +100,77 @@ describe('unreadParts', () => {
     const sq: Box = { x: 0, y: 0, w: 40, h: 40 };
     expect(unreadParts([sq], [])).toEqual([sq]);
     expect(unreadParts([sq], [{ x: 0, y: 0, w: 40, h: 36 }])).toEqual([]);
+  });
+});
+
+describe('flatMarksOnly', () => {
+  const WHITE = [255, 255, 255], BLUE = [60, 110, 220], DARK = [30, 30, 30], GREY = [200, 200, 200];
+  const patch = (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4).fill(255), width: w, height: h });
+  const fill = (p: ReturnType<typeof patch>, x0: number, y0: number, x1: number, y1: number, c: number[]) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) p.data.set([...c, 255], (y * p.width + x) * 4);
+  };
+  // a crude glyph: an "E" with 2-pixel strokes
+  const letterE = (p: ReturnType<typeof patch>, x: number, y: number, c: number[]) => {
+    fill(p, x, y, x + 2, y + 12, c); fill(p, x, y, x + 8, y + 2, c); fill(p, x, y + 5, x + 7, y + 7, c); fill(p, x, y + 10, x + 8, y + 12, c);
+  };
+
+  it('a bar beside a label, with a gridline through the patch, holds no text', () => {
+    const p = patch(120, 20);
+    fill(p, 0, 4, 90, 16, BLUE);
+    fill(p, 100, 0, 101, 20, GREY);
+    expect(flatMarksOnly(p, 12)).toBe(true);
+    expect(flatMarksOnly(patch(60, 20), 12)).toBe(true);
+  });
+
+  it('letters are not flat marks', () => {
+    const p = patch(120, 20);
+    for (let i = 0; i < 4; i++) letterE(p, 4 + i * 11, 4, DARK);
+    expect(flatMarksOnly(p, 12)).toBe(false);
+    // one letter beside a bar is enough
+    const q = patch(120, 20);
+    fill(q, 0, 4, 80, 16, BLUE); letterE(q, 100, 4, DARK);
+    expect(flatMarksOnly(q, 12)).toBe(false);
+  });
+
+  it('a value printed inside a bar keeps the patch masked', () => {
+    const hole = patch(120, 24);
+    fill(hole, 0, 2, 110, 22, BLUE); letterE(hole, 50, 6, WHITE);   // in the background's colour: holes in the bar
+    expect(flatMarksOnly(hole, 12)).toBe(false);
+    const dark = patch(120, 24);
+    fill(dark, 0, 2, 110, 22, BLUE); letterE(dark, 50, 6, DARK);   // in another colour
+    expect(flatMarksOnly(dark, 12)).toBe(false);
+  });
+
+  it('a block shorter than a line of text is not taken for a bar', () => {
+    const p = patch(40, 20);
+    fill(p, 10, 4, 18, 16, DARK);   // 8 x 12: a heavy glyph, not a bar
+    expect(flatMarksOnly(p, 14)).toBe(false);
+  });
+});
+
+describe('isBar', () => {
+  const patch = (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4).fill(255), width: w, height: h });
+  const fill = (p: ReturnType<typeof patch>, x0: number, y0: number, x1: number, y1: number, c: number[]) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) p.data.set([...c, 255], (y * p.width + x) * 4);
+  };
+  const BLUE = [60, 110, 220], DARK = [30, 30, 30];
+  it('a bar the reader took for a word, with an axis line and a tick under it', async () => {
+    const { isBar } = await import('../../src/shared/text-regions');
+    const p = patch(128, 47);
+    fill(p, 0, 0, 128, 32, BLUE); fill(p, 0, 38, 128, 39, [200, 200, 200]); fill(p, 60, 39, 61, 46, DARK);
+    expect(isBar(p, 30)).toBe(true);
+  });
+  it('words are not bars, on a chip or not', async () => {
+    const { isBar } = await import('../../src/shared/text-regions');
+    const chip = patch(80, 20); fill(chip, 0, 0, 80, 20, BLUE);
+    for (let i = 0; i < 5; i++) { fill(chip, 8 + i * 14, 4, 10 + i * 14, 16, [255, 255, 255]); fill(chip, 8 + i * 14, 4, 16 + i * 14, 6, [255, 255, 255]); }
+    expect(isBar(chip, 14)).toBe(false);
+    const dark = patch(80, 20); fill(dark, 0, 0, 80, 20, BLUE); fill(dark, 30, 5, 32, 15, DARK);   // one dark stroke on it
+    expect(isBar(dark, 14)).toBe(false);
+    const plain = patch(60, 16);
+    for (let i = 0; i < 5; i++) { fill(plain, 2 + i * 11, 2, 4 + i * 11, 14, DARK); fill(plain, 2 + i * 11, 2, 9 + i * 11, 4, DARK); }
+    expect(isBar(plain, 14)).toBe(false);
+    const one = patch(8, 16); fill(one, 2, 1, 6, 15, DARK);   // a bold "I": too short for a bar
+    expect(isBar(one, 16)).toBe(false);
   });
 });

@@ -105,7 +105,9 @@ export function buildSpec(input: BuildInput): BuildResult {
   // a paginated report: no charts, and the page's words form one grid (read from the OCR boxes, since the app merges
   // masks over a column of numbers into one tall block)
   const CHARTS = ['column', 'bar', 'line', 'area', 'pie', 'donut', 'scatter', 'treemap'];
-  const report = !readings.some((x) => CHARTS.includes(x.r.type)) && looksLikeTable(ocrWords, med) ? readTable(ocrWords, pageBox) : null;
+  // (a page of separate KPI tiles lines its words up in a grid too, but a report never holds two KPI tiles)
+  const report = !readings.some((x) => CHARTS.includes(x.r.type)) && readings.filter((x) => x.r.type === 'kpi').length < 2
+    && looksLikeTable(ocrWords, med) ? readTable(ocrWords, pageBox) : null;
   if (report && report.columns.length >= 2) {
     const top = Math.min(...ocrWords.map((w) => w.y));
     const title = report.title || pageTitle || titleOf(ocrWords.filter((w) => w.y - top < med * 1.2), pageBox, med * 2).text;
@@ -118,7 +120,10 @@ export function buildSpec(input: BuildInput): BuildResult {
   }
   // a header band: text-only pieces at the very top (a title bar, possibly in large type) are the page title, not
   // visuals; a group set far to the right (a date range) is the subtitle
-  const topBand = readings.filter((x) => x.p.b[3] <= H * 0.12 && x.features.marks <= 2 && (x.r.type === 'kpi' || x.r.type === 'text' || x.r.type === 'placeholder'));
+  // (but a row of KPI cards across the top is not a title: two or more KPI tiles side by side, each with a big value)
+  const inBand = (x: (typeof readings)[number]) => x.p.b[3] <= H * 0.12 && x.features.marks <= 2;
+  const tiles = readings.filter((x) => inBand(x) && x.r.type === 'kpi' && x.features.bigMasked >= 1);
+  const topBand = readings.filter((x) => inBand(x) && (x.r.type === 'kpi' || x.r.type === 'text' || x.r.type === 'placeholder') && !(tiles.length >= 2 && tiles.includes(x)));
   if (topBand.length && topBand.length < readings.length) {
     const ws = topBand.flatMap((x) => x.p.words).sort((a, b) => a.x - b.x);
     const groups: Word[][] = [];
@@ -156,7 +161,9 @@ export function buildSpec(input: BuildInput): BuildResult {
     }
   }
   for (const s of [...readings]) {
-    if (!(s.r.type === 'placeholder' || s.r.type === 'text') || s.features.marks > 1 || s.p.words.length > 8 || !s.title) continue;
+    // (a title strip is short: a tall card above a chart is a visual of its own)
+    if (!(s.r.type === 'placeholder' || s.r.type === 'text') || s.features.marks > 1 || s.p.words.length > 8 || !s.title
+      || height(s.p.b) > Math.max(med * 6, H * 0.08)) continue;
     const below = readings.find((c) => c !== s && CHARTISH.concat(['pie', 'donut', 'scatter', 'treemap', 'table']).includes(c.r.type) && c.r.type !== 'placeholder'
       && c.p.b[1] >= s.p.b[3] - 2 && c.p.b[1] - s.p.b[3] < Math.max(med * 6, H * 0.06)
       && Math.min(c.p.b[2], s.p.b[2]) - Math.max(c.p.b[0], s.p.b[0]) > Math.min(width(s.p.b), width(c.p.b)) * 0.5);
@@ -238,5 +245,5 @@ export function buildSpec(input: BuildInput): BuildResult {
 export { findPanels, readPanel, readTable, tableVisual, splitTitle, formatOf };
 export { findMarks, background } from "./marks";
 export { panelConfidence, pageConfidence, CONFIDENCE_THRESHOLD };
-export { findRegions, edges, PANEL_OPTS } from "./panels";
+export { findRegions, findCards, findOutlinedCards, edges, PANEL_OPTS } from "./panels";
 export type { Panel, Img, Word, Box };

@@ -40,6 +40,10 @@ const handle = createMlHandler(
       // the local path: the model-files layer maps it to the configured source and unpacks .onnx.gz
       return loadTextDetector(new URL(src.localPath, self.location.origin).href, ortWasm);
     },
+    reader: async () => {
+      const { loadTextReader } = await import('./models');
+      return loadTextReader(new URL(src.localPath, self.location.origin).href, ortWasm);
+    },
   },
   (r: MlResponse) => self.postMessage(r),
 );

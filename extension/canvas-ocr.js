@@ -189,6 +189,9 @@
     async function ocr(images) {
       const r = await send({ type: "vs-canvas-ocr", images });
       if (!r.ok) throw new Error(r.error);
+      r.results.forEach((x) => {
+        if (x.unread) host.dataset.unread = x.unread;
+      });
       return new Map(r.results.map((x) => [x.id, x]));
     }
     function target(c) {

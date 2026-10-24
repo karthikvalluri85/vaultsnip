@@ -7,10 +7,10 @@
  * and given as 0-100 shapes, the same form the AI path returns; the replica engine generates every value from them.
  * Labels come only from words that stayed visible; masked labels become "Item N".
  */
-import { height, isBigBox, keyHex, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
+import { height, isBigBox, isMaskGrey, keyHex, labelStacks, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
 import { bySeries, findMarks, inkTest, isTextSpeck, sameColor, splitColumns, type Mark } from './marks';
 
-export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'table' | 'text' | 'placeholder';
+export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'map' | 'table' | 'text' | 'placeholder';
 
 export interface Reading {
   type: ChartType;
@@ -154,15 +154,21 @@ const hull = (ms: Mark[]): Box => [Math.min(...ms.map((m) => m.b[0])), Math.min(
 function pie(c: Ctx): Reading | null {
   const big = c.body.filter((m) => m.n >= c.markArea * 0.02 && m.fill > 0.25);
   if (!big.length) return null;
-  const u = hull(big), uw = width(u), uh = height(u), r = Math.min(uw, uh) / 2;
+  const u = hull(big), uw = width(u), uh = height(u), r = Math.max(uw, uh) / 2;
   if (uw / uh < 0.8 || uw / uh > 1.25 || r < Math.min(width(c.b), height(c.b)) * 0.12) return null;
-  const cx = (u[0] + u[2]) / 2, cy = (u[1] + u[3]) / 2;
-  let ring = 0, ringN = 0, corner = 0, cornerN = 0, mid = 0, midN = 0;
-  for (let y = Math.floor(u[1]); y < u[3]; y += 2) for (let x = Math.floor(u[0]); x < u[2]; x += 2) {
-    const d = Math.hypot(x - cx, y - cy) / r, on = c.ink(x, y) ? 1 : 0;
-    if (d > 0.7 && d < 0.92) { ring += on; ringN++; } else if (d > 1.1) { corner += on; cornerN++; } else if (d < 0.35) { mid += on; midN++; }
-  }
-  const ringF = ring / Math.max(1, ringN), cornerF = corner / Math.max(1, cornerN), midF = mid / Math.max(1, midN);
+  // the circle: a mask over a slice's label can hide an edge of the pie, so the hull may be short on one side; the
+  // radius comes from its longer side, and the centre is tried at either end of the shorter side as well as its middle
+  const centres = (lo: number, hi: number) => (hi - lo < 2 * r - 2 ? [(lo + hi) / 2, lo + r, hi - r] : [(lo + hi) / 2]);
+  const fit = (cx: number, cy: number) => {
+    let ring = 0, ringN = 0, corner = 0, cornerN = 0, mid = 0, midN = 0;
+    for (let y = Math.floor(cy - r); y < cy + r; y += 2) for (let x = Math.floor(cx - r); x < cx + r; x += 2) {
+      const d = Math.hypot(x - cx, y - cy) / r, on = c.ink(x, y) ? 1 : 0;
+      if (d > 0.7 && d < 0.92) { ring += on; ringN++; } else if (d > 1.1) { corner += on; cornerN++; } else if (d < 0.35) { mid += on; midN++; }
+    }
+    return { cx, cy, ringF: ring / Math.max(1, ringN), cornerF: corner / Math.max(1, cornerN), midF: mid / Math.max(1, midN) };
+  };
+  const { cx, cy, ringF, cornerF, midF } = centres(u[0], u[2]).flatMap((x) => centres(u[1], u[3]).map((y) => fit(x, y)))
+    .reduce((a, b) => (b.ringF - b.cornerF > a.ringF - a.cornerF ? b : a));
   if (ringF < 0.8 || cornerF > 0.2) return null;
   const donut = midF < 0.3, rr = r * (donut ? 0.81 : 0.6);
   const runs: { key: number; n: number }[] = [];
@@ -184,12 +190,26 @@ function pie(c: Ctx): Reading | null {
 function bars(c: Ctx): Reading | null {
   const rs = c.rects.filter((m) => m.n >= 20);
   if (rs.length < 2) return null;
-  const bottom = mode(rs.map((m) => m.b[3]), 3), left = mode(rs.map((m) => m.b[0]), 3);
+  // the shared baseline: a bar sits on it when it starts there, or when everything between the baseline and its visible
+  // start is mask grey (a mask over a category label can cover a bar's first pixels; it hides the bar, it does not end it)
+  const grey = (x: number, y: number) => x >= 0 && y >= 0 && x < c.img.width && y < c.img.height && isMaskGrey(...rgbAt(c.img, x, y));
+  const hiddenX = (m: Mark, at: number) => { const y = Math.round((m.b[1] + m.b[3]) / 2); for (let x = Math.round(at); x < m.b[0]; x++) if (!grey(x, y)) return false; return true; };
+  const hiddenY = (m: Mark, at: number) => { const x = Math.round((m.b[0] + m.b[2]) / 2); for (let y = m.b[3]; y < Math.round(at); y++) if (!grey(x, y)) return false; return true; };
+  // (a tolerance in proportion to the bars' thickness: an axis line or antialiasing can take a few pixels off a bar's start)
+  const med = (xs: number[]) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
+  const tolX = Math.max(3, med(rs.map((m) => height(m.b))) * 0.3), tolY = Math.max(3, med(rs.map((m) => width(m.b))) * 0.3);
+  const atLeft = (m: Mark, at: number) => Math.abs(m.b[0] - at) <= tolX || (m.b[0] > at && hiddenX(m, at));
+  const atBottom = (m: Mark, at: number) => Math.abs(m.b[3] - at) <= tolY || (m.b[3] < at && hiddenY(m, at));
+  const baseline = (cands: number[], on: (m: Mark, at: number) => boolean) => cands.reduce((best, at) => {
+    const n = rs.filter((m) => on(m, at)).length;
+    return n > best.n ? { at, n } : best;
+  }, { at: 0, n: 0 });
+  const bottom = baseline(rs.map((m) => m.b[3]), atBottom), left = baseline(rs.map((m) => m.b[0]), atLeft);
   const vert = bottom.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => width(m.b))) < 0.35;
   const horiz = left.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => height(m.b))) < 0.35;
   if (!vert && !horiz) return null;
   const isCol = vert && (!horiz || bottom.n > left.n || (bottom.n === left.n && height(hull(rs)) >= width(hull(rs))));
-  const on = rs.filter((m) => (isCol ? Math.abs(m.b[3] - bottom.at) <= 3 || rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2) : Math.abs(m.b[0] - left.at) <= 3 || rs.some((o) => o !== m && Math.abs(o.b[2] - m.b[0]) <= 2)));
+  const on = rs.filter((m) => (isCol ? atBottom(m, bottom.at) || rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2) : atLeft(m, left.at) || rs.some((o) => o !== m && Math.abs(o.b[2] - m.b[0]) <= 2)));
   const keys = bySeries(on).slice(0, 6);
   const cats = (isCol ? categories(on, (m) => m.b[0], (m) => m.b[2], keys.length > 1) : categories(on, (m) => m.b[1], (m) => m.b[3], keys.length > 1)).slice(0, 30);
   if (cats.length < 2) return null;
@@ -261,6 +281,31 @@ function scatter(c: Ctx): Reading | null {
 }
 
 /** Treemap: solid tiles of several sizes filling a rectangle. */
+/**
+ * A filled map: many irregular regions (countries, states) that touch one another and together cover a good share of
+ * the panel. Neither solid rectangles (bars, treemap tiles) nor thin strokes (lines). Which map it is cannot be told
+ * from the outlines, so the replica draws a world map and borrows its places from the rest of the dashboard.
+ */
+function map(c: Ctx): Reading | null {
+  const pa = width(c.b) * height(c.b);
+  const thinSet = new Set(c.thin);
+  const regions = c.body.filter((m) => !thinSet.has(m) && m.fill >= 0.12 && m.fill < 0.8 && m.n >= pa * 0.0003 && Math.min(width(m.b), height(m.b)) >= 3);
+  // (solid rectangles among the marks themselves: the column splitting behind c.rects slices irregular regions too)
+  const solid = c.body.filter((m) => m.fill >= 0.85).length;
+  const asMap = { type: 'map' as const, certainty: 0.55, fields: { basemap: 'world', mapKind: 'filled', dimension: { name: c.dName || 'Region', members: [] }, measure: c.measure, series: [{ name: c.measure.name, shape: [] }] } };
+  // neighbouring regions in close shades join into one mark: one large irregular mark holding many shades is a map too
+  // (an area chart's fill is one colour)
+  // (not bars that touch, which the bar reader finds on a shared baseline, nor a pie, which is round and evenly filled)
+  const round = (m: Mark) => { const r = width(m.b) / Math.max(1, height(m.b)); return r > 0.85 && r < 1.18 && m.fill > 0.68; };
+  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m))) return asMap;
+  if (regions.length < 6 || c.thin.length > 2 || solid > regions.length * 0.5) return null;
+  if (regions.reduce((a, m) => a + m.n, 0) < pa * 0.08) return null;
+  // neighbouring regions share borders: most of them touch another
+  const touch = (a: Mark, b: Mark) => a.b[0] <= b.b[2] + 2 && b.b[0] <= a.b[2] + 2 && a.b[1] <= b.b[3] + 2 && b.b[1] <= a.b[3] + 2;
+  if (regions.filter((m) => regions.some((o) => o !== m && touch(m, o))).length < regions.length * 0.6) return null;
+  return asMap;
+}
+
 function treemap(c: Ctx): Reading | null {
   const rs = c.rects.filter((m) => m.n >= 40);
   if (rs.length < 3) return null;
@@ -298,7 +343,8 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const body = all.filter((m) => !swatchSet.has(m) && !isTextSpeck(m) && m.n >= Math.max(12, pa * 0.0002));
   const ink = inkTest(img, b);
   const markArea = body.reduce((a, m) => a + m.n, 0), coverage = markArea / Math.max(1, pa);
-  const bigMasked = words.filter((w) => !w.kept && isBigBox(w, med));
+  const stacked = labelStacks(words, med);
+  const bigMasked = words.filter((w) => !w.kept && isBigBox(w, med) && !stacked.has(w));
   const grid = looksLikeTable(gridWords, med);
   const series = bySeries(body);
   const sat = (k: number) => { const r = (k >> 8) & 15, g = (k >> 4) & 15, b = k & 15; return Math.max(r, g, b) - Math.min(r, g, b); };
@@ -308,19 +354,44 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const { measure: mName, dimension: dName } = splitTitle(title);
   const measure = { name: mName || 'Value', ...formatOf(mName || '') };
   const thin = body.filter((m) => m.n / Math.max(width(m.b), height(m.b)) <= 5 && Math.max(width(m.b), height(m.b)) >= width(b) * 0.25 && m.fill < 0.35);
+  // a line broken into pieces (a stray word box on it, a mask, a gap at a marker) is still one line: thin, sparse pieces
+  // of one colour that together run across most of the panel. Dots (a scatter) are compact and solid, and bars solid.
+  const pieces = body.filter((m) => !thin.includes(m) && m.fill < 0.35 && m.n / Math.max(width(m.b), height(m.b)) <= 6);
+  for (const s of bySeries(pieces)) {
+    if (s.marks.length < 2 || thin.some((t) => sameColor(t.key, s.key))) continue;
+    const u = hull(s.marks);
+    if (width(u) < width(b) * 0.4) continue;
+    thin.push({ key: s.key, b: u, n: s.n, fill: s.n / Math.max(1, width(u) * height(u)), cx: (u[0] + u[2]) / 2, cy: (u[1] + u[3]) / 2, colors: 1 });
+  }
   // solid rectangles, with touching dense columns split apart first
   const rects = body.flatMap((m) => (m.fill >= 0.8 ? [m] : splitColumns(img, m, ink).filter((s) => s !== m))).filter((m) => m.fill >= 0.8 && Math.min(width(m.b), height(m.b)) >= 3);
-  Object.assign(features, { coverage: Math.round(coverage * 1000) / 1000, marks: body.length, rects: rects.length, thin: thin.length, series: series.length, words: words.length, bigMasked: bigMasked.length, grid: grid ? 1 : 0, swatches: swatches.length });
+  Object.assign(features, { coverage: Math.round(coverage * 1000) / 1000, marks: body.length, rects: rects.length, thin: thin.length, series: series.length, words: words.length, bigMasked: bigMasked.length, grid: grid ? 1 : 0, swatches: swatches.length, vivid: vivid.length });
   const c: Ctx = { img, b, words, med, title, ink, body, rects, thin, markArea, coverage, nameOf, measure, dName, plot: plotBox(b, words, med) };
   const done = (r: Reading | null) => (r ? { ...r, color } : null);
 
   // a KPI: one to three big masked values (numbers are masked by default) and a short label
-  const barReading = bars(c);
-  // (the value is large for its card: masked data labels inside a big chart are not KPI values)
-  const bigH = Math.max(0, ...bigMasked.map((w) => w.h)), prominent = bigH >= height(b) * 0.12;
+  // (a table's zebra stripes are not bars: four or more bands of exactly one length, starting at one x, each a row
+  // tall with the row's words in its band, under words on a grid. Masked names over a stripe cut it, but the pieces still
+  // match. A bar chart's bars, even of equal length, are thinner than a row and labelled beside them.)
+  const tol = Math.max(3, width(b) * 0.02);
+  const holdsWord = (m: Mark) => words.some((w) => { const y = wordCenter(w)[1]; return y >= m.b[1] && y <= m.b[3]; });
+  const stripes = grid && rects.length >= 4 && rects.some((r) => {
+    const same = rects.filter((m) => Math.abs(width(m.b) - width(r.b)) <= tol && Math.abs(m.b[0] - r.b[0]) <= tol && height(m.b) >= med * 1.5);
+    return same.length >= 4 && same.length >= rects.length * 0.8 && same.filter(holdsWord).length >= same.length / 2;
+  });
+  const barReading = stripes ? null : bars(c);
+  // (the value is large for its card: masked data labels inside a big chart are not KPI values; a card holding a big
+  // value, a few words and next to no marks (a coloured delta or arrow at most) is a KPI however tall the grid
+  // stretches it)
+  const bigH = Math.max(0, ...bigMasked.map((w) => w.h));
+  const prominent = bigH >= height(b) * 0.12 || (bigMasked.length >= 1 && coverage < 0.012 && body.length <= 4 && words.length <= 6);
   if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3)) return done(kpi(c, 0.85))!;
-  return done(pie(c)) || done(treemap(c)) || done(barReading) || (grid ? done({ type: 'table', certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} }) : null)
-    || done(lines(c)) || done(scatter(c))
+  // words on a grid make a table, unless the panel also holds coloured strokes or several vivid colours (a table's
+  // rules and stripes are grey or one colour): then a line or scatter reading comes first and the table is the fallback
+  const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;
+  const colourful = vivid.length >= 2 || thin.some((t) => sat(t.key) >= 3);
+  return done(pie(c)) || done(treemap(c)) || done(map(c)) || done(barReading) || (table && !colourful ? done(table) : null)
+    || done(lines(c)) || done(scatter(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
     || done({ type: 'placeholder', certainty: 0.2, fields: { originalType: coverage > 0.1 ? 'chart' : 'visual' } })!;

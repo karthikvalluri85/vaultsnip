@@ -23,6 +23,9 @@ const RULES = [
   ['dashboards.endToEndPct', 'higher', 3.0, 'share of a dashboard that comes out right'],
   ['reports.checksRight', 'higher', 0, 'paginated report structure'],
   ['review.findings', 'lower', 10, 'items users must resolve on the real dashboards'],
+  ['synthLayout.foundPct', 'higher', 3.0, 'visuals the on-device build finds on the generated dashboards'],
+  ['synthLayout.typesRightPct', 'higher', 3.0, 'visuals found with the right type, generated dashboards'],
+  ['synthLayout.endToEndPct', 'higher', 3.0, 'share of a generated dashboard that comes out right'],
 ];
 
 let failed = 0, checked = 0;

@@ -12,6 +12,7 @@ export interface Mark {
   n: number;              // pixel count
   fill: number;           // n / bounding-box area
   cx: number; cy: number; // centroid
+  colors: number;         // colour buckets holding at least 4% of its pixels (a choropleth's shades; a bar has one)
 }
 
 /** How far (per channel) a pixel must be from the panel background to count as ink: low enough for pale grey bars on an off-white card. */
@@ -28,25 +29,37 @@ export function inkTest(img: Img, box: Box) {
 }
 
 /**
- * The panel's background colour: the most common colour along its inner border and across it. Mask grey is never the
- * background: in a panel made mostly of masked text (a header with a masked client name) it would otherwise win, and
- * the real background around the masks would read as bars.
+ * The panel's background colour: the most common colour along its inner border (margins, title strip, axis area),
+ * which marks rarely fill; across the whole panel only when no colour holds a clear share of the border. Counting the
+ * whole panel alone, a chart whose bars cover more of it than the background does took the bars' colour for the
+ * background, and the gaps between bars for marks. Mask grey is never the background: in a panel made mostly of
+ * masked text (a header with a masked client name) it would otherwise win, and the real background around the masks
+ * would read as bars.
  */
 export function background(img: Img, box: Box): [number, number, number] {
-  const counts = new Map<number, { n: number; rgb: [number, number, number] }>();
   const { data, channels: C, width: iw } = img;
-  const add = (x: number, y: number) => {
+  const tally = () => new Map<number, { n: number; rgb: [number, number, number] }>();
+  const ring = tally(), all = tally();
+  let ringN = 0;
+  const add = (counts: ReturnType<typeof tally>, x: number, y: number) => {
     const i = (y * iw + x) * C, r = data[i], g = data[i + 1], b = data[i + 2];
-    if (isMaskGrey(r, g, b)) return;
+    if (isMaskGrey(r, g, b)) return false;
     const k = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3), e = counts.get(k);
     if (e) e.n++; else counts.set(k, { n: 1, rgb: [r, g, b] });
+    return true;
   };
   const x0 = Math.max(0, Math.floor(box[0])), y0 = Math.max(0, Math.floor(box[1])), x1 = Math.min(img.width, Math.ceil(box[2])), y1 = Math.min(img.height, Math.ceil(box[3]));
   const step = Math.max(1, Math.round(Math.sqrt(((x1 - x0) * (y1 - y0)) / 4000)));
-  for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) add(x, y);
-  let best = { n: -1, rgb: [255, 255, 255] as [number, number, number] };
-  for (const e of counts.values()) if (e.n > best.n) best = e;
-  return best.rgb;
+  // the border band: a few percent of the panel's smaller side, inside its edge (past a 1-2 px outline)
+  const band = Math.max(3, Math.round(Math.min(x1 - x0, y1 - y0) * 0.05)), edge = 2;
+  for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) {
+    add(all, x, y);
+    const d = Math.min(x - x0, x1 - 1 - x, y - y0, y1 - 1 - y);
+    if (d >= edge && d < edge + band && add(ring, x, y)) ringN++;
+  }
+  const mode = (counts: ReturnType<typeof tally>) => { let best = { n: -1, rgb: [255, 255, 255] as [number, number, number] }; for (const e of counts.values()) if (e.n > best.n) best = e; return best; };
+  const r = mode(ring);
+  return ringN >= 20 && r.n >= ringN * 0.3 ? r.rgb : mode(all).rgb;
 }
 
 /**
@@ -72,9 +85,13 @@ export function findMarks(img: Img, box: Box, words: Word[] = [], minPixels = 6)
     for (let y = Math.max(0, Math.floor(w.y - y0) - 1); y < Math.min(H, Math.ceil(w.y + w.h - y0) + 1); y++)
       for (let x = Math.max(0, Math.floor(w.x - x0) - 1); x < Math.min(W, Math.ceil(w.x + w.w - x0) + 1); x++) on[y * W + x] = 0;
   }
+  // a neutral grey pixel never joins a coloured one: a chart line would otherwise join every gridline it crosses
+  // through their antialiased pixels, and no longer look thin
+  // (light greys only: gridlines are light, while a dark grey is as likely a data series, such as Power BI's charcoal)
+  const neutral = (p: number) => { const i = ((y0 + ((p / W) | 0)) * iw + x0 + (p % W)) * C, hi = Math.max(data[i], data[i + 1], data[i + 2]); return hi >= 150 && hi - Math.min(data[i], data[i + 1], data[i + 2]) <= 16; };
   const close = (p: number, q: number) => {
     const i = ((y0 + ((p / W) | 0)) * iw + x0 + (p % W)) * C, j = ((y0 + ((q / W) | 0)) * iw + x0 + (q % W)) * C;
-    return Math.abs(data[i] - data[j]) < 40 && Math.abs(data[i + 1] - data[j + 1]) < 40 && Math.abs(data[i + 2] - data[j + 2]) < 40;
+    return Math.abs(data[i] - data[j]) < 40 && Math.abs(data[i + 1] - data[j + 1]) < 40 && Math.abs(data[i + 2] - data[j + 2]) < 40 && neutral(p) === neutral(q);
   };
   const seen = new Uint8Array(W * H), out: Mark[] = [], stack: number[] = [];
   for (let s = 0; s < W * H; s++) {
@@ -102,7 +119,8 @@ export function findMarks(img: Img, box: Box, words: Word[] = [], minPixels = 6)
     if (bw > W * 0.92 && bh > H * 0.92) continue;
     let key = 0, best = -1;
     for (const [k, m] of keys) if (m > best) { best = m; key = k; }
-    out.push({ key, b: [x0 + bx0, y0 + by0, x0 + bx1 + 1, y0 + by1 + 1], n, fill: n / (bw * bh), cx: x0 + sx / n, cy: y0 + sy / n });
+    const colors = [...keys.values()].filter((m) => m >= n * 0.04).length;
+    out.push({ key, b: [x0 + bx0, y0 + by0, x0 + bx1 + 1, y0 + by1 + 1], n, fill: n / (bw * bh), cx: x0 + sx / n, cy: y0 + sy / n, colors });
   }
   return out.sort((a, b) => b.n - a.n);
 }
@@ -135,7 +153,7 @@ export function splitColumns(img: Img, m: Mark, ink: (x: number, y: number) => b
   if (Math.max(...widths) > Math.min(...widths) * 3) return [m];
   return segs.map(([a, b]) => {
     const t = Math.min(...top.slice(a, b)), n = cnt.slice(a, b).reduce((s, v) => s + v, 0), bw = b - a, bh = Math.max(1, y1 - t);
-    return { key: m.key, b: [x0 + a, t, x0 + b, y1] as Box, n, fill: Math.min(1, n / (bw * bh)), cx: x0 + (a + b) / 2, cy: (t + y1) / 2 };
+    return { key: m.key, b: [x0 + a, t, x0 + b, y1] as Box, n, fill: Math.min(1, n / (bw * bh)), cx: x0 + (a + b) / 2, cy: (t + y1) / 2, colors: 1 };
   });
 }
 

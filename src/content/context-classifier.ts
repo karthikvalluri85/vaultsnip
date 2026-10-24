@@ -10,7 +10,7 @@
 import type { MlRequest, MlResponse, Pixels, WordScore } from '../background/ml-protocol';
 import type { Region } from '../shared/text-regions';
 
-export { detectorSize, unreadParts, type Box, type Region } from '../shared/text-regions';
+export { detectorSize, flatMarksOnly, isBar, unreadParts, type Box, type Region } from '../shared/text-regions';
 
 export type { Pixels, WordScore };
 export const CONTEXT_TYPE = 'Name in context';
@@ -79,6 +79,13 @@ export class ContextClassifier {
     const { regions } = await this.request({ type: 'detect', image }, signal, [image.data.buffer]);
     if (!Array.isArray(regions)) throw new Error('ML worker returned no text regions');
     return regions;
+  }
+
+  /** One straightened line of text read by the second-look reader. Its pixels are transferred to the worker. */
+  async read(image: Pixels, signal?: AbortSignal): Promise<{ text: string; conf: number }> {
+    const { reading } = await this.request({ type: 'read', image }, signal, [image.data.buffer]);
+    if (!reading) throw new Error('ML worker returned no reading');
+    return reading;
   }
 
   dispose(): void {

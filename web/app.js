@@ -24,7 +24,7 @@
     ctx: { on: true, lines: null, scores: null, state: 'idle' },  // on-device name check (lib/vs-context.js, ml/)
     // on-device text-region detector: text the reader missed is masked. limit: the detector's input size (longest side);
     // minConf: how sure the reader must be of a kept word for it to account for its region
-    unread: { on: true, regions: null, state: 'idle', limit: 1536, minConf: 60 }
+    unread: { on: true, regions: null, state: 'idle', limit: 1536, minConf: 60, reader: true }
   };
   try {
     const k = localStorage.getItem('dsc-key'), m = localStorage.getItem('dsc-model'), p = localStorage.getItem('dsc-provider');
@@ -799,8 +799,40 @@ customer service staff agent team people everyone nobody someone something nothi
   function unreadCover(base) {
     const on = base.filter(m => m.on);
     const inside = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
-    // words that account for their spot: read confidently and left readable by the rules
-    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && !inside(w)));
+    // words that account for their spot: read confidently and left readable by the rules; and parts of a region that
+    // hold flat marks only (a bar beside its label), found by the second look
+    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && !inside(w)),
+      (S.unread.regions || []).flatMap(r => r.flat || []));
+  }
+  // One straightened line read by the second-look reader (PP-OCRv5, in the ML worker), as words with the page
+  // reader's confidence scale; null when it cannot run, so the page reader takes over.
+  async function readLine(c) {
+    if (!S.unread.reader || !ctxClient) return null;
+    try {
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+      const r = await ctxClient.read({ width: d.width, height: d.height, data: d.data });
+      return r.text.split(/\s+/).filter(Boolean).map(text => ({ text, conf: r.conf * 100 }));
+    } catch (e) {
+      console.warn('Second-look reader unavailable:', e);
+      return null;
+    }
+  }
+  // The reader sometimes takes a chart's bar for a word, and masking it hides the chart. A "word" whose box is one
+  // solid rectangle of colour with no hole in it (VSContext.isBar) is not text and is dropped; text on a coloured chip
+  // is a set of holes in it, so it stays.
+  function notMarks(img, words) {
+    if (!window.VSContext || !VSContext.isBar) return words;
+    const hs = words.map(w => w.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
+    return words.filter(w => !(Math.max(w.w, w.h) >= textH && VSContext.isBar(pixelsOf(img, w), textH)));
+  }
+  // the RGBA pixels of a box of the image, in whole pixels
+  function pixelsOf(img, b) {
+    const x0 = Math.max(0, Math.floor(b.x)), y0 = Math.max(0, Math.floor(b.y));
+    const w = Math.max(1, Math.min(img.width, Math.ceil(b.x + b.w)) - x0), h = Math.max(1, Math.min(img.height, Math.ceil(b.y + b.h)) - y0);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(img, x0, y0, w, h, 0, 0, w, h);
+    return x.getImageData(0, 0, w, h);
   }
   async function secondLook(img, regions, base) {
     const cover = unreadCover(base);
@@ -810,7 +842,20 @@ customer service staff agent team people everyone nobody someone something nothi
     for (const r of todo) {
       const slanted = r.len && Math.abs(r.angle) > 10 && Math.abs(r.angle) < 170 && r.len >= 1.5 * r.thick;
       const k = r.core || r, glyphSized = k.w <= 1.2 * textH && k.h <= 2 * textH;
+      // a region far taller than a line of text is not one line: the detector merged labels and chart marks into one
+      // blob. Masking it whole would hide charts, so only the words the second look reads there and cannot vouch for
+      // are masked, where they are.
+      const blob = !slanted && k.h > 3 * textH;
+      // the detector joins a label and the bar beside it into one line: a part holding only flat marks (a bar, a
+      // legend chip, a gridline) and no letter-like shape accounts for itself, so the chart stays visible
+      if (!slanted && !blob) {
+        const parts = VSContext.unreadParts([r], cover);
+        r.flat = parts.filter(p => VSContext.flatMarksOnly(pixelsOf(img, p), textH));
+        if (r.flat.length === parts.length) { r.safe = true; r.seen = 'flat marks'; continue; }
+        cover.push(...r.flat);
+      }
       let best = { words: [], conf: 0 }, sawCharacters = false;
+      const unsafe = [];
       read: for (const kind of ['normal', 'contrast']) {
         for (const flip of slanted ? [0, 180] : [0]) {   // a slanted label may read upwards or downwards
           if (S.img !== img) return;
@@ -823,13 +868,20 @@ customer service staff agent team people everyone nobody someone something nothi
             c.width = Math.ceil(r.w + 2 * pad); c.height = Math.ceil(r.h + 2 * pad);
             x.drawImage(img, r.x - pad, r.y - pad, c.width, c.height, 0, 0, c.width, c.height);
           }
-          const words = await ocrPass(c, 3, kind);
+          // the line reader first (trained on single lines: small, faint and slanted text), then the page reader
+          let words = kind === 'normal' && !blob ? await readLine(c) : null;
+          if (!words || !words.length) words = await ocrPass(c, 3, kind);
           if (words.some(w => /[\p{L}\p{N}]/u.test(w.text))) sawCharacters = true;
+          if (blob) {   // every reading counts: a word unsafe in either is masked (positions in the image's pixels)
+            words.filter(w => w.conf < SECOND_LOOK_CONF || classify(w.text)).forEach(w => unsafe.push({ x: w.x + r.x - pad, y: w.y + r.y - pad, w: w.w, h: w.h }));
+            continue;
+          }
           const conf = words.length ? Math.min(...words.map(w => w.conf)) : 0;
           if (conf > best.conf) best = { words, conf };
           if (best.conf >= SECOND_LOOK_CONF) break read;
         }
       }
+      if (blob) { r.blob = true; r.unsafe = unsafe; r.seen = `blob, ${unsafe.length} unsafe`; continue; }
       r.seen = best.words.map(w => w.text + ':' + Math.round(w.conf)).join(' ');   // what the second look read (tests and the benchmark)
       r.safe = (best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text)))
         // a mark the size of one character in which no letter or digit can be found, however it is read: a line marker,
@@ -839,13 +891,13 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   function unreadMasks(base) {
     if (!S.unread.on || !S.unread.regions || !window.VSContext) return [];
-    const on = base.filter(m => m.on);
-    return VSContext.unreadParts(S.unread.regions.filter(r => !r.safe), unreadCover(base)).map(p => {
-      let b = { x: p.x - 2, y: p.y - 2, w: p.w + 4, h: p.h + 4 };
-      // whole pixels: a box edge drawn between pixels blends grey into the background, and those blended pixels would
-      // look like chart marks to the on-device layout builder
-      const x0 = Math.floor(b.x), y0 = Math.floor(b.y);
-      return { x: x0, y: y0, w: Math.ceil(b.x + b.w) - x0, h: Math.ceil(b.y + b.h) - y0, type: VSContext.UNREAD_TYPE, text: '(unread text)', on: true, src: 'auto' };
+    // No padding of its own: the detector's region already reaches past the letters, and a mask taller than its text
+    // looks like a KPI's big number to the on-device layout builder. Whole pixels, outward: a box edge drawn between
+    // pixels blends grey into the background, and the builder would take those pixels for chart marks.
+    const blobs = S.unread.regions.filter(r => r.blob).flatMap(r => r.unsafe);
+    return VSContext.unreadParts(S.unread.regions.filter(r => !r.safe && !r.blob), unreadCover(base)).concat(blobs).map(p => {
+      const x0 = Math.floor(p.x), y0 = Math.floor(p.y);
+      return { x: x0, y: y0, w: Math.ceil(p.x + p.w) - x0, h: Math.ceil(p.y + p.h) - y0, type: VSContext.UNREAD_TYPE, text: '(unread text)', on: true, src: 'auto' };
     });
   }
   const allMasks = () => { const base = buildMasks(S.words).concat(contextMasks()); return base.concat(unreadMasks(base)); };
@@ -1078,11 +1130,14 @@ customer service staff agent team people everyone nobody someone something nothi
   /* ---------------- screens ---------------- */
   function show(id) { ['s-drop', 's-crop', 's-review', 's-replica'].forEach(s => $(s).hidden = s !== id); window.scrollTo(0, 0); }
 
+  const MAX_PIXELS = 2200 * 2200, MAX_SIDE = 8000;
   async function loadImage(src) {
     const img = new Image();
     img.decoding = 'async';
     await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('That file could not be read as an image.')); img.src = src; });
-    const maxD = 2200, k = Math.min(1, maxD / Math.max(img.naturalWidth, img.naturalHeight));
+    // a pixel budget (that of a 2200 x 2200 image), not a longest side: a tall full-page capture shrunk by its height
+    // came out with text too small to read, and text that is not read is not masked
+    const W = img.naturalWidth, H = img.naturalHeight, k = Math.min(1, Math.sqrt(MAX_PIXELS / (W * H)), MAX_SIDE / Math.max(W, H));
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
@@ -1105,7 +1160,7 @@ customer service staff agent team people everyone nobody someone something nothi
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
       const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…');
       if (!current()) return;
-      S.words = words;
+      S.words = notMarks(canvas, words);
       S.comments = findComments(S.words);
       S.masks = buildMasks(S.words);
       if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); if (!current()) return; S.masks = allMasks(); }

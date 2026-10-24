@@ -33,6 +33,7 @@ const page = (otherOrigin) => `<!doctype html><meta charset="utf-8"><title>Mock 
 <canvas id="plain" width="640" height="220"></canvas>
 <canvas id="tainted" width="640" height="120"></canvas>
 <canvas id="webgl" width="640" height="120"></canvas>
+<canvas id="slanted" width="640" height="200"></canvas>
 <div id="spacer"></div>
 <script>
 const text = (ctx, lines) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.fillStyle = '#111';
@@ -61,6 +62,14 @@ gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+// a name drawn on a slant, as axis labels often are: the OCR cannot read it, the text-region detector finds it
+const sc = document.getElementById('slanted'), sx = sc.getContext('2d');
+sx.fillStyle = '#fff'; sx.fillRect(0, 0, 640, 200); sx.fillStyle = '#111'; sx.font = 'bold 22px Arial'; sx.fillText('Region', 20, 40);
+sx.save(); sx.translate(260, 170); sx.rotate(-0.6); sx.font = '26px Arial'; const sw = sx.measureText('Wayne Enterprises').width; sx.fillText('Wayne Enterprises', 0, 0); sx.restore();
+const r0 = sc.getBoundingClientRect();
+window.slantedBox = { x: r0.left + 260, y: r0.top + 170 - Math.sin(0.6) * sw - 20, w: Math.cos(0.6) * sw + 10, h: Math.sin(0.6) * sw + 26 };
+window.labelBox = { x: r0.left + 16, y: r0.top + 16, w: 80, h: 30 };
 </script>`;
 
 const serve = (handler) => new Promise((r) => { const s = createServer(handler); s.listen(0, '127.0.0.1', () => r(s)); });
@@ -71,6 +80,20 @@ const main = await serve((req, res) => { res.writeHead(200, { 'content-type': 't
 const base = `http://127.0.0.1:${main.address().port}/`;
 
 let failures = 0;
+/** Share of dark pixels (text strokes) in a box of a screenshot: legible text has them, a blur leaves none. */
+async function darkShare(png, box, offset = { x: 0, y: 0 }) {
+  const p = await context.newPage();
+  try {
+    return await p.evaluate(async ({ png, box, offset }) => {
+      const im = new Image(); im.src = 'data:image/png;base64,' + png; await im.decode();
+      const c = document.createElement('canvas'); c.width = Math.round(box.w); c.height = Math.round(box.h);
+      const x = c.getContext('2d'); x.drawImage(im, -Math.round(box.x - offset.x), -Math.round(box.y - offset.y));
+      const d = x.getImageData(0, 0, c.width, c.height).data;
+      let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 3 * 110) n++;
+      return n / (d.length / 4);
+    }, { png: png.toString('base64'), box, offset });
+  } finally { await p.close(); }
+}
 const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); if (!cond) failures++; };
 
 const ocr = await Tesseract.createWorker('eng', 1, { langPath: join(root, 'web/lang'), gzip: true, cachePath: await mkdtemp(join(tmpdir(), 'vs-tess-')) });
@@ -105,7 +128,8 @@ try {
   console.log('Before redaction (sanity: the test can read the PII)');
   // VS_SHOTS=<folder> keeps the before/after screenshots, to look at or to use as visual baselines.
   const shot = (name) => tab.screenshot(process.env.VS_SHOTS ? { path: join(process.env.VS_SHOTS, `canvas-${name}.png`) } : {});
-  const before = await readable(await shot('before'));
+  const shotBefore = await shot('before');
+  const before = await readable(shotBefore);
   for (const s of Object.values(PII).flat().filter((s) => s !== 'Umbrella')) check(has(before, s), `"${s}" is readable`);
 
   console.log('Redaction');
@@ -117,6 +141,12 @@ try {
   const after = await readable(await shot('after'));
   for (const [kind, list] of Object.entries(PII)) for (const s of list) if (kind !== 'redraw') check(!has(after, s), `${kind} canvas: "${s}" is no longer readable`);
   for (const s of LABELS) check(has(after, s), `allowlisted label "${s}" stays readable`);
+  // the slanted name: the reader cannot read it, so the text-region detector is what blurs it
+  const [slanted, label] = await tab.evaluate(() => [window.slantedBox, window.labelBox]);
+  const dark = async (box) => [await darkShare(shotBefore, box), await darkShare(await tab.screenshot({ clip: { x: box.x, y: box.y, width: box.w, height: box.h } }), box, box)];
+  const [slantBefore, slantAfter] = await dark(slanted), [labelBefore, labelAfter] = await dark(label);
+  check(slantBefore > 0.02 && slantAfter < 0.005 && labelAfter > labelBefore * 0.8,
+    `a slanted name the reader cannot read is blurred by the text-region check, a safe label next to it is not (dark text pixels ${(slantBefore * 100).toFixed(1)}% → ${(slantAfter * 100).toFixed(1)}%; label ${(labelBefore * 100).toFixed(1)}% → ${(labelAfter * 100).toFixed(1)}%)`);
 
   console.log('Redraw and scroll');
   await tab.evaluate(() => window.redraw());

@@ -21,11 +21,16 @@ export interface PanelSignals {
   features?: Record<string, number>;
 }
 
-/** How often each type was right when the builder chose it, on the benchmark (rounded, a little conservative). */
+/**
+ * How often each type was right when the builder chose it (rounded, a little conservative): set on the generated
+ * dashboards (tools/synth-bench/layout.mjs --dump) and checked on the real ones, which the rules never saw.
+ */
 const PRIOR: Record<string, number> = {
-  bar: 0.85, column: 0.7, pie: 0.85, donut: 0.85, treemap: 0.75, scatter: 0.55, bubble: 0.55, line: 0.6, area: 0.5,
-  table: 0.55, pivot: 0.7, kpi: 0.6, text: 0.35, placeholder: 0.05,
+  bar: 0.85, column: 0.85, pie: 0.85, donut: 0.85, treemap: 0.75, map: 0.85, scatter: 0.55, bubble: 0.55, line: 0.6,
+  area: 0.45, table: 0.55, pivot: 0.7, kpi: 0.75, text: 0.25, placeholder: 0.05,
 };
+/** A panel over this share of the page has almost always swallowed several visuals (tables and reports aside). */
+const HUGE = 0.55;
 const CHARTS = ['bar', 'column', 'line', 'area', 'pie', 'donut', 'scatter', 'bubble', 'treemap'];
 
 /** Probability, 0-1, that a panel is a real visual and its type is right. */
@@ -34,10 +39,11 @@ export function panelConfidence(p: PanelSignals): number {
   let c = PRIOR[p.type] ?? 0.3;
   // a fragment: a tiny panel (a piece of a tile or a chart cut apart), especially one without a title of its own
   if (p.area < 0.004) c *= p.titled ? 0.6 : 0.25;
-  // one panel over a large part of a dashboard has usually swallowed several visuals (tables and reports are allowed)
-  if (p.area > 0.3 && p.type !== 'table' && p.type !== 'pivot') c *= 0.35;
+  // one panel over most of a dashboard has usually swallowed several visuals (tables and reports are allowed); a large
+  // one is often a real map or a wide chart, but less sure
+  if (p.type !== 'table' && p.type !== 'pivot') c *= p.area > HUGE ? 0.25 : p.area > 0.3 ? 0.75 : 1;
   // KPI tiles are small: a "KPI" covering a large part of the page is a chart or table misread
-  if (p.type === 'kpi' && p.area > 0.08) c *= 0.3;
+  if (p.type === 'kpi' && p.area > 0.15) c *= 0.3;
   // a readable title is good evidence of a real visual
   c *= p.titled ? 1.15 : 0.8;
   // a chart with no coloured marks is a misreading
@@ -60,7 +66,7 @@ export function pageConfidence(panelScores: number[], coverage: number, swallowe
 
 /** Visuals a very large panel probably hides (a typical dashboard visual covers about an eighth of the page). */
 export function swallowedVisuals(areas: number[], types: string[]): number {
-  return areas.reduce((n, a, i) => n + (a > 0.3 && types[i] !== 'table' && types[i] !== 'pivot' ? Math.max(0, Math.round(a / 0.125) - 1) : 0), 0);
+  return areas.reduce((n, a, i) => n + (a > HUGE && types[i] !== 'table' && types[i] !== 'pivot' ? Math.max(0, Math.round(a / 0.125) - 1) : 0), 0);
 }
 
 /** The line below which the app offers to fix the layout or use the user's own AI key. */
