@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { ROOT } from '../layout-bench/items.mjs';
 import { reviewer } from '../layout-bench/review.mjs';
 import { same } from '../layout-bench/builder.mjs';
+import { validate } from './validate.mjs';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
 const DIR = arg('--dir', join(ROOT, '.bench', 'synth'));
@@ -55,7 +56,8 @@ function score(found, truth) {
 
 const rev = rescore ? null : await reviewer();
 const key = process.env.ANTHROPIC_API_KEY;
-const rows = [], tot = { ai: { right: 0, extra: 0 }, local: { right: 0, extra: 0 }, visuals: 0, failed: 0, input: 0, output: 0 };
+const rows = [], tot = { ai: { right: 0, extra: 0 }, local: { right: 0, extra: 0 }, visuals: 0, failed: 0, input: 0, output: 0, malformed: 0 };
+const problems = {};
 try {
   for (const f of todo) {
     const truth = JSON.parse(await readFile(join(DIR, f), 'utf8'));
@@ -86,8 +88,12 @@ try {
     const local = score(visuals(rec.local), want);
     tot.visuals += want.length; tot.input += rec.usage?.input || 0; tot.output += rec.usage?.output || 0;
     if (!rec.spec) tot.failed++;
+    const issues = rec.spec ? validate(rec.spec) : [];
+    if (issues.length) tot.malformed++;
+    issues.forEach((i) => { problems[i.code] = (problems[i.code] || 0) + 1; });
     for (const [k, s] of [['ai', ai], ['local', local]]) { tot[k].right += s.right; tot[k].extra += s.extra; }
     rows.push({ id: truth.id, visuals: want.length, ai: rec.spec ? `${ai.right} (+${ai.extra})` : 'error', local: `${local.right} (+${local.extra})`, s: Math.round((rec.ms || 0) / 1000) });
+    if (issues.length) console.log(`    malformed: ${issues.map((i) => `${i.code} at ${i.where}`).join('; ')}`);
     console.log(`  ✓ ${truth.id}: AI ${rec.spec ? `${ai.right}/${want.length} right, ${ai.extra} extra` : 'failed: ' + rec.error}; on device ${local.right}/${want.length}, ${local.extra} extra`);
   }
 } finally {
@@ -96,12 +102,13 @@ try {
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
 const e2e = (k) => pct(tot[k].right, tot.visuals + tot[k].extra);
 const [pin, pout] = PRICE[MODEL] || [4, 20];
-const result = { aiPath: { model: MODEL, dashboards: rows.length, visuals: tot.visuals, failed: tot.failed,
+const result = { aiPath: { model: MODEL, dashboards: rows.length, visuals: tot.visuals, failed: tot.failed, malformed: tot.malformed, problems,
   ai: { typesRight: tot.ai.right, extra: tot.ai.extra, endToEndPct: e2e('ai') },
   onDevice: { typesRight: tot.local.right, extra: tot.local.extra, endToEndPct: e2e('local') },
   tokens: { input: tot.input, output: tot.output }, costUsd: Math.round((tot.input * pin + tot.output * pout) / 1e4) / 100 } };
 console.table(rows);
 console.log(`AI (${MODEL}): ${tot.ai.right}/${tot.visuals} visuals typed right, ${tot.ai.extra} extra, end to end ${e2e('ai')}%, ${tot.failed} failed`);
+console.log(`Answers with structural problems: ${tot.malformed} of ${rows.length - tot.failed}${Object.keys(problems).length ? ': ' + Object.entries(problems).map(([k, v]) => `${k} ${v}`).join(', ') : ''}`);
 console.log(`On device:  ${tot.local.right}/${tot.visuals} visuals typed right, ${tot.local.extra} extra, end to end ${e2e('local')}%`);
 console.log(`Tokens: ${tot.input} in, ${tot.output} out, about $${result.aiPath.costUsd}`);
 if (arg('--json')) await writeFile(arg('--json'), JSON.stringify({ measured: new Date().toISOString().slice(0, 10), ...result }, null, 1) + '\n');
