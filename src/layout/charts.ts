@@ -142,14 +142,33 @@ function plotBox(b: Box, words: Word[], med: number): Box {
 }
 
 /** Members along an axis: visible words just outside the plot, one per category; masked or missing → Item N. */
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthOf = (s: string) => {
+  const m = /^\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*$/i.exec(s);
+  return m ? MONTH_NAMES.findIndex((n) => n.toLowerCase() === m[1].toLowerCase()) : -1;
+};
+/**
+ * An axis of months in order: when at least half its labels (and at least three) read as months that follow one
+ * another, the sequence is certain, and every label takes its month: one the reader misread ("Max" for Mar) or that was
+ * covered as unread text is the month its neighbours imply. Months are not sensitive; nothing is copied from a mask.
+ */
+export function monthsInOrder(members: string[]): string[] {
+  const at = members.map(monthOf);
+  const votes = new Map<number, number>();
+  at.forEach((m, i) => { if (m >= 0) { const start = (m - i + 1200) % 12; votes.set(start, (votes.get(start) || 0) + 1); } });
+  const [start, n] = [...votes.entries()].sort((a, b) => b[1] - a[1])[0] || [0, 0];
+  if (n < 3 || n < members.length / 2) return members;
+  return members.map((_, i) => MONTH_NAMES[(start + i) % 12]);
+}
+
 function axisLabels(words: Word[], cats: { lo: number; hi: number }[], along: 'x' | 'y', band: [number, number], med: number) {
   const ws = words.filter((w) => { const [cx, cy] = wordCenter(w); const v = along === 'x' ? cy : cx; return v >= band[0] && v <= band[1]; });
-  return cats.map((c, i) => {
+  return monthsInOrder(cats.map((c, i) => {
     const pad = Math.max(med * 0.6, (c.hi - c.lo) * 0.25);
     const here = ws.filter((w) => { const [cx, cy] = wordCenter(w); const v = along === 'x' ? cx : cy; return v >= c.lo - pad && v <= c.hi + pad; });
     const t = here.length && here.every((w) => w.kept && w.text) ? text(here) : '';
     return t || `Item ${i + 1}`;
-  });
+  }));
 }
 
 interface Ctx {
@@ -275,10 +294,15 @@ function lines(c: Ctx): Reading | null {
   const ms = use.flatMap((s) => s.marks), [x0, yTop, x1, yBot] = hull(ms);
   // the axis labels: the first row of words below the line (its lowest point may sit far above the axis) that holds at
   // least three words across most of the line's width; else the words just below the line
-  const under = c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y + w.h <= c.b[3] + 1 && w.x + w.w >= x0 - c.med * 3 && w.x <= x1 + c.med * 3).sort((p, q) => p.y - q.y);
+  // (across the whole panel: the line's own extent can be narrower than its axis; of the rows, the one with most words
+  // is the axis, a y-axis label or an axis title being a row of one)
+  const under = c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y + w.h <= c.b[3] + 1 && w.x + w.w >= c.b[0] && w.x <= c.b[2]).sort((p, q) => p.y - q.y);
   const labelRows: Word[][] = [];
-  for (const w of under) { const r = labelRows.find((r) => Math.abs(r[0].y - w.y) <= c.med * 0.8); if (r) r.push(w); else labelRows.push([w]); }
-  const axisRow = labelRows.find((r) => r.length >= 3 && Math.max(...r.map((w) => w.x + w.w)) - Math.min(...r.map((w) => w.x)) >= (x1 - x0) * 0.5);
+  // (by each word's middle: a reader's boxes for one row of labels can start a few pixels apart)
+  const mid = (w: Word) => w.y + w.h / 2;
+  for (const w of under) { const r = labelRows.find((r) => Math.abs(mid(r[0]) - mid(w)) <= c.med * 1.2); if (r) r.push(w); else labelRows.push([w]); }
+  const axisRow = labelRows.filter((r) => r.length >= 3 && Math.max(...r.map((w) => w.x + w.w)) - Math.min(...r.map((w) => w.x)) >= Math.min(x1 - x0, width(c.b) * 0.6) * 0.5)
+    .sort((p, q) => q.length - p.length)[0];
   const below = phrases(axisRow || c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y <= yBot + c.med * 4 && w.x + w.w >= x0 - c.med * 3 && w.x <= x1 + c.med * 3), c.med);
   const useLabels = below.length >= 3 && below.length <= 40;
   // labels that cannot be read as phrases (slanted, or masked as unread text) still sit in one group per category below
@@ -295,9 +319,9 @@ function lines(c: Ctx): Reading | null {
     : byGroups ? groups.map((g) => g.reduce((p, w) => p + cx(w), 0) / g.length)
     : Array.from({ length: 12 }, (_, i) => x0 + ((x1 - x0) * (i + 0.5)) / 12);
   // (a group's words name its category when they all stayed readable)
-  const members = useLabels ? below.map((p, i) => (p.ws.every((w) => w.kept && w.text) ? p.ws.map((w) => w.text).join(' ') : `Item ${i + 1}`))
+  const members = monthsInOrder(useLabels ? below.map((p, i) => (p.ws.every((w) => w.kept && w.text) ? p.ws.map((w) => w.text).join(' ') : `Item ${i + 1}`))
     : byGroups ? groups.map((g, i) => (g.every((w) => w.kept && w.text) ? g.map((w) => w.text).join(' ') : `Item ${i + 1}`))
-    : xs.map((_, i) => `Item ${i + 1}`);
+    : xs.map((_, i) => `Item ${i + 1}`));
   const ys = use.map((s) => xs.map((x) => {
     const xi = Math.round(Math.min(Math.max(x, x0), x1 - 1));
     for (const dx of [0, -1, 1, -2, 2, -4, 4, -8, 8]) {
@@ -416,7 +440,8 @@ function treemap(c: Ctx): Reading | null {
 function kpi(c: Ctx, certainty: number): Reading {
   const small = c.words.filter((w) => !isBigBox(w, c.med) && w.y < c.b[1] + height(c.b) * 0.75);
   const top = small.length ? Math.min(...small.map((w) => w.y)) : 0;
-  const label = text(small.filter((w) => w.kept && Math.abs(w.y - top) < c.med * 0.8));
+  // (else the card's title: a reader can draw a label's boxes as tall as a value, as for a short "Gross Spend")
+  const label = text(small.filter((w) => w.kept && Math.abs(w.y - top) < c.med * 0.8)) || c.title;
   return { type: 'kpi', certainty, fields: { measure: { name: label || 'KPI', ...formatOf(label) }, sparkline: c.thin.length > 0 || c.body.some((m) => width(m.b) > width(c.b) * 0.3 && m.fill < 0.9) } };
 }
 

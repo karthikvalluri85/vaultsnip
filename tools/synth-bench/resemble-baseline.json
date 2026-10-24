@@ -4,7 +4,7 @@
   "dashboards": 60,
   "genericLabels": {
    "left": 0,
-   "of": 2246,
+   "of": 2294,
    "examples": []
   },
   "layout": {
@@ -12,15 +12,15 @@
    "widthMatchPct": 76.5
   },
   "shape": {
-   "categoriesRightPct": 70.9,
-   "shapeMatchPct": 97.5,
+   "categoriesRightPct": 72.6,
+   "shapeMatchPct": 96.9,
    "charts": 223
   },
   "text": {
-   "shownPct": 89.3,
+   "shownPct": 92,
    "readableWords": 1182,
-   "titlesPct": 95.9,
-   "labelsPct": 46.8
+   "titlesPct": 96.9,
+   "labelsPct": 60.1
   },
   "colour": {
    "matchPct": 85

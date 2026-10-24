@@ -466,8 +466,34 @@ words stayed readable (one with a masked name in it should not be shown).
 - **Category counts.** A label printed inside a pie slice no longer splits the slice in two (pies with too many slices:
   40 to 11); a line whose labels cannot be read takes its points from the label groups below it instead of a fixed 12.
 
-Next: the side-by-side gallery, the same figures for the recorded AI answers, and the category labels still lost
-(mostly rotated or partly masked axis labels).
+**The two paths compared** (the 60 recorded AI answers, scored with `resemble.mjs --ai`: an AI answer has no pixel
+boxes, so its visuals are matched to the originals in reading order, each taking the next visual of its type):
+
+| Generated set v5 | On the device (no key) | Claude Sonnet 5.5 (with a key) |
+|---|---|---|
+| Visuals sharing a row in the original share one in the replica | 91.6% | **100%** |
+| Width and position match | 76.5% | **85.2%** |
+| Charts with the right number of categories | 72.6% | **99.6%** |
+| Bars, lines and slices follow the original, where the count is right | **96.9%** | 94.5% |
+| Readable title and label words shown (titles / category labels) | 92.0% (96.9% / 60.1%) | **100%** (100% / 100%) |
+| Main colour right | 85% | **98.3%** |
+| Generic labels left in the rendered replica | **0** | **0** |
+
+The on-device builder measures shapes a little more exactly; the AI reads labels, counts categories and lays the page
+out better. Its category labels are the on-device path's largest remaining gap.
+
+**More real labels on the device.** A line chart's axis row is found across the whole panel (the line's own extent can
+be narrower than its axis), grouping labels by their middle; an axis of months in order is completed from its readable
+months, so a month the reader misread ("Max" for Mar) or that was masked as unread text becomes the month its
+neighbours imply (months are not sensitive, and nothing is taken from a mask); a KPI whose label the reader drew as
+tall as a value takes the card's title. Category labels shown: 46.8% to 60.1%; titles and labels overall 89.3% to 92.0%.
+
+**A gallery to judge by eye.** `tools/synth-bench/gallery.mjs` writes one self-contained page with, for generated
+dashboards, the masked image a user approves, the on-device replica and the AI replica, drawn live by VaultSnip's engine,
+with each path's visuals typed right and totals computed on the page.
+
+Next: category labels masked as unread text (mostly slanted axis labels the second look cannot read), and placeholder
+cards (a visual the builder finds but cannot type is drawn as a placeholder card).
 
 ## The plan
 
