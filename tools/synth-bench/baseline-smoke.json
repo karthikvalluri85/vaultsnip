@@ -1,6 +1,6 @@
 {
  "measured": "2026-10-24",
- "version": "0.6.0",
+ "version": "0.7.0",
  "images": 8,
  "sensitiveWords": 753,
  "safeWords": 249,
@@ -73,5 +73,5 @@
    "residualExposedPct": 0
   }
  },
- "medianSeconds": 39.859
+ "medianSeconds": 42.417
 }

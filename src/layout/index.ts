@@ -110,7 +110,8 @@ export function buildSpec(input: BuildInput): BuildResult {
   // masks over a column of numbers into one tall block)
   const CHARTS = ['column', 'bar', 'line', 'area', 'pie', 'donut', 'scatter', 'treemap'];
   // (a page of separate KPI tiles lines its words up in a grid too, but a report never holds two KPI tiles)
-  const report = !readings.some((x) => CHARTS.includes(x.r.type)) && readings.filter((x) => x.r.type === 'kpi').length < 2
+  // (a best-guess chart, drawn where no reader could type a panel, is no evidence against a report)
+  const report = !readings.some((x) => CHARTS.includes(x.r.type) && !x.r.guess) && readings.filter((x) => x.r.type === 'kpi').length < 2
     && looksLikeTable(ocrWords, med) ? readTable(ocrWords, pageBox) : null;
   if (report && report.columns.length >= 2) {
     const top = Math.min(...ocrWords.map((w) => w.y));

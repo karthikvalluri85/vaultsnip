@@ -5,6 +5,9 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- **Check only the uncertain visuals with your AI key.** When a dashboard built on this device is below 90% sure, a new button sends only the visuals it is unsure of (at most six), each cut from the masked image you approved, and replaces those visuals alone. On the generated benchmark this lifts the result from 82% to 89% right end to end for about half the cost of sending whole pages.
+- **Fewer slanted labels masked by mistake.** A slanted axis label the reader could only half read gets a second, straightened reading; when that reading is confident and safe, the label stays visible. Safe labels masked on the generated benchmark fall from 9.3% to 8.7%, with no more sensitive text exposed.
+- **No more placeholder boxes for unrecognised charts.** A chart the on-device builder cannot type is drawn as a best guess, marked *Check* in "Fix it here"; a visual with nothing to draw says plainly how to fix it.
 - **More real labels on the device.** *Build on this device* finds a line chart's axis labels across the whole chart, completes an axis of months in order from the months it can read (a misread "Max" becomes Mar), and gives a KPI the card's title when its label was read as large text: on the generated benchmark, readable titles and labels that reach the replica rise from 89% to 92%, category labels from 47% to 60%.
 - **Side-by-side gallery** (`tools/synth-bench/gallery.mjs`, developer tool): generated dashboards with the masked image, the on-device replica and the AI replica, drawn live, to judge resemblance by eye. The resemblance benchmark also scores recorded AI answers (`--ai`).
 - **No generic labels in replicas.** A replica never shows a placeholder such as "Item 2", "Value", "Series 2", "Category" or "[Client]" (outside Generic mode, which is neutral on purpose). Covered axis and legend labels are filled from context: months or quarters for a time axis, regions, segments, channels, departments and the like for named dimensions, the dashboard's industry for unnamed ones; "Value" becomes a measure the page names, "Series 2" becomes Actual, Target or Prior year. Nothing is taken from the masked text. With realistic names off, labels are named from their column ("Owner A", "Client A").
@@ -13,6 +16,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **The AI-key path is measured** (`tools/ai-bench`, developer tool): generated, fictional dashboards are masked by the app and sent with the app's own request using the developer's key; the answers are scored against the on-device builder and checked for malformed layouts. On 60 dashboards Claude Sonnet 5.5 typed all 404 visuals right (96% end to end) for $1.44; see ACCURACY.md.
 
 ### Fixed
+- **Security: ECharts advisory GHSA-fgmj-fm8m-jvvx does not apply.** Flow-map lines in replicas escape every name in their tooltips; a share link with HTML in a flow's name runs nothing. An end-to-end check keeps it so.
 - **AI layouts fit the grid.** When an AI answer's row widths do not add up to the replica's 12-column grid (a quarter of answers did, on the AI-path benchmark), the app now scales them to fit instead of wrapping a visual onto its own line or leaving a gap.
 
 ## [0.7.0] - 2026-10-24

@@ -592,6 +592,39 @@ try {
     return spec.rows.map(r => r.visuals.map(v => v.span));
   });
   check(JSON.stringify(fitted) === '[[4,4,4],[7,5]]', `AI answers with row spans off 12 are fitted to the grid (${JSON.stringify(fitted)})`);
+  // GHSA-fgmj-fm8m-jvvx (ECharts < 6.1): a Lines series with the default tooltip renders data names as HTML. The flow
+  // map's lines carry an escaping formatter and no raw name, so a share link with HTML in a flow's name runs nothing.
+  const flow = await page.evaluate(async () => {
+    const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-30000px;width:900px'; document.body.appendChild(box);
+    const bad = '<img src=x onerror="window.__xss=1">';
+    DSCReplica.render(box, { title: 't', rows: [{ height: 'm', visuals: [{ id: 'f1', type: 'map', span: 12, title: 'Flows', basemap: 'world', mapKind: 'flow',
+      points: [{ name: bad, lat: 51.5, lon: -0.1, shape: 80 }, { name: 'B' + bad, lat: 40.7, lon: -74, shape: 50 }], flows: [{ from: bad, to: 'B' + bad, shape: 90 }] }] }] }, { mode: 'shape', seed: 1 });
+    await new Promise(r => setTimeout(r, 1500));
+    const charts = (box.querySelector('.rp') || box)._charts || [];
+    const lines = charts.flatMap(c => c.getOption().series).filter(s => s.type === 'lines');
+    const out = { lines: lines.length, formatter: lines.every(s => s.tooltip && typeof s.tooltip.formatter === 'function'),
+      rawNames: lines.flatMap(s => s.data || []).filter(d => d && d.name != null).length, xss: !!window.__xss };
+    box.remove(); return out;
+  });
+  check(flow.lines > 0 && flow.formatter && flow.rawNames === 0 && !flow.xss, `flow-map lines escape their names (ECharts advisory GHSA-fgmj-fm8m-jvvx does not apply): ${JSON.stringify(flow)}`);
+  // Phase 4(b): only the visuals the local build is unsure of are sent, each as a close-up of the approved image, and
+  // each answer replaces that visual only (the provider is stubbed: no key, no network)
+  const closeup = await page.evaluate(async () => {
+    const T = window.__DSC.test, P = window.VSLLM.PROVIDERS.anthropic, real = P.ask, sent = [];
+    const S = window.__DSC; const was = { key: S.key, provider: S.provider, model: S.model };
+    S.key = 'sk-ant-test'; S.provider = 'anthropic'; S.model = 'test-model';
+    P.ask = async ({ imageDataUrl }) => { const im = new Image(); im.src = imageDataUrl; await im.decode(); sent.push([im.width, im.height]);
+      return JSON.stringify({ title: 't', rows: [{ height: 'm', visuals: [{ type: 'pie', span: 12, title: 'Share by Channel', dimension: { name: 'Channel', members: ['Web', 'Store'] }, series: [{ name: 'Share', shape: [100, 60] }] }] }] }); };
+    try {
+      const approved = document.createElement('canvas'); approved.width = 800; approved.height = 400;
+      const spec = { title: 'x', rows: [{ height: 'm', visuals: [{ id: 'v1', type: 'column', span: 6, title: 'Sales' }, { id: 'v2', type: 'placeholder', span: 6, title: '' }] }] };
+      const res = await T.refineSpec(spec, { v1: 0.9, v2: 0.2 }, { v1: [0, 0, 400, 400], v2: [400, 0, 800, 400] }, approved);
+      return { asked: res.asked, fixed: res.fixed, sent, v1: res.spec.rows[0].visuals[0].type, v2: res.spec.rows[0].visuals[1], unchanged: spec.rows[0].visuals[1].type };
+    } finally { P.ask = real; Object.assign(S, was); }
+  });
+  check(JSON.stringify(closeup.asked) === '["v2"]' && closeup.sent.length === 1 && closeup.sent[0][0] < 800 && closeup.v1 === 'column'
+    && closeup.v2.type === 'pie' && closeup.v2.id === 'v2' && closeup.v2.span === 6 && closeup.unchanged === 'placeholder',
+    `close-ups: only the uncertain visual is sent, cut from the approved image, and its answer replaces it alone (${JSON.stringify(closeup.sent)})`);
   const cm = await page.evaluate(() => {
     const S = window.__DSC, T = S.test;
     let x = 0; const line = (y, text) => { x = 10; return text.split(' ').map(t => { const w = { text: t, x, y, w: t.length * 6, h: 11, conf: 95 }; x += t.length * 6 + 5; return w; }); };

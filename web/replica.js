@@ -1147,7 +1147,8 @@
       if (v.type === 'text') { kind('text'); vm.text = L.generic ? 'Text block' : L.text(v.content || 'Text block (content masked)'); card.insertAdjacentHTML('beforeend', `<p class="rp-text">${esc(vm.text)}</p>`); return; }
       const opt = buildOption(v, { L, mode, r, t, colors, filter: F, quiet: !!opts._quiet });
       if (!opt || opt._placeholder) {
-        kind('placeholder'); vm.text = opt ? opt._placeholder : 'Visual type "' + (v.originalType || v.type) + '" recognised; shown as a placeholder.';
+        // (said plainly: what is missing and where to fix it, never a placeholder name)
+        kind('placeholder'); vm.text = opt ? opt._placeholder : L.generic ? 'Visual' : 'This visual could not be read from the image. Choose its chart type in "Fix it here".';
         card.insertAdjacentHTML('beforeend', `<div class="rp-ph" style="--h:${h}px">${esc(vm.text)}</div>`);
         return;
       }

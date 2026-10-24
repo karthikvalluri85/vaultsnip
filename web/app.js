@@ -506,7 +506,8 @@ customer service staff agent team people everyone nobody someone something nothi
     S.keptBoxes = keep ? words.filter(w => w.inCm && !w.ghost && w.conf >= 80 && !commentType(w)) : [];
     const labels = countLabels(words);
     const flagged = words.map(w => {
-      const type = keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
+      // (a scrap of a slanted label that the second look read as safe words is not masked)
+      const type = w.lookSafe ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
       if (keep && w.inCm && !type && normW(w.text)) S.commentVocab.add(normW(w.text));
       return Object.assign({}, w, { type });
     }).filter(w => w.type);
@@ -795,7 +796,7 @@ customer service staff agent team people everyone nobody someone something nothi
   // upright, and faint or tiny text it read with too little confidence. Each is cut out (straightened if slanted), read
   // again at a larger scale, as it is and with the contrast raised, and stays readable only if every word is read
   // confidently and is safe by the same rules as the rest of the page. Anything else is masked as unread text.
-  const SECOND_LOOK_CONF = 70, SECOND_LOOK_MAX = 40;
+  const SECOND_LOOK_CONF = 70, SECOND_LOOK_MAX = 120;
   function unreadCover(base) {
     const on = base.filter(m => m.on);
     const inside = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
@@ -838,9 +839,30 @@ customer service staff agent team people everyone nobody someone something nothi
     x.drawImage(img, x0, y0, w, h, 0, 0, w, h);
     return x.getImageData(0, 0, w, h);
   }
+  // the commonest colour on the edge of a region's box: the background its text sits on
+  function backgroundAt(img, r) {
+    const d = pixelsOf(img, r), w = d.width, h = d.height, count = new Map();
+    const add = i => { const k = d.data[i * 4] >> 4 << 8 | d.data[i * 4 + 1] >> 4 << 4 | d.data[i * 4 + 2] >> 4; count.set(k, (count.get(k) || 0) + 1); };
+    for (let i = 0; i < w; i++) { add(i); add((h - 1) * w + i); }
+    for (let j = 0; j < h; j++) { add(j * w); add(j * w + w - 1); }
+    const k = [...count].sort((a, b) => b[1] - a[1])[0][0];
+    return `rgb(${(k >> 8 & 15) * 16 + 8},${(k >> 4 & 15) * 16 + 8},${(k & 15) * 16 + 8})`;
+  }
   async function secondLook(img, regions, base) {
     const cover = unreadCover(base);
-    const todo = regions.filter(r => VSContext.unreadParts([r], cover).length).slice(0, SECOND_LOOK_MAX);
+    // A slanted label the page reader read as a scrap of low-confidence letters ("Fe", "AY") is masked as unknown text,
+    // which hides it from the second look. Such a region gets the second look too: if it reads confidently as safe
+    // words, those scraps are dropped from the masks; otherwise nothing changes. Never for a reading with a digit, or one
+    // the rules flag as anything but unknown text (numbers, emails, IDs and names stay masked whatever the second look reads).
+    const scrap = w => !w.ghost && w.conf < S.unread.minConf && !/\d/.test(w.text) && classify(w.text) === 'Text not on allowlist';
+    const scrapsIn = r => {
+      const k = r.core || r;
+      const inside = S.words.filter(w => !w.ghost && w.x + w.w / 2 >= k.x && w.x + w.w / 2 <= k.x + k.w && w.y + w.h / 2 >= k.y && w.y + w.h / 2 <= k.y + k.h);
+      return inside.length && inside.every(scrap) ? inside : null;
+    };
+    const slantedRegion = r => r.len && Math.abs(r.angle) > 10 && Math.abs(r.angle) < 170 && r.len >= 1.5 * r.thick;
+    regions.forEach(r => { r.scraps = slantedRegion(r) ? scrapsIn(r) : null; });
+    const todo = regions.filter(r => r.scraps || VSContext.unreadParts([r], cover).length).slice(0, SECOND_LOOK_MAX);
     // the page's usual text height: a region no bigger than one character of it holds at most one character
     const hs = S.words.filter(w => !w.ghost).map(w => w.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
     for (const r of todo) {
@@ -865,7 +887,11 @@ customer service staff agent team people everyone nobody someone something nothi
           if (S.img !== img) return;
           const pad = 4, c = document.createElement('canvas'), x = c.getContext('2d');
           if (slanted) {
-            c.width = Math.ceil(r.len + 2 * pad); c.height = Math.ceil(r.thick + 2 * pad);
+            // a margin in proportion to the text (a tight crop cut the first and last letters off a slanted label), on
+            // the label's own background: a rotated crop's corners are otherwise transparent, which reads as black
+            const sp = Math.max(pad, Math.round(r.thick * 0.35));
+            c.width = Math.ceil(r.len + 2 * sp + r.thick * 0.5); c.height = Math.ceil(r.thick + 2 * sp);
+            x.fillStyle = backgroundAt(img, r); x.fillRect(0, 0, c.width, c.height);
             x.translate(c.width / 2, c.height / 2); x.rotate(-(r.angle + flip) * Math.PI / 180);
             x.drawImage(img, -(r.x + r.w / 2), -(r.y + r.h / 2));
           } else {
@@ -887,6 +913,9 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       if (blob) { r.blob = true; r.unsafe = unsafe; r.seen = `blob, ${unsafe.length} unsafe`; continue; }
       r.seen = best.words.map(w => w.text + ':' + Math.round(w.conf)).join(' ');   // what the second look read (tests and the benchmark)
+      // a slanted label read confidently as safe words: the page reader's scraps of it are not masked
+      const readSafe = best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text));
+      if (r.scraps && readSafe) r.scraps.forEach(w => { w.lookSafe = true; });
       r.safe = (best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text)))
         // a mark the size of one character in which no letter or digit can be found, however it is read: a line marker,
         // a tick, a bullet or a divider, not text
@@ -1423,6 +1452,49 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     } catch (e) { return null; }
   }
 
+  /* ---------------- Phase 4(b): close-ups of the visuals the local build is unsure of ---------------- */
+  // Each is cut from the masked image the user approved (no other pixels), sent with the same instructions, and its
+  // answer replaces that one visual: the layout and every other visual stay as built here. At most CLOSEUP_MAX per page;
+  // a visual whose close-up fails keeps its local reading.
+  const CLOSEUP_BELOW = 0.6, CLOSEUP_MAX = 6;
+  const CLOSEUP_PROMPT = 'This image is one visual cut from a masked dashboard. Return the JSON spec of a dashboard with exactly one row holding exactly one VISUAL that reproduces it, following the same rules.';
+  function uncertainVisuals(spec, byVid, boxes) {
+    return spec.rows.flatMap(row => row.visuals).filter(v => boxes[v.id] && (byVid[v.id] ?? 1) < CLOSEUP_BELOW)
+      .sort((a, b) => (byVid[a.id] ?? 1) - (byVid[b.id] ?? 1)).slice(0, CLOSEUP_MAX);
+  }
+  async function refineSpec(spec, byVid, boxes, approved) {
+    const out = JSON.parse(JSON.stringify(spec)), asked = [], fixed = [];
+    for (const v of uncertainVisuals(out, byVid, boxes)) {
+      const b = boxes[v.id], m = Math.round(Math.max(b[2] - b[0], b[3] - b[1]) * 0.04);
+      const x0 = Math.max(0, b[0] - m), y0 = Math.max(0, b[1] - m), x1 = Math.min(approved.width, b[2] + m), y1 = Math.min(approved.height, b[3] + m);
+      const c = document.createElement('canvas'); c.width = x1 - x0; c.height = y1 - y0;
+      c.getContext('2d').drawImage(approved, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+      asked.push(v.id);
+      try {
+        const answer = await askModel(c.toDataURL('image/png'), CLOSEUP_PROMPT);
+        const got = answer.rows.flatMap(row => row.visuals || [])[0];
+        if (!got || !got.type) continue;
+        const row = out.rows.find(rw => rw.visuals.includes(v));
+        row.visuals[row.visuals.indexOf(v)] = Object.assign({}, got, { id: v.id, span: v.span });
+        fixed.push(v.id);
+      } catch (e) { /* this visual keeps its local reading */ }
+    }
+    return { spec: out, asked, fixed };
+  }
+  async function refineLocal() {
+    if (!S.local || !S.spec) return;
+    if (!S.key) { $('btn-key').onclick(); return; }
+    const b = $('btn-local-refine'), n = uncertainVisuals(S.spec, S.local.byVid, S.local.boxes || {}).length;
+    b.disabled = true; b.textContent = 'Asking ' + providerName() + ' about ' + n + ' visual' + (n === 1 ? '' : 's') + '…';
+    try {
+      const res = await refineSpec(S.spec, S.local.byVid, S.local.boxes || {}, maskedCanvas(1));
+      S.spec = scrubVerbatims(res.spec);
+      res.fixed.forEach(id => { S.local.byVid[id] = 0.9; });
+      S.local.refined = (S.local.refined || 0) + res.fixed.length;
+      redrawLocal(); renderLocalBanner(); if (S.local.fixing) renderFixList();
+    } finally { b.disabled = false; renderLocalBanner(); }
+  }
+
   /* ---------------- on-device layout builder (Phase 2, beta) ---------------- */
   // Builds the replica spec from the masked image on this device: no key, no network. It sees what the AI would see:
   // the masked image, the words that stay readable, and masked words and mask boxes as positions without text.
@@ -1459,7 +1531,8 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
       $('dlg-send').close();
       fresh();
       S.local = { visuals: r.spec.rows.reduce((n, row) => n + row.visuals.length, 0), coverage: r.coverage, ms: r.ms, confidence: r.confidence,
-        byVid: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.confidence])), kept: false };
+        byVid: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.confidence])),
+        boxes: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.box])), kept: false };
       showReplica();
     } catch (e) {
       err.textContent = 'The on-device builder could not read this image: ' + (e && e.message || e); err.hidden = false;
@@ -1490,8 +1563,14 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     const below = (L.confidence || 0) < LINE;
     $('btn-local-fix').hidden = !below && !L.fixing; $('btn-local-keep').hidden = !below || L.kept;
     $('btn-local-key').textContent = below ? 'Use my AI key' : 'Use my AI key for a precise layout';
+    // the cheaper fallback: only the visuals it is unsure of, as close-ups of the approved image
+    const unsure = uncertainVisuals(S.spec || { rows: [] }, L.byVid || {}, L.boxes || {}).length;
+    $('btn-local-refine').hidden = !below || !unsure;
+    $('btn-local-refine').textContent = 'Check ' + unsure + ' uncertain visual' + (unsure === 1 ? '' : 's') + ' with my AI key';
+    if (L.refined) $('local-stats').textContent += ' ' + providerName() + ' rechecked ' + L.refined + ' visual' + (L.refined === 1 ? '' : 's') + '.';
     if (L.kept) $('local-stats').textContent += ' You kept this result.';
   }
+  $('btn-local-refine').onclick = () => { refineLocal(); };
   $('btn-local-keep').onclick = () => { if (!S.local) return; S.local.kept = true; $('fix-panel').hidden = true; renderLocalBanner(); };
   $('btn-local-fix').onclick = () => { if (!S.local) return; S.local.fixing = true; renderFixList(); $('fix-panel').hidden = false; $('fix-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
   $('btn-fix-done').onclick = () => { $('fix-panel').hidden = true; if (S.local) S.local.fixing = false; renderLocalBanner(); };
@@ -1729,5 +1808,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { refineSpec, uncertainVisuals, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

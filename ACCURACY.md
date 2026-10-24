@@ -495,6 +495,38 @@ with each path's visuals typed right and totals computed on the page.
 Next: category labels masked as unread text (mostly slanted axis labels the second look cannot read), and placeholder
 cards (a visual the builder finds but cannot type is drawn as a placeholder card).
 
+## Phase 4(b): close-ups of the visuals the device is unsure of (25 October 2026)
+
+Below the 90% line, the on-device result now offers **Check the uncertain visuals with my AI key**: each visual the build
+scored below 60% (at most six) is cut from the masked image the user approved and sent with the app's own instructions,
+asking for that one visual; each answer replaces that visual only, and the layout and every other visual stay as built.
+Nothing else leaves the device. `tools/ai-bench/run.mjs --closeups` measures it with the app's own code.
+
+| 60 generated dashboards (set v5), 404 visuals | Typed right | End to end | Cost |
+|---|---|---|---|
+| On the device only | 343 | 81.5% | none |
+| On the device + close-ups of the uncertain visuals | **375** | **89.1%** | **$0.79** (74 visuals asked) |
+| The whole page with Claude | 404 | 96.4% | $1.44 |
+
+Close-ups cost about half as much as sending whole pages and recover most of the gap; resemblance rises with them
+(visuals in the original's row 91.6% to 96.8%, category labels shown 60.1% to 70.5%, no generic labels). A whole page
+with a key remains the most faithful; the close-ups are the cheaper step between.
+
+## Finishing Phase 4(d) (25 October 2026)
+
+- **Slanted labels.** A slanted axis label the page reader read as a scrap of low-confidence letters ("Fe", "AY") was
+  masked as unknown text, and so never reached the second look. It now gets one: if it reads confidently as safe words,
+  the scraps are dropped from the masks; a reading with a digit, or anything the rules flag beyond unknown text, stays
+  masked whatever the second look reads. Rotated crops also keep a margin in proportion to the text, on the label's own
+  background. Masking on the same 60 images: exposed after the check unchanged at 2.48%, safe words masked 9.34% to 8.71%.
+- **Placeholder cards.** A visual the builder finds but cannot type is drawn as a best-guess column chart when it has
+  marks, at a low certainty that the confidence score flags for checking (and that never stops a page being read as a
+  report); a card with nothing to draw says plainly to choose its type in "Fix it here". Public dashboards: 68 of 76
+  visuals typed right (67 before), 85.0% end to end.
+- **ECharts advisory GHSA-fgmj-fm8m-jvvx** (Lines series tooltips render data names as HTML, before ECharts 6.1): the
+  replica's flow-map lines have their own escaping tooltip and carry no raw names, so it does not apply; an end-to-end
+  check keeps it so. Moving to ECharts 6 is a separate, major upgrade.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

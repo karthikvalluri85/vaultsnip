@@ -5,7 +5,9 @@
 // matched to a visual of the same type (or a close cousin, as in tools/layout-bench), extra visuals count against it.
 //
 //   ANTHROPIC_API_KEY=… node tools/ai-bench/run.mjs [--dir .bench/synth] [--count 5] [--model claude-sonnet-5-5]
-//                       [--yes] [--json result.json] [--rescore]
+//                       [--yes] [--json result.json] [--rescore] [--closeups]
+// --closeups measures Phase 4(b) instead: the page is built on the device, and only the visuals it is unsure of are
+// sent, as close-ups cut from the approved masked image (the app's refineSpec); recorded in <dir>/<id>.closeup.json.
 //
 // Privacy and cost:
 // - Only generated, fictional dashboards (tools/synth-bench/gen.mjs, files synth-*) are ever sent. The public dashboards
@@ -24,6 +26,7 @@ const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.arg
 const DIR = arg('--dir', join(ROOT, '.bench', 'synth'));
 const COUNT = +arg('--count', 5), MODEL = arg('--model', 'claude-sonnet-5-5');
 const rescore = process.argv.includes('--rescore');
+const CLOSEUPS = process.argv.includes('--closeups');
 // per image, measured on the first runs: about 5,000 tokens in (image and instructions) and up to 6,000 out
 const PRICE = { 'claude-sonnet-5-5': [2, 10], 'claude-opus-5-5': [4, 20], 'claude-haiku-5-5': [0.1, 0.5] };
 const TYPE = { hbar: 'bar' };   // the generator's panel kinds in the builder's words
@@ -34,7 +37,8 @@ const todo = files.slice(0, COUNT);
 if (!rescore) {
   if (!process.env.ANTHROPIC_API_KEY) { console.error('Set ANTHROPIC_API_KEY in the environment (never on the command line).'); process.exit(1); }
   const [pin, pout] = PRICE[MODEL] || [4, 20];
-  const est = todo.length * (5000 * pin + 6000 * pout) / 1e6;
+  // (close-ups send about half the image tokens a page does, for the few visuals the build is unsure of)
+  const est = todo.length * (CLOSEUPS ? 0.5 : 1) * (5000 * pin + 6000 * pout) / 1e6;
   console.log(`${todo.length} generated dashboard(s) to ${MODEL}: about $${est.toFixed(2)}`);
   if (todo.length > 5 && !process.argv.includes('--yes')) { console.error('More than 5 images: add --yes to confirm the cost.'); process.exit(1); }
 }
@@ -62,24 +66,30 @@ try {
   for (const f of todo) {
     const truth = JSON.parse(await readFile(join(DIR, f), 'utf8'));
     const want = truth.panels.map((p) => ({ type: TYPE[p.type] || p.type }));
-    const recFile = join(DIR, truth.id + '.ai.json');
+    const recFile = join(DIR, truth.id + (CLOSEUPS ? '.closeup.json' : '.ai.json'));
     let rec;
     if (rescore) rec = await readFile(recFile, 'utf8').then(JSON.parse, () => null);
     else {
-      const out = await rev.read(join(DIR, truth.file), (page) => page.evaluate(async ({ key, model }) => {
+      const out = await rev.read(join(DIR, truth.file), (page) => page.evaluate(async ({ key, model, closeups }) => {
         const S = window.__DSC;
         // the payload the user approves (btn-send), and the same call as Send (btn-confirm), without the dialog
         const payload = S.test.maskedCanvas(1).toDataURL('image/png');
-        const local = VSLayout.buildSpec(S.test.layoutInput()).spec;
+        const built = VSLayout.buildSpec(S.test.layoutInput()), local = built.spec;
         S.key = key; S.provider = 'anthropic'; S.model = model;
         const t0 = Date.now();
         try {
+          if (closeups) {
+            const byVid = {}, boxes = {};
+            (built.panels || []).filter((p) => p.vid).forEach((p) => { byVid[p.vid] = p.confidence; boxes[p.vid] = p.box; });
+            const res = await S.test.refineSpec(local, byVid, boxes, S.test.maskedCanvas(1));
+            return { spec: S.test.scrubVerbatims(res.spec), local, asked: res.asked.length, fixed: res.fixed.length, ms: Date.now() - t0, usage: { ...VSLLM.usage } };
+          }
           const spec = S.test.scrubVerbatims(await S.test.askModel(payload));
           return { spec, local, ms: Date.now() - t0, usage: { ...VSLLM.usage } };
         } catch (e) {
           return { error: String(e && e.message || e), local, ms: Date.now() - t0, usage: { ...VSLLM.usage } };
         } finally { S.key = null; }
-      }, { key, model: MODEL }));
+      }, { key, model: MODEL, closeups: CLOSEUPS }));
       rec = { id: truth.id, model: MODEL, measured: new Date().toISOString().slice(0, 10), ...out.after };
       await writeFile(recFile, JSON.stringify(rec, null, 1));
     }
