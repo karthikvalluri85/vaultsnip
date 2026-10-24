@@ -173,6 +173,8 @@ export function buildSpec(input: BuildInput): BuildResult {
     readings.splice(readings.indexOf(s), 1);
   }
 
+  foldSubFigures(readings, W, H, med, words);
+
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
   const ordered = [...kept].sort((a, b) => a.p.b[1] - b.p.b[1] || a.p.b[0] - b.p.b[0]);
@@ -240,6 +242,29 @@ export function buildSpec(input: BuildInput): BuildResult {
       swallowedVisuals(reports.map((r) => area(r.box) / (W * H)), reports.map((r) => r.type))) * 100) / 100,
     ms: Date.now() - t0,
   };
+}
+
+/**
+ * A sub-figure of a KPI card ("Current workforce: 6,009" under the card's big value, a "vs LY" delta) is part of that
+ * card, not a visual of its own: a tiny KPI or placeholder panel with no chart in it joins a panel at least three times
+ * its size that holds it, or that it sits right above or below with most of its width over it. Changes `readings`.
+ */
+export function foldSubFigures<T extends { p: { b: Box; words: Word[] }; r: { type: string }; features: Record<string, number> }>(
+  readings: T[], W: number, H: number, med: number, words: Word[]): void {
+  const union = (a: Box, b: Box): Box => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+  for (const f of [...readings]) {
+    if (!(f.r.type === 'kpi' || f.r.type === 'placeholder') || (f.features.marks || 0) > 1 || f.p.words.length > 10 || area(f.p.b) > W * H * 0.008) continue;
+    const [cx, cy] = [(f.p.b[0] + f.p.b[2]) / 2, (f.p.b[1] + f.p.b[3]) / 2];
+    const over = (h: Box) => Math.min(h[2], f.p.b[2]) - Math.max(h[0], f.p.b[0]);
+    const host = readings.filter((h) => h !== f && area(h.p.b) >= area(f.p.b) * 3 && (
+      (cx >= h.p.b[0] && cx <= h.p.b[2] && cy >= h.p.b[1] && cy <= h.p.b[3])
+      || (over(h.p.b) >= width(f.p.b) * 0.6 && Math.min(Math.abs(f.p.b[1] - h.p.b[3]), Math.abs(h.p.b[1] - f.p.b[3])) <= Math.max(med * 3, H * 0.02))))
+      .sort((a, b) => area(a.p.b) - area(b.p.b))[0];
+    if (!host) continue;
+    const u = union(host.p.b, f.p.b);
+    host.p = { ...host.p, b: u, words: wordsIn(words, u) };
+    readings.splice(readings.indexOf(f), 1);
+  }
 }
 
 export { findPanels, readPanel, readTable, tableVisual, splitTitle, formatOf };

@@ -290,6 +290,86 @@ points low on average, and every page scored 90 or more on v4 really is.
 finds more words for the check to ask about. The builder's largest misses are small pies read as KPIs or tables,
 Tableau's dense or grey monthly columns, and KPI cards with a sparkline; masking still covers some map regions as text.
 
+## Pies, dense columns and generated set v5 (24 October 2026)
+
+**Generator v5.** A pie's legend sits below it with a row of room per item (in v4 the legend was cut off and the pie
+shrank to a dot). Figures from here on are on v5.
+
+**A piece of a pie is not a word.** The reader took parts of pie slices for words, and the whole pie was masked. A
+"word" taller than one and a half lines of text made of at least two thick regions of one colour each (slices, the
+background), with any other pixels only on the seams between them, is now left visible, in the app and in the
+extension. A value printed inside a slice, a letter's stroke and large KPI digits (even across a two-tone card) all
+fail the test and stay masked. On the v4 images, masking held: exposed after the check 2.72% (2.74% committed), safe
+words masked 9.59% (9.64%).
+
+| Figure | v4 (committed) | v5 now |
+|---|---|---|
+| Sensitive words exposed after the check | 2.74% | **2.48%** [2.08–2.95] |
+| Safe words masked anyway | 9.64% | **9.34%** |
+| Generated: type right, of those found | 92.0% | **94.9%** |
+| Generated: end to end | 85.4% | **87.9%** |
+| Pies typed right (generated) | 33 of 48 found | **46 of 49** |
+| Public dashboards: type right | 77.6% | **85.5%** (65 of 76) |
+| Public dashboards: end to end | 73.8% | **81.3%** |
+
+Builder changes, each checked on both sets:
+
+- dense columns joined by 1 px lighter separators are split into columns even when the block is solid (Tableau's
+  monthly columns: FinanceDashboard 12 to 15 of 18);
+- a pie's outline ignores legend swatches and divider rules, and a pie cut by the panel's edge is still a pie (a
+  Tableau donut, a Looker pie cut by the screenshot);
+- two or more long coloured lines make a line chart, never a KPI, whatever its masks look like (a small Power BI
+  line chart);
+- the line prior of the confidence score rises to 0.7: the 90% line stays honest (every page scored 90 or more
+  really is), and the panel Brier score is 0.154 on the public dashboards.
+
+A rule to keep a KPI's sparkline from reading as a map (a map's outline has no straight bottom) was tried and dropped:
+it lost a Looker map cut by its panel.
+
+**Sub-figures of a KPI card.** A tiny KPI or placeholder panel with no chart in it ("Current workforce: 6,009" under a
+card's big value) now joins the card that holds it or sits right above or below it: 3 fewer stray panels on the public
+dashboards (89 instead of 92), nothing lost on either set.
+
+Two masking ideas were measured and dropped, both for privacy:
+
+- **Borders between regions as chart shapes** (so map pieces with white borders would stay visible). On a dashboard
+  with a gradient background, a letter's stroke also lies between two shades, and the reader dropped real words
+  ("Budget", "Trends") and three masked ones. A test now pins this: a word on a gradient is text for every shape test.
+- **The pre-flight check skipping chart shapes.** It cut findings from 179 to 168 on the generated set, but the check is
+  the independent second layer: filtering it with the same tests as the first reading would let one mistake pass both.
+
+## Phase 5: combo and waterfall charts (24 October 2026)
+
+The replica already drew combos and waterfalls; the builder now reads them, so a replica shows what the original
+shows instead of a plain column chart:
+
+- **Combo.** Columns with a line over them in a colour of its own (a "% change" over counts, a total over stacked
+  columns). The line is read at each category, on a scale of its own, so the replica draws it on a second axis. It
+  must cross each column of pixels once and keep changing height: a gridline network of a tinted grey (dark themes) is
+  not a line. In the replica only a combo's columns stack.
+- **Waterfall.** Columns that do not share a baseline but chain, each starting where the one before ended, with
+  totals on the baseline; read before columns, since two of its columns stand on the baseline.
+- **Stacked columns** count segments standing on another segment as standing (the bar reader had missed a stacked
+  chart whose segments mostly float on one another).
+- **Grouped columns** split categories at the threshold that best separates the gaps (Otsu's method): one unusually
+  wide gap, where a mask hides a column, had merged eleven months into two.
+- A broken line's pieces must not overlap across, so gridlines at several heights never join into a "line".
+
+| Public dashboards | Before | After |
+|---|---|---|
+| Visuals typed right (lenient) | 65 of 76 | **67 of 76** (88.2%) |
+| Typed exactly right (strict) | 61 | **64** |
+| End to end | 81.3% | **83.8%** |
+
+The Power BI HR page is now read entirely right: both its combos (clustered and stacked columns, each with a line),
+its waterfall, and its grouped monthly columns with every month. On the generated set (which has no combos or
+waterfalls) nothing changes: 94.9% typed right; 65 of 76 visuals on the public dashboards are typed exactly right.
+
+The clustered combo's line crossed eleven pairs of columns and broke into small pieces; small pieces now join a broken
+line, but only as a chain (each starting near where the one before ended, at about its height), so a map's small
+regions of one colour never join into a "line". A flat stretch of line is solid enough to pass for a sliver of a
+column; a colour whose "columns" are all a few pixels tall and that forms a long line is the line.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

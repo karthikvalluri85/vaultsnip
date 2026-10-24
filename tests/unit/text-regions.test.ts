@@ -174,3 +174,58 @@ describe('isBar', () => {
     expect(isBar(one, 16)).toBe(false);
   });
 });
+
+describe('isShapes', () => {
+  const patch = (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4).fill(255), width: w, height: h });
+  const fill = (p: ReturnType<typeof patch>, x0: number, y0: number, x1: number, y1: number, c: number[]) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) p.data.set([...c, 255], (y * p.width + x) * 4);
+  };
+  // a pie: a disc split into slices by angle
+  const pie = (p: ReturnType<typeof patch>, cx: number, cy: number, r: number, cols: number[][]) => {
+    for (let y = 0; y < p.height; y++) for (let x = 0; x < p.width; x++) {
+      if (Math.hypot(x - cx, y - cy) > r) continue;
+      const a = (Math.atan2(y - cy, x - cx) + Math.PI) / (2 * Math.PI);
+      p.data.set([...cols[Math.min(cols.length - 1, Math.floor(a * cols.length))], 255], (y * p.width + x) * 4);
+    }
+  };
+  const ORANGE = [240, 140, 40], GREEN = [150, 190, 60], GREY = [130, 130, 130], DARK = [30, 30, 30];
+
+  it('a piece of a pie the reader took for a word', async () => {
+    const { isShapes } = await import('../../src/shared/text-regions');
+    const p = patch(32, 62);
+    pie(p, 40, 31, 34, [ORANGE, GREEN, GREY]);
+    expect(isShapes(p, 18)).toBe(true);
+  });
+  it('a value printed inside a slice, big KPI digits and plain words are text', async () => {
+    const { isShapes } = await import('../../src/shared/text-regions');
+    const label = patch(60, 60);
+    pie(label, 30, 30, 30, [ORANGE, GREEN]);
+    fill(label, 20, 26, 22, 34, [255, 255, 255]); fill(label, 20, 26, 26, 28, [255, 255, 255]); fill(label, 26, 26, 28, 34, [255, 255, 255]);
+    expect(isShapes(label, 12)).toBe(false);
+    const kpi = patch(80, 62);   // "77" in a heavy face, 62 px tall: strokes of 10 px
+    for (const x of [6, 46]) { fill(kpi, x, 4, x + 28, 14, DARK); fill(kpi, x + 16, 14, x + 26, 58, DARK); }
+    expect(isShapes(kpi, 18)).toBe(false);
+    // the same digits, heavier, across a card's coloured band: still two thick backgrounds and strokes, so text
+    const band = patch(80, 62); fill(band, 0, 0, 80, 31, [40, 90, 200]);
+    for (const x of [6, 46]) { fill(band, x, 4, x + 28, 16, DARK); fill(band, x + 14, 16, x + 26, 58, DARK); }
+    expect(isShapes(band, 18)).toBe(false);
+    const word = patch(60, 30);
+    for (let i = 0; i < 5; i++) { fill(word, 2 + i * 11, 4, 4 + i * 11, 26, DARK); fill(word, 2 + i * 11, 4, 9 + i * 11, 6, DARK); }
+    expect(isShapes(word, 12)).toBe(false);
+  });
+});
+
+describe('chart-shape tests on a gradient background', () => {
+  it('a word on a gradient is text, for every test', async () => {
+    const { isShapes, isBar, flatMarksOnly } = await import('../../src/shared/text-regions');
+    // a 40 x 18 word on a background shading from one tone to another, as on a gradient dashboard
+    const w = 40, h = 18, data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const t = Math.round(200 + (x / w) * 50); data.set([t, t - 10, t + 5, 255], (y * w + x) * 4); }
+    const ink = (x0: number, y0: number, x1: number, y1: number) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) data.set([40, 60, 120, 255], (y * w + x) * 4); };
+    for (let i = 0; i < 5; i++) { ink(2 + i * 7, 3, 4 + i * 7, 15); ink(2 + i * 7, 3, 7 + i * 7, 5); ink(2 + i * 7, 13, 7 + i * 7, 15); }
+    const px = { data, width: w, height: h };
+    expect(isShapes(px, 11)).toBe(false);
+    expect(isBar(px, 11)).toBe(false);
+    expect(flatMarksOnly(px, 11)).toBe(false);
+  });
+});

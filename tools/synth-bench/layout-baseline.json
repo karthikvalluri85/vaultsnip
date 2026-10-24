@@ -4,47 +4,47 @@
  "synthLayout": {
   "dashboards": 60,
   "visuals": 404,
-  "found": 375,
-  "foundPct": 92.8,
-  "extraPanels": 34,
-  "typesRight": 345,
-  "typesRightPct": 92,
-  "endToEndPct": 85.4,
+  "found": 374,
+  "foundPct": 92.6,
+  "extraPanels": 31,
+  "typesRight": 355,
+  "typesRightPct": 94.9,
+  "endToEndPct": 87.9,
   "byType": {
    "pie": {
     "visuals": 52,
-    "found": 48,
-    "typesRight": 33,
-    "foundPct": 92.3,
-    "typesRightPct": 68.8
+    "found": 49,
+    "typesRight": 46,
+    "foundPct": 94.2,
+    "typesRightPct": 93.9
    },
    "column": {
     "visuals": 44,
-    "found": 41,
+    "found": 42,
     "typesRight": 38,
-    "foundPct": 93.2,
-    "typesRightPct": 92.7
+    "foundPct": 95.5,
+    "typesRightPct": 90.5
    },
    "kpi": {
     "visuals": 101,
-    "found": 86,
-    "typesRight": 85,
-    "foundPct": 85.1,
+    "found": 85,
+    "typesRight": 84,
+    "foundPct": 84.2,
     "typesRightPct": 98.8
    },
    "map": {
     "visuals": 27,
     "found": 27,
-    "typesRight": 26,
+    "typesRight": 25,
     "foundPct": 100,
-    "typesRightPct": 96.3
+    "typesRightPct": 92.6
    },
    "bar": {
     "visuals": 94,
     "found": 89,
-    "typesRight": 83,
+    "typesRight": 84,
     "foundPct": 94.7,
-    "typesRightPct": 93.3
+    "typesRightPct": 94.4
    },
    "line": {
     "visuals": 44,
@@ -55,10 +55,10 @@
    },
    "table": {
     "visuals": 42,
-    "found": 41,
-    "typesRight": 39,
-    "foundPct": 97.6,
-    "typesRightPct": 95.1
+    "found": 39,
+    "typesRight": 37,
+    "foundPct": 92.9,
+    "typesRightPct": 94.9
    }
   }
  }

@@ -10,7 +10,7 @@ import { classify } from '../shared/classify';
 import { ALLOW_WORDS } from '../shared/allowlist';
 import type { MaskBox, OcrImage, OcrReply, OcrResult, ToOffscreen } from './canvas-protocol';
 import { maskBoxes, mergePasses, parseTsv, type OcrWord } from './ocr-words';
-import { ContextClassifier, detectorSize, flatMarksOnly, isBar, moduleWorker, unreadParts, UNREAD_TYPE } from '../content/context-classifier';
+import { ContextClassifier, detectorSize, flatMarksOnly, isBar, isShapes, moduleWorker, unreadParts, UNREAD_TYPE } from '../content/context-classifier';
 
 interface TesseractWorker {
   recognize(img: HTMLCanvasElement, opts: object, out: object): Promise<{ data: { tsv?: string } }>;
@@ -93,10 +93,10 @@ function pixelsOf(img: HTMLImageElement, b: { x: number; y: number; w: number; h
   return x.getImageData(0, 0, w, h);
 }
 const medianH = (words: readonly OcrWord[]) => { const hs = words.map((w) => w.h).sort((a, b) => a - b); return hs.length ? hs[hs.length >> 1] : 12; };
-/** As in the app: a "word" that is one solid rectangle of colour is a chart's bar the reader took for text; blurring it hides the chart. */
+/** As in the app: a "word" that is a solid rectangle (a bar) or thick regions of one colour each (slices) is a chart shape the reader took for text; blurring it hides the chart. */
 function notBars(img: HTMLImageElement, words: OcrWord[]): OcrWord[] {
   const textH = medianH(words);
-  return words.filter((w) => !(Math.max(w.w, w.h) >= textH && isBar(pixelsOf(img, w), textH)));
+  return words.filter((w) => { if (Math.max(w.w, w.h) < textH) return true; const px = pixelsOf(img, w); return !(isBar(px, textH) || isShapes(px, textH)); });
 }
 async function unreadBoxes(img: HTMLImageElement, words: readonly OcrWord[], flagged: readonly MaskBox[]): Promise<{ boxes: MaskBox[]; note: string }> {
   try {
