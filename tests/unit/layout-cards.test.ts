@@ -152,3 +152,16 @@ describe('sub-figures of a KPI card', () => {
     expect(card.p.b).toEqual([200, 140, 420, 330]);
   });
 });
+
+describe('an axis of months in order', () => {
+  it('fills a covered or misread month from its neighbours, and leaves other axes alone', async () => {
+    const { monthsInOrder } = await import('../../src/layout/charts');
+    expect(monthsInOrder(['Jan', 'Feb', 'Max', 'Item 4', 'May', 'Jun'])).toEqual(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']);
+    expect(monthsInOrder(['Item 1', 'Aug', 'Sep', 'Oct', 'Item 5'])).toEqual(['Jul', 'Aug', 'Sep', 'Oct', 'Nov']);
+    expect(monthsInOrder(['Nov', 'Dec', 'Jan', 'Feb'])).toEqual(['Nov', 'Dec', 'Jan', 'Feb']);
+    // too few months to be sure, or not in order: unchanged
+    expect(monthsInOrder(['Item 1', 'Feb', 'Item 3', 'Apr', 'Item 5', 'Item 6'])).toEqual(['Item 1', 'Feb', 'Item 3', 'Apr', 'Item 5', 'Item 6']);
+    expect(monthsInOrder(['North', 'South', 'East', 'West'])).toEqual(['North', 'South', 'East', 'West']);
+    expect(monthsInOrder(['May', 'Jan', 'Sep', 'Mar'])).toEqual(['May', 'Jan', 'Sep', 'Mar']);
+  });
+});

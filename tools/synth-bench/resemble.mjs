@@ -2,7 +2,10 @@
 // records every visual's box, title, categories, values and series colour, each visual the builder found is compared
 // with its original. Run tools/synth-bench/run.mjs first (it saves the reviews this reads).
 //
-//   node tools/synth-bench/resemble.mjs [--dir .bench/synth] [--json result.json] [--why]
+//   node tools/synth-bench/resemble.mjs [--dir .bench/synth] [--json result.json] [--why] [--ai]
+// --ai scores the AI answers tools/ai-bench recorded (<id>.ai.json) instead of the on-device builder. An AI answer has
+// no pixel boxes, so its visuals are matched to the originals in reading order (rows top to bottom, left to right):
+// each original takes the next unused visual of its type or a close cousin.
 // --why lists each chart whose category count is wrong (original and replica counts) and the words not shown.
 //
 // - Layout: visuals that share a row in the original share one in the replica (pairwise), and each visual's span of the
@@ -19,7 +22,7 @@
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ROOT } from '../layout-bench/items.mjs';
-import { layoutBuilder, scorePage } from '../layout-bench/builder.mjs';
+import { layoutBuilder, same, scorePage } from '../layout-bench/builder.mjs';
 import { chromium } from 'playwright';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
@@ -27,6 +30,7 @@ const DIR = arg('--dir', join(ROOT, '.bench', 'synth'));
 if (arg('--json')) await rm(arg('--json'), { force: true });
 const TYPE = { hbar: 'bar' };
 const WHY = process.argv.includes('--why');
+const AI = process.argv.includes('--ai');
 const SHAPED = ['bar', 'column', 'line', 'pie', 'donut', 'area'];
 
 const norm = (w) => String(w).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -35,19 +39,41 @@ const hex = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); return m ? [0
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const pct = (x) => (x == null ? null : Math.round(x * 1000) / 10);
 
-/** Where each visual of a spec sits: its row and its column range on the 12-column grid, as shares of the width. */
+/** Where each visual of a spec sits: its row and its column range on the 12-column grid, as shares of the width; by
+ *  id, and in reading order as `list`. */
 function placed(spec) {
   const at = new Map();
+  at.list = [];
   (spec.rows || []).forEach((row, ri) => {
     const total = row.visuals.reduce((a, v) => a + (v.span || 1), 0) || 12;
     let x = 0;
-    for (const v of row.visuals) { at.set(v.id, { row: ri, x0: x / total, x1: (x + (v.span || 1)) / total, v }); x += v.span || 1; }
+    for (const v of row.visuals) { const e = { row: ri, x0: x / total, x1: (x + (v.span || 1)) / total, v }; at.set(v.id, e); at.list.push(e); x += v.span || 1; }
   });
   return at;
 }
 
+/** The originals in reading order, each with the next unused visual of a compatible type (AI answers). */
+function byOrder(panels, at) {
+  const rows = [];
+  for (const t of [...panels].sort((a, b) => a.box[1] - b.box[1])) {
+    const row = rows.find((r) => r.some((o) => Math.min(o.box[3], t.box[3]) - Math.max(o.box[1], t.box[1]) > Math.min(o.box[3] - o.box[1], t.box[3] - t.box[1]) * 0.5));
+    if (row) row.push(t); else rows.push([t]);
+  }
+  const order = rows.flatMap((r) => r.sort((a, b) => a.box[0] - b.box[0]));
+  const used = new Set();
+  let from = 0;
+  return order.map((t) => {
+    const want = TYPE[t.type] || t.type;
+    for (let j = from; j < at.list.length && j < from + 4; j++) {
+      const e = at.list[j];
+      if (!used.has(e) && same(e.v.type, want, true)) { used.add(e); from = j + 1; return { t, hit: e }; }
+    }
+    return { t, hit: null };
+  }).filter((x) => x.hit);
+}
+
 const files = (await readdir(DIR)).filter((f) => f.endsWith('.truth.json')).sort();
-const builder = await layoutBuilder();
+const builder = AI ? null : await layoutBuilder();
 const all = { title: 0, titleShown: 0, cats: 0, catsShown: 0, pairs: 0, pairsRight: 0, xIou: [], counts: 0, countsRight: 0, shape: [], text: 0, textShown: 0, colour: 0, colourRight: 0 };
 let pages = 0;
 const specs = [];
@@ -57,14 +83,23 @@ try {
     const review = await readFile(join(DIR, truth.id + '.review.json'), 'utf8').then(JSON.parse, () => null);
     if (!review) continue;
     if (!truth.panels.some((p) => 'title' in p)) { console.error(`${f} has no titles: regenerate with tools/synth-bench/gen.mjs`); process.exit(1); }
+    let spec, pairs;
+    if (AI) {
+      const rec = await readFile(join(DIR, truth.id + '.ai.json'), 'utf8').then(JSON.parse, () => null);
+      if (!rec?.spec) continue;
+      spec = rec.spec;
+      pairs = byOrder(truth.panels, placed(spec));
+    } else {
+      const r = await builder.build(join(DIR, truth.file), review);
+      spec = r.spec;
+      const s = scorePage(r.panels, truth.panels.map((p) => ({ type: TYPE[p.type] || p.type, bbox: p.box })));
+      const at = placed(spec);
+      // the truth visuals the replica has, with their replica visual
+      pairs = s.truths.map((t, i) => ({ t: truth.panels[i], hit: t.hit && at.get(t.hit.vid) })).filter((x) => x.hit);
+    }
     pages++;
-    const r = await builder.build(join(DIR, truth.file), review);
-    specs.push(r.spec);
-    const s = scorePage(r.panels, truth.panels.map((p) => ({ type: TYPE[p.type] || p.type, bbox: p.box })));
-    const at = placed(r.spec);
+    specs.push(spec);
     const W = truth.width, k = review.width / truth.width;
-    // the truth visuals the replica has, with their replica visual
-    const pairs = s.truths.map((t, i) => ({ t: truth.panels[i], hit: t.hit && at.get(t.hit.vid) })).filter((x) => x.hit);
     // layout: rows (vertical overlap in the original) and horizontal placement
     const sameRow = (a, b) => Math.min(a.box[3], b.box[3]) - Math.max(a.box[1], b.box[1]) > Math.min(a.box[3] - a.box[1], b.box[3] - b.box[1]) * 0.5;
     for (let i = 0; i < pairs.length; i++) for (let j = i + 1; j < pairs.length; j++) {
@@ -104,11 +139,11 @@ try {
       if (WHY) { const lost = [...wantTitle, ...wantCats].filter((w) => !shown.has(w)); if (lost.length) console.log(`  text ${truth.id} ${t.type} (${v.type}): lost ${lost.join(' ')} | title "${v.title || ''}"`); }
     }
     // colour: the page's main colour against the original's main series colour
-    const orig = hex(truth.panels.find((p) => p.color)?.color), got = hex(r.spec.theme?.primary);
+    const orig = hex(truth.panels.find((p) => p.color)?.color), got = hex(spec.theme?.primary);
     if (orig) { all.colour++; if (got && Math.hypot(orig[0] - got[0], orig[1] - got[1], orig[2] - got[2]) <= 60) all.colourRight++; }
   }
 } finally {
-  await builder.close();
+  if (builder) await builder.close();
 }
 // generic labels left, in the rendered replicas
 const GENERIC = /^\s*(?:person|company|entity|owner|item|category|categories|value|values|series|metric|measure|kpi|line|member|point|group|period|dimension|label|entry|[a-e])\s*\d*\s*$/i;
@@ -140,7 +175,7 @@ const result = { resemblance: { dashboards: pages,
   text: { shownPct: pct(all.textShown / Math.max(1, all.text)), readableWords: all.text, titlesPct: pct(all.titleShown / Math.max(1, all.title)), labelsPct: pct(all.catsShown / Math.max(1, all.cats)) },
   colour: { matchPct: pct(all.colourRight / Math.max(1, all.colour)) } } };
 const R = result.resemblance;
-console.log(`RESEMBLANCE on ${pages} generated dashboards (visuals the builder found):`);
+console.log(`RESEMBLANCE on ${pages} generated dashboards (${AI ? 'recorded AI answers' : 'visuals the on-device builder found'}):`);
 console.log(`  layout   same row ${R.layout.sameRowPct}% of pairs, width match ${R.layout.widthMatchPct}%`);
 console.log(`  shape    categories right ${R.shape.categoriesRightPct}% of ${R.shape.charts} charts, shape match ${R.shape.shapeMatchPct}% where right`);
 console.log(`  text     ${R.text.shownPct}% of ${R.text.readableWords} readable title and label words shown (titles ${R.text.titlesPct}%, category labels ${R.text.labelsPct}%)`);
