@@ -12,6 +12,8 @@ import type { Region } from '../shared/text-regions';
 export const MODEL_ID = 'pii-bert-small';
 /** The text-region detector's folder and file under the models base URL. */
 export const DETECTOR_FILE = 'pp-ocrv5-det/inference.onnx';
+/** The second-look text reader's folder (model and its character list) under the models base URL. */
+export const READER_DIR = 'pp-ocrv5-rec-en/';
 
 /** [P(person), P(organisation)] for one word, from the model's prediction on the word's first sub-token. */
 export type WordScore = [per: number, org: number];
@@ -22,8 +24,9 @@ export interface Pixels { width: number; height: number; data: Uint8ClampedArray
 export type MlRequest =
   | { id: number; type: 'score'; lines: string[][] }
   | { id: number; type: 'warmup' }
-  | { id: number; type: 'detect'; image: Pixels };
+  | { id: number; type: 'detect'; image: Pixels }
+  | { id: number; type: 'read'; image: Pixels };
 
 export type MlResponse =
-  | { id: number; ok: true; scores?: WordScore[][]; regions?: Region[] }
+  | { id: number; ok: true; scores?: WordScore[][]; regions?: Region[]; reading?: { text: string; conf: number } }
   | { id: number; ok: false; error: string };

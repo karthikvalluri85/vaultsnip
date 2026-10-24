@@ -81,6 +81,13 @@ export class ContextClassifier {
     return regions;
   }
 
+  /** One straightened line of text read by the second-look reader. Its pixels are transferred to the worker. */
+  async read(image: Pixels, signal?: AbortSignal): Promise<{ text: string; conf: number }> {
+    const { reading } = await this.request({ type: 'read', image }, signal, [image.data.buffer]);
+    if (!reading) throw new Error('ML worker returned no reading');
+    return reading;
+  }
+
   dispose(): void {
     this.reset(new Error('Contextual scanner was closed'));
   }

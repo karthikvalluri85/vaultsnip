@@ -215,6 +215,25 @@ weakest kind (8.1% exposed after the check), which is the next masking target.
 The extension's *Blur text in charts on this page* now runs the same unread-text check as the app (without the
 app's second look, so a region far thicker than a line of text is left alone rather than blurring a whole chart).
 
+## Phase 2b: a second reader for hard text
+
+The plan's rule was to switch reader only if a better one wins. PaddleOCR's line reader (en_PP-OCRv5_mobile_rec,
+Apache-2.0, 7 MB, on the device) now reads each patch the unread-text check finds once more, before the page reader
+(Tesseract), which remains the fallback. It is trained on single lines, so it reads small, faint and slanted text the
+page reader misses, and a patch it reads as safe words stays visible. Measured on 24 October 2026 on generated set v3
+and the public dashboards:
+
+| Figure | Without it | With it |
+|---|---|---|
+| Sensitive words exposed after the check | 5.79% | **5.58%** |
+| Safe words masked anyway | 14.26% | **13.25%** |
+| Items to resolve, public dashboards | 56 | **45** |
+| Report structure checks | 7 of 14 | **8 of 14** |
+| Visuals typed right, public dashboards | 76.0% | 74.7% (one visual, within tolerance) |
+
+It wins on both sides of masking at once, so it ships, on by default with the rest of the unread-text check. The
+page reader stays the main reader: replacing it everywhere would be a much larger change, for a later measurement.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

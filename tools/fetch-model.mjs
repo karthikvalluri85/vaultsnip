@@ -7,6 +7,8 @@
 //    MIT/Apache-2.0 sources, mostly synthetic).
 // 2. Text-region detector (Phase 2): PaddlePaddle/PP-OCRv5_mobile_det_onnx, the PaddleOCR team's own ONNX export of
 //    PP-OCRv5_mobile_det (4.8 MB), Apache-2.0. It finds where text is, without reading it.
+// 3. Second-look text reader (Phase 2b): PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx, the PaddleOCR team's own ONNX export
+//    of en_PP-OCRv5_mobile_rec (7.8 MB) and its character list, Apache-2.0. It reads one line of text.
 // Attribution: THIRD_PARTY_NOTICES.md. The weights are gzipped because the web app's host refuses single files over
 // 25 MiB; build.sh unpacks them for store packages.
 import { createHash } from 'node:crypto';
@@ -30,6 +32,13 @@ export const MODELS = [
     repo: 'PaddlePaddle/PP-OCRv5_mobile_det_onnx', revision: 'e6f4fa85f00e168c862bc462aebca69eef9b3d3d', folder: 'pp-ocrv5-det',
     files: [
       ['inference.onnx', 'inference.onnx', 'a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d'],
+    ],
+  },
+  {
+    repo: 'PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx', revision: '3fafbc3b5dcf93dd72add9f48368be8a3a2cd33b', folder: 'pp-ocrv5-rec-en',
+    files: [
+      ['inference.onnx', 'inference.onnx', 'b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f'],
+      ['inference.yml', 'inference.yml', '27e91d0582f40168aa218303c76e184bc78fa7a5d105aad0cfbad8458b441067'],
     ],
   },
 ];

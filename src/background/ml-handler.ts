@@ -13,9 +13,14 @@ export interface TextDetector {
   detect(image: Pixels): Promise<Region[]>;
 }
 
+export interface TextReader {
+  read(line: Pixels): Promise<{ text: string; conf: number }>;
+}
+
 export interface Loaders {
   ner: () => Promise<NerScorer>;
   detector?: () => Promise<TextDetector>;
+  reader?: () => Promise<TextReader>;
 }
 
 const lazy = <T>(load: () => Promise<T>) => {
@@ -27,10 +32,16 @@ export function createMlHandler(loaders: Loaders | (() => Promise<NerScorer>), p
   const l: Loaders = typeof loaders === 'function' ? { ner: loaders } : loaders;
   const ner = lazy(l.ner);
   const detector = l.detector ? lazy(l.detector) : null;
+  const reader = l.reader ? lazy(l.reader) : null;
   let queue: Promise<void> = Promise.resolve();
 
   async function run(req: MlRequest): Promise<void> {
     try {
+      if (req.type === 'read') {
+        if (!reader) throw new Error('this worker has no text reader');
+        post({ id: req.id, ok: true, reading: await (await reader()).read(req.image) });
+        return;
+      }
       if (req.type === 'detect') {
         if (!detector) throw new Error('this worker has no text detector');
         post({ id: req.id, ok: true, regions: await (await detector()).detect(req.image) });

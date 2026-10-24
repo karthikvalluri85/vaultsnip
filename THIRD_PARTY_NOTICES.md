@@ -17,13 +17,17 @@ On-device name check, in `web/ml`, `web/lib/vs-context.js` and `web/models`:
   built from MIT and Apache-2.0 sources, mostly synthetic). `npm run fetch:model -- --check` verifies the files against the
   pinned revision.
 
-Unread-text check, in `web/ml/models.js` and `web/models/pp-ocrv5-det`:
+Unread-text check, in `web/ml/models.js`, `web/models/pp-ocrv5-det` and `web/models/pp-ocrv5-rec-en`:
 
 - [PP-OCRv5_mobile_det](https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx), the PaddleOCR team's own ONNX
   export, revision `e6f4fa8`, Apache License 2.0, Copyright (c) PaddlePaddle Authors
   ([PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)). Weights unchanged (gzipped). Its post-processing in
   `src/shared/text-regions.ts` follows PaddleOCR's DBPostProcess and was written for VaultSnip; no PaddleOCR code is
   copied. `npm run fetch:model -- --check` verifies the file against the pinned revision.
+- [en_PP-OCRv5_mobile_rec](https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx), the PaddleOCR team's own
+  ONNX export, revision `3fafbc3`, Apache License 2.0, Copyright (c) PaddlePaddle Authors. Weights (gzipped) and its
+  character list unchanged. Its decoding in `src/background/text-reader.ts` follows PaddleOCR's CTC decoding and was
+  written for VaultSnip; no PaddleOCR code is copied. `npm run fetch:model -- --check` verifies both files.
 
 Realistic synthetic names, bundled in `web/lib/vs-faker.js` (and in HTML exports that use them):
 

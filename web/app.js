@@ -24,7 +24,7 @@
     ctx: { on: true, lines: null, scores: null, state: 'idle' },  // on-device name check (lib/vs-context.js, ml/)
     // on-device text-region detector: text the reader missed is masked. limit: the detector's input size (longest side);
     // minConf: how sure the reader must be of a kept word for it to account for its region
-    unread: { on: true, regions: null, state: 'idle', limit: 1536, minConf: 60 }
+    unread: { on: true, regions: null, state: 'idle', limit: 1536, minConf: 60, reader: true }
   };
   try {
     const k = localStorage.getItem('dsc-key'), m = localStorage.getItem('dsc-model'), p = localStorage.getItem('dsc-provider');
@@ -802,6 +802,19 @@ customer service staff agent team people everyone nobody someone something nothi
     // words that account for their spot: read confidently and left readable by the rules
     return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && !inside(w)));
   }
+  // One straightened line read by the second-look reader (PP-OCRv5, in the ML worker), as words with the page
+  // reader's confidence scale; null when it cannot run, so the page reader takes over.
+  async function readLine(c) {
+    if (!S.unread.reader || !ctxClient) return null;
+    try {
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+      const r = await ctxClient.read({ width: d.width, height: d.height, data: d.data });
+      return r.text.split(/\s+/).filter(Boolean).map(text => ({ text, conf: r.conf * 100 }));
+    } catch (e) {
+      console.warn('Second-look reader unavailable:', e);
+      return null;
+    }
+  }
   async function secondLook(img, regions, base) {
     const cover = unreadCover(base);
     const todo = regions.filter(r => VSContext.unreadParts([r], cover).length).slice(0, SECOND_LOOK_MAX);
@@ -828,7 +841,9 @@ customer service staff agent team people everyone nobody someone something nothi
             c.width = Math.ceil(r.w + 2 * pad); c.height = Math.ceil(r.h + 2 * pad);
             x.drawImage(img, r.x - pad, r.y - pad, c.width, c.height, 0, 0, c.width, c.height);
           }
-          const words = await ocrPass(c, 3, kind);
+          // the line reader first (trained on single lines: small, faint and slanted text), then the page reader
+          let words = kind === 'normal' && !blob ? await readLine(c) : null;
+          if (!words || !words.length) words = await ocrPass(c, 3, kind);
           if (words.some(w => /[\p{L}\p{N}]/u.test(w.text))) sawCharacters = true;
           if (blob) {   // every reading counts: a word unsafe in either is masked (positions in the image's pixels)
             words.filter(w => w.conf < SECOND_LOOK_CONF || classify(w.text)).forEach(w => unsafe.push({ x: w.x + r.x - pad, y: w.y + r.y - pad, w: w.w, h: w.h }));

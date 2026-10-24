@@ -4,3 +4,4 @@
  */
 export { useLocalFilesOnly, loadNerScorer } from './ner-model';
 export { loadTextDetector } from './text-detector';
+export { loadTextReader } from './text-reader';

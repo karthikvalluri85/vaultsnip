@@ -8,18 +8,18 @@
   "found": 75,
   "foundPct": 93.8,
   "extraPanels": 13,
-  "typesRightLenient": 57,
+  "typesRightLenient": 56,
   "typesRightStrict": 52,
-  "typesRightPct": 76,
-  "endToEndPct": 71.3,
+  "typesRightPct": 74.7,
+  "endToEndPct": 70,
   "byTool": {
    "Power BI": {
     "dashboards": 4,
     "visuals": 19,
     "found": 17,
-    "typesRight": 12,
+    "typesRight": 11,
     "foundPct": 89.5,
-    "typesRightPct": 70.6
+    "typesRightPct": 64.7
    },
    "Tableau": {
     "dashboards": 4,
@@ -49,20 +49,20 @@
  },
  "reports": {
   "count": 3,
-  "checksRight": 7,
+  "checksRight": 8,
   "checks": 14
  },
  "review": {
   "images": 15,
   "checkPassedFirstTime": 2,
   "checkCaughtLeftovers": 13,
-  "findings": 56,
-  "blocking": 34,
+  "findings": 45,
+  "blocking": 25,
   "findingsByType": {
-   "Number or money": 34,
-   "Text not on allowlist": 22
+   "Number or money": 25,
+   "Text not on allowlist": 20
   },
-  "medianSeconds": 23.688,
-  "slowestSeconds": 41.469
+  "medianSeconds": 19.688,
+  "slowestSeconds": 36.904
  }
 }
