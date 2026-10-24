@@ -370,6 +370,32 @@ line, but only as a chain (each starting near where the one before ended, at abo
 regions of one colour never join into a "line". A flat stretch of line is solid enough to pass for a sliver of a
 column; a colour whose "columns" are all a few pixels tall and that forms a long line is the line.
 
+## The AI-key path, measured (24 October 2026)
+
+`tools/ai-bench/run.mjs` measures the optional AI path the way a user meets it: each generated dashboard is read and
+masked by the app, and the approved masked image goes to the provider with the app's own request (same instructions,
+parsing and retry), using the developer's key from the environment. The on-device builder reads the same masked image,
+and both are scored by chart type: each annotated visual is matched to a visual of its type (or a close cousin), and
+extra visuals count against it. Only generated, fictional dashboards are sent; the public dashboards were collected for
+local evaluation only and are never sent. Answers are recorded, so `--rescore` scores them again with no key and no cost.
+
+| 60 generated dashboards (set v5), 404 visuals | Typed right | Extra | End to end |
+|---|---|---|---|
+| Claude Sonnet 5.5 (the app's default model), with a key | **404** | 15 | **96.4%** |
+| On the device, no key | 343 | 17 | **81.5%** |
+
+The run cost **$1.44** (370,234 tokens in, 69,965 out): about 2.4 cents a dashboard. No request failed.
+
+**What this means for the plan.** Phase 3 (a strict answer format) was meant to stop malformed or invented answers.
+`tools/ai-bench/validate.mjs` checks every answer against the shape the instructions define. The only problem found:
+in 25 of 60 answers, 41 rows whose widths did not add up to the 12-column grid, which made the replica wrap a visual
+onto its own line or leave a gap. No unknown types, no series of the wrong length, no failed parse. The app now fits a
+row's widths to 12 when it reads an answer, keeping their proportions, so a full strict format is not needed for this
+model; it stays a candidate if another provider or model misbehaves.
+
+The gap between the two paths (96% and 82% end to end, by type) is mostly visuals the on-device builder misses
+entirely, not visuals it types wrongly: it is the target of the resemblance work below.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

@@ -1400,12 +1400,25 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     }
     return spec;
   }
+  // A row's spans must sum to 12, or the grid wraps its last visual or leaves a gap. The model often sends 11 or 13 (25
+  // of 60 answers on the generated benchmark, tools/ai-bench): spans are scaled to 12, keeping their proportions.
+  function fitSpans(vs) {
+    if (!vs.length || vs.length > 12) return;
+    const raw = vs.map(v => Math.max(1, Number(v.span) || 6)), total = raw.reduce((a, b) => a + b, 0);
+    if (total === 12) return;
+    const spans = raw.map(x => Math.max(1, Math.round(x * 12 / total)));
+    for (let d = 12 - spans.reduce((a, b) => a + b, 0); d !== 0; d += d > 0 ? -1 : 1) {
+      const i = d > 0 ? spans.indexOf(Math.max(...spans)) : spans.findIndex(x => x === Math.max(...spans) && x > 1);
+      spans[i] += d > 0 ? 1 : -1;
+    }
+    vs.forEach((v, i) => { v.span = spans[i]; });
+  }
   function parseSpec(text) {
     try {
       const s = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
       const o = JSON.parse(s);
       if (!o || !Array.isArray(o.rows) || !o.rows.length) return null;
-      o.rows.forEach(r => { r.visuals = (r.visuals || []).filter(v => v && v.type); });
+      o.rows.forEach(r => { r.visuals = (r.visuals || []).filter(v => v && v.type); fitSpans(r.visuals); });
       return o;
     } catch (e) { return null; }
   }
@@ -1716,5 +1729,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { askModel, scrubVerbatims, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

@@ -571,6 +571,12 @@ try {
   check(unit.email === 'Email' && unit.email2 === 'Email', 'partial email addresses are still masked (#8)');
   check(unit.small === 'Number or money', 'single-digit numbers are masked (#8)');
   check(unit.kept.includes('$4.2M') && !unit.kept.includes('ffi') && !unit.kept.includes('Il'), `chart shapes read as giant "words" are dropped, big KPI numbers kept (#9: ${unit.kept.join(', ')})`);
+  // an AI answer whose row spans do not sum to 12 (25 of 60 on the generated benchmark) is fitted to the grid
+  const fitted = await page.evaluate(() => {
+    const spec = window.__DSC.test.parseSpec(JSON.stringify({ title: 't', rows: [{ height: 'm', visuals: [{ type: 'kpi', span: 4 }, { type: 'kpi', span: 4 }, { type: 'column', span: 5 }] }, { height: 'm', visuals: [{ type: 'line', span: 6 }, { type: 'pie', span: 5 }] }] }));
+    return spec.rows.map(r => r.visuals.map(v => v.span));
+  });
+  check(JSON.stringify(fitted) === '[[4,4,4],[7,5]]', `AI answers with row spans off 12 are fitted to the grid (${JSON.stringify(fitted)})`);
   const cm = await page.evaluate(() => {
     const S = window.__DSC, T = S.test;
     let x = 0; const line = (y, text) => { x = 10; return text.split(' ').map(t => { const w = { text: t, x, y, w: t.length * 6, h: 11, conf: 95 }; x += t.length * 6 + 5; return w; }); };
