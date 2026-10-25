@@ -1,5 +1,5 @@
 {
- "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), table, map, scatter, treemap, waterfall, combo (bars + line), text.",
+ "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), table, pivot, map, scatter, treemap, waterfall, combo (bars + line), gauge, funnel, text, and other for a visual of a kind the builder has no type for (a Gantt chart, a dot matrix, a decomposition tree). Labelled with tools/layout-bench/annotate.html.",
  "dashboards": [
   {
    "id": "sample-it-spend_it3",
@@ -1097,6 +1097,2444 @@
       950,
       1000,
       980
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-competitive-marketing",
+   "tool": "Power BI",
+   "size": [
+    1354,
+    683
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-competitive-marketing-analysis/power-bi-marketing-analysis-report.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     214,
+     49,
+     934,
+     94
+    ],
+    [
+     932,
+     50,
+     1107,
+     93
+    ],
+    [
+     1,
+     2,
+     188,
+     452
+    ],
+    [
+     1,
+     451,
+     186,
+     681
+    ],
+    [
+     1108,
+     51,
+     1235,
+     92
+    ],
+    [
+     1244,
+     50,
+     1297,
+     89
+    ],
+    [
+     1321,
+     37,
+     1348,
+     440
+    ],
+    [
+     1323,
+     439,
+     1353,
+     664
+    ],
+    [
+     1323,
+     662,
+     1352,
+     673
+    ],
+    [
+     189,
+     3,
+     804,
+     41
+    ],
+    [
+     804,
+     4,
+     1353,
+     37
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "donut",
+     "title": "Total Sales by Channel",
+     "bbox": [
+      213,
+      204,
+      639,
+      416
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Outlet Sales",
+     "bbox": [
+      1083,
+      101,
+      1294,
+      191
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Stores Sales",
+     "bbox": [
+      869,
+      103,
+      1073,
+      193
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Social Media Sales",
+     "bbox": [
+      649,
+      99,
+      855,
+      195
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Online Sales",
+     "bbox": [
+      432,
+      100,
+      634,
+      189
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Sales",
+     "bbox": [
+      213,
+      99,
+      420,
+      195
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Total Sales by Channel Over Time",
+     "bbox": [
+      213,
+      429,
+      1291,
+      667
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Total Sales by Product and Channel",
+     "bbox": [
+      647,
+      201,
+      1290,
+      417
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-corporate-spend",
+   "tool": "Power BI",
+   "size": [
+    1307,
+    817
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-corporate-spend/power-bi-corporate-spend-dashboard.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     685,
+     163,
+     1010,
+     195
+    ],
+    [
+     71,
+     154,
+     648,
+     205
+    ],
+    [
+     0,
+     0,
+     1307,
+     140
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "area",
+     "title": "Actual by Period and Business Area",
+     "bbox": [
+      73,
+      475,
+      649,
+      791
+     ]
+    },
+    {
+     "type": "other",
+     "title": "",
+     "bbox": [
+      672,
+      478,
+      1247,
+      791
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Var Plan % by Country/Region",
+     "bbox": [
+      666,
+      216,
+      1243,
+      463
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Actual and Plan by IT Area",
+     "bbox": [
+      72,
+      218,
+      650,
+      466
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-team-scorecard",
+   "tool": "Power BI",
+   "size": [
+    1954,
+    1141
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-customer-profitability/customer2.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     13,
+     207,
+     215,
+     429
+    ],
+    [
+     52,
+     65,
+     469,
+     137
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Number of Customers",
+     "bbox": [
+      1012,
+      48,
+      1308,
+      163
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Number of Products",
+     "bbox": [
+      1350,
+      40,
+      1585,
+      164
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Gross Margin %",
+     "bbox": [
+      1654,
+      44,
+      1864,
+      180
+     ]
+    },
+    {
+     "type": "treemap",
+     "title": "Total Revenue by Region",
+     "bbox": [
+      1192,
+      190,
+      1892,
+      629
+     ]
+    },
+    {
+     "type": "area",
+     "title": "Revenue % Variance to Budget by Month and Executive",
+     "bbox": [
+      238,
+      187,
+      1102,
+      625
+     ]
+    },
+    {
+     "type": "map",
+     "title": "RevenueTY by State",
+     "bbox": [
+      1194,
+      666,
+      1887,
+      1085
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "RevenueTY and Revenue % Variance to Budget by Month",
+     "bbox": [
+      231,
+      633,
+      1183,
+      1118
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Revenue Status (Total Year)",
+     "bbox": [
+      703,
+      26,
+      950,
+      137
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-opportunity-dashboard",
+   "tool": "Power BI",
+   "size": [
+    1679,
+    1270
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-opportunity-analysis/opportunity-1.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     0,
+     0,
+     1679,
+     100
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "column",
+     "title": "Opportunity Count by Partner Driven, Opportunity Size",
+     "bbox": [
+      351,
+      112,
+      671,
+      331
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Opportunity Count by Partner Driven, Sales Stage",
+     "bbox": [
+      683,
+      114,
+      992,
+      332
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Opportunity Count by Month, Sales Stage",
+     "bbox": [
+      21,
+      342,
+      671,
+      793
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Opportunity Count",
+     "bbox": [
+      22,
+      112,
+      339,
+      334
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Revenue",
+     "bbox": [
+      1346,
+      114,
+      1671,
+      332
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "Opportunity Count by Region",
+     "bbox": [
+      1011,
+      111,
+      1334,
+      334
+     ]
+    },
+    {
+     "type": "funnel",
+     "title": "Opportunity Count by Sales Stage",
+     "bbox": [
+      1348,
+      347,
+      1666,
+      562
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Factored Revenue by Opportunity Size",
+     "bbox": [
+      1344,
+      1029,
+      1666,
+      1255
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Factored Revenue",
+     "bbox": [
+      1345,
+      805,
+      1667,
+      1025
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Average Revenue by Partner Driven, Opportunity Size",
+     "bbox": [
+      680,
+      804,
+      1336,
+      1257
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Revenue by Sales Stage, Partner Driven",
+     "bbox": [
+      14,
+      806,
+      671,
+      1254
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Opportunity Count by Region, Opportunity Size",
+     "bbox": [
+      683,
+      345,
+      1338,
+      793
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Average Revenue by Partner Driven, Opportunity Size",
+     "bbox": [
+      1347,
+      579,
+      1669,
+      793
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-retail-dashboard",
+   "tool": "Power BI",
+   "size": [
+    1714,
+    1294
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-retail-analysis/retail1.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     7,
+     6,
+     991,
+     47
+    ],
+    [
+     0,
+     48,
+     1714,
+     100
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "This Year's Sales",
+     "bbox": [
+      1373,
+      118,
+      1697,
+      346
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "New Stores",
+     "bbox": [
+      1378,
+      355,
+      1696,
+      577
+     ]
+    },
+    {
+     "type": "map",
+     "title": "This Year's Sales by City, Chain",
+     "bbox": [
+      696,
+      826,
+      1361,
+      1279
+     ]
+    },
+    {
+     "type": "map",
+     "title": "This Year's Sales by Postal Code, Store Type",
+     "bbox": [
+      21,
+      824,
+      668,
+      1257
+     ]
+    },
+    {
+     "type": "area",
+     "title": "This Year's Sales, Last Year's Sales",
+     "bbox": [
+      18,
+      351,
+      684,
+      803
+     ]
+    },
+    {
+     "type": "scatter",
+     "title": "Total Sales Variance %, Sales Per Sq Ft, This Year's Sales",
+     "bbox": [
+      695,
+      351,
+      1365,
+      808
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Stores",
+     "bbox": [
+      18,
+      118,
+      346,
+      344
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "This Year's Sales",
+     "bbox": [
+      357,
+      117,
+      687,
+      340
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Stores Opened This Year by Open Month, Chain",
+     "bbox": [
+      1373,
+      587,
+      1703,
+      809
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "New Stores, New Stores Target",
+     "bbox": [
+      1037,
+      116,
+      1364,
+      346
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Sales Per Sq Ft by Name",
+     "bbox": [
+      1373,
+      824,
+      1701,
+      1037
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "This Year's Sales by Chain",
+     "bbox": [
+      697,
+      119,
+      1023,
+      341
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-new-stores",
+   "tool": "Power BI",
+   "size": [
+    2112,
+    1208
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-retail-analysis/retail15.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     792,
+     28,
+     1323,
+     113
+    ],
+    [
+     1749,
+     788,
+     2103,
+     1170
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "map",
+     "title": "This Year Sales by City and Chain",
+     "bbox": [
+      29,
+      172,
+      931,
+      777
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Sales Per Sq Ft by Name",
+     "bbox": [
+      964,
+      473,
+      2111,
+      756
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Open Store Count by Open Month and Chain",
+     "bbox": [
+      967,
+      135,
+      2105,
+      438
+     ]
+    },
+    {
+     "type": "line",
+     "title": "This Year Sales by FiscalMonth",
+     "bbox": [
+      23,
+      778,
+      1731,
+      1191
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-ytd-category-trend",
+   "tool": "Power BI",
+   "size": [
+    2267,
+    1193
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-sales-and-marketing/reportpage2.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     838,
+     37,
+     1422,
+     92
+    ],
+    [
+     0,
+     1150,
+     2267,
+     1193
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "column",
+     "title": "Total Units YTD Var % by Month and Manufacturer",
+     "bbox": [
+      1069,
+      659,
+      2231,
+      1099
+     ]
+    },
+    {
+     "type": "map",
+     "title": "% Units Market Share by State",
+     "bbox": [
+      5,
+      652,
+      1048,
+      1105
+     ]
+    },
+    {
+     "type": "treemap",
+     "title": "Total Units YTD by Manufacturer and Region",
+     "bbox": [
+      5,
+      118,
+      1045,
+      647
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Total Units by Month and Manufacturer",
+     "bbox": [
+      1061,
+      108,
+      2235,
+      644
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-market-share",
+   "tool": "Power BI",
+   "size": [
+    1171,
+    693
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-sales-and-marketing/sales5.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     51,
+     35,
+     434,
+     88
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "column",
+     "title": "Total Units by Month and isVanArsdel",
+     "bbox": [
+      7,
+      427,
+      1151,
+      669
+     ]
+    },
+    {
+     "type": "line",
+     "title": "% Units Market Share and % Units Market Share R12M by Month",
+     "bbox": [
+      11,
+      233,
+      499,
+      417
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Total Category Volume by Segment",
+     "bbox": [
+      501,
+      232,
+      1151,
+      421
+     ]
+    },
+    {
+     "type": "column",
+     "title": "% Unit Market Share YOY Change by Rolling Period and Region",
+     "bbox": [
+      500,
+      18,
+      1149,
+      225
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Category Volume",
+     "bbox": [
+      41,
+      126,
+      232,
+      191
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "% Units Market Share",
+     "bbox": [
+      263,
+      123,
+      437,
+      194
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-sentiment",
+   "tool": "Power BI",
+   "size": [
+    1176,
+    697
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-sales-and-marketing/sales6.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     30,
+     40,
+     345,
+     110
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "line",
+     "title": "Industry Sentiment by Month",
+     "bbox": [
+      7,
+      424,
+      695,
+      682
+     ]
+    },
+    {
+     "type": "line",
+     "title": "VanArsdel - Sentiment by Month",
+     "bbox": [
+      7,
+      122,
+      695,
+      410
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Sentiment",
+     "bbox": [
+      387,
+      39,
+      492,
+      103
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Sentiment Gap",
+     "bbox": [
+      543,
+      35,
+      677,
+      110
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Sentiment Gap by District and Region",
+     "bbox": [
+      704,
+      30,
+      1167,
+      639
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pbi-supplier-quality",
+   "tool": "Power BI",
+   "size": [
+    1151,
+    607
+   ],
+   "source": "https://learn.microsoft.com/en-us/power-bi/create-reports/media/sample-supplier-quality/supplier-7.png",
+   "terms": "Microsoft Learn documentation, CC BY 4.0",
+   "ignore": [
+    [
+     979,
+     264,
+     1137,
+     409
+    ],
+    [
+     976,
+     420,
+     1097,
+     511
+    ],
+    [
+     985,
+     525,
+     1076,
+     590
+    ],
+    [
+     364,
+     13,
+     786,
+     67
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "line",
+     "title": "Total Defect Qty by Month and Year",
+     "bbox": [
+      464,
+      74,
+      1140,
+      246
+     ]
+    },
+    {
+     "type": "table",
+     "title": "",
+     "bbox": [
+      19,
+      433,
+      331,
+      607
+     ]
+    },
+    {
+     "type": "scatter",
+     "title": "Total Defect Qty, Total Defect Reports and Total Downtime Minutes by Category",
+     "bbox": [
+      6,
+      213,
+      455,
+      422
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Total Defect Reports by Plant and Defect Type",
+     "bbox": [
+      469,
+      255,
+      977,
+      578
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Total Defect Qty by Category and Defect Type",
+     "bbox": [
+      13,
+      11,
+      449,
+      207
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ServiceIndustryAnalytics",
+   "tool": "Tableau",
+   "size": [
+    1850,
+    1127
+   ],
+   "source": "https://public.tableau.com/app/profile/dataforgeanalytics/viz/DataForgeDashboardServiceIndustryAnalytics/ExecutiveOverviewPage",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     4,
+     194,
+     203,
+     802
+    ],
+    [
+     2,
+     4,
+     205,
+     194
+    ],
+    [
+     218,
+     4,
+     477,
+     58
+    ],
+    [
+     1508,
+     19,
+     1696,
+     64
+    ],
+    [
+     1698,
+     19,
+     1828,
+     67
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "line",
+     "title": "Revenue Trend",
+     "bbox": [
+      228,
+      202,
+      734,
+      540
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Revenue by Branch",
+     "bbox": [
+      746,
+      206,
+      1276,
+      528
+     ]
+    },
+    {
+     "type": "donut",
+     "title": "Revenue by Service Type",
+     "bbox": [
+      1281,
+      207,
+      1804,
+      524
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Dispatch Efficiency",
+     "bbox": [
+      1262,
+      664,
+      1807,
+      916
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Avg Drive Time",
+     "bbox": [
+      1254,
+      582,
+      1397,
+      660
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Idle Time %",
+     "bbox": [
+      1399,
+      583,
+      1537,
+      662
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Job per Truck",
+     "bbox": [
+      1539,
+      583,
+      1677,
+      660
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "First Time Fix Rate",
+     "bbox": [
+      1677,
+      581,
+      1817,
+      662
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Technician Utilization",
+     "bbox": [
+      1648,
+      78,
+      1825,
+      196
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Callback Rate",
+     "bbox": [
+      1443,
+      71,
+      1644,
+      199
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Membership Revenue",
+     "bbox": [
+      1243,
+      72,
+      1442,
+      198
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Avg Ticket Size",
+     "bbox": [
+      1044,
+      66,
+      1236,
+      199
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Service Call Completed",
+     "bbox": [
+      835,
+      70,
+      1032,
+      195
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Net Profit",
+     "bbox": [
+      633,
+      67,
+      833,
+      196
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Gross Margin",
+     "bbox": [
+      423,
+      70,
+      628,
+      196
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Revenue",
+     "bbox": [
+      216,
+      64,
+      422,
+      199
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Top Margin Leak",
+     "bbox": [
+      220,
+      551,
+      669,
+      921
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Technician Scoreboard",
+     "bbox": [
+      679,
+      544,
+      1240,
+      926
+     ]
+    },
+    {
+     "type": "other",
+     "title": "Alerts & Notifications",
+     "bbox": [
+      221,
+      932,
+      1817,
+      1088
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SupplyChainPerformance",
+   "tool": "Tableau",
+   "size": [
+    1400,
+    927
+   ],
+   "source": "https://public.tableau.com/app/profile/laprincia.johnson/viz/SupplyChainPerformanceVendorOperations/SupplyChainPerformanceOverview",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     22,
+     106,
+     199,
+     215
+    ],
+    [
+     13,
+     6,
+     214,
+     94
+    ],
+    [
+     1235,
+     4,
+     1247,
+     18
+    ],
+    [
+     229,
+     16,
+     709,
+     89
+    ],
+    [
+     18,
+     218,
+     197,
+     601
+    ],
+    [
+     1247,
+     25,
+     1387,
+     77
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Total Supply Spend",
+     "bbox": [
+      215,
+      103,
+      441,
+      251
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "On Time Delivery",
+     "bbox": [
+      449,
+      101,
+      674,
+      256
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Quality Fill Rate",
+     "bbox": [
+      683,
+      101,
+      915,
+      267
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Critical On-Time Rate",
+     "bbox": [
+      923,
+      101,
+      1151,
+      258
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Cancellation Rate",
+     "bbox": [
+      1162,
+      98,
+      1383,
+      261
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Monthly Delivery Performance",
+     "bbox": [
+      798,
+      264,
+      1390,
+      558
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Spend by Supply Category",
+     "bbox": [
+      801,
+      559,
+      1387,
+      859
+     ]
+    },
+    {
+     "type": "other",
+     "title": "Critical On-Time Rate by Department",
+     "bbox": [
+      212,
+      553,
+      755,
+      858
+     ]
+    },
+    {
+     "type": "area",
+     "title": "Monthly Supply Spend",
+     "bbox": [
+      215,
+      268,
+      797,
+      550
+     ]
+    }
+   ]
+  },
+  {
+   "id": "AmazonSalesOverview",
+   "tool": "Tableau",
+   "size": [
+    1400,
+    1027
+   ],
+   "source": "https://public.tableau.com/app/profile/mila.kholodii/viz/AmazonSalesOverview_17899965275850/AmaonSalesPerformance",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     35,
+     678,
+     239,
+     831
+    ],
+    [
+     40,
+     420,
+     217,
+     495
+    ],
+    [
+     52,
+     523,
+     230,
+     599
+    ],
+    [
+     250,
+     40,
+     1360,
+     135
+    ],
+    [
+     35,
+     25,
+     240,
+     670
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Cancellations",
+     "bbox": [
+      1153,
+      160,
+      1357,
+      289
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Units Sold",
+     "bbox": [
+      932,
+      159,
+      1123,
+      280
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Avg. Order Value",
+     "bbox": [
+      695,
+      158,
+      907,
+      282
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Orders",
+     "bbox": [
+      475,
+      163,
+      675,
+      286
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Sales",
+     "bbox": [
+      251,
+      154,
+      459,
+      287
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Monthly Sales by Category",
+     "bbox": [
+      260,
+      645,
+      619,
+      951
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Order Status",
+     "bbox": [
+      626,
+      642,
+      979,
+      951
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Payment Type",
+     "bbox": [
+      993,
+      642,
+      1349,
+      953
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Monthly Sales Over Time",
+     "bbox": [
+      622,
+      308,
+      1353,
+      634
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Monthly Sales by Country",
+     "bbox": [
+      253,
+      313,
+      613,
+      628
+     ]
+    }
+   ]
+  },
+  {
+   "id": "RenewalsForecasting",
+   "tool": "Tableau",
+   "size": [
+    1150,
+    1187
+   ],
+   "source": "https://public.tableau.com/app/profile/sakshigandhi6/viz/RenewalsForecasting/Dashboard1",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     8,
+     11,
+     759,
+     81
+    ],
+    [
+     215,
+     190,
+     860,
+     225
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "bar",
+     "title": "Which regions require immediate renewal attention?",
+     "bbox": [
+      24,
+      243,
+      555,
+      503
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Which products contribute the highest forecasted revenue at risk?",
+     "bbox": [
+      583,
+      239,
+      1114,
+      519
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Forecast Capture",
+     "bbox": [
+      912,
+      84,
+      1140,
+      199
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Unknown Attrition",
+     "bbox": [
+      683,
+      83,
+      911,
+      195
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Renewal Forecast",
+     "bbox": [
+      465,
+      86,
+      681,
+      195
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Forecasted Revenue at Risk",
+     "bbox": [
+      235,
+      87,
+      455,
+      186
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Renewal",
+     "bbox": [
+      11,
+      81,
+      228,
+      191
+     ]
+    },
+    {
+     "type": "donut",
+     "title": "Why are customers forecasted to churn?",
+     "bbox": [
+      11,
+      517,
+      571,
+      825
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Which fiscal quarters require the greatest renewal focus?",
+     "bbox": [
+      575,
+      525,
+      1137,
+      823
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Which customer accounts should be prioritized immediately?",
+     "bbox": [
+      579,
+      831,
+      1138,
+      1121
+     ]
+    },
+    {
+     "type": "treemap",
+     "title": "Which customer segments contribute the highest forecasted revenue risk?",
+     "bbox": [
+      9,
+      829,
+      572,
+      1122
+     ]
+    }
+   ]
+  },
+  {
+   "id": "NorthstarControlTower",
+   "tool": "Tableau",
+   "size": [
+    1800,
+    1027
+   ],
+   "source": "https://public.tableau.com/app/profile/karen.biltcliffe/viz/NorthstarLogisticsOperationsControlTowerBusinessDashboard/OperationsControlTower",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     7,
+     168,
+     177,
+     235
+    ],
+    [
+     9,
+     238,
+     178,
+     287
+    ],
+    [
+     9,
+     287,
+     178,
+     348
+    ],
+    [
+     51,
+     15,
+     853,
+     128
+    ],
+    [
+     492,
+     15,
+     853,
+     125
+    ],
+    [
+     52,
+     13,
+     490,
+     128
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "SLA Breaches",
+     "bbox": [
+      1475,
+      169,
+      1794,
+      341
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Backlog",
+     "bbox": [
+      1150,
+      169,
+      1475,
+      344
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Avg Lead Time",
+     "bbox": [
+      828,
+      169,
+      1149,
+      344
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "On-Time %",
+     "bbox": [
+      504,
+      169,
+      829,
+      349
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Orders Completed",
+     "bbox": [
+      189,
+      171,
+      505,
+      336
+     ]
+    },
+    {
+     "type": "text",
+     "title": "Performance Watch",
+     "bbox": [
+      190,
+      376,
+      850,
+      492
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "On-time %",
+     "bbox": [
+      854,
+      408,
+      1086,
+      492
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Late Orders",
+     "bbox": [
+      1086,
+      408,
+      1320,
+      492
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Lead Time",
+     "bbox": [
+      1320,
+      408,
+      1554,
+      492
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "SLA Breaches",
+     "bbox": [
+      1554,
+      408,
+      1788,
+      492
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "On-Time % by Warehouse",
+     "bbox": [
+      190,
+      506,
+      720,
+      724
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Why Are Orders Late?",
+     "bbox": [
+      726,
+      506,
+      1252,
+      724
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Backlog by Warehouse",
+     "bbox": [
+      1260,
+      506,
+      1788,
+      724
+     ]
+    },
+    {
+     "type": "line",
+     "title": "On-Time % vs Target",
+     "bbox": [
+      192,
+      770,
+      660,
+      990
+     ]
+    },
+    {
+     "type": "line",
+     "title": "SLA Breaches",
+     "bbox": [
+      668,
+      770,
+      1134,
+      990
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Backlog Over Time",
+     "bbox": [
+      1142,
+      770,
+      1608,
+      990
+     ]
+    },
+    {
+     "type": "text",
+     "title": "Insights at a Glance",
+     "bbox": [
+      1614,
+      770,
+      1790,
+      990
+     ]
+    }
+   ]
+  },
+  {
+   "id": "CampaignManagementKPI",
+   "tool": "Tableau",
+   "size": [
+    900,
+    1127
+   ],
+   "source": "https://public.tableau.com/app/profile/abu.saleh.rizvee/viz/CampignManagementDashboardKPI/Dashboard1",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     32,
+     1100,
+     808,
+     1127
+    ],
+    [
+     23,
+     123,
+     121,
+     231
+    ],
+    [
+     809,
+     1105,
+     863,
+     1125
+    ],
+    [
+     9,
+     235,
+     136,
+     300
+    ],
+    [
+     10,
+     301,
+     134,
+     351
+    ],
+    [
+     9,
+     353,
+     130,
+     405
+    ],
+    [
+     10,
+     405,
+     133,
+     458
+    ],
+    [
+     9,
+     459,
+     137,
+     509
+    ],
+    [
+     230,
+     45,
+     660,
+     80
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "column",
+     "title": "Revenue Forecast",
+     "bbox": [
+      140,
+      105,
+      383,
+      351
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Passenger Forecast",
+     "bbox": [
+      391,
+      101,
+      637,
+      351
+     ]
+    },
+    {
+     "type": "area",
+     "title": "Average Fare Trends",
+     "bbox": [
+      640,
+      104,
+      889,
+      355
+     ]
+    },
+    {
+     "type": "other",
+     "title": "Campaigns Calendar - Start Date and End Date",
+     "bbox": [
+      143,
+      532,
+      883,
+      820
+     ]
+    },
+    {
+     "type": "other",
+     "title": "Marketing Channel",
+     "bbox": [
+      517,
+      830,
+      889,
+      1102
+     ]
+    },
+    {
+     "type": "other",
+     "title": "Target Audience",
+     "bbox": [
+      135,
+      831,
+      513,
+      1095
+     ]
+    },
+    {
+     "type": "gauge",
+     "title": "Completed (%)",
+     "bbox": [
+      325,
+      365,
+      505,
+      520
+     ]
+    },
+    {
+     "type": "gauge",
+     "title": "In Progress (%)",
+     "bbox": [
+      515,
+      365,
+      690,
+      520
+     ]
+    },
+    {
+     "type": "gauge",
+     "title": "Upcoming (%)",
+     "bbox": [
+      700,
+      365,
+      885,
+      520
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SaaSRevenuePerformance",
+   "tool": "Tableau",
+   "size": [
+    1366,
+    900
+   ],
+   "source": "https://public.tableau.com/app/profile/kate.rina/viz/RevenuePerformanceDashboardSaaSRevenueAnalysis/RevenuePerformanceDashboard",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     21,
+     869,
+     793,
+     899
+    ],
+    [
+     791,
+     873,
+     1333,
+     898
+    ],
+    [
+     1,
+     3,
+     795,
+     28
+    ],
+    [
+     27,
+     36,
+     503,
+     144
+    ],
+    [
+     1181,
+     36,
+     1337,
+     206
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Total Revenue",
+     "bbox": [
+      574,
+      51,
+      756,
+      128
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Paid Users",
+     "bbox": [
+      763,
+      51,
+      926,
+      127
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "ARPPU",
+     "bbox": [
+      931,
+      51,
+      1087,
+      127
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "ARPPU and Paid Users Count",
+     "bbox": [
+      699,
+      171,
+      1339,
+      469
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Monthly Revenue by Product",
+     "bbox": [
+      19,
+      159,
+      681,
+      474
+     ]
+    },
+    {
+     "type": "pivot",
+     "title": "Revenue by Location and Product",
+     "bbox": [
+      21,
+      523,
+      653,
+      869
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Revenue by Location",
+     "bbox": [
+      663,
+      521,
+      985,
+      725
+     ]
+    },
+    {
+     "type": "area",
+     "title": "Location Revenue Share Over Time",
+     "bbox": [
+      997,
+      521,
+      1352,
+      861
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SLAServicePerformance",
+   "tool": "Tableau",
+   "size": [
+    1320,
+    927
+   ],
+   "source": "https://public.tableau.com/app/profile/iretiayo.oyewole/viz/SLAServicePerformanceDashboard/SLAServiceDashboard",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     9,
+     21,
+     172,
+     105
+    ],
+    [
+     7,
+     612,
+     167,
+     889
+    ],
+    [
+     9,
+     897,
+     259,
+     927
+    ],
+    [
+     45,
+     250,
+     141,
+     359
+    ],
+    [
+     184,
+     13,
+     771,
+     93
+    ],
+    [
+     771,
+     15,
+     945,
+     78
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Job Logged",
+     "bbox": [
+      189,
+      108,
+      413,
+      207
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "SLA",
+     "bbox": [
+      425,
+      105,
+      631,
+      208
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Avg. Delay Time",
+     "bbox": [
+      637,
+      97,
+      847,
+      210
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Avg. Resolution Time",
+     "bbox": [
+      856,
+      91,
+      1069,
+      215
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Resolve Time",
+     "bbox": [
+      1079,
+      93,
+      1299,
+      212
+     ]
+    },
+    {
+     "type": "area",
+     "title": "Target Completed by Year",
+     "bbox": [
+      542,
+      226,
+      895,
+      423
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "SLA Target Status By Year",
+     "bbox": [
+      901,
+      223,
+      1299,
+      435
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Job Handled By Top 5 Wards",
+     "bbox": [
+      186,
+      214,
+      529,
+      430
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Avg. Job Delay Time By Year",
+     "bbox": [
+      191,
+      435,
+      587,
+      657
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Total Jobs by Priority",
+     "bbox": [
+      592,
+      432,
+      965,
+      639
+     ]
+    },
+    {
+     "type": "donut",
+     "title": "Job Enquiry by Period",
+     "bbox": [
+      975,
+      439,
+      1299,
+      653
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Top 5 Region By Job Logged",
+     "bbox": [
+      939,
+      663,
+      1297,
+      877
+     ]
+    },
+    {
+     "type": "table",
+     "title": "SLA Performance Stats",
+     "bbox": [
+      207,
+      660,
+      927,
+      885
+     ]
+    }
+   ]
+  },
+  {
+   "id": "looker-business-overview",
+   "tool": "Looker",
+   "size": [
+    1824,
+    1592
+   ],
+   "source": "https://docs.cloud.google.com/static/looker/docs/images/admin-themes-default-example-720.png",
+   "terms": "Google Cloud documentation, CC BY 4.0",
+   "ignore": [
+    [
+     54,
+     736,
+     700,
+     751
+    ],
+    [
+     1491,
+     36,
+     1806,
+     168
+    ],
+    [
+     43,
+     48,
+     442,
+     134
+    ],
+    [
+     55,
+     140,
+     318,
+     295
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "area",
+     "title": "Sales by Product Category",
+     "bbox": [
+      58,
+      757,
+      902,
+      1330
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Sales by Zip Code",
+     "bbox": [
+      929,
+      751,
+      1810,
+      1338
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Orders -Past 90 Days by State",
+     "bbox": [
+      58,
+      334,
+      479,
+      723
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Last Year Total Profit",
+     "bbox": [
+      496,
+      336,
+      909,
+      726
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Past Year State Profit",
+     "bbox": [
+      925,
+      321,
+      1350,
+      743
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Past 90 Days State Profit",
+     "bbox": [
+      1368,
+      307,
+      1772,
+      735
      ]
     }
    ]

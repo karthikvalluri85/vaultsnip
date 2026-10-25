@@ -43,7 +43,7 @@ export const inside = (p, b) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && 
 const ALIAS = { donut: 'pie', bubble: 'scatter' };
 const LENIENT = { combo: ['column', 'line', 'bar'], area: ['area', 'line'], line: ['line', 'area'], waterfall: ['column'] };
 /** Whether a found type matches an annotated one; lenient accepts close cousins (line and area, combo and column). */
-export const same = (got, want, lenient) => { got = ALIAS[got] || got; return got === want || (lenient && (LENIENT[want] || []).includes(got)); };
+export const same = (got, want, lenient) => { got = ALIAS[got] || got; want = ALIAS[want] || want; return got === want || (lenient && (LENIENT[want] || []).includes(got)); };
 
 /**
  * Matches panels to annotated visuals: a visual is found when a panel's centre is inside it and its centre inside the
