@@ -92,7 +92,7 @@ export function buildSpec(input: BuildInput): BuildResult {
   const words = withMasks(ocrWords, input.masks);
   // panels from what the image shows, without the tall blocks the app draws over a column of numbers (they distort them);
   // each panel is then read with the mask-aware words, where a masked value is its grey box
-  const panels = findPanels(img, words.filter((w) => w.kept || w.h <= med * 3.5), med);
+  const panels = findPanels(img, words.filter((w) => w.kept || w.h <= med * 3.5), med, ocrWords);
   const pageBox: Box = [0, 0, W, H];
 
   // the page title: large visible words above every panel, or a full-width text strip at the top

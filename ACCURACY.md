@@ -576,6 +576,34 @@ are unchanged. Misses left: a solid line in nearly a series' own colour joins th
 aligned per-bar target ticks read as a line. The real set has only one labelled reference line, so the generated charts
 carry most of this measurement; more real examples are welcome.
 
+## Phase 4(a), continued: cards on tinted, framed and shaded pages (27 October 2026)
+
+The largest loss on the 27 new real dashboards was a page of cards found as one panel. Three causes, three fixes in the
+panel finder (`src/layout/panels.ts`):
+
+- **Narrow gutters beside a box.** A header box over a sidebar and content, a few pixels apart, left no gutter as wide as
+  the page needs, so nothing was cut. A narrower gutter now counts beside a box's edge: a long line across the region
+  that turns a corner one way at both ends (a table's row line has column lines both ways, a letter's upright is short,
+  and a mask's edge never counts).
+- **Cards in the page's frame colour.** White cards on a light blue page inside a white screenshot frame: the card
+  colour was taken for the page. The finder now also tries the frame's colour.
+- **Shaded cards.** Translucent cards over a gradient page shade from top to bottom, so no single colour is theirs. The
+  finder grows each card through gently changing neighbours from a family of close colours.
+
+The last two run only as a rescue, when the page's cuts leave one region over about half the page and its cards hold
+words (a single chart's bars never count); pages that worked before are read as before, and a report's table is never
+taken for cards.
+
+| 39 real dashboards | Visuals found | Types right (of found) | End to end | Report checks |
+|---|---|---|---|---|
+| Before | 72.4% | 72% | 52.2% | 18/28 |
+| After | **81.1%** | 72.1% | **58.5%** | 18/28 |
+
+Amazon Sales went from 1 of 10 visuals found to 10, Renewals Forecasting from 2 of 11 to 10, Supply Chain from 1 of 9
+to 5, Superset's SaaS dashboard from 1 of 4 to 4. Two charts read right before are now typed wrong (a map cut in two,
+and a combo read as a KPI), against 26 more visuals found. The generated sets are unchanged or better (60 dashboards:
+80.1% end to end against 79.0%).
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

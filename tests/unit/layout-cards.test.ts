@@ -2,7 +2,7 @@
 // cards, and mask grey never taken for a background. Images are drawn here with known geometry.
 import { describe, expect, it } from 'vitest';
 import { buildSpec } from '../../src/layout/index';
-import { findOutlinedCards } from '../../src/layout/panels';
+import { findOutlinedCards, findPanels, findRegions } from '../../src/layout/panels';
 import { background } from '../../src/layout/marks';
 import { labelStacks, type Box, type Img, type Word } from '../../src/layout/image';
 
@@ -163,5 +163,58 @@ describe('an axis of months in order', () => {
     expect(monthsInOrder(['Item 1', 'Feb', 'Item 3', 'Apr', 'Item 5', 'Item 6'])).toEqual(['Item 1', 'Feb', 'Item 3', 'Apr', 'Item 5', 'Item 6']);
     expect(monthsInOrder(['North', 'South', 'East', 'West'])).toEqual(['North', 'South', 'East', 'West']);
     expect(monthsInOrder(['May', 'Jan', 'Sep', 'Mar'])).toEqual(['May', 'Jan', 'Sep', 'Mar']);
+  });
+});
+
+describe('cards on tinted, framed and shaded pages', () => {
+  const BLUE: RGB = [52, 120, 200], ORANGE: RGB = [240, 140, 40];
+  const big = (ps: { b: Box }[], img: Img) => ps.some((p) => (p.b[2] - p.b[0]) * (p.b[3] - p.b[1]) > img.width * img.height * 0.45);
+  /** A small column chart with a title, inside box b. */
+  function chart(img: Img, words: Word[], b: Box, title: string) {
+    words.push(word(title, b[0] + 12, b[1] + 10));
+    // (bars across the card with labels under them, as a chart fills its card)
+    const n = 6, w = (b[2] - b[0] - 60) / n, labels = ['North', 'South', 'East', 'West', 'Central', 'Online'];
+    [0.8, 0.5, 0.65, 0.3, 0.9, 0.45].forEach((h, i) => { const x = Math.round(b[0] + 30 + i * w); fill(img, [x, Math.round(b[3] - 40 - (b[3] - b[1] - 90) * h), Math.round(x + w * 0.7), b[3] - 40], BLUE); words.push(word(labels[i], x, b[3] - 32)); });
+  }
+  it('a framed header 6 px above a framed content box is cut from it (a gutter beside a box edge, on a large page)', () => {
+    const img = canvas(1400, 900);
+    outline(img, [10, 8, 1390, 95], NAVY, 0); fill(img, [40, 40, 380, 62], NAVY);
+    outline(img, [10, 100, 1390, 880], NAVY, 0);
+    [0.8, 0.5, 0.65, 0.3, 0.9, 0.45].forEach((h, k) => fill(img, [60 + k * 220, Math.round(860 - 700 * h), 200 + k * 220, 860], BLUE));
+    const rs = findRegions(img);
+    expect(rs.some((r) => r[1] < 95 && r[3] > 100)).toBe(false);
+    expect(rs.some((r) => r[3] <= 96)).toBe(true);
+  });
+  it('white cards on a light blue page, inside a white frame', () => {
+    const img = canvas(1200, 800), words: Word[] = [];
+    fill(img, [10, 10, 1190, 790], [229, 241, 250]);
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) {
+      const b: Box = [16 + c * 586, 16 + r * 386, 596 + c * 586, 396 + r * 386];
+      fill(img, b, WHITE); outline(img, b, [160, 203, 232]);
+      chart(img, words, b, ['Region', 'Product', 'Quarter', 'Segment'][r * 2 + c]);
+    }
+    const ps = findPanels(img, words, 12);
+    expect(big(ps, img)).toBe(false);
+    expect(ps.length).toBeGreaterThanOrEqual(4);
+  });
+  it('translucent cards over a gradient page, each shading from top to bottom', () => {
+    const img = canvas(1200, 800), words: Word[] = [];
+    for (let y = 0; y < 800; y++) fill(img, [0, y, 1200, y + 1], [Math.round(230 - y * 0.12), Math.round(170 - y * 0.12), Math.round(110 - y * 0.08)]);
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) {
+      const b: Box = [12 + c * 392, 12 + r * 392, 398 + c * 392, 398 + r * 392];
+      for (let y = b[1]; y < b[3]; y++) { const v = Math.round(234 - ((y - b[1]) / (b[3] - b[1])) * 26); fill(img, [b[0], y, b[2], y + 1], [v, v - 6, v - 16]); }
+      chart(img, words, b, ['Sales', 'Orders', 'Units', 'Payment', 'Status', 'Country'][r * 3 + c]);
+    }
+    const ps = findPanels(img, words, 12);
+    expect(big(ps, img)).toBe(false);
+    expect(ps.length).toBeGreaterThanOrEqual(6);
+  });
+  it('a screenshot of one chart is not cut into its bars', () => {
+    const img = canvas(700, 420), words: Word[] = [word('Revenue', 20, 10)];
+    [0.9, 0.6, 0.75, 0.4, 0.85, 0.55].forEach((h, i) => { fill(img, [40 + i * 105, Math.round(400 - 360 * h), 85 + i * 105, 400], BLUE); fill(img, [87 + i * 105, Math.round(400 - 300 * h), 132 + i * 105, 400], ORANGE); });
+    const ps = findPanels(img, words, 12);
+    // (the rescue for merged cards never runs on it: no panel is a bar or two)
+    expect(ps.length).toBeLessThanOrEqual(2);
+    expect(ps.every((p) => p.b[2] - p.b[0] > 300)).toBe(true);
   });
 });

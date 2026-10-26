@@ -5,17 +5,17 @@
  "dashboards": {
   "count": 39,
   "visuals": 301,
-  "found": 218,
-  "foundPct": 72.4,
-  "extraPanels": 63,
-  "typesRightLenient": 157,
-  "typesRightStrict": 148,
-  "typesRightPct": 72,
-  "endToEndPct": 52.2,
+  "found": 244,
+  "foundPct": 81.1,
+  "extraPanels": 72,
+  "typesRightLenient": 176,
+  "typesRightStrict": 168,
+  "typesRightPct": 72.1,
+  "endToEndPct": 58.5,
   "seriesLayout": {
-   "checked": 55,
-   "right": 48,
-   "rightPct": 87.3,
+   "checked": 60,
+   "right": 53,
+   "rightPct": 88.3,
    "wrong": {
     "none→stacked": 1,
     "none→clustered": 3,
@@ -33,18 +33,18 @@
    "Power BI": {
     "dashboards": 14,
     "visuals": 88,
-    "found": 68,
-    "typesRight": 48,
-    "foundPct": 77.3,
-    "typesRightPct": 70.6
+    "found": 69,
+    "typesRight": 49,
+    "foundPct": 78.4,
+    "typesRightPct": 71
    },
    "Tableau": {
     "dashboards": 14,
     "visuals": 161,
-    "found": 107,
-    "typesRight": 74,
-    "foundPct": 66.5,
-    "typesRightPct": 69.2
+    "found": 129,
+    "typesRight": 89,
+    "foundPct": 80.1,
+    "typesRightPct": 69
    },
    "Looker": {
     "dashboards": 6,
@@ -65,10 +65,10 @@
    "Superset": {
     "dashboards": 4,
     "visuals": 24,
-    "found": 19,
-    "typesRight": 13,
-    "foundPct": 79.2,
-    "typesRightPct": 68.4
+    "found": 22,
+    "typesRight": 16,
+    "foundPct": 91.7,
+    "typesRightPct": 72.7
    }
   }
  },
