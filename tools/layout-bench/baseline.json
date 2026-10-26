@@ -7,11 +7,11 @@
   "visuals": 301,
   "found": 251,
   "foundPct": 83.4,
-  "extraPanels": 73,
-  "typesRightLenient": 191,
-  "typesRightStrict": 183,
-  "typesRightPct": 76.1,
-  "endToEndPct": 63.5,
+  "extraPanels": 74,
+  "typesRightLenient": 192,
+  "typesRightStrict": 184,
+  "typesRightPct": 76.5,
+  "endToEndPct": 63.8,
   "seriesLayout": {
    "checked": 59,
    "right": 53,
@@ -41,9 +41,9 @@
     "dashboards": 14,
     "visuals": 161,
     "found": 134,
-    "typesRight": 102,
+    "typesRight": 103,
     "foundPct": 83.2,
-    "typesRightPct": 76.1
+    "typesRightPct": 76.9
    },
    "Looker": {
     "dashboards": 6,

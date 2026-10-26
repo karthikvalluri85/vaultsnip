@@ -625,6 +625,32 @@ KPI cards were the commonest visual on the real set (113 of 301) and among the m
 Still missed: a row of small KPI boxes over a chart on a dark page (SaaS), and borderless cards that come apart into an
 icon, a value and a label (Supply Chain). The generated dashboards rose slightly (80.4% end to end).
 
+## Phase 5: gauges, funnels, Gantt charts and heatmaps (27 October 2026)
+
+The on-device builder now reads four more types, which the replica already draws:
+
+- **Gauge**: a half ring round a centre at its bottom, running from end to end; the value is how far the coloured arc
+  reaches. Read before the KPI rule, since a gauge shows its value big in its middle.
+- **Funnel**: three or more bars centred on one line, narrowing; a funnel's bars, each holding only its masked value, are
+  kept in one panel.
+- **Gantt**: one bar per row, starting at spread-out points (a diverging bar chart's bars all touch its zero line, and are
+  not one).
+- **Heatmap**: a regular grid of cells in shades of one colour, found from colour changes that fall at evenly spaced
+  positions across and down (neighbouring cells of close shades join into one mark, so cell outlines cannot be used).
+
+"Fix it here" offers the four types too. A new generated set (`tools/synth-bench/chart-types.mjs`: Plotly gauges and
+funnels, Vega-Lite Gantt charts and heatmaps, with column, pie and line charts as controls) measures them nightly:
+
+| 40 generated charts | Right |
+|---|---|
+| New types | **89.3%** (gauge 7/8, funnel 6/8, gantt 8/8, heatmap 4/4) |
+| Controls | 100% |
+
+On the real set, the Campaign dashboard's gauge is read as one (the real Gantt and calendar heatmap, relabelled from
+"other", are not yet); nothing read right before is lost. Still open: dark funnels whose connectors join their bars,
+a gauge's value when its progress arc is a darker grey of the same track, and sunbursts (read as donuts; the replica has
+none yet).
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

@@ -1578,7 +1578,8 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // "Fix it here": every visual with its type, title and how sure the builder was; changes redraw the replica
   const FIX_TYPES = [['kpi', 'KPI card'], ['column', 'Column chart'], ['bar', 'Bar chart'], ['line', 'Line chart'], ['area', 'Area chart'], ['pie', 'Pie chart'], ['donut', 'Donut chart'],
-    ['treemap', 'Treemap'], ['scatter', 'Scatter plot'], ['table', 'Table'], ['pivot', 'Matrix (pivot)'], ['text', 'Text'], ['placeholder', 'Something else']];
+    ['treemap', 'Treemap'], ['scatter', 'Scatter plot'], ['gauge', 'Gauge'], ['funnel', 'Funnel'], ['gantt', 'Gantt / timeline'], ['heatmap', 'Heatmap'],
+    ['table', 'Table'], ['pivot', 'Matrix (pivot)'], ['text', 'Text'], ['placeholder', 'Something else']];
   const DEFAULT_MEMBERS = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
   // a visual changed to another type keeps what still applies and gets sensible defaults for the rest
   function convertVisual(v, type) {
@@ -1589,7 +1590,11 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     // (between charts with an axis, stacking and reference lines carry over)
     const axisChart = t => ['column', 'bar', 'line', 'area', 'combo'].includes(t);
     const carry = axisChart(type) && axisChart(v.type) ? { ...(v.stacked ? { stacked: true } : {}), ...(v.stackedPercent ? { stackedPercent: true } : {}), ...(Array.isArray(v.refLines) && v.refLines.length ? { refLines: v.refLines } : {}) } : {};
-    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...carry });
+    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap', 'funnel'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...carry });
+    if (type === 'gauge') return Object.assign(keep, { type, measure, shapeValue: typeof v.shapeValue === 'number' ? v.shapeValue : 60, min: 0, max: 100 });
+    // (a timeline's tasks and a heatmap's rows and columns come from the visual's own members: the context names them)
+    if (type === 'gantt') return Object.assign(keep, { type, tasks: Array.isArray(v.tasks) && v.tasks.length ? v.tasks : dimension.members.map((m, i) => ({ name: m, start: i * 15, end: i * 15 + 25 })), timeLabels: v.timeLabels || [] });
+    if (type === 'heatmap') return Object.assign(keep, { type, measure, rows: v.rows || { name: dimension.name, members: dimension.members }, columns: v.columns || { name: 'Period', members: ['Q1', 'Q2', 'Q3', 'Q4'] }, matrix: v.matrix || dimension.members.map((_, i) => [0, 1, 2, 3].map((k) => (i * 17 + k * 29) % 100)) });
     if (type === 'kpi') return Object.assign(keep, { type, title: '', measure: { ...measure, name: measure.name || v.title || 'KPI' }, sparkline: false });
     if (type === 'scatter') return Object.assign(keep, { type, xMeasure: { name: 'X', format: 'number' }, yMeasure: { name: measure.name || 'Y', format: measure.format || 'number' }, points: Array.from({ length: 16 }, (_, i) => [5 + ((i * 37) % 90), 5 + ((i * 53) % 90), 50]) });
     if (type === 'table') return Object.assign(keep, { type, rowCount: v.rowCount || 6, columns: Array.isArray(v.columns) && v.columns.length ? v.columns : [{ name: dimension.name, kind: 'category', members: dimension.members }, { name: measure.name, kind: measure.format === 'currency' ? 'currency' : 'number', ...(measure.currency ? { currency: measure.currency } : {}) }] });

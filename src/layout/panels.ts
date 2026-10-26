@@ -347,7 +347,7 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
     }
   }
   // a borderless chart can be cut between its marks (bars far apart, no frame): wordless pieces side by side that share a
-  // baseline, or stacked pieces that share a left edge, are one visual
+  // baseline, or stacked pieces that share a left edge or a middle (a funnel's bars), are one visual
   const near = (a: Box, b: Box, axis: 'x' | 'y') => {
     const gap = axis === 'x' ? Math.max(a[0], b[0]) - Math.min(a[2], b[2]) : Math.max(a[1], b[1]) - Math.min(a[3], b[3]);
     const ov = axis === 'x' ? Math.min(a[3], b[3]) - Math.max(a[1], b[1]) : Math.min(a[2], b[2]) - Math.max(a[0], b[0]);
@@ -362,7 +362,9 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
       // visuals even when the upper one's title is masked)
       const q = ps.find((q) => q !== p && !big(p) && !big(q)
         && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length || untitled(p)))
-          || (near(p.b, q.b, 'y') && Math.abs(p.b[0] - q.b[0]) <= 4 && (!p.words.length || !q.words.length))));
+          || (near(p.b, q.b, 'y') && (Math.abs(p.b[0] - q.b[0]) <= 4 || Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8) && (!p.words.length || !q.words.length))
+          // (centred on one line, one above the other, holding nothing but masked values: a funnel's bars)
+          || (Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8 && near(p.b, q.b, 'y') && p.words.every((w) => !w.kept) && q.words.every((w) => !w.kept))));
       if (!q) continue;
       q.b = [Math.min(p.b[0], q.b[0]), Math.min(p.b[1], q.b[1]), Math.max(p.b[2], q.b[2]), Math.max(p.b[3], q.b[3])];
       q.words = wordsIn(words, q.b); ps = ps.filter((x) => x !== p); merged = true; break;

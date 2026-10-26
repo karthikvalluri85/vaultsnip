@@ -206,6 +206,42 @@ describe('chart types and shapes', () => {
     [200, 160, 120, 80].forEach((h, i) => fill(img, [40 + i * 80, 260 - h, 90 + i * 80, 260], BLUE));
     expect((readPanel(img, [0, 0, 420, 300], [], med, 'Sales by Region').fields as { refLines?: unknown[] }).refLines).toBeUndefined();
   });
+  it('gauge: a half ring with a coloured progress arc over a grey track', () => {
+    const img = canvas(400, 260), cx = 200, cy = 230;
+    for (let y = 60; y <= cy; y++) for (let x = 30; x <= 370; x++) {
+      const d = Math.hypot(x - cx, y - cy), a = Math.atan2(cy - y, x - cx);
+      if (d >= 130 && d <= 165 && a >= 0) img.data.set(a >= Math.PI * 0.35 ? BLUE : GREY, (y * img.width + x) * 3);
+    }
+    const r = readPanel(img, [0, 0, 400, 260], [], med, 'Completion');
+    expect(r.type).toBe('gauge');
+    expect(Math.abs((r.fields as { shapeValue: number }).shapeValue - 65)).toBeLessThanOrEqual(6);
+  });
+  it('funnel: bars centred on one line, narrowing downwards', () => {
+    const img = canvas(420, 300), ws: Word[] = [];
+    [360, 280, 200, 120].forEach((w, i) => { fill(img, [210 - w / 2, 30 + i * 65, 210 + w / 2, 80 + i * 65], BLUE); });
+    expect(readPanel(img, [0, 0, 420, 300], ws, med, 'Pipeline').type).toBe('funnel');
+  });
+  it('Gantt: one bar per row, starting at different points', () => {
+    const img = canvas(500, 300), ws: Word[] = [];
+    [[20, 140], [100, 260], [180, 300], [300, 460]].forEach(([a, z], i) => { fill(img, [80 + a / 1.2, 30 + i * 60, 80 + z / 1.2, 70 + i * 60], BLUE); ws.push(word(['Design', 'Build', 'Test', 'Launch'][i], 10, 44 + i * 60, 50)); });
+    const r = readPanel(img, [0, 0, 500, 300], ws, med, 'Project plan');
+    expect(r.type).toBe('gantt');
+    expect((r.fields as { tasks: { name: string }[] }).tasks.map((t) => t.name)).toEqual(['Design', 'Build', 'Test', 'Launch']);
+  });
+  it('a diverging bar chart is a bar chart, not a Gantt chart', () => {
+    const img = canvas(500, 300);
+    [[250, 400], [130, 250], [250, 330], [170, 250]].forEach(([a, z], i) => fill(img, [a, 30 + i * 60, z, 70 + i * 60], GREEN));
+    expect(readPanel(img, [0, 0, 500, 300], [], med, 'Gap by District').type).not.toBe('gantt');
+  });
+  it('heatmap: a regular grid of cells in shades of one colour', () => {
+    const img = canvas(460, 320);
+    for (let r = 0; r < 5; r++) for (let k = 0; k < 6; k++) { const v = (r * 37 + k * 53) % 100; fill(img, [40 + k * 66, 20 + r * 56, 106 + k * 66, 76 + r * 56], [Math.round(230 - v * 1.8), Math.round(240 - v * 1.2), 250]); }
+    const r = readPanel(img, [0, 0, 460, 320], [], med, 'Visits by Hour');
+    expect(r.type).toBe('heatmap');
+    const f = r.fields as { matrix: number[][] };
+    expect(f.matrix.length).toBe(5);
+    expect(f.matrix[0].length).toBe(6);
+  });
   it('line chart: heights follow the line under each axis label', () => {
     const img = canvas(500, 300), ys = [250, 200, 220, 120, 60], xs = [50, 150, 250, 350, 450];
     polyline(img, xs.map((x, i) => [x, ys[i]] as [number, number]), BLUE);

@@ -10,7 +10,7 @@
 import { height, isBigBox, isMaskGrey, keyHex, labelStacks, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
 import { background, bySeries, findMarks, inkTest, isTextSpeck, sameColor, splitColumns, type Mark } from './marks';
 
-export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'map' | 'table' | 'text' | 'placeholder' | 'combo' | 'waterfall';
+export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'map' | 'table' | 'text' | 'placeholder' | 'combo' | 'waterfall' | 'gauge' | 'funnel' | 'gantt' | 'heatmap';
 
 export interface Reading {
   type: ChartType;
@@ -605,6 +605,131 @@ function treemap(c: Ctx): Reading | null {
   return { type: 'treemap', certainty: Math.min(1, tiled), fields: { dimension: { name: c.dName || 'Category', members }, measure: c.measure, series: [{ name: c.measure.name, shape: norm100(tiles.map((t) => t.n)) }] } };
 }
 
+/**
+ * Gauge: an arc round a centre at its bottom (a half ring), a coloured progress arc over a grey track. The value is how
+ * far round the coloured arc reaches, 0-100 (shapeValue).
+ */
+function gauge(c: Ctx): Reading | null {
+  const arcs = c.body.filter((m) => m.fill < 0.7 && m.n >= 30 && width(m.b) >= width(c.b) * 0.08);
+  // (a single piece, or the arc in two: a progress part and the track's remainder, each only part of the half ring)
+  const union = arcs.length >= 2 ? [{ ...arcs[0], b: hull(arcs), keys: arcs.map((a) => a.key) }] : [];
+  const cands = [...arcs.map((m) => ({ ...m, keys: [m.key] })), ...union]
+    .filter((m) => width(m.b) >= width(c.b) * 0.25 && width(m.b) >= height(m.b) * 1.5 && width(m.b) <= height(m.b) * 2.6);
+  for (const m of cands.sort((p, q) => width(q.b) - width(p.b))) {
+    const cx = (m.b[0] + m.b[2]) / 2, cy = m.b[3], R = width(m.b) / 2;
+    // the arc's own pixels lie in a band round the centre (outside the words: the value inside the ring, a label)
+    let n = 0, inBand = 0;
+    const inWord = (x: number, y: number) => c.words.some((w) => x >= w.x - 1 && x <= w.x + w.w + 1 && y >= w.y - 1 && y <= w.y + w.h + 1);
+    for (let y = Math.floor(m.b[1]); y < m.b[3]; y += 2) for (let x = Math.floor(m.b[0]); x < m.b[2]; x += 2) {
+      if (!c.ink(x, y) || !m.keys.some((k) => sameColor(keyAt(c.img, x, y), k)) || inWord(x, y)) continue;
+      n++; const d = Math.hypot(x - cx, y - cy); if (d >= R * 0.45 && d <= R * 1.06) inBand++;
+    }
+    if (n < 30 || inBand < n * 0.9) continue;
+    // (and the ring runs from end to end: its left foot, its top and its right foot all hold it; a rising line does not)
+    const holds = (x0: number, y0: number, x1: number, y1: number) => { for (let y = Math.floor(y0); y < y1; y += 2) for (let x = Math.floor(x0); x < x1; x += 2) if (c.ink(x, y) && m.keys.some((k) => sameColor(keyAt(c.img, x, y), k)) && !inWord(x, y)) return true; return false; };
+    if (!holds(cx - R, cy - R * 0.3, cx - R * 0.45, cy) || !holds(cx - R * 0.3, cy - R, cx + R * 0.3, cy - R * 0.5) || !holds(cx + R * 0.45, cy - R * 0.3, cx + R, cy)) continue;
+    // the ring: every mark in the band; the progress, its vivid part, from the left end round
+    const ring = c.body.filter((o) => { const [ox, oy] = [(o.b[0] + o.b[2]) / 2, (o.b[1] + o.b[3]) / 2]; const d = Math.hypot(ox - cx, oy - cy); return o.b[3] <= cy + 2 && d <= R * 1.05 && Math.hypot(o.b[0] - cx, o.b[3] - cy) <= R * 1.08; });
+    const vivid = ring.filter((o) => satOf(o.key) >= 3);
+    const lum = (k: number) => ((k >> 8) & 15) + ((k >> 4) & 15) + (k & 15);
+    const greys = [...ring].sort((p, q) => lum(p.key) - lum(q.key));
+    const prog = vivid.length ? vivid : greys.length >= 2 && lum(greys[0].key) < lum(greys[greys.length - 1].key) - 3 ? [greys[0]] : [m];
+    let reach = Math.PI;
+    for (const o of prog) for (let y = Math.floor(o.b[1]); y < o.b[3]; y += 2) for (let x = Math.floor(o.b[0]); x < o.b[2]; x += 2) {
+      if (!c.ink(x, y) || !sameColor(keyAt(c.img, x, y), o.key)) continue;
+      const a = Math.atan2(cy - y, x - cx); if (a >= 0 && a < reach) reach = a;
+    }
+    const value = round(((Math.PI - reach) / Math.PI) * 100);
+    return { type: 'gauge' as ChartType, certainty: 0.75, fields: { measure: c.measure, shapeValue: value, min: 0, max: 100 } };
+  }
+  return null;
+}
+
+/** Funnel: three or more horizontal bars, one above another, centred on one line, of different widths. */
+function funnel(c: Ctx): Reading | null {
+  const rs = c.rects.filter((m) => m.n >= 30 && width(m.b) > height(m.b)).sort((p, q) => p.b[1] - q.b[1]);
+  if (rs.length < 3) return null;
+  const mids = rs.map((m) => (m.b[0] + m.b[2]) / 2), mid = [...mids].sort((a, b) => a - b)[mids.length >> 1];
+  const centred = rs.filter((m, i) => Math.abs(mids[i] - mid) <= Math.max(3, width(c.b) * 0.02));
+  if (centred.length < 3 || centred.length < rs.length * 0.8) return null;
+  // one bar per row, of different widths, and not all starting at one left edge (that is a bar chart)
+  if (centred.some((m, i) => i && m.b[1] < centred[i - 1].b[3] - 2)) return null;
+  const ws = centred.map((m) => width(m.b));
+  if (Math.max(...ws) < Math.min(...ws) * 1.3) return null;
+  const members = axisLabels(c.words, centred.map((m) => ({ lo: m.b[1], hi: m.b[3] })), 'y', [c.b[0], Math.min(...centred.map((m) => m.b[0])) + 2], c.med);
+  return { type: 'funnel' as ChartType, certainty: 0.8, fields: { dimension: { name: c.dName || 'Stage', members }, measure: c.measure, series: [{ name: c.measure.name, shape: norm100(ws) }] } };
+}
+
+/** Gantt: three or more horizontal bars, one per row, starting at different points along a shared time axis. */
+function gantt(c: Ctx): Reading | null {
+  const rs = c.rects.filter((m) => m.n >= 30 && width(m.b) > height(m.b)).sort((p, q) => p.b[1] - q.b[1]);
+  if (rs.length < 3 || cv(rs.map((m) => height(m.b))) > 0.25) return null;
+  if (rs.some((m, i) => i && m.b[1] < rs[i - 1].b[3] - 2)) return null;
+  const lefts = rs.map((m) => m.b[0]), x0 = Math.min(...lefts), x1 = Math.max(...rs.map((m) => m.b[2])), span = Math.max(1, x1 - x0);
+  // starts spread along the axis: three or more distinct ones, and no start shared by most bars (a bar chart's bars share
+  // a baseline)
+  const starts = lefts.filter((x, i) => lefts.findIndex((y) => Math.abs(y - x) <= span * 0.03) === i).length;
+  if (starts < 3 || mode(lefts, span * 0.03).n >= rs.length * 0.6) return null;
+  // (a diverging bar chart's bars each touch the zero line, with one end or the other)
+  const ends = rs.flatMap((m) => [m.b[0], m.b[2]]);
+  const zero = mode(ends, Math.max(2, span * 0.01));
+  if (rs.filter((m) => Math.abs(m.b[0] - zero.at) <= Math.max(2, span * 0.01) || Math.abs(m.b[2] - zero.at) <= Math.max(2, span * 0.01)).length >= rs.length * 0.8) return null;
+  // not a funnel: their middles are not on one line
+  const mids = rs.map((m) => (m.b[0] + m.b[2]) / 2);
+  if (Math.max(...mids) - Math.min(...mids) < span * 0.1) return null;
+  const names = axisLabels(c.words, rs.map((m) => ({ lo: m.b[1], hi: m.b[3] })), 'y', [c.b[0], x0 + 2], c.med);
+  const tasks = rs.map((m, i) => ({ name: names[i], start: round(((m.b[0] - x0) / span) * 100), end: round(((m.b[2] - x0) / span) * 100) }));
+  return { type: 'gantt' as ChartType, certainty: 0.75, fields: { tasks, timeLabels: [] } };
+}
+
+/**
+ * Heatmap: a block of cells in a regular grid, each a shade of one scale. Neighbouring cells of close shades join into
+ * one mark, so the grid is found from colour changes instead: down many rows, the changes fall at the same few x, evenly
+ * spaced (the column edges), and across many columns at the same few y (the row edges).
+ */
+function heatmap(c: Ctx): Reading | null {
+  // (cells of close shades join into blobs of any shape: the block is where the sizeable marks are)
+  const big = c.body.filter((m) => m.n >= width(c.b) * height(c.b) * 0.01);
+  if (!big.length) return null;
+  const u = hull(big), pa = width(c.b) * height(c.b);
+  if (width(u) * height(u) < pa * 0.25 || width(u) < 60 || height(u) < 40) return null;
+  const at = (x: number, y: number) => rgbAt(c.img, Math.round(x), Math.round(y));
+  const differ = (p: number[], q: number[]) => Math.max(Math.abs(p[0] - q[0]), Math.abs(p[1] - q[1]), Math.abs(p[2] - q[2])) > 6;
+  const edgesAlong = (horiz: boolean) => {
+    const len = horiz ? width(u) : height(u), counts = new Array(Math.ceil(len)).fill(0), lines = 24;
+    for (let k = 0; k < lines; k++) {
+      const v = horiz ? u[1] + ((k + 0.5) / lines) * height(u) : u[0] + ((k + 0.5) / lines) * width(u);
+      for (let s = 1; s < len; s++) { const p = horiz ? at(u[0] + s - 1, v) : at(v, u[1] + s - 1), q = horiz ? at(u[0] + s, v) : at(v, u[1] + s); if (differ(p, q)) counts[s]++; }
+    }
+    // a cell edge: a position where a colour change shows on many of the lines (each cell differs from some neighbours)
+    const peaks: number[] = [];
+    counts.forEach((n, s) => { if (n >= lines * 0.25 && (!peaks.length || s - peaks[peaks.length - 1] > 3)) peaks.push(s); });
+    return peaks;
+  };
+  const xs = edgesAlong(true), ys = edgesAlong(false);
+  const regular = (ps: number[], len: number) => {
+    if (ps.length < 2) return 0;
+    const all = [0, ...ps, len], gaps = all.slice(1).map((p, i) => p - all[i]), g = [...gaps].sort((a, b) => a - b)[gaps.length >> 1];
+    return gaps.filter((x) => Math.abs(x - g) <= Math.max(3, g * 0.15)).length >= gaps.length * 0.8 ? gaps.length : 0;
+  };
+  const nc = regular(xs, width(u)), nr = regular(ys, height(u));
+  if (nc < 3 || nr < 2 || nc * nr < 9) return null;
+  // each cell's shade: its centre's distance from the background, scaled 0-100
+  const bg = rgbAt(c.img, Math.round(c.b[0] + 2), Math.round(c.b[1] + 2)), dist = (p: number[]) => Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]);
+  const cw = width(u) / nc, ch = height(u) / nr;
+  const raw = Array.from({ length: nr }, (_, r) => Array.from({ length: nc }, (_, k) => dist(at(u[0] + (k + 0.5) * cw, u[1] + (r + 0.5) * ch))));
+  // (one colour scale: the cells' hues agree, where a map's tiles mix greens, blues and greys)
+  const hueOf = (q: number[]) => { const mx = Math.max(...q), mn = Math.min(...q); if (mx - mn < 24) return -1; const [r, g, b] = q; const h = mx === r ? (g - b) / (mx - mn) : mx === g ? 2 + (b - r) / (mx - mn) : 4 + (r - g) / (mx - mn); return ((h * 60) + 360) % 360; };
+  const hues = Array.from({ length: nr * nc }, (_, i) => hueOf(at(u[0] + ((i % nc) + 0.5) * cw, u[1] + (Math.floor(i / nc) + 0.5) * ch))).filter((h) => h >= 0);
+  if (hues.length) { const h0 = [...hues].sort((a, b) => a - b)[hues.length >> 1]; if (hues.filter((h) => Math.min(Math.abs(h - h0), 360 - Math.abs(h - h0)) <= 30).length < hues.length * 0.8) return null; }
+  const lo = Math.min(...raw.flat()), hi = Math.max(...raw.flat(), lo + 1);
+  if (new Set(raw.flat().map((v) => Math.round(v / 12))).size < 3) return null;
+  const matrix = raw.map((row) => row.map((v) => round(((v - lo) / (hi - lo)) * 100)));
+  const rows = axisLabels(c.words, Array.from({ length: nr }, (_, r) => ({ lo: u[1] + r * ch, hi: u[1] + (r + 1) * ch })), 'y', [c.b[0], u[0] + 2], c.med);
+  const cols = axisLabels(c.words, Array.from({ length: nc }, (_, k) => ({ lo: u[0] + k * cw, hi: u[0] + (k + 1) * cw })), 'x', [u[3] - 2, u[3] + c.med * 4], c.med);
+  return { type: 'heatmap' as ChartType, certainty: 0.75, fields: { rows: { name: 'Row', members: rows }, columns: { name: 'Column', members: cols }, matrix, measure: c.measure } };
+}
+
 function kpi(c: Ctx, certainty: number): Reading {
   const small = c.words.filter((w) => !isBigBox(w, c.med) && w.y < c.b[1] + height(c.b) * 0.75);
   const top = small.length ? Math.min(...small.map((w) => w.y)) : 0;
@@ -736,6 +861,9 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const prominent = bigH >= height(b) * 0.12 || (bigMasked.length >= 1 && coverage < 0.012 && body.length <= 4 && words.length <= 6);
   // (a KPI card has one sparkline at most: two or more long coloured lines are a line chart, whatever its masks look like)
   const lineChart = thin.filter((t) => sat(t.key) >= 3).length >= 2;
+  // (a gauge shows its value big in its middle, as a KPI does: its half ring decides first)
+  const gaugeReading = gauge(c);
+  if (gaugeReading) return done(gaugeReading)!;
   if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3) && !lineChart) return done(kpi(c, 0.85))!;
   // a KPI card with a small chart in it (a sparkline, mini columns, an icon) or with its delta and comparison masked too:
   // a really big value, few words and little ink; a chart's own numbers are never that big for its panel
@@ -747,7 +875,10 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // (a waterfall is read before columns: two of its columns may stand on the baseline, but its steps float)
   // (a 100% stack fills a rectangle as a treemap does: its repeated series colours decide)
   const percentBars = barReading && (barReading.fields as { stackedPercent?: boolean }).stackedPercent ? done(combo(barReading)) : null;
-  return percentBars || done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
+  // (a heatmap's cells fill a rectangle as a treemap's tiles do; funnel and
+  // Gantt bars float off any baseline)
+  // (a heatmap first: its columns of cells reach one height, as a 100% stack's do, but in shades of one colour)
+  return done(heatmap(c)) || percentBars || done(funnel(c)) || done(gantt(c)) || done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
     || done(lines(c)) || done(scatter(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)

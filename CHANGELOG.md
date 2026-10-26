@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- **Gauges, funnels, Gantt charts and heatmaps are recognised without a key** and drawn as such in the replica; "Fix it here" offers them too. On generated charts, 89.3% of them are read right.
 - **KPI cards with icons, sparklines and mini charts are read as KPIs**, and KPI tiles that sat in one panel are split apart. On the real benchmark, KPIs read right rose from 60 to 75 of 113, and the share of a dashboard that comes out right from 58.5% to 63.5%.
 - **Dashboards with tinted, framed or shaded cards are no longer read as one big panel.** Narrow gaps between framed boxes, white cards on a coloured page, and cards that shade over a gradient are now told apart. On the real benchmark, visuals found rose from 72.4% to 81.1% and fully right from 52.2% to 58.5%.
 - **Reference lines, and clustered, stacked and 100% stacked charts.** Replicas built on this device now keep a chart's target or average line (solid or dashed, at its value, with its label) and show whether its series sit side by side, stacked or as a 100% stack. In "Fix it here" you can switch between those and add, move or remove a reference line. Answers from your AI key carry them too.
