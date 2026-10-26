@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-27
+
 ### Added
 - **A "Supported charts" page** showing every chart type VaultSnip can rebuild, each drawn live by the replica engine from an invented example. Behind it, one catalogue of chart types now feeds the AI instructions, "Fix it here" and the checks.
 - **An on-device self-check of each replica**: every chart is compared with its panel in the masked image, without anything leaving your device, and the comparison helps choose which uncertain visuals are worth asking your AI key about.
@@ -195,7 +197,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.1...v0.5.2

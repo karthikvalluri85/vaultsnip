@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 *Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes).*
 
-## Features (v0.7.0)
+## Features (v0.8.0)
 
 | Area | Status |
 |---|---|
@@ -41,8 +41,8 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in; replicas quote only words that were readable in the approved image |
 | Exact-payload preview before anything is sent | ✅ |
 | Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
-| Replica: KPI, bar, column, stacked, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table | ✅ Apache ECharts |
-| **Build on this device (beta)** | ✅ no key, nothing sent: panels, chart types (maps, combo and waterfall charts included), shapes, titles and tables read from the masked image in a Web Worker; says how sure it is, and below 90% offers "Fix it here", "Use my AI key" or "Keep this result" |
+| Replica: KPI, bar, column (clustered, stacked, 100% stacked), line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table, with reference lines | ✅ Apache ECharts 6; see the **Supported charts** page in the app |
+| **Build on this device (beta)** | ✅ no key, nothing sent: panels, chart types (maps, combo, waterfall, gauge, funnel, Gantt and heatmap charts included), how series sit and reference lines, shapes, titles and tables read from the masked image in a Web Worker; checks each chart against the masked image; says how sure it is, and below 90% offers "Fix it here", "Use my AI key" or "Keep this result" |
 | **Paginated reports** (SSRS, Crystal, BusinessObjects) | ✅ matrix / cross-tab with grouped headers, subtotals and grand totals; grouped tables with subtotals; report parameters; in every export and share link |
 | Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
 | Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
