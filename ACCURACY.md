@@ -527,6 +527,30 @@ with a key remains the most faithful; the close-ups are the cheaper step between
   replica's flow-map lines have their own escaping tooltip and carry no raw names, so it does not apply; an end-to-end
   check keeps it so. Moving to ECharts 6 is a separate, major upgrade.
 
+## Phase 1(b): the real set grown to 39 dashboards (26 October 2026)
+
+27 more public dashboards were labelled with `tools/layout-bench/annotate.html` and checked against their images: 10 Power
+BI and 3 Looker pages from Microsoft Learn and Google Cloud documentation (CC BY 4.0), 10 Tableau Public Viz of the Day
+dashboards (their authors' content, used for local evaluation only and never sent to any AI), and 4 Apache Superset
+dashboards from its documentation (Apache-2.0), plus 4 more Report Builder reports. They bring dark themes, sidebars,
+dense control-tower layouts, small multiples, gauges, a funnel, a sunburst and a Gantt chart. Slicers and page headers
+are ignore areas, as before. The images are fetched from their sources; none is stored in the repository.
+
+| Real set, on the device | Dashboards | Visuals | Found | Types right (of found) | End to end |
+|---|---|---|---|---|---|
+| The first 12, tuned against | 12 | 80 | 95.0% | 89.5% | 85.0% |
+| The 27 new ones, never tuned against | 27 | 221 | 64.3% | 62.7% | **40.3%** |
+| All 39 (the new baseline) | 39 | 301 | 72.4% | 72.0% | **52.2%** |
+
+Paginated reports: 18 of 28 structure checks right on 7 reports (both new matrix reports fully right; a map and a bar
+chart report are read as a single KPI).
+
+The first 12 are unchanged; the drop is the honest measure on dashboards the builder has never been tuned on. What the
+new ones show, largest first: cards on a tinted or coloured page merged into one panel (a page of ten visuals found as
+one or three); rows of KPI cards with an icon or a sparkline missed; types the builder has no reader for (gauge, funnel,
+Gantt, dot matrix, decomposition tree, sunburst); and some charts read as maps or treemaps. These are the next targets,
+measured on all 39 so that the first 12 cannot regress unseen.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after
@@ -536,7 +560,7 @@ data flow.
 | Phase | What | Why it matters to someone sharing a dashboard | Done when |
 |---|---|---|---|
 | **0. Baseline** | A reproducible benchmark (fetch, read with the app's own review step, score), these definitions and the first figures | Every later change can prove what it does | This page and `baseline.json` exist and anyone can rerun them |
-| **1. Measure leaks** | (a) A generated test set: fictional dashboards drawn with other charting tools than VaultSnip's (so we are not grading our own drawing), in many fonts, themes, sizes and compression levels, with every word's position known. (b) The real set grown to about 40. (c) Each pre-flight finding labelled as a real miss or a false alarm. (d) Recorded AI answers, so the AI-key path is scored too. (e) CI: a quick on-device run on each pull request and the full set nightly, failing if a figure drops | "Never leaks" becomes a measured number per kind of data (emails, names, numbers, IDs) instead of a promise, and we learn why users have something to resolve on almost every screenshot | Leaked area, over-masking and false alarms are reported with confidence intervals; both build paths are scored; CI guards every figure |
+| **1. Measure leaks** | (a) A generated test set: fictional dashboards drawn with other charting tools than VaultSnip's (so we are not grading our own drawing), in many fonts, themes, sizes and compression levels, with every word's position known. (b) The real set grown to about 40 (done: 39 dashboards and 7 reports). (c) Each pre-flight finding labelled as a real miss or a false alarm. (d) Recorded AI answers, so the AI-key path is scored too. (e) CI: a quick on-device run on each pull request and the full set nightly, failing if a figure drops | "Never leaks" becomes a measured number per kind of data (emails, names, numbers, IDs) instead of a promise, and we learn why users have something to resolve on almost every screenshot | Leaked area, over-masking and false alarms are reported with confidence intervals; both build paths are scored; CI guards every figure |
 | **2. Nothing unread stays visible** | A small on-device text-region detector (an Apache-2.0 model, run in the browser) finds every patch of text, whether or not the reader could read it. Any region not covered by a confidently read, allowlisted word is masked. Applies to the app and to the extension's chart blur. Numbers the first pass misses are then masked before the check runs, instead of being left for the user | Text the reader misses (tiny, rotated, coloured) is masked instead of leaking, and the check stops asking the user to fix the first pass's misses | Leaked area falls; items to resolve per image fall from about 7 towards 1; over-masking rises no more than an agreed margin; reading time no slower than 18 s median |
 | **2b. Better reader, if it wins** | Compare a stronger on-device reader with Tesseract on the Phase 1 set; switch only if it wins | More words kept readable, so better titles and labels | Data-backed decision either way |
 | **3. A catalogue of chart types** | One schema of every chart type VaultSnip draws, with the data shape each needs. The AI prompt, a strict answer format for each provider, a check that each type is drawn, and a public gallery are all generated from it | Fewer malformed or invented answers from the AI; users can see what is supported | No malformed answers across recorded runs; adding a type means changing one file |

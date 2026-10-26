@@ -1,5 +1,5 @@
 {
- "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), table, pivot, map, scatter, treemap, waterfall, combo (bars + line), gauge, funnel, text, and other for a visual of a kind the builder has no type for (a Gantt chart, a dot matrix, a decomposition tree). Labelled with tools/layout-bench/annotate.html.",
+ "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), sunburst, table, pivot, map, scatter, treemap, waterfall, combo (bars + line), gauge, funnel, text, and other for a visual of a kind the builder has no type for (a Gantt chart, a dot matrix, a decomposition tree). Labelled with tools/layout-bench/annotate.html.",
  "dashboards": [
   {
    "id": "sample-it-spend_it3",
@@ -3138,6 +3138,132 @@
    ]
   },
   {
+   "id": "Superstore2026Dark",
+   "tool": "Tableau",
+   "size": [
+    1400,
+    1027
+   ],
+   "source": "https://public.tableau.com/app/profile/michal.polewiak/viz/Superstore2026_17837711692360/Summary",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     57,
+     124,
+     631,
+     191
+    ],
+    [
+     616,
+     39,
+     781,
+     99
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Profit",
+     "bbox": [
+      382,
+      273,
+      703,
+      408
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Sales",
+     "bbox": [
+      59,
+      274,
+      381,
+      412
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Orders",
+     "bbox": [
+      700,
+      276,
+      1016,
+      410
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Customers",
+     "bbox": [
+      1023,
+      276,
+      1341,
+      404
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Sales YTD by Managers",
+     "bbox": [
+      918,
+      415,
+      1335,
+      671
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Sales YTD by Segment",
+     "bbox": [
+      490,
+      413,
+      912,
+      681
+     ]
+    },
+    {
+     "type": "other",
+     "title": "Sales in the Last Month",
+     "bbox": [
+      63,
+      417,
+      478,
+      673
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Sales YTD by Category",
+     "bbox": [
+      494,
+      681,
+      913,
+      940
+     ]
+    },
+    {
+     "type": "bar",
+     "title": "Sales YTD by Top 5 Sub-categories",
+     "bbox": [
+      922,
+      682,
+      1341,
+      943
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Sales YTD by State",
+     "bbox": [
+      59,
+      681,
+      481,
+      942
+     ]
+    }
+   ]
+  },
+  {
    "id": "SaaSRevenuePerformance",
    "tool": "Tableau",
    "size": [
@@ -3257,6 +3383,182 @@
       521,
       1352,
       861
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SalesAgentPerformance",
+   "tool": "Tableau",
+   "size": [
+    1600,
+    927
+   ],
+   "source": "https://public.tableau.com/app/profile/agnieszka.wojtkowiak4200/viz/SalesAgentPerformanceVOTDVizOfTheDay/ConversionKPIs",
+   "terms": "Tableau Public (Viz of the Day); author's content, used for local evaluation only",
+   "ignore": [
+    [
+     18,
+     6,
+     292,
+     253
+    ],
+    [
+     26,
+     853,
+     271,
+     897
+    ],
+    [
+     648,
+     884,
+     1580,
+     927
+    ],
+    [
+     22,
+     899,
+     322,
+     927
+    ],
+    [
+     4,
+     268,
+     295,
+     323
+    ],
+    [
+     6,
+     353,
+     285,
+     423
+    ],
+    [
+     43,
+     440,
+     274,
+     848
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Performance Score",
+     "bbox": [
+      332,
+      30,
+      733,
+      201
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Performance Score by Month",
+     "bbox": [
+      332,
+      213,
+      533,
+      437
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Conversion",
+     "bbox": [
+      753,
+      26,
+      1155,
+      199
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Conversion by Month",
+     "bbox": [
+      753,
+      212,
+      954,
+      439
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Volume Conversion",
+     "bbox": [
+      1180,
+      30,
+      1557,
+      201
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Volume Conversion by Month",
+     "bbox": [
+      1180,
+      213,
+      1369,
+      437
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Leads",
+     "bbox": [
+      328,
+      458,
+      734,
+      630
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Leads by Month",
+     "bbox": [
+      328,
+      642,
+      531,
+      867
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Sales Volume",
+     "bbox": [
+      756,
+      458,
+      1157,
+      630
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Sales Volume by Month",
+     "bbox": [
+      756,
+      642,
+      957,
+      867
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Cancellation Rate",
+     "bbox": [
+      1177,
+      460,
+      1556,
+      630
+     ]
+    },
+    {
+     "type": "combo",
+     "title": "Cancellation Rate by Month",
+     "bbox": [
+      1177,
+      642,
+      1367,
+      865
      ]
     }
    ]
@@ -3535,6 +3837,556 @@
       307,
       1772,
       735
+     ]
+    }
+   ]
+  },
+  {
+   "id": "looker-order-data",
+   "tool": "Looker",
+   "size": [
+    1414,
+    888
+   ],
+   "source": "https://docs.cloud.google.com/static/looker/docs/images/dashboard-beta-last-updated-718.png",
+   "terms": "Google Cloud documentation, CC BY 4.0",
+   "ignore": [
+    [
+     686,
+     12,
+     1243,
+     241
+    ],
+    [
+     617,
+     233,
+     1070,
+     278
+    ],
+    [
+     1256,
+     138,
+     1294,
+     181
+    ],
+    [
+     46,
+     202,
+     281,
+     297
+    ],
+    [
+     287,
+     196,
+     853,
+     292
+    ],
+    [
+     48,
+     110,
+     230,
+     170
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "map",
+     "title": "Customer Info by State",
+     "bbox": [
+      46,
+      348,
+      694,
+      812
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Key Category Orders by Date",
+     "bbox": [
+      715,
+      330,
+      1365,
+      852
+     ]
+    }
+   ]
+  },
+  {
+   "id": "looker-order-analysis-edit",
+   "tool": "Looker",
+   "size": [
+    2200,
+    1144
+   ],
+   "source": "https://docs.cloud.google.com/static/looker/docs/images/dboards-editing-2400.png",
+   "terms": "Google Cloud documentation, CC BY 4.0",
+   "ignore": [
+    [
+     18,
+     18,
+     2184,
+     143
+    ],
+    [
+     50,
+     182,
+     2167,
+     446
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "map",
+     "title": "Users by State",
+     "bbox": [
+      55,
+      500,
+      1084,
+      1097
+     ]
+    },
+    {
+     "type": "donut",
+     "title": "Top Sales by Category",
+     "bbox": [
+      1109,
+      500,
+      2137,
+      1097
+     ]
+    }
+   ]
+  },
+  {
+   "id": "superset-saas-growth",
+   "tool": "Superset",
+   "size": [
+    1600,
+    900
+   ],
+   "source": "https://raw.githubusercontent.com/apache/superset/fb79c3c16d890b65a167ce3758e5cd30e3a3e264/docs/static/img/hero-screenshot.jpg",
+   "terms": "Apache Superset documentation, Apache-2.0",
+   "ignore": [
+    [
+     3,
+     58,
+     189,
+     113
+    ],
+    [
+     13,
+     10,
+     538,
+     52
+    ],
+    [
+     1432,
+     73,
+     1591,
+     106
+    ],
+    [
+     908,
+     69,
+     1137,
+     108
+    ],
+    [
+     661,
+     67,
+     899,
+     111
+    ],
+    [
+     421,
+     69,
+     657,
+     113
+    ],
+    [
+     207,
+     70,
+     418,
+     111
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Paid Customers",
+     "bbox": [
+      32,
+      119,
+      533,
+      507
+     ]
+    },
+    {
+     "type": "map",
+     "title": "Customers by Country",
+     "bbox": [
+      549,
+      111,
+      1455,
+      509
+     ]
+    },
+    {
+     "type": "pie",
+     "title": "Customers by company size",
+     "bbox": [
+      31,
+      523,
+      790,
+      900
+     ]
+    },
+    {
+     "type": "column",
+     "title": "ACV distribution",
+     "bbox": [
+      818,
+      518,
+      1549,
+      892
+     ]
+    }
+   ]
+  },
+  {
+   "id": "superset-sales",
+   "tool": "Superset",
+   "size": [
+    1280,
+    1113
+   ],
+   "source": "https://raw.githubusercontent.com/apache/superset/fb79c3c16d890b65a167ce3758e5cd30e3a3e264/docs/static/img/screenshots/dashboard.jpg",
+   "terms": "Apache Superset documentation, Apache-2.0",
+   "ignore": [
+    [
+     1085,
+     19,
+     1279,
+     135
+    ],
+    [
+     446,
+     65,
+     863,
+     115
+    ],
+    [
+     270,
+     77,
+     439,
+     108
+    ],
+    [
+     11,
+     197,
+     251,
+     253
+    ],
+    [
+     6,
+     263,
+     254,
+     355
+    ],
+    [
+     5,
+     361,
+     252,
+     434
+    ],
+    [
+     10,
+     438,
+     247,
+     507
+    ],
+    [
+     8,
+     512,
+     259,
+     590
+    ],
+    [
+     6,
+     593,
+     255,
+     661
+    ],
+    [
+     5,
+     668,
+     257,
+     822
+    ],
+    [
+     59,
+     922,
+     216,
+     1013
+    ],
+    [
+     0,
+     0,
+     1280,
+     60
+    ],
+    [
+     0,
+     60,
+     260,
+     1113
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "kpi",
+     "title": "Total Revenue",
+     "bbox": [
+      273,
+      187,
+      514,
+      397
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Total Products Sold",
+     "bbox": [
+      275,
+      412,
+      515,
+      610
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Products Sold By Product Line",
+     "bbox": [
+      275,
+      627,
+      510,
+      1019
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Quarterly Revenue (By Product Line)",
+     "bbox": [
+      524,
+      626,
+      1011,
+      1035
+     ]
+    },
+    {
+     "type": "donut",
+     "title": "Total Revenue By Product",
+     "bbox": [
+      1029,
+      632,
+      1268,
+      1037
+     ]
+    },
+    {
+     "type": "text",
+     "title": "Vehicle Sales",
+     "bbox": [
+      1031,
+      190,
+      1272,
+      625
+     ]
+    },
+    {
+     "type": "column",
+     "title": "Quarterly Revenue",
+     "bbox": [
+      526,
+      198,
+      1012,
+      611
+     ]
+    }
+   ]
+  },
+  {
+   "id": "superset-slack",
+   "tool": "Superset",
+   "size": [
+    3024,
+    1710
+   ],
+   "source": "https://raw.githubusercontent.com/apache/superset/fb79c3c16d890b65a167ce3758e5cd30e3a3e264/docs/static/img/screenshots/slack_dash.jpg",
+   "terms": "Apache Superset documentation, Apache-2.0",
+   "ignore": [
+    [
+     0,
+     0,
+     3024,
+     95
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "area",
+     "title": "Messages per Channel",
+     "bbox": [
+      59,
+      689,
+      2953,
+      1672
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Top Timezones for Members",
+     "bbox": [
+      2010,
+      135,
+      2984,
+      675
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "New Members per Month",
+     "bbox": [
+      1516,
+      139,
+      1996,
+      669
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Weekly Messages",
+     "bbox": [
+      1024,
+      129,
+      1501,
+      671
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Weekly Threads",
+     "bbox": [
+      541,
+      135,
+      1009,
+      669
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "Number of Members",
+     "bbox": [
+      50,
+      435,
+      530,
+      673
+     ]
+    }
+   ]
+  },
+  {
+   "id": "superset-world-bank",
+   "tool": "Superset",
+   "size": [
+    3064,
+    1828
+   ],
+   "source": "https://raw.githubusercontent.com/apache/superset/fb79c3c16d890b65a167ce3758e5cd30e3a3e264/docs/static/img/tutorial/dashboard.png",
+   "terms": "Apache Superset documentation, Apache-2.0",
+   "ignore": [
+    [
+     60,
+     154,
+     533,
+     441
+    ],
+    [
+     25,
+     14,
+     397,
+     97
+    ]
+   ],
+   "visuals": [
+    {
+     "type": "sunburst",
+     "title": "Rural Breakdown",
+     "bbox": [
+      1544,
+      787,
+      2288,
+      1251
+     ]
+    },
+    {
+     "type": "table",
+     "title": "Most Populated Countries",
+     "bbox": [
+      2297,
+      139,
+      3028,
+      1230
+     ]
+    },
+    {
+     "type": "map",
+     "title": "% Rural",
+     "bbox": [
+      563,
+      148,
+      2288,
+      776
+     ]
+    },
+    {
+     "type": "kpi",
+     "title": "World's Population",
+     "bbox": [
+      53,
+      470,
+      519,
+      763
+     ]
+    },
+    {
+     "type": "line",
+     "title": "Growth Rate",
+     "bbox": [
+      55,
+      794,
+      1535,
+      1249
+     ]
+    },
+    {
+     "type": "scatter",
+     "title": "Life Expectancy VS Rural %",
+     "bbox": [
+      1053,
+      1276,
+      3025,
+      1828
+     ]
+    },
+    {
+     "type": "area",
+     "title": "World's Pop Growth",
+     "bbox": [
+      47,
+      1270,
+      1029,
+      1828
      ]
     }
    ]

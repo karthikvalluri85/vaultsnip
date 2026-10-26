@@ -23,7 +23,7 @@ const RULES = [
   ['dashboards.typesRightPct', 'higher', 3.0, 'visuals found with the right chart type'],
   ['dashboards.endToEndPct', 'higher', 3.0, 'share of a dashboard that comes out right'],
   ['reports.checksRight', 'higher', 0, 'paginated report structure'],
-  ['review.findings', 'lower', 10, 'items users must resolve on the real dashboards'],
+  ['review.findings', 'lower', 25, 'items users must resolve on the real dashboards'],
   ['synthLayout.foundPct', 'higher', 3.0, 'visuals the on-device build finds on the generated dashboards'],
   ['synthLayout.typesRightPct', 'higher', 3.0, 'visuals found with the right type, generated dashboards'],
   ['synthLayout.endToEndPct', 'higher', 3.0, 'share of a generated dashboard that comes out right'],

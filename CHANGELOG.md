@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- **A real benchmark three times the size.** 39 public dashboards (Power BI, Tableau, Looker and, new, Apache Superset) and 7 paginated reports, labelled with a new local labelling page (`tools/layout-bench/annotate.html`). On the 27 dashboards the builder was never tuned on, it gets 40% of visuals fully right, against 85% on the first 12: the figure every improvement is now measured by.
 - **Check only the uncertain visuals with your AI key.** When a dashboard built on this device is below 90% sure, a new button sends only the visuals it is unsure of (at most six), each cut from the masked image you approved, and replaces those visuals alone. On the generated benchmark this lifts the result from 82% to 89% right end to end for about half the cost of sending whole pages.
 - **Fewer slanted labels masked by mistake.** A slanted axis label the reader could only half read gets a second, straightened reading; when that reading is confident and safe, the label stays visible. Safe labels masked on the generated benchmark fall from 9.3% to 8.7%, with no more sensitive text exposed.
 - **No more placeholder boxes for unrecognised charts.** A chart the on-device builder cannot type is drawn as a best guess, marked *Check* in "Fix it here"; a visual with nothing to draw says plainly how to fix it.
