@@ -8,7 +8,7 @@
  * Labels come only from words that stayed visible; masked labels become "Item N".
  */
 import { height, isBigBox, isMaskGrey, keyHex, labelStacks, rgbAt, width, wordCenter, type Box, type Img, type Word } from './image';
-import { bySeries, findMarks, inkTest, isTextSpeck, sameColor, splitColumns, type Mark } from './marks';
+import { background, bySeries, findMarks, inkTest, isTextSpeck, sameColor, splitColumns, type Mark } from './marks';
 
 export type ChartType = 'kpi' | 'column' | 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'treemap' | 'map' | 'table' | 'text' | 'placeholder' | 'combo' | 'waterfall';
 
@@ -177,6 +177,8 @@ interface Ctx {
   img: Img; b: Box; words: Word[]; med: number; title: string;
   ink: (x: number, y: number) => boolean;
   body: Mark[]; rects: Mark[]; thin: Mark[]; markArea: number; coverage: number;
+  /** Every mark, small ones included, but not legend swatches (the dashes of a reference line are small). */
+  all: Mark[];
   nameOf: (key: number) => string; measure: { name: string; format: string; currency?: string }; dName: string; plot: Box;
 }
 
@@ -241,8 +243,144 @@ function pie(c: Ctx): Reading | null {
 }
 
 /** Columns or bars: solid rectangles of one thickness sharing a baseline. */
+/** A reference line across a chart, in the series' 0-100 shape units, with the words that name it. */
+export interface RefLine { name: string; shape: number; dashed?: boolean }
+const satOf = (k: number) => { const r = (k >> 8) & 15, g = (k >> 4) & 15, b = k & 15; return Math.max(r, g, b) - Math.min(r, g, b); };
+
+/**
+ * Reference lines (a target, an average, a threshold): straight lines at one value across most of the plot, drawn over
+ * or behind the series. Along a column or line chart they run across (dir 'h'); along a bar chart, up and down ('v').
+ * What makes one, and not a gridline, an axis or a row of text:
+ * - it lies inside the value range (`range`, between the baseline and the plot's far edge), not on or past the baseline,
+ *   where axis lines and category labels are;
+ * - it stands out from the panel's background (gridlines are faint);
+ * - it is one unbroken rule in a colour that is not a series' (a few pieces at most, where it crosses words or bars),
+ *   or evenly spaced dashes, found pixel row by pixel row because a dash can be a few pixels, below what counts as a
+ *   mark (a series line crossing the dashes leaves a few odd gaps);
+ * - it is alone in its colour: three or more such rows of one colour are gridlines, solid or dashed.
+ * At most two. `span` is the extent the series cover along the line, and `toShape` maps a position on the value axis to
+ * the series' 0-100 shape units.
+ */
+function refLines(c: Ctx, dir: 'h' | 'v', span: [number, number], range: [number, number], toShape: (p: number) => number, seriesKeys: number[] = []): RefLine[] {
+  const len = (m: Mark) => (dir === 'h' ? width(m.b) : height(m.b)), thick = (m: Mark) => (dir === 'h' ? height(m.b) : width(m.b));
+  const pos = (m: Mark) => (dir === 'h' ? (m.b[1] + m.b[3]) / 2 : (m.b[0] + m.b[2]) / 2);
+  const lo = (m: Mark) => (dir === 'h' ? m.b[0] : m.b[1]), hi = (m: Mark) => (dir === 'h' ? m.b[2] : m.b[3]);
+  const maxThick = Math.max(3, Math.round(c.med * 0.3));
+  const [r0, r1] = [Math.min(...range), Math.max(...range)];
+  const inRange = (q: number) => q > r0 && q < r1;
+  // (long in itself too: half of a chart read as a single bar is a few pixels)
+  const extent = Math.max(1, span[1] - span[0]), minLen = Math.max(extent * 0.5, c.med * 6);
+  // (contrast: from the panel's background, by luminance; a coloured line may be a little paler than a grey one)
+  const [br, bgG, bb] = background(c.img, c.b), bgLum = 0.3 * br + 0.59 * bgG + 0.11 * bb;
+  const lumOf = (k: number) => 0.3 * ((k >> 8) & 15) * 17 + 0.59 * ((k >> 4) & 15) * 17 + 0.11 * (k & 15) * 17;
+  const stands = (k: number) => Math.abs(lumOf(k) - bgLum) >= (satOf(k) >= 3 ? 35 : 70);
+  type Row = { key: number; at: number; a: number; z: number; dashed: boolean };
+  const found: Row[] = [];
+
+  // solid rules: marks a few pixels thick, long, in one or a few pieces covering their length
+  const series = (x: number, y: number) => x >= 0 && y >= 0 && x < c.img.width && y < c.img.height && seriesKeys.some((k) => sameColor(k, keyAt(c.img, x, y)));
+  const pieces = c.all.filter((m) => thick(m) <= maxThick && len(m) >= 3 && len(m) >= thick(m) * 2 && hi(m) > span[0] && lo(m) < span[1] && inRange(pos(m)));
+  const groups: { key: number; at: number; ms: Mark[] }[] = [];
+  for (const m of pieces.sort((p, q) => lo(p) - lo(q))) {
+    const g = groups.find((g) => sameColor(g.key, m.key) && Math.abs(g.at - pos(m)) <= 2);
+    if (g) g.ms.push(m); else groups.push({ key: m.key, at: pos(m), ms: [m] });
+  }
+  for (const g of groups) {
+    const a = Math.min(...g.ms.map(lo)), z = Math.max(...g.ms.map(hi)), cover = g.ms.reduce((s, m) => s + len(m), 0) / Math.max(1, z - a);
+    // (never in a series' own colour: a zigzag line's peaks at one height look like dashes)
+    if (z - a < minLen || seriesKeys.some((k) => sameColor(k, g.key))) continue;
+    // (solid: a few pieces covering the length, where antialiased edges or words break it; dashed: evenly spaced dashes
+    // large enough to be marks, such as dashes drawn over bars, which the pixel scan below cannot tell from the bars)
+    const ms = [...g.ms].sort((p, q) => lo(p) - lo(q)), gaps = ms.slice(1).map((m, j) => lo(m) - hi(ms[j])).filter((x) => x > 0);
+    const usual = [...gaps].sort((p, q) => p - q)[gaps.length >> 1];
+    const even = gaps.length >= 4 && gaps.filter((x) => Math.abs(x - usual) <= Math.max(3, usual * 0.5)).length >= gaps.length * 0.7;
+    if (g.ms.length <= 8 && cover >= 0.9) found.push({ key: g.key, at: g.at, a, z, dashed: false });
+    else if (g.ms.length >= 5 && even && cover >= 0.25 && cover < 0.9 && usual <= Math.max(10, c.med)) found.push({ key: g.key, at: g.at, a, z, dashed: true });
+  }
+
+  // dashes: each pixel row (or column) inside the value range, outside words, as runs of ink
+  const [bx0, by0] = [Math.max(0, Math.floor(c.b[0])), Math.max(0, Math.floor(c.b[1]))];
+  const bw = Math.min(c.img.width, Math.ceil(c.b[2])) - bx0, bh = Math.min(c.img.height, Math.ceil(c.b[3])) - by0;
+  const wordAt = new Uint8Array(Math.max(0, bw * bh));
+  for (const w of c.words) for (let y = Math.max(0, Math.floor(w.y - by0) - 1); y < Math.min(bh, Math.ceil(w.y + w.h - by0) + 1); y++)
+    for (let x = Math.max(0, Math.floor(w.x - bx0) - 1); x < Math.min(bw, Math.ceil(w.x + w.w - bx0) + 1); x++) wordAt[y * bw + x] = 1;
+  const xy = (u: number, v: number): [number, number] => (dir === 'h' ? [u, v] : [v, u]);
+  // (a series' own colour is not a dash: where dashes cross bars, the bars between them would join the runs; nor is a
+  // pixel next to it, the antialiased edge of a series line, which a zigzag line leaves at one height again and again)
+  const on = (u: number, v: number) => {
+    const [x, y] = xy(u, v);
+    if (x < bx0 || y < by0 || x >= bx0 + bw || y >= by0 + bh || wordAt[(y - by0) * bw + (x - bx0)] || !c.ink(x, y) || series(x, y)) return false;
+    return !(series(x + 1, y) || series(x - 1, y) || series(x, y + 1) || series(x, y - 1));
+  };
+  const dashRows: (Row & { runs: number })[] = [];
+  for (let v = Math.ceil(r0) + 1; v < r1; v++) {
+    const runs: [number, number][] = [];
+    for (let u = Math.max(0, Math.floor(span[0])), s = -1; u <= Math.ceil(span[1]); u++) {
+      const ink = u < Math.ceil(span[1]) && on(u, v);
+      if (ink && s < 0) s = u;
+      if (!ink && s >= 0) { runs.push([s, u]); s = -1; }
+    }
+    if (runs.length < 8) continue;
+    // (a dash has clear space on both sides of the line, just past its thickness; the tips of a zigzag line's peaks, at
+    // one height and evenly spaced, have the line itself on one side)
+    const off = maxThick + 1, clear = (u: number, d: number) => { const [x, y] = xy(u, v + d); return !c.ink(x, y); };
+    if (runs.filter(([s, e]) => { const u = Math.floor((s + e) / 2); return clear(u, -off) && clear(u, off); }).length < runs.length * 0.6) continue;
+    const lens = runs.map(([s, e]) => e - s), gaps = runs.slice(1).map(([s], j) => s - runs[j][1]);
+    const mid = (xs: number[]) => [...xs].sort((p, q) => p - q)[xs.length >> 1];
+    const ml = mid(lens), mg = mid(gaps);
+    // (dashes are short and close together: a series line crossing a row of pixels leaves runs far apart)
+    if (ml < 2 || ml > Math.max(14, c.med * 1.2) || mg < 2 || mg > Math.max(10, c.med)) continue;
+    if (gaps.filter((g) => Math.abs(g - mg) <= Math.max(2, mg * 0.5)).length < gaps.length * 0.7) continue;
+    if (lens.filter((l) => Math.abs(l - ml) <= Math.max(2, ml * 0.5)).length < lens.length * 0.7) continue;
+    const a = runs[0][0], z = runs[runs.length - 1][1], cover = lens.reduce((s, l) => s + l, 0) / Math.max(1, z - a);
+    if (z - a < minLen || cover < 0.2 || cover > 0.85) continue;
+    // the dashes' colour: the commonest among their middles
+    const keys = runs.map(([s, e]) => { const [x, y] = xy(Math.floor((s + e) / 2), v); return keyAt(c.img, x, y); });
+    const count = (k: number) => keys.filter((o) => sameColor(o, k)).length;
+    const key = keys.reduce((best, k) => (count(k) > count(best) ? k : best), keys[0]);
+    // (one line drawn over two or three pixel rows: the row with the most dashes stands for it)
+    const prev = dashRows[dashRows.length - 1];
+    if (prev && v - prev.at <= 2 && sameColor(prev.key, key)) { if (runs.length > prev.runs) Object.assign(prev, { at: v, a, z, runs: runs.length }); continue; }
+    dashRows.push({ key, at: v, a, z, dashed: true, runs: runs.length });
+  }
+  // (the same dashes found as marks and by the scan count once)
+  found.push(...dashRows.filter((r) => !found.some((o) => o.dashed && sameColor(o.key, r.key) && Math.abs(o.at - r.at) <= 3)));
+  const lines = found.filter((r) => stands(r.key) && found.filter((o) => sameColor(o.key, r.key) && o.dashed === r.dashed).length < 3);
+  // (above the tallest series value, a stack's total for instance, the shape passes 100)
+  return lines.slice(0, 2).map((r) => ({ name: refName(c, dir, r.at, r.a, r.z, inRange) || 'Target', shape: Math.max(0, Math.min(400, Math.round(toShape(r.at)))), ...(r.dashed ? { dashed: true } : {}) }));
+}
+
+/** A reference line's name: readable words beside it (on the plot side of the baseline, near the line), without numbers. */
+function refName(c: Ctx, dir: 'h' | 'v', at: number, a: number, z: number, inRange: (q: number) => boolean) {
+  const near = c.words.filter((w) => w.kept && w.text && /[a-z]/i.test(w.text) && (dir === 'h'
+    ? Math.abs(w.y + w.h / 2 - at) <= c.med * 1.6 && inRange(w.y + w.h / 2) && w.x + w.w >= a - c.med * 6 && w.x <= z + c.med * 6
+    : Math.abs(w.x + w.w / 2 - at) <= c.med * 4 && inRange(w.x + w.w / 2) && (w.y + w.h <= a + c.med * 2 || w.y >= z - c.med * 2)));
+  return near.sort((p, q) => p.x - q.x).slice(0, 3).map((w) => w.text.replace(/[\d.,%$€£:]+/g, '').trim()).filter(Boolean).join(' ');
+}
+
 function bars(c: Ctx): Reading | null {
-  const rs = c.rects.filter((m) => m.n >= 20);
+  // (a solid reference line is a long rule a few pixels thick, not a bar)
+  // (across most of the panel; one or two of them: many thin tall marks are a dense column chart's columns)
+  const thinLong = (m: Mark) => Math.min(width(m.b), height(m.b)) <= Math.max(3, Math.round(c.med * 0.3)) && Math.max(width(m.b), height(m.b)) >= Math.min(width(m.b), height(m.b)) * 15
+    && (width(m.b) >= height(m.b) ? width(m.b) >= width(c.b) * 0.4 : height(m.b) >= height(c.b) * 0.4);
+  const rules = c.rects.filter(thinLong);
+  const rule = (m: Mark) => rules.length <= 2 && rules.includes(m);
+  // (a line drawn over the bars cuts each one it crosses in two: pieces of one colour, one above the other with the same
+  // sides, a rule's thickness apart, are one bar again; likewise side by side for horizontal bars)
+  const gap = Math.max(3, Math.round(c.med * 0.3)) + 2;
+  const joined: Mark[] = [];
+  // (only across a line: the gap's middle is ink of another colour, and so is the gap's line just past the bar's side;
+  // neighbouring bars have background between, and dense columns' separators stop where the columns do)
+  const lineAt = (x: number, y: number, key: number) => c.ink(Math.round(x), Math.round(y)) && !sameColor(keyAt(c.img, Math.round(x), Math.round(y)), key);
+  for (const m of c.rects.filter((m) => m.n >= 20 && !rule(m)).sort((p, q) => p.b[1] - q.b[1] || p.b[0] - q.b[0])) {
+    const o = joined.find((o) => sameColor(o.key, m.key) && (
+      (Math.abs(o.b[0] - m.b[0]) <= 1 && Math.abs(o.b[2] - m.b[2]) <= 1 && m.b[1] - o.b[3] >= 0 && m.b[1] - o.b[3] <= gap && lineAt((m.b[0] + m.b[2]) / 2, (o.b[3] + m.b[1]) / 2, m.key) && (lineAt(m.b[0] - 3, (o.b[3] + m.b[1]) / 2, m.key) || lineAt(m.b[2] + 2, (o.b[3] + m.b[1]) / 2, m.key)))
+      || (Math.abs(o.b[1] - m.b[1]) <= 1 && Math.abs(o.b[3] - m.b[3]) <= 1 && m.b[0] - o.b[2] >= 0 && m.b[0] - o.b[2] <= gap && lineAt((o.b[2] + m.b[0]) / 2, (m.b[1] + m.b[3]) / 2, m.key) && (lineAt((o.b[2] + m.b[0]) / 2, m.b[1] - 3, m.key) || lineAt((o.b[2] + m.b[0]) / 2, m.b[3] + 2, m.key)))));
+    if (!o) { joined.push({ ...m }); continue; }
+    const u: Box = [Math.min(o.b[0], m.b[0]), Math.min(o.b[1], m.b[1]), Math.max(o.b[2], m.b[2]), Math.max(o.b[3], m.b[3])];
+    Object.assign(o, { b: u, n: o.n + m.n, fill: Math.min(1, (o.n + m.n) / (width(u) * height(u))), cx: (u[0] + u[2]) / 2, cy: (u[1] + u[3]) / 2 });
+  }
+  const rs = joined;
   if (rs.length < 2) return null;
   // the shared baseline: a bar sits on it when it starts there, or when everything between the baseline and its visible
   // start is mask grey (a mask over a category label can cover a bar's first pixels; it hides the bar, it does not end it)
@@ -273,15 +411,35 @@ function bars(c: Ctx): Reading | null {
   const touches = (m: Mark, o: Mark) => (isCol ? Math.abs(m.b[3] - o.b[1]) <= 2 || Math.abs(o.b[3] - m.b[1]) <= 2 : Math.abs(m.b[2] - o.b[0]) <= 2 || Math.abs(o.b[2] - m.b[0]) <= 2);
   const stacked = keys.length > 1 && cats.some((k) => k.ms.some((m) => k.ms.some((o) => o !== m && !sameColor(m.key, o.key) && touches(m, o))));
   const len = (m: Mark) => (isCol ? height(m.b) : width(m.b));
-  const raw = keys.map((k) => cats.map((cat) => cat.ms.filter((m) => sameColor(m.key, k.key)).reduce((a, m) => a + len(m), 0)));
+  // colours that never share a category are one series coloured by category (or one bar highlighted), not a clustered
+  // chart: there, every category holds bars of two or more colours
+  // (a category or two may hold two colours where neighbouring bars of different colours fall into one)
+  const mixed = cats.filter((cat) => cat.ms.some((m) => cat.ms.some((o) => !sameColor(m.key, o.key)))).length;
+  const byCategory = keys.length > 1 && mixed <= Math.max(0, Math.floor(cats.length * 0.15));
+  const raw = byCategory ? [cats.map((cat) => cat.ms.reduce((a, m) => a + len(m), 0))]
+    : keys.map((k) => cats.map((cat) => cat.ms.filter((m) => sameColor(m.key, k.key)).reduce((a, m) => a + len(m), 0)));
   const max = Math.max(...raw.flat(), 1e-9);
   const members = isCol
     ? axisLabels(c.words, cats, 'x', [bottom.at - 2, bottom.at + c.med * 4], c.med)
     : axisLabels(c.words, cats, 'y', [c.b[0], left.at + 2], c.med);
-  const series = keys.map((k, i) => ({ name: c.nameOf(k.key) || (keys.length === 1 ? c.measure.name : `Series ${i + 1}`), shape: raw[i].map((v) => round((v / max) * 100)) }));
+  const series = byCategory ? [{ name: c.measure.name, shape: raw[0].map((v) => round((v / max) * 100)) }]
+    : keys.map((k, i) => ({ name: c.nameOf(k.key) || (keys.length === 1 ? c.measure.name : `Series ${i + 1}`), shape: raw[i].map((v) => round((v / max) * 100)) }));
+  // 100% stacked: every category's stack reaches the same length (within a few percent)
+  const totals = cats.map((_, j) => raw.reduce((a, r) => a + r[j], 0));
+  // (each series in most categories: a treemap's tiles fill columns of one height too, but every tile in a colour of its own)
+  const stackedPercent = stacked && cats.length >= 2 && Math.min(...totals) >= Math.max(...totals) * 0.97
+    && keys.every((k) => cats.filter((cat) => cat.ms.some((m) => sameColor(m.key, k.key))).length >= cats.length * 0.6);
+  const hullOn = hull(on), rim = Math.max(3, Math.round(c.med * 0.3)) + 2;
+  const refs = (isCol
+    ? refLines(c, 'h', [hullOn[0], hullOn[2]], [Math.max(c.b[1] + 2, hullOn[1] - (bottom.at - hullOn[1]) * 0.15), bottom.at - rim], (y) => ((bottom.at - y) / max) * 100, keys.map((k) => k.key))
+    : refLines(c, 'v', [hullOn[1], hullOn[3]], [left.at + rim, Math.min(c.b[2] - c.med * 1.5, hullOn[2] + (hullOn[2] - left.at) * 0.15)], (x) => ((x - left.at) / max) * 100, keys.map((k) => k.key))
+  // (the search reaches a little past the longest bar's or stack's end, not into a header above; a line exactly at the
+  // end is where the bars' own edges line up, as in a stack of equal totals)
+  ).filter((r) => Math.abs(r.shape - (stacked ? (Math.max(...totals) / max) * 100 : 100)) >= 1.5);
   const strength = (isCol ? bottom.n : left.n) / rs.length;
   return { type: isCol ? 'column' : 'bar', certainty: Math.min(1, 0.45 + strength * 0.5),
-    fields: { dimension: { name: c.dName || 'Category', members }, measure: c.measure, series, stacked, ...(isCol ? {} : { horizontal: true }) },
+    fields: { dimension: { name: c.dName || 'Category', members }, measure: c.measure, series, stacked, ...(stackedPercent ? { stackedPercent: true } : {}),
+      ...(refs.length && !stackedPercent ? { refLines: refs } : {}), ...(isCol ? {} : { horizontal: true }) },
     ...(isCol ? { at: cats.map((k) => (k.lo + k.hi) / 2), base: bottom.at, keys: keys.map((k) => k.key) } : {}) };
 }
 
@@ -337,14 +495,22 @@ function lines(c: Ctx): Reading | null {
     return NaN;
   }));
   const span = Math.max(1, yBot - yTop), floor = yBot + span * 0.12;
-  const series = use.map((s, i) => {
-    const got = ys[i];
-    const filled = got.map((y, j) => (Number.isFinite(y) ? y : got.slice(0, j).reverse().find(Number.isFinite) ?? got.find(Number.isFinite) ?? yBot));
-    return { name: c.nameOf(s.key) || (use.length === 1 ? c.measure.name : `Series ${i + 1}`), shape: filled.map((y) => round(((floor - y) / (floor - yTop)) * 100)) };
-  });
+  const toShape = (y: number) => ((floor - y) / (floor - yTop)) * 100;
+  const filledYs = use.map((_, i) => ys[i].map((y, j) => (Number.isFinite(y) ? y : ys[i].slice(0, j).reverse().find(Number.isFinite) ?? ys[i].find(Number.isFinite) ?? yBot)));
+  // (beside other lines, one that keeps exactly one height all the way is a reference line drawn solid, not a series)
+  const flat = use.map((s, i) => !isArea && use.length >= 2 && Math.max(...filledYs[i]) - Math.min(...filledYs[i]) <= 2 && width(hull(s.marks)) >= (x1 - x0) * 0.6);
+  const series = use.map((s, i) => ({ name: c.nameOf(s.key) || (use.length === 1 ? c.measure.name : `Series ${i + 1}`), shape: filledYs[i].map((y) => round(toShape(y))) }))
+    .filter((_, i) => !flat[i]);
   const longest = Math.max(...ms.map((m) => width(m.b))) / Math.max(1, width(c.plot));
+  // (from a little above the highest point: a header's rule higher up is not a target)
+  const top = Math.max(c.b[1] + 2, yTop - (yBot - yTop) * 0.15), inPlot = (q: number) => q > top && q < yBot - 2;
+  const refs = [...use.flatMap((s, i) => {
+    if (!flat[i]) return [];
+    const at = filledYs[i].reduce((a, y) => a + y, 0) / filledYs[i].length, u = hull(s.marks);
+    return [{ name: c.nameOf(s.key) || refName(c, 'h', at, u[0], u[2], inPlot) || 'Target', shape: round(toShape(at)) }];
+  }), ...refLines(c, 'h', [x0, x1], [top, yBot - 2], toShape, use.filter((_, i) => !flat[i]).map((s) => s.key))].slice(0, 2);
   return { type: isArea ? 'area' : 'line', certainty: Math.min(0.9, 0.4 + longest * 0.5),
-    fields: { dimension: { name: c.dName || 'Period', members }, measure: c.measure, series, ...(isArea && use.length > 1 ? { stacked: true } : {}) } };
+    fields: { dimension: { name: c.dName || 'Period', members }, measure: c.measure, series, ...(isArea && use.length > 1 ? { stacked: true } : {}), ...(refs.length ? { refLines: refs } : {}) } };
 }
 
 /** Scatter or bubble: many small solid dots. */
@@ -491,6 +657,11 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
     if (chain.length < 2) continue;
     const u = hull(chain), n = chain.reduce((a, m) => a + m.n, 0);
     if (width(u) < width(b) * 0.4) continue;
+    // (a flat row of six or more evenly spaced dashes is a dashed reference line, read as one by refLines, not a series;
+    // a flat data line broken by a few words or masks stays a line)
+    const gaps = chain.slice(1).map((m, j) => m.b[0] - chain[j].b[2]);
+    const even = gaps.length >= 5 && Math.max(...gaps) - Math.min(...gaps) <= Math.max(3, Math.min(...gaps));
+    if (height(u) <= Math.max(3, Math.round(med * 0.3)) && even) continue;
     // (a line has one height at each x, so its pieces do not overlap across: gridlines at several heights do)
     if (chain.reduce((a, m) => a + width(m.b), 0) > width(u) * 1.3) continue;
     thin.push({ key: s.key, b: u, n, fill: n / Math.max(1, width(u) * height(u)), cx: (u[0] + u[2]) / 2, cy: (u[1] + u[3]) / 2, colors: 1 });
@@ -500,7 +671,7 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const rects = body.flatMap((m) => { const parts = splitColumns(img, m, ink); return parts.length > 1 ? parts : m.fill >= 0.8 ? [m] : []; })
     .filter((m) => m.fill >= 0.8 && Math.min(width(m.b), height(m.b)) >= 3);
   Object.assign(features, { coverage: Math.round(coverage * 1000) / 1000, marks: body.length, rects: rects.length, thin: thin.length, series: series.length, words: words.length, bigMasked: bigMasked.length, grid: grid ? 1 : 0, swatches: swatches.length, vivid: vivid.length });
-  const c: Ctx = { img, b, words, med, title, ink, body, rects, thin, markArea, coverage, nameOf, measure, dName, plot: plotBox(b, words, med) };
+  const c: Ctx = { img, b, words, med, title, ink, body, rects, thin, markArea, coverage, nameOf, measure, dName, plot: plotBox(b, words, med), all: all.filter((m) => !swatchSet.has(m)) };
   const done = (r: Reading | null) => (r ? { ...r, color } : null);
 
   // columns with a line over them in a colour of its own (a trend over monthly counts, a total over stacked columns) are
@@ -543,7 +714,8 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
     }).filter(Boolean);
     if (!extra.length) return col;
     const series = (col.fields.series as { name: string; shape: number[] }[]).map((x) => ({ ...x, kind: 'bar' }))
-      .filter((_, i) => !lines.some((t) => sameColor(col.keys![i], t.key)));
+      // (series follow the colours one for one, unless the colours are one series coloured by category)
+      .filter((_, i, all) => all.length !== col.keys!.length || !lines.some((t) => sameColor(col.keys![i], t.key)));
     return { ...col, type: 'combo', fields: { ...col.fields, series: [...series, ...extra] } };
   };
   // a KPI: one to three big masked values (numbers are masked by default) and a short label
@@ -570,7 +742,9 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;
   const colourful = vivid.length >= 2 || thin.some((t) => sat(t.key) >= 3);
   // (a waterfall is read before columns: two of its columns may stand on the baseline, but its steps float)
-  return done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
+  // (a 100% stack fills a rectangle as a treemap does: its repeated series colours decide)
+  const percentBars = barReading && (barReading.fields as { stackedPercent?: boolean }).stackedPercent ? done(combo(barReading)) : null;
+  return percentBars || done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
     || done(lines(c)) || done(scatter(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)

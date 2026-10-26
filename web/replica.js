@@ -475,6 +475,20 @@
           };
         });
         if (v.stackedPercent) series.forEach((s, si) => { s.data = s.data.map((d, i) => { const tot = vals.reduce((a, arr) => a + arr[i], 0); return { value: vals[si][i] / tot * 100, itemStyle: d.itemStyle }; }); });
+        // reference lines (a target, an average): at the same 0-100 shape scale as the series, on the main value axis,
+        // dashed, named by the words beside them in the original (else "Target"); not on a 100% stack. A link that drops
+        // shapes (Structure-only, Generic) keeps the line, at the main series' average
+        const refs = (Array.isArray(v.refLines) ? v.refLines : []).filter(rl => rl && typeof rl === 'object').slice(0, 3);
+        const mainSeries = series.find(s => !s.yAxisIndex);
+        if (refs.length && mainSeries && !v.stackedPercent) {
+          const peak = Math.max(1e-9, ...series.filter(s => !s.yAxisIndex).flatMap(s => s.data.map(d => +d.value || 0)));
+          const mainVals = series.filter(s => !s.yAxisIndex).flatMap(s => s.data.map(d => +d.value || 0)), mean = mainVals.reduce((a, x) => a + x, 0) / Math.max(1, mainVals.length);
+          const at = rl => (rl.shape == null || !Number.isFinite(+rl.shape) ? mean : Math.max(0, Math.min(400, +rl.shape)) / 100 * peak);
+          mainSeries.markLine = { silent: true, symbol: 'none', animation: false,
+            lineStyle: { type: 'dashed', width: 1.5, color: t.ink, opacity: 0.75 },
+            label: { color: t.ink, fontSize: 11, position: 'insideEndTop', formatter: p => (generic ? 'Reference line' : String(p.name || 'Target')) + ': ' + fmt(p.value, meas, generic) },
+            data: refs.map(rl => ({ name: String(rl.name || 'Target').slice(0, 40), [horizontal ? 'xAxis' : 'yAxis']: at(rl) })) };
+        }
         return Object.assign(base, { _meta: meta,
           tooltip: Object.assign({}, tooltip, { trigger: 'axis' }),
           legend: seriesList.length > 1 ? legend : undefined,

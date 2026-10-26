@@ -12,22 +12,39 @@
   "typesRightStrict": 148,
   "typesRightPct": 72,
   "endToEndPct": 52.2,
+  "seriesLayout": {
+   "checked": 55,
+   "right": 48,
+   "rightPct": 87.3,
+   "wrong": {
+    "none→stacked": 1,
+    "none→clustered": 3,
+    "percent→stacked": 1,
+    "percent→none": 1,
+    "stacked→clustered": 1
+   }
+  },
+  "refLines": {
+   "inTruth": 1,
+   "found": 1,
+   "addedWhereNone": 1
+  },
   "byTool": {
    "Power BI": {
     "dashboards": 14,
     "visuals": 88,
     "found": 68,
-    "typesRight": 49,
+    "typesRight": 48,
     "foundPct": 77.3,
-    "typesRightPct": 72.1
+    "typesRightPct": 70.6
    },
    "Tableau": {
     "dashboards": 14,
     "visuals": 161,
     "found": 107,
-    "typesRight": 73,
+    "typesRight": 74,
     "foundPct": 66.5,
-    "typesRightPct": 68.2
+    "typesRightPct": 69.2
    },
    "Looker": {
     "dashboards": 6,

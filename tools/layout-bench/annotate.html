@@ -65,6 +65,10 @@ li.selected { outline: 2px solid var(--accent); outline-offset: 2px; border-radi
         <option value="funnel">Funnel</option><option value="radar">Radar</option><option value="sunburst">Sunburst</option><option value="bullet">Bullet</option>
         <option value="slicer">Slicer / filter</option><option value="text">Text block</option><option value="other">Something else</option></select></label>
       <label>Title, as shown (leave empty if it has none) <input id="title"></label>
+      <label>Series (bar, column, combo and area charts) <select id="variant">
+        <option value="">One series, or not a chart with series</option><option value="clustered">Clustered: several series side by side</option>
+        <option value="stacked">Stacked: segments on top of each other</option><option value="percent">100% stacked: every bar the same length</option></select></label>
+      <label class="row"><input type="checkbox" id="refline"> Has a reference line (a straight target, average or threshold line)</label>
       <p class="hint">Drag on the image from one corner of the visual's card to the other, title included, then set its type and title here. Click a box in the list to change it later; remove it with ×.</p>
     </section>
     <section class="card"><h2>Boxes</h2><ol id="list"></ol></section>
@@ -118,7 +122,7 @@ li.selected { outline: 2px solid var(--accent); outline-offset: 2px; border-radi
     drag = null;
     if (box[2] - box[0] < 8 || box[3] - box[1] < 8) { draw(); return; }
     if (mode() === 'ignore') st.ignore.push(box);
-    else { st.visuals.push({ type: $('type').value, title: '', bbox: box }); select(st.visuals.length - 1); $('title').focus({ preventScroll: true }); }
+    else { st.visuals.push({ type: $('type').value, title: '', bbox: box }); $('variant').value = ''; $('refline').checked = false; select(st.visuals.length - 1); $('title').focus({ preventScroll: true }); }
     draw(); render();
   });
   /** Points the type and title fields at visual i (or at nothing), showing its values. */
@@ -126,8 +130,10 @@ li.selected { outline: 2px solid var(--accent); outline-offset: 2px; border-radi
     sel = i;
     const v = i === null ? null : st.visuals[i];
     $('selhead').textContent = v ? 'Box ' + (i + 1) + ': its type and title' : 'Box you just drew';
-    if (v) { $('type').value = v.type; $('title').value = v.title; }
+    if (v) { $('type').value = v.type; $('title').value = v.title; $('variant').value = v.variant || ''; $('refline').checked = !!v.refLine; }
   }
+  $('variant').addEventListener('change', () => { if (sel === null) return; const v = st.visuals[sel]; if ($('variant').value) v.variant = $('variant').value; else delete v.variant; render(); });
+  $('refline').addEventListener('change', () => { if (sel === null) return; const v = st.visuals[sel]; if ($('refline').checked) v.refLine = true; else delete v.refLine; draw(); render(); });
   $('type').addEventListener('change', () => { if (sel !== null) { st.visuals[sel].type = $('type').value; draw(); render(); } });
   $('title').addEventListener('input', () => { if (sel !== null) { st.visuals[sel].title = $('title').value.trim(); render(); } });
   $('entryfile').addEventListener('change', async (e) => {
@@ -148,7 +154,7 @@ li.selected { outline: 2px solid var(--accent); outline-offset: 2px; border-radi
       ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.strokeRect(b[0] * scale, b[1] * scale, (b[2] - b[0]) * scale, (b[3] - b[1]) * scale);
       if (label) { ctx.fillStyle = c; ctx.font = '12px system-ui'; const w = ctx.measureText(label).width + 8; ctx.fillRect(b[0] * scale, b[1] * scale, w, 16); ctx.fillStyle = '#fff'; ctx.fillText(label, b[0] * scale + 4, b[1] * scale + 12); }
     };
-    st.visuals.forEach((v, i) => rect(v.bbox, i === sel ? '#d02670' : '#0f6e8c', (i + 1) + ' ' + v.type + (v.title ? ': ' + v.title : '')));
+    st.visuals.forEach((v, i) => rect(v.bbox, i === sel ? '#d02670' : '#0f6e8c', (i + 1) + ' ' + v.type + (v.variant ? ' (' + v.variant + ')' : '') + (v.refLine ? ' + ref line' : '') + (v.title ? ': ' + v.title : '')));
     st.ignore.forEach((b) => rect(b, '#b4531f', 'ignore'));
     if (drag) rect([...drag.a, ...drag.b].map((v, i, a) => i < 2 ? Math.min(v, a[i + 2]) : Math.max(v, a[i - 2])), '#d02670');
   }
@@ -158,7 +164,7 @@ li.selected { outline: 2px solid var(--accent); outline-offset: 2px; border-radi
       const li = document.createElement('li');
       li.className = 'pick' + (i === sel ? ' selected' : '');
       li.innerHTML = '<b></b> <span class="meta"></span> <button type="button" aria-label="Remove">×</button>';
-      li.querySelector('b').textContent = v.type + (v.title ? ' · ' + v.title : '');
+      li.querySelector('b').textContent = v.type + (v.variant ? ' (' + v.variant + ')' : '') + (v.refLine ? ' + ref line' : '') + (v.title ? ' · ' + v.title : '');
       li.querySelector('.meta').textContent = v.bbox.join(', ');
       li.onclick = () => { select(i); draw(); render(); };
       li.querySelector('button').onclick = (ev) => { ev.stopPropagation(); st.visuals.splice(i, 1); select(null); draw(); render(); };

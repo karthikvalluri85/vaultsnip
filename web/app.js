@@ -1392,11 +1392,12 @@ Rules:
 VISUAL fields: "id", "type", "span" (1-12 grid columns; a row's spans sum to 12), "title",
  "measure":{"name":string,"format":"currency"|"number"|"percent"|"integer"|"ratio"|"duration","currency":"$"|"€"|"£"|"₹"|"","unit":string (optional suffix such as "min", "h", "days", "pts", "ms"),"outOf":number (ratio only: the scale maximum, e.g. 5 for "4.5 / 5"),"scaleHint":number (optional: a plausible typical magnitude for this kind of measure, e.g. 40 for days, 900 for headcount; never copy a visible value),"higherIsBetter":bool (false when a rise is bad: error, crash, ANR, bounce, churn, cost, response time, backlog)},
  "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line","measure":{…} (only on a combo series that uses its own axis, e.g. a % line over $ bars)}],
- "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool.
+ "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool, "refLines":[{"name":string,"shape":0-100}].
  kpi: "shapeValue":0-100 for percentages (where the value sits on 0-100). Use format "ratio" with "outOf" for scores like "4.52 / 5", "duration" with a unit for times like "38 min", "integer" with unit "pts" for points.
 Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, gantt, table, pivot, text, map, placeholder.
  Orientation: "column" = vertical bars rising from the x-axis (categories along the bottom). "bar" = horizontal bars (categories down the left side) and must have "horizontal":true. Never send "column" with "horizontal":true.
- Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item.
+ Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item. "stackedPercent":true (with "stacked":true) when every stack reaches the same height, a 100% stacked chart.
+ Reference lines: a straight target, average or threshold line drawn across a bar, column, line or area chart goes in "refLines", one entry each, with "shape" on the same scale as the series shapes (100 = the largest single series value; above 100 when the line sits higher, e.g. over stacked totals) and "name" from its visible label ("Target", "Average"), else "Target". Never as a series.
  heatmap: "rows":{"name","members"},"columns":{"name","members"},"matrix":[[0-100 or null]] with null for an empty cell (for example the blank triangle of a cohort table).
  boxplot: "boxes":[[min,q1,median,q3,max] each 0-100, one per member] measured from the drawing.
  Several small gauges or KPI tiles in a group: one visual each. Commentary, bullet lists or notes: type "text" with "content" holding only words that are visible and not covered.
@@ -1585,7 +1586,10 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     const measure = v.measure || (v.measures && v.measures[0]) || { name: v.title || 'Value', format: 'number' };
     const dimension = v.dimension || (v.rowDims && v.rowDims[0]) || { name: 'Category', members: DEFAULT_MEMBERS };
     const series = Array.isArray(v.series) && v.series.length ? v.series : [{ name: measure.name, shape: dimension.members.map((_, i) => Math.max(10, 100 - i * 18)) }];
-    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...(v.stacked ? { stacked: true } : {}) });
+    // (between charts with an axis, stacking and reference lines carry over)
+    const axisChart = t => ['column', 'bar', 'line', 'area', 'combo'].includes(t);
+    const carry = axisChart(type) && axisChart(v.type) ? { ...(v.stacked ? { stacked: true } : {}), ...(v.stackedPercent ? { stackedPercent: true } : {}), ...(Array.isArray(v.refLines) && v.refLines.length ? { refLines: v.refLines } : {}) } : {};
+    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...carry });
     if (type === 'kpi') return Object.assign(keep, { type, title: '', measure: { ...measure, name: measure.name || v.title || 'KPI' }, sparkline: false });
     if (type === 'scatter') return Object.assign(keep, { type, xMeasure: { name: 'X', format: 'number' }, yMeasure: { name: measure.name || 'Y', format: measure.format || 'number' }, points: Array.from({ length: 16 }, (_, i) => [5 + ((i * 37) % 90), 5 + ((i * 53) % 90), 50]) });
     if (type === 'table') return Object.assign(keep, { type, rowCount: v.rowCount || 6, columns: Array.isArray(v.columns) && v.columns.length ? v.columns : [{ name: dimension.name, kind: 'category', members: dimension.members }, { name: measure.name, kind: measure.format === 'currency' ? 'currency' : 'number', ...(measure.currency ? { currency: measure.currency } : {}) }] });
@@ -1608,6 +1612,24 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
       sel.value = FIX_TYPES.some(([t]) => t === v.type) ? v.type : 'placeholder';
       title.onchange = () => { if (v.type === 'kpi') v.measure = { ...(v.measure || {}), name: title.value }; else v.title = title.value; redrawLocal(); };
       sel.onchange = () => { row.visuals[vi] = convertVisual(v, sel.value); if (S.local) S.local.byVid[v.id] = 1; redrawLocal(); renderFixList(); };
+      // charts with series: how the bars sit (side by side, stacked, 100% stacked) and a reference line
+      if (['column', 'bar', 'combo', 'area', 'line'].includes(v.type)) {
+        const o = document.createElement('div'); o.className = 'fixopts';
+        const multi = Array.isArray(v.series) && v.series.length > 1;
+        o.innerHTML = (multi && v.type !== 'line' ? `<label>${v.type === 'area' ? 'Areas' : 'Bars'} <select aria-label="How the series sit"><option value="side">${v.type === 'area' ? 'Overlapping' : 'Side by side'}</option><option value="stacked">Stacked</option><option value="percent">100% stacked</option></select></label>` : '')
+          + '<label><input type="checkbox"> Reference line</label><label class="refat">at <input type="number" min="0" max="400" step="5" aria-label="Reference line, as a percentage of the largest value">% of the largest value</label>';
+        const how = o.querySelector('select'), ref = o.querySelector('input[type=checkbox]'), at = o.querySelector('input[type=number]'), atBox = o.querySelector('.refat');
+        if (how) {
+          how.value = v.stackedPercent ? 'percent' : v.stacked ? 'stacked' : 'side';
+          how.onchange = () => { v.stacked = how.value !== 'side'; if (how.value === 'percent') v.stackedPercent = true; else delete v.stackedPercent; redrawLocal(); renderFixList(); };
+        }
+        const refs = Array.isArray(v.refLines) ? v.refLines : [];
+        ref.checked = refs.length > 0; ref.disabled = !!v.stackedPercent; atBox.hidden = !refs.length;
+        at.value = refs.length ? Math.round(+refs[0].shape || 0) : 80;
+        ref.onchange = () => { if (ref.checked) v.refLines = [{ name: (refs[0] && refs[0].name) || 'Target', shape: +at.value || 80 }]; else delete v.refLines; redrawLocal(); renderFixList(); };
+        at.onchange = () => { if (v.refLines && v.refLines[0]) { v.refLines[0].shape = Math.max(0, Math.min(400, +at.value || 0)); redrawLocal(); } };
+        d.appendChild(o);
+      }
       d.querySelector('button').onclick = () => {
         row.visuals.splice(vi, 1);
         if (!row.visuals.length) S.spec.rows.splice(ri, 1);

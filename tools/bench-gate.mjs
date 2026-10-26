@@ -1,7 +1,7 @@
 // Fails when a benchmark figure gets worse than its committed baseline by more than its tolerance (developer tool, CI).
 //   node tools/bench-gate.mjs <result.json> <baseline.json>
 // Works for every benchmark: masking (tools/synth-bench/run.mjs --json), layout (tools/layout-bench/run.mjs and
-// tools/synth-bench/layout.mjs --json) and resemblance (tools/synth-bench/resemble.mjs --json); a rule whose figure is
+// tools/synth-bench/layout.mjs --json), chart variants (tools/synth-bench/chart-variants.mjs --json) and resemblance (tools/synth-bench/resemble.mjs --json); a rule whose figure is
 // missing from either file is skipped.
 // Tolerances absorb the small differences between machines (text rendering, image scaling), not real regressions:
 // on the smoke set one word is about 0.2 points. Raise a baseline only with a change that improves it, in the same PR.
@@ -24,6 +24,11 @@ const RULES = [
   ['dashboards.endToEndPct', 'higher', 3.0, 'share of a dashboard that comes out right'],
   ['reports.checksRight', 'higher', 0, 'paginated report structure'],
   ['review.findings', 'lower', 25, 'items users must resolve on the real dashboards'],
+  ['dashboards.seriesLayout.rightPct', 'higher', 3.0, 'bar, column and combo charts whose series sit as in the original (one, clustered, stacked, 100%)'],
+  ['dashboards.refLines.addedWhereNone', 'lower', 1, 'reference lines drawn on real charts that have none'],
+  ['chartVariants.seriesLayout.rightPct', 'higher', 4.0, 'generated charts whose series sit as drawn'],
+  ['chartVariants.refLines.foundPct', 'higher', 6.0, 'reference lines found on generated charts'],
+  ['chartVariants.refLines.addedWhereNone', 'lower', 1, 'reference lines added to generated charts that have none'],
   ['synthLayout.foundPct', 'higher', 3.0, 'visuals the on-device build finds on the generated dashboards'],
   ['synthLayout.typesRightPct', 'higher', 3.0, 'visuals found with the right type, generated dashboards'],
   ['synthLayout.endToEndPct', 'higher', 3.0, 'share of a generated dashboard that comes out right'],

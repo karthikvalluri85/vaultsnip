@@ -114,7 +114,10 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 .fixrow .conf{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:99px;white-space:nowrap}
 .fixrow .conf.ok{background:var(--good-soft);color:var(--good)}.fixrow .conf.check{background:var(--warn-soft);color:var(--warn)}
 .fixrow button{font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
-@media (max-width:640px){.fixrow{grid-template-columns:auto minmax(0,1fr)}.fixrow select,.fixrow button{grid-column:2}}
+.fixrow .fixopts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px;color:var(--muted)}
+.fixrow .fixopts label{display:inline-flex;gap:5px;align-items:center}
+.fixrow .fixopts input[type=number]{width:4.5em;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+@media (max-width:640px){.fixrow{grid-template-columns:auto minmax(0,1fr)}.fixrow select,.fixrow button{grid-column:2}.fixrow .fixopts select{grid-column:auto}}
 .fakenote{margin:0 0 8px;padding:8px 12px;border-radius:8px;background:var(--warn-soft);color:var(--ink);font-size:13.5px;border:1px solid var(--line)}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .kpi{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:1px;background:var(--sunken)}
