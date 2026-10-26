@@ -31,6 +31,9 @@ jobs:
       # resemblance: layout, shape, text and colour, and no generic labels in any rendered replica (tolerance 0)
       - run: node tools/synth-bench/resemble.mjs --json synth-resemble.json
       - run: node tools/bench-gate.mjs synth-resemble.json tools/synth-bench/resemble-baseline.json
+      # the on-device self-check: how well it and the confidence rank the visuals built wrong below those built right
+      - run: node tools/synth-bench/self-check.mjs --json synth-selfcheck.json
+      - run: node tools/bench-gate.mjs synth-selfcheck.json tools/synth-bench/selfcheck-baseline.json
       - if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

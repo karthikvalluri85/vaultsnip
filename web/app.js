@@ -1459,6 +1459,25 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   // a visual whose close-up fails keeps its local reading.
   const CLOSEUP_BELOW = 0.6, CLOSEUP_MAX = 6;
   const CLOSEUP_PROMPT = 'This image is one visual cut from a masked dashboard. Return the JSON spec of a dashboard with exactly one row holding exactly one VISUAL that reproduces it, following the same rules.';
+  // Phase 4(c): each charted visual of the replica compared on the device with its panel in the masked image
+  // (web/selfcheck.js), in the background. On the generated benchmark the comparison and the builder's own confidence,
+  // averaged, rank the visuals built wrong below those built right better than the confidence alone, so the average
+  // picks the close-ups; the "Check" marks stay on the confidence alone, which raises no false ones.
+  function selfCheck(L) {
+    if (!window.VSSelfCheck || !L) return;
+    setTimeout(async () => {
+      try {
+        const words = layoutInput().words;
+        const sims = await VSSelfCheck.compare($('replica'), maskedCanvas(1, '#787c82'), L.boxes || {}, words);
+        if (S.local === L) L.similar = sims;
+      } catch (e) { /* no comparison: the confidence stands alone */ }
+    }, 0);
+  }
+  /** Each visual's score for choosing close-ups: its confidence, averaged with the self-check where there is one. */
+  function closeupScores(L) {
+    const sim = (L && L.similar) || {};
+    return Object.fromEntries(Object.entries((L && L.byVid) || {}).map(([vid, c]) => [vid, sim[vid] == null ? c : (c + sim[vid]) / 2]));
+  }
   function uncertainVisuals(spec, byVid, boxes) {
     return spec.rows.flatMap(row => row.visuals).filter(v => boxes[v.id] && (byVid[v.id] ?? 1) < CLOSEUP_BELOW)
       .sort((a, b) => (byVid[a.id] ?? 1) - (byVid[b.id] ?? 1)).slice(0, CLOSEUP_MAX);
@@ -1485,10 +1504,10 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   async function refineLocal() {
     if (!S.local || !S.spec) return;
     if (!S.key) { $('btn-key').onclick(); return; }
-    const b = $('btn-local-refine'), n = uncertainVisuals(S.spec, S.local.byVid, S.local.boxes || {}).length;
+    const b = $('btn-local-refine'), n = uncertainVisuals(S.spec, closeupScores(S.local), S.local.boxes || {}).length;
     b.disabled = true; b.textContent = 'Asking ' + providerName() + ' about ' + n + ' visual' + (n === 1 ? '' : 's') + '…';
     try {
-      const res = await refineSpec(S.spec, S.local.byVid, S.local.boxes || {}, maskedCanvas(1));
+      const res = await refineSpec(S.spec, closeupScores(S.local), S.local.boxes || {}, maskedCanvas(1));
       S.spec = scrubVerbatims(res.spec);
       res.fixed.forEach(id => { S.local.byVid[id] = 0.9; });
       S.local.refined = (S.local.refined || 0) + res.fixed.length;
@@ -1535,6 +1554,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
         byVid: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.confidence])),
         boxes: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.box])), kept: false };
       showReplica();
+      selfCheck(S.local);
     } catch (e) {
       err.textContent = 'The on-device builder could not read this image: ' + (e && e.message || e); err.hidden = false;
       if (window.VSFeedback) VSFeedback.note(e, 'On-device layout builder');
@@ -1565,7 +1585,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     $('btn-local-fix').hidden = !below && !L.fixing; $('btn-local-keep').hidden = !below || L.kept;
     $('btn-local-key').textContent = below ? 'Use my AI key' : 'Use my AI key for a precise layout';
     // the cheaper fallback: only the visuals it is unsure of, as close-ups of the approved image
-    const unsure = uncertainVisuals(S.spec || { rows: [] }, L.byVid || {}, L.boxes || {}).length;
+    const unsure = uncertainVisuals(S.spec || { rows: [] }, closeupScores(L), L.boxes || {}).length;
     $('btn-local-refine').hidden = !below || !unsure;
     $('btn-local-refine').textContent = 'Check ' + unsure + ' uncertain visual' + (unsure === 1 ? '' : 's') + ' with my AI key';
     if (L.refined) $('local-stats').textContent += ' ' + providerName() + ' rechecked ' + L.refined + ' visual' + (L.refined === 1 ? '' : 's') + '.';
@@ -1835,5 +1855,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { refineSpec, uncertainVisuals, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { refineSpec, uncertainVisuals, closeupScores, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

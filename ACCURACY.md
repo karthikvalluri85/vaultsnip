@@ -685,6 +685,28 @@ Tableau now reads 83.2% of its visuals and types 80.6% of them
 right, ahead of Power BI. Two misses traded away earlier remain: a Power BI map whose pale land areas pass for two
 cards (each half then read on its own), and SaaS's row of small KPI boxes over a chart.
 
+## Phase 4(c): the on-device self-check (27 October 2026)
+
+After a replica is built on the device, each charted visual is compared with its panel in the masked image, on the
+device (`web/selfcheck.js`; nothing leaves the page). Each side is reduced to the kind of marks it holds (how long ink
+runs across and down, how much of its area is filled), a coarse grid of where they lie, and its main colour; text is
+left out on both sides, and faint greys count as background.
+
+Measured on the 60 generated dashboards (`tools/synth-bench/self-check.mjs`, 258 charted visuals, 24 of them built
+wrong), by how well a score ranks the visuals built wrong below those built right (AUC, 0.5 is chance):
+
+| Score | AUC | "Check" marks (below 0.5) |
+|---|---|---|
+| The builder's own confidence | 0.862 | 13: 13 of 24 wrong, 0 right ones marked |
+| The self-check alone | 0.736 | |
+| The two averaged | **0.88** | 45: 18 of 24 wrong, 27 right ones marked |
+
+The average ranks better, but as a "Check" mark it would mark 27 visuals built right to catch 5 more built wrong,
+noise a user would learn to ignore. So it is used where ranking is what counts: choosing which uncertain visuals to send
+as close-ups to the user's own AI. The "Check" marks stay on the confidence alone, which marks none built right. A first
+version comparing only where ink lay (AUC 0.65) was not good enough to use; the replica draws its axes and legends its
+own way, so the kind of marks carries the signal.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

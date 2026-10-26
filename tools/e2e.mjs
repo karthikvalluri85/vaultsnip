@@ -854,6 +854,11 @@ try {
   check(/Built on this device \(beta\)/.test(lb.banner || '') && /visuals found/.test(lb.banner || ''), 'the replica says it was built on this device and how many visuals were found');
   check(flat.filter(t => t === 'kpi').length === 4 && JSON.stringify(lb.rows[0]) === JSON.stringify(['kpi', 'kpi', 'kpi', 'kpi']), `the four KPI cards are read as KPIs (${JSON.stringify(lb.rows)})`);
   check(flat.includes('column') && flat.includes('line') && flat.includes('table'), 'the column chart, line chart and table are recognised');
+  // Phase 4(c): each charted visual compared with its panel on the device, in the background
+  await page.waitForFunction(() => window.__DSC.local && window.__DSC.local.similar, null, { timeout: 20000 }).catch(() => {});
+  const sc = await page.evaluate(() => { const L = window.__DSC.local, sims = L.similar || {}, scores = window.__DSC.test.closeupScores(L);
+    return { n: Object.keys(sims).length, ok: Object.values(sims).every((v) => v >= 0 && v <= 1), blended: Object.keys(sims).every((vid) => Math.abs(scores[vid] - (L.byVid[vid] + sims[vid]) / 2) < 1e-9) }; });
+  check(sc.n >= 2 && sc.ok && sc.blended, `the self-check compares the charts with the masked image on the device (${sc.n} compared) and only steers which visuals get close-ups`);
   check(lb.titles.includes('Net Revenue by Country') && lb.titles.includes('Monthly Net Revenue') && /EMEA Sales Performance/.test(lb.title), `chart and page titles come from the visible words ("${lb.title}")`);
   check(lb.hidden > 5 && lb.leaked.length === 0, `no masked word reaches the spec (${lb.hidden} masked words checked${lb.leaked.length ? ', leaked: ' + lb.leaked.join(', ') : ''})`);
   check(lb.cards >= 8 && lb.charts >= 2, `the engine draws the local spec (${lb.cards} cards, ${lb.charts} charts)`);
