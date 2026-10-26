@@ -81,14 +81,20 @@ export function findRegions(img: Img, o: Partial<typeof PANEL_OPTS> = {}, within
   };
   const rowOff = (x0: number, x1: number, y: number) => offLine(x1 - x0, (k) => (y * W + x0 + k) * C);
   const colOff = (y0: number, y1: number, x: number) => offLine(y1 - y0, (k) => ((y0 + k) * W + x) * C);
-  function bestGap(prof: number[], cross: number[], len: number, off?: number[]): [number, number] | null {
-    let best: [number, number] | null = null, s = -1;
+  function bestGap(prof: number[], cross: number[], len: number, off?: number[], frame?: boolean[]): [number, number] | null {
+    let best: [number, number] | null = null, s = -1, framed = false;
     for (let i = 0; i <= prof.length; i++) {
       // nothing runs across a gutter (a card's side border does), and it holds at most a few stray pixels or a rule
-      const empty = i < prof.length && ((opts.cross ? cross[i] === 0 && prof[i] <= Math.max(2, len * 0.02) : prof[i] <= 2) && (!off || off[i] <= Math.max(2, len * 0.03)) || isRule(prof[i], len));
-      if (empty && s < 0) s = i;
+      const rule = i < prof.length && isRule(prof[i], len);
+      const empty = i < prof.length && ((opts.cross ? cross[i] === 0 && prof[i] <= Math.max(2, len * 0.02) : prof[i] <= 2) && (!off || off[i] <= Math.max(2, len * 0.03)) || rule);
+      if (empty && s < 0) { s = i; framed = false; }
+      if (empty && frame && frame[i]) framed = true;
       if (!empty && s >= 0) {
-        if (s > 0 && i < prof.length && i - s >= minGap && (!best || i - s > best[1] - best[0])) best = [s, i];
+        // (a narrow gutter counts beside a box's edge: a line across the region with a corner at each end, the bottom of a
+        // header box over an L of sidebar and content; a chart's gridline has no corners)
+        // (only where gutters are normally wide: on a small image the usual minimum is already a few pixels)
+        const wide = i - s >= minGap || (framed && minGap >= 8 && i - s >= Math.max(4, Math.round(minGap * 0.6)));
+        if (s > 0 && i < prof.length && wide && (!best || i - s > best[1] - best[0])) best = [s, i];
         s = -1;
       }
     }
@@ -114,7 +120,20 @@ export function findRegions(img: Img, o: Partial<typeof PANEL_OPTS> = {}, within
     const cy = Array.from({ length: h }, (_, i) => rowCross(x0, x1, y0 + i)), cx = Array.from({ length: w }, (_, i) => colCross(y0, y1, x0 + i));
     // (only lines that pass the edge test need the colour test)
     const oy = opts.filled ? py.map((n, i) => (n <= 2 ? rowOff(x0, x1, y0 + i) : 0)) : undefined, ox = opts.filled ? px.map((n, i) => (n <= 2 ? colOff(y0, y1, x0 + i) : 0)) : undefined;
-    const gy = bestGap(py, cy, w, oy), gx = bestGap(px, cx, h, ox);
+    // box edges: a line across the region whose ends turn a corner (ink running off it at both ends, one side)
+    // (one way only: a box's edge turns away from the gap, while a table's row line has column lines both above and below;
+    // the side line may start a pixel or two in from the end of the edge, past an antialiased corner)
+    const runs = (u: number, v: number, along: 'x' | 'y', d: number) => [-2, -1, 0, 1, 2].some((o) => [1, 2, 3, 4].every((k) => { const [x, y] = along === 'x' ? [u + o, v + d * k] : [u + d * k, v + o]; return x >= 0 && y >= 0 && x < W && y < H && e[y * W + x] === 1; }));
+    const turns = (u: number, v: number, along: 'x' | 'y') => runs(u, v, along, -1) !== runs(u, v, along, 1);
+    const ends = (n: number, at: (k: number) => number) => { let a = -1, z = -1; for (let k = 0; k < n; k++) if (at(k)) { if (a < 0) a = k; z = k; } return [a, z]; };
+    // (long: in a strip one line of text tall, a letter's upright spans it and turns at both ends, as an E does)
+    const edgeMin = Math.max(40, minGap * 5);
+    // (never the edge of a mask: the app's grey boxes over masked words have corners too, and stand in titles and labels)
+    const grey = (x: number, y: number) => { const q = (y * W + x) * img.channels, d = img.data; return isMaskGrey(d[q], d[q + 1], d[q + 2]) || [-1, 1].some((k) => y + k >= 0 && y + k < H && isMaskGrey(d[q + k * W * img.channels], d[q + k * W * img.channels + 1], d[q + k * W * img.channels + 2])); };
+    const greyX = (x: number, y: number) => { const q = (y * W + x) * img.channels, d = img.data; return isMaskGrey(d[q], d[q + 1], d[q + 2]) || [-1, 1].some((k) => x + k >= 0 && x + k < W && isMaskGrey(d[q + k * img.channels], d[q + k * img.channels + 1], d[q + k * img.channels + 2])); };
+    const fy = py.map((n, i) => { if (!isRule(n, w)) return false; const y = y0 + i, [a, z] = ends(w, (k) => e[y * W + x0 + k]); return a >= 0 && z - a >= edgeMin && !grey(x0 + ((a + z) >> 1), y) && turns(x0 + a, y, 'x') && turns(x0 + z, y, 'x'); });
+    const fx = px.map((n, i) => { if (!isRule(n, h)) return false; const x = x0 + i, [a, z] = ends(h, (k) => e[(y0 + k) * W + x]); return a >= 0 && z - a >= edgeMin && !greyX(x, y0 + ((a + z) >> 1)) && turns(x, y0 + a, 'y') && turns(x, y0 + z, 'y'); });
+    const gy = bestGap(py, cy, w, oy, fy), gx = bestGap(px, cx, h, ox, fx);
     if (!gy && !gx) return node;
     if (gy && (!gx || gy[1] - gy[0] >= gx[1] - gx[0])) {
       const m = y0 + Math.round((gy[0] + gy[1]) / 2); node.axis = 'y';
@@ -152,7 +171,7 @@ export function findRegions(img: Img, o: Partial<typeof PANEL_OPTS> = {}, within
  * of uniform fill. Card borders can be too faint for the edge map, but the fill itself is easy to see: the most common
  * colour that is not the page background, in large connected areas. Returns card boxes, or [] when the page has none.
  */
-export function findCards(img: Img): Box[] {
+export function findCards(img: Img, extended = false): Box[] {
   const W = img.width, H = img.height, step = Math.max(1, Math.round(Math.min(W, H) / 400));
   const gw = Math.floor(W / step), gh = Math.floor(H / step);
   if (gw < 20 || gh < 20) return [];
@@ -174,21 +193,42 @@ export function findCards(img: Img): Box[] {
   const all: [number, number, number][] = [];
   for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) { const c = px(gx, gy); if (dist(c, page) > 6) all.push(c); }
   const fill = mode(all);
-  if (fill.n < gw * gh * 0.06) return [];
-  const on = new Uint8Array(gw * gh);
-  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) on[gy * gw + gx] = dist(px(gx, gy), fill.c) <= 3 ? 1 : 0;
+  // candidate card colours: the commonest exact colour, the commonest colour families (a shaded card spreads its pixels
+  // over many close shades, so no single shade of it wins), and the page itself (the screenshot's own frame can share
+  // the cards' colour: white cards on a light blue page, inside a white frame); the one whose cards cover most wins
+  const families = new Map<number, { n: number; c: [number, number, number] }>();
+  for (const c of all) { const k = ((c[0] >> 4) << 8) | ((c[1] >> 4) << 4) | (c[2] >> 4), e = families.get(k); if (e) e.n++; else families.set(k, { n: 1, c }); }
+  const tops = [...families.values()].sort((a, b) => b.n - a.n).slice(0, 4).filter((e) => e.n >= gw * gh * 0.04).map((e) => e.c);
+  if (fill.n < gw * gh * 0.06 && !tops.length) return [];
+  // (the exact colour first, matched strictly as before; a family or the page only when it finds more cards, grown along
+  // their shading: one merged area covering many visuals is never preferred over several real cards)
+  let best = fill.n >= gw * gh * 0.06 ? cardsOf(fill.c, false) : [];
+  if (!extended) return best;
+  for (const [c, shaded] of [...tops.map((t) => [t, true] as const), [page, false] as const]) {
+    const cs = cardsOf(c, shaded);
+    if (cs.length > best.length) best = cs;
+  }
+  return best;
+
+  function cardsOf(fillC: [number, number, number], shaded: boolean): Box[] {
+  // (a card's fill may shade gradually, a translucent card over a gradient page: cells near the fill colour join a card
+  // through neighbours that differ only a little, so a card follows its own gradient and stops at its edge, where the
+  // page beside it is clearly unlike it; a flat fill is the same as before)
+  const on = new Uint8Array(gw * gh), cell: [number, number, number][] = new Array(gw * gh);
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) { const c = px(gx, gy); cell[gy * gw + gx] = c; on[gy * gw + gx] = dist(c, fillC) <= (shaded ? 28 : 3) ? 1 : 0; }
   const seen = new Uint8Array(gw * gh), cards: Box[] = [], stack: number[] = [];
   for (let s = 0; s < on.length; s++) {
-    if (!on[s] || seen[s]) continue;
+    if (!on[s] || seen[s] || dist(cell[s], fillC) > (shaded ? 10 : 3)) continue;   // (seeded only from close to the fill colour)
     let n = 0, x0 = gw, y0 = gh, x1 = 0, y1 = 0;
     stack.push(s); seen[s] = 1;
+    const join = (p: number, q: number) => on[q] && !seen[q] && (!shaded || dist(cell[p], cell[q]) <= 4);
     while (stack.length) {
       const p = stack.pop()!, x = p % gw, y = (p - x) / gw; n++;
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
-      if (x > 0 && on[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack.push(p - 1); }
-      if (x < gw - 1 && on[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; stack.push(p + 1); }
-      if (y > 0 && on[p - gw] && !seen[p - gw]) { seen[p - gw] = 1; stack.push(p - gw); }
-      if (y < gh - 1 && on[p + gw] && !seen[p + gw]) { seen[p + gw] = 1; stack.push(p + gw); }
+      if (x > 0 && join(p, p - 1)) { seen[p - 1] = 1; stack.push(p - 1); }
+      if (x < gw - 1 && join(p, p + 1)) { seen[p + 1] = 1; stack.push(p + 1); }
+      if (y > 0 && join(p, p - gw)) { seen[p - gw] = 1; stack.push(p - gw); }
+      if (y < gh - 1 && join(p, p + gw)) { seen[p + gw] = 1; stack.push(p + gw); }
     }
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
     // a card: a sizeable, mostly filled rectangle (content leaves holes), not the whole page
@@ -197,6 +237,7 @@ export function findCards(img: Img): Box[] {
   }
   const covered = cards.reduce((a, b) => a + area(b), 0);
   return cards.length >= 2 && covered >= W * H * 0.1 ? cards : [];
+  }
 }
 
 /**
@@ -218,7 +259,8 @@ export function findOutlinedCards(img: Img): Box[] {
     return [(k >> 16) & 255, (k >> 8) & 255, k & 255];
   })();
   const differs = (c: number[]) => Math.max(Math.abs(c[0] - page[0]), Math.abs(c[1] - page[1]), Math.abs(c[2] - page[2])) > 12;
-  const quiet = (c: number[]) => Math.max(...c) - Math.min(...c) <= 24 && !isMaskGrey(c[0], c[1], c[2]);   // border greys, not series colours or masks
+  // border greys, or pale tints (a light blue outline on a light page), not series colours or masks
+  const quiet = (c: number[]) => !isMaskGrey(c[0], c[1], c[2]) && (Math.max(...c) - Math.min(...c) <= 24 || (Math.min(...c) >= 140 && Math.max(...c) - Math.min(...c) <= 90));
   const line = (x: number, y: number) => { const c = rgb(x, y); return differs(c) && quiet(c); };
   // thin: the pixels a few rows (columns) away on both sides are the page, so a bar or a filled shape is not a line
   const hSegs: [number, number, number][] = [], vSegs: [number, number, number][] = [];
@@ -323,11 +365,35 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
   return ps.filter((p) => area(p.b) > W * H * 0.004 || big(p)).map((p) => ({ ...p, med }));
 }
 
-export function findPanels(img: Img, words: Word[], med?: number): Panel[] {
+export function findPanels(img: Img, words: Word[], med?: number, gridWords: Word[] = words): Panel[] {
   // filled cards first; on a page whose cards are its own colour, their outlines
+  // (a page that is one table of words is a report, not cards: the rescue below never applies to it; judged on the
+  // reader's own word boxes, as the report check is, since masks over a column of numbers merge into tall blocks)
+  const page = img.width * img.height, report = looksLikeTable(gridWords, med ?? medianHeight(gridWords));
+  const giant = (rs: Box[]) => !report && rs.some((r) => area(r) > page * 0.45);
+  const panelsGiant = (ps: Panel[]) => giant(ps.map((p) => p.b));
+  const fromCards = (cs: Box[], rescue = false) => fromCardsOf(img, words, med, cs, rescue);
+  // (rescued cards hold words, a title or labels, as a dashboard's cards do; a single chart's bars, found as colour
+  // areas, hold none: at least three cards, most of them with words)
+  const worded = (cs: Box[]) => (cs.length >= 3 && cs.filter((c) => wordsIn(words, c).length >= 2).length >= cs.length * 0.6 ? cs : []);
   let cards = findCards(img);
   if (!cards.length) cards = findOutlinedCards(img);
-  if (!cards.length) return assemblePanels(findRegions(img), words, img.width, img.height, med);
+  if (!cards.length) {
+    const regions = findRegions(img);
+    // (when the cuts leave one region over about half the page, the gutters between its cards were not found: try cards
+    // in shaded fills, other colour families, or the colour of the screenshot's own frame)
+    if (!giant(regions)) return assemblePanels(regions, words, img.width, img.height, med);
+    const rescued = worded(findCards(img, true));
+    return rescued.length ? fromCards(rescued, true) : assemblePanels(regions, words, img.width, img.height, med);
+  }
+  const panels = fromCards(cards);
+  // (likewise when cards were found but a region over about half the page is left beside them)
+  if (!panelsGiant(panels)) return panels;
+  const more = worded(findCards(img, true));
+  return more.length > cards.length ? fromCards(more, true) : panels;
+}
+
+function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Box[], rescue: boolean): Panel[] {
   // one visual per card, unless the card clearly holds several (each part at least a fifth of the card)
   const regions: Box[] = [];
   for (const c of cards) {
@@ -336,6 +402,8 @@ export function findPanels(img: Img, words: Word[], med?: number): Panel[] {
   }
   // and whatever sits outside the cards (a page title, a filter strip)
   const overlap = (r: Box, c: Box) => Math.max(0, Math.min(r[2], c[2]) - Math.max(r[0], c[0])) * Math.max(0, Math.min(r[3], c[3]) - Math.max(r[1], c[1]));
-  findRegions(img).forEach((r) => { if (!cards.some((c) => overlap(r, c) > area(r) * 0.2)) regions.push(r); });
+  // (no single card covers much of it; in a rescue, the cards together: there, a region around the whole page holds them
+  // all and would swallow them, while elsewhere such a region is a report's table, whose bands looked like cards)
+  findRegions(img).forEach((r) => { if (rescue ? cards.reduce((a, c) => a + overlap(r, c), 0) <= area(r) * 0.2 : !cards.some((c) => overlap(r, c) > area(r) * 0.2)) regions.push(r); });
   return assemblePanels(regions, words, img.width, img.height, med);
 }
