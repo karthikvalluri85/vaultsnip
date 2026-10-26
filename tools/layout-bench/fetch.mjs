@@ -14,8 +14,15 @@ const imageUrl = (source) => {
   const m = /public\.tableau\.com\/app\/profile\/[^/]+\/viz\/([^/]+)\/([^/?#]+)/.exec(source);
   return m ? `https://public.tableau.com/static/images/${m[1].slice(0, 2)}/${m[1]}/${m[2]}/1.png` : source;
 };
-/** Width and height from a PNG header. */
-const pngSize = (b) => [b.readUInt32BE(16), b.readUInt32BE(20)];
+/** Width and height from a PNG header, or from a JPEG's start-of-frame marker. */
+const imageSize = (b) => {
+  if (b.readUInt32BE(0) === 0x89504e47) return [b.readUInt32BE(16), b.readUInt32BE(20)];
+  for (let i = 2; i + 9 < b.length; i += 2 + b.readUInt16BE(i + 2)) {
+    const m = b[i + 1];
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)];
+  }
+  throw new Error('not a PNG or JPEG image');
+};
 
 const all = items(bench);
 let ok = 0;
@@ -28,7 +35,7 @@ for (const it of all) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await writeFile(it.file, Buffer.from(await res.arrayBuffer()));
     }
-    const size = pngSize(await readFile(it.file));
+    const size = imageSize(await readFile(it.file));
     const off = it.size && (size[0] !== it.size[0] || size[1] !== it.size[1]);
     console.log(`  ${off ? '!' : '✓'} ${it.id} ${size.join('×')}${off ? ` (annotated at ${it.size.join('×')}: boxes will not line up)` : ''}`);
     if (!off) ok++;
