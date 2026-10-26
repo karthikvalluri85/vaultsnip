@@ -651,6 +651,22 @@ On the real set, the Campaign dashboard's gauge is read as one (the real Gantt a
 a gauge's value when its progress arc is a darker grey of the same track, and sunbursts (read as donuts; the replica has
 none yet).
 
+## Phase 4(d), continued: more category labels read on the device (27 October 2026)
+
+Most category labels a replica missed were a line chart's months, slanted: each slanted label's box starts above the
+line's lowest point, so it was not counted as "below the line", and words at slightly different heights fell apart into
+phrases of one or two. The builder now takes a word as below the line by its middle, and groups an axis row's words by
+the labels' even spacing (word centres much closer than the usual step are one label: "Fe" + "b", "North America").
+The existing months-in-order rule then fills the months between.
+
+| 60 generated dashboards (set v5), on the device | Before | After |
+|---|---|---|
+| Category labels shown (of those left readable) | 59.4% | **63.5%** |
+| Charts with the right number of categories | 72.2% | **74.4%** |
+| Visuals sharing a row as in the original | 91.6% | 95.3% |
+
+Real dashboards unchanged. Category labels shown now has its own gate in CI.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

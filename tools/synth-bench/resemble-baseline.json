@@ -1,29 +1,29 @@
 {
- "measured": "2026-10-24",
+ "measured": "2026-10-26",
  "resemblance": {
   "dashboards": 60,
   "genericLabels": {
    "left": 0,
-   "of": 2304,
+   "of": 2261,
    "examples": []
   },
   "layout": {
-   "sameRowPct": 91.6,
-   "widthMatchPct": 76.5
+   "sameRowPct": 95.3,
+   "widthMatchPct": 79.6
   },
   "shape": {
-   "categoriesRightPct": 72.2,
-   "shapeMatchPct": 97,
-   "charts": 223
+   "categoriesRightPct": 74.4,
+   "shapeMatchPct": 96.7,
+   "charts": 227
   },
   "text": {
-   "shownPct": 92,
-   "readableWords": 1182,
+   "shownPct": 92.2,
+   "readableWords": 1209,
    "titlesPct": 96.9,
-   "labelsPct": 60.1
+   "labelsPct": 63.5
   },
   "colour": {
-   "matchPct": 85
+   "matchPct": 86.7
   }
  }
 }

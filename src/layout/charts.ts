@@ -31,6 +31,22 @@ const norm100 = (xs: number[]) => { const m = Math.max(...xs, 1e-9); return xs.m
 const text = (ws: Word[]) => ws.filter((w) => w.kept && w.text).sort((a, b) => a.y - b.y || a.x - b.x).map((w) => w.text).join(' ').trim();
 
 /** Words on one text line, left to right, as phrases split at wide gaps. */
+/**
+ * An axis row's words grouped into its labels by their spacing: labels on a category axis are evenly spaced, so word
+ * centres much closer than the usual step belong to one label (a two-word label; a slanted label read in pieces; a label
+ * half masked), whatever their heights. Grouped as phrases, a row of slanted labels, each at its own height, fell apart
+ * into lines of one or two.
+ */
+function stepGroups(ws: Word[], med: number): { ws: Word[]; x0: number; x1: number; yc: number }[] {
+  const sorted = [...ws].sort((a, b) => a.x + a.w / 2 - (b.x + b.w / 2)), cx = (w: Word) => w.x + w.w / 2;
+  const d = sorted.slice(1).map((w, i) => cx(w) - cx(sorted[i])).filter((x) => x > med);
+  if (d.length < 2) return [];
+  const step = [...d].sort((a, b) => a - b)[d.length >> 1];
+  const groups: Word[][] = [];
+  for (const w of sorted) { const g = groups[groups.length - 1]; if (g && cx(w) - cx(g[g.length - 1]) < step * 0.5) g.push(w); else groups.push([w]); }
+  return groups.map((g) => ({ ws: g, x0: Math.min(...g.map((w) => w.x)), x1: Math.max(...g.map((w) => w.x + w.w)), yc: g.reduce((a, w) => a + w.y + w.h / 2, 0) / g.length }));
+}
+
 function phrases(ws: Word[], med: number) {
   const lines: { yc: number; ws: Word[] }[] = [];
   for (const w of [...ws].sort((a, b) => a.y + a.h / 2 - (b.y + b.h / 2))) {
@@ -456,14 +472,18 @@ function lines(c: Ctx): Reading | null {
   // least three words across most of the line's width; else the words just below the line
   // (across the whole panel: the line's own extent can be narrower than its axis; of the rows, the one with most words
   // is the axis, a y-axis label or an axis title being a row of one)
-  const under = c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y + w.h <= c.b[3] + 1 && w.x + w.w >= c.b[0] && w.x <= c.b[2]).sort((p, q) => p.y - q.y);
+  // (by each word's middle: a slanted label's box starts above the line's lowest point)
+  const under = c.words.filter((w) => w.y + w.h / 2 >= yBot - c.med * 0.5 && w.y + w.h <= c.b[3] + 1 && w.x + w.w >= c.b[0] && w.x <= c.b[2]).sort((p, q) => p.y - q.y);
   const labelRows: Word[][] = [];
   // (by each word's middle: a reader's boxes for one row of labels can start a few pixels apart)
   const mid = (w: Word) => w.y + w.h / 2;
   for (const w of under) { const r = labelRows.find((r) => Math.abs(mid(r[0]) - mid(w)) <= c.med * 1.2); if (r) r.push(w); else labelRows.push([w]); }
   const axisRow = labelRows.filter((r) => r.length >= 3 && Math.max(...r.map((w) => w.x + w.w)) - Math.min(...r.map((w) => w.x)) >= Math.min(x1 - x0, width(c.b) * 0.6) * 0.5)
     .sort((p, q) => q.length - p.length)[0];
-  const below = phrases(axisRow || c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y <= yBot + c.med * 4 && w.x + w.w >= x0 - c.med * 3 && w.x <= x1 + c.med * 3), c.med);
+  const belowWords = axisRow || c.words.filter((w) => w.y >= yBot - c.med * 0.5 && w.y <= yBot + c.med * 4 && w.x + w.w >= x0 - c.med * 3 && w.x <= x1 + c.med * 3);
+  // (the axis row's labels by their spacing, when that finds more of them than phrases do)
+  const asPhrases = phrases(belowWords, c.med), bySteps = axisRow ? stepGroups(axisRow, c.med) : [];
+  const below = bySteps.length > asPhrases.length ? bySteps : asPhrases;
   const useLabels = below.length >= 3 && below.length <= 40;
   // labels that cannot be read as phrases (slanted, or masked as unread text) still sit in one group per category below
   // the axis: the groups give the categories' positions; twelve evenly spaced points only when there are none
@@ -479,7 +499,7 @@ function lines(c: Ctx): Reading | null {
     : byGroups ? groups.map((g) => g.reduce((p, w) => p + cx(w), 0) / g.length)
     : Array.from({ length: 12 }, (_, i) => x0 + ((x1 - x0) * (i + 0.5)) / 12);
   // (a group's words name its category when they all stayed readable)
-  const members = monthsInOrder(useLabels ? below.map((p, i) => (p.ws.every((w) => w.kept && w.text) ? p.ws.map((w) => w.text).join(' ') : `Item ${i + 1}`))
+  const members = monthsInOrder(useLabels ? below.map((p, i) => (p.ws.length && p.ws.every((w) => w.kept && w.text) ? p.ws.map((w) => w.text).join(' ') : `Item ${i + 1}`))
     : byGroups ? groups.map((g, i) => (g.every((w) => w.kept && w.text) ? g.map((w) => w.text).join(' ') : `Item ${i + 1}`))
     : xs.map((_, i) => `Item ${i + 1}`));
   const ys = use.map((s) => xs.map((x) => {

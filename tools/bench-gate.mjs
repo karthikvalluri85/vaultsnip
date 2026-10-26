@@ -38,6 +38,7 @@ const RULES = [
   ['resemblance.layout.sameRowPct', 'higher', 3.0, 'visuals sharing a row in the original share one in the replica'],
   ['resemblance.shape.categoriesRightPct', 'higher', 3.0, 'charts with the right number of categories'],
   ['resemblance.text.shownPct', 'higher', 3.0, 'readable titles and labels the replica shows'],
+  ['resemblance.text.labelsPct', 'higher', 3.0, 'readable category labels the replica shows'],
 ];
 
 let failed = 0, checked = 0;
