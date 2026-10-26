@@ -604,6 +604,27 @@ to 5, Superset's SaaS dashboard from 1 of 4 to 4. Two charts read right before a
 and a combo read as a KPI), against 26 more visuals found. The generated sets are unchanged or better (60 dashboards:
 80.1% end to end against 79.0%).
 
+## Phase 4(a), continued: KPI cards with icons, sparklines and mini charts (27 October 2026)
+
+KPI cards were the commonest visual on the real set (113 of 301) and among the most missed. Three changes:
+
+- **A KPI card with a small chart in it** (a sparkline, mini columns, an icon) or with its delta and comparison masked too
+  is read as a KPI, with its sparkline: a really big value (at least 15% of the card's height), few words and little
+  ink. Before, the small chart decided the type (Northstar's cards read as pies, Superstore's as columns, Amazon's as lines).
+- **KPI cards found as one panel are split** between their values: a panel holding two or more big masked values side
+  by side, each with a label and few words, is cut where a line from top to bottom crosses no word and next to no ink.
+  Never in a table or on a report.
+- **A card that is mostly a picture** (a map card, whose fill runs only round its edge) is still a card; before, its
+  map and the KPI tiles beside it were lost.
+
+| 39 real dashboards | Visuals found | Types right (of found) | End to end | KPIs found / read as KPIs (of 113) |
+|---|---|---|---|---|
+| Before | 81.1% | 72.1% | 58.5% | 77 / 60 |
+| After | 83.4% | **76.1%** | **63.5%** | **83 / 75** |
+
+Still missed: a row of small KPI boxes over a chart on a dark page (SaaS), and borderless cards that come apart into an
+icon, a value and a label (Supply Chain). The generated dashboards rose slightly (80.4% end to end).
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

@@ -220,10 +220,11 @@ export function findCards(img: Img, extended = false): Box[] {
   for (let s = 0; s < on.length; s++) {
     if (!on[s] || seen[s] || dist(cell[s], fillC) > (shaded ? 10 : 3)) continue;   // (seeded only from close to the fill colour)
     let n = 0, x0 = gw, y0 = gh, x1 = 0, y1 = 0;
+    const mine: number[] = [];
     stack.push(s); seen[s] = 1;
     const join = (p: number, q: number) => on[q] && !seen[q] && (!shaded || dist(cell[p], cell[q]) <= 4);
     while (stack.length) {
-      const p = stack.pop()!, x = p % gw, y = (p - x) / gw; n++;
+      const p = stack.pop()!, x = p % gw, y = (p - x) / gw; n++; mine.push(p);
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
       if (x > 0 && join(p, p - 1)) { seen[p - 1] = 1; stack.push(p - 1); }
       if (x < gw - 1 && join(p, p + 1)) { seen[p + 1] = 1; stack.push(p + 1); }
@@ -231,8 +232,14 @@ export function findCards(img: Img, extended = false): Box[] {
       if (y < gh - 1 && join(p, p + gw)) { seen[p + gw] = 1; stack.push(p + gw); }
     }
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-    // a card: a sizeable, mostly filled rectangle (content leaves holes), not the whole page
-    if (bw * bh >= gw * gh * 0.01 && n >= bw * bh * 0.45 && bw * bh < gw * gh * 0.9 && bw >= gw * 0.05 && bh >= gh * 0.05)
+    // a card: a sizeable, mostly filled rectangle (content leaves holes), not the whole page; or a frame of fill around
+    // content that takes most of it (a map or a picture), its fill running round the card's whole edge
+    const inC = new Set(mine);
+    let edge = 0, onEdge = 0;
+    for (let x = x0; x <= x1; x++) for (const y of [y0, y1]) { edge++; if (inC.has(y * gw + x)) onEdge++; }
+    for (let y = y0 + 1; y < y1; y++) for (const x of [x0, x1]) { edge++; if (inC.has(y * gw + x)) onEdge++; }
+    const framed = n >= bw * bh * 0.2 && onEdge >= edge * 0.8;
+    if (bw * bh >= gw * gh * 0.01 && (n >= bw * bh * 0.45 || framed) && bw * bh < gw * gh * 0.9 && bw >= gw * 0.05 && bh >= gh * 0.05)
       cards.push([x0 * step, y0 * step, Math.min(W, (x1 + 1) * step), Math.min(H, (y1 + 1) * step)]);
   }
   const covered = cards.reduce((a, b) => a + area(b), 0);
@@ -366,6 +373,54 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
 }
 
 export function findPanels(img: Img, words: Word[], med?: number, gridWords: Word[] = words): Panel[] {
+  const ps = findPanelsRaw(img, words, med, gridWords), m = med ?? medianHeight(words);
+  // (never on a report: its table's masked numbers are not KPI values)
+  // (values judged on the reader's own word boxes: the words given here leave out the tallest masks, which a big value is)
+  return looksLikeTable(gridWords, m) ? ps : splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m)
+    .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
+}
+
+/**
+ * KPI cards found as one panel (no gutter wide or clean enough between them): a panel holding two or more big values side
+ * by side is split between them, where a line from top to bottom crosses no word and next to no ink (a faint shadow at
+ * most). Each part keeps its own value and the words above and below it.
+ */
+export function splitKpiRows(img: Img, ps: Panel[], words: Word[], med: number): Panel[] {
+  const e = edges(img);
+  const stacked = labelStacks(words, med);
+  return ps.flatMap((p) => {
+    // (not a table: a column of masked numbers is not a row of values)
+    if (looksLikeTable(p.words, med)) return [p];
+    // (values are numbers, and numbers are masked: a big readable word is a title)
+    const value = (w: Word) => !w.kept && isBigBox(w, med) && !stacked.has(w);
+    const bigs = p.words.filter(value).sort((a, b) => a.x - b.x);
+    if (bigs.length < 2) return [p];
+    // big values in one row (their middles at about one height)
+    const mid = (w: Word) => w.y + w.h / 2, row = bigs.filter((w) => Math.abs(mid(w) - mid(bigs[0])) <= Math.max(w.h, bigs[0].h));
+    if (row.length < 2) return [p];
+    const y0 = Math.max(0, Math.floor(p.b[1])), y1 = Math.min(img.height, Math.ceil(p.b[3])), hgt = y1 - y0;
+    const cuts: number[] = [];
+    for (let i = 1; i < row.length; i++) {
+      const a = row[i - 1].x + row[i - 1].w, z = row[i].x;
+      if (z - a < med * 3) continue;
+      // the cleanest column between the two values: no word across it, the least ink
+      let best = -1, bestInk = Infinity;
+      for (let x = Math.ceil(a + med); x < Math.floor(z - med); x++) {
+        if (p.words.some((w) => w.x <= x && w.x + w.w >= x)) continue;
+        let n = 0; for (let y = y0; y < y1; y++) n += e[y * img.width + x];
+        if (n < bestInk) { bestInk = n; best = x; }
+      }
+      if (best >= 0 && bestInk <= hgt * 0.15) cuts.push(best);
+    }
+    if (!cuts.length || cuts.length > 5) return [p];
+    const xs = [p.b[0], ...cuts, p.b[2]];
+    const parts = xs.slice(1).map((x, i) => { const b: Box = [xs[i], p.b[1], x, p.b[3]]; return { b, words: wordsIn(words, b), med: p.med }; });
+    // (each part a card: its value, a readable label, and few words; a chart's masked data labels sit among axis labels)
+    return parts.every((q) => q.words.length <= 8 && q.words.some(value) && q.words.some((w) => w.kept && w.text && !isBigBox(w, med))) ? parts : [p];
+  });
+}
+
+function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] = words): Panel[] {
   // filled cards first; on a page whose cards are its own colour, their outlines
   // (a page that is one table of words is a report, not cards: the rescue below never applies to it; judged on the
   // reader's own word boxes, as the report check is, since masks over a column of numbers merge into tall blocks)

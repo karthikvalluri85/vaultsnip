@@ -737,6 +737,9 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // (a KPI card has one sparkline at most: two or more long coloured lines are a line chart, whatever its masks look like)
   const lineChart = thin.filter((t) => sat(t.key) >= 3).length >= 2;
   if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3) && !lineChart) return done(kpi(c, 0.85))!;
+  // a KPI card with a small chart in it (a sparkline, mini columns, an icon) or with its delta and comparison masked too:
+  // a really big value, few words and little ink; a chart's own numbers are never that big for its panel
+  if (bigH >= height(b) * 0.15 && words.length <= 18 && coverage < 0.12) return done(kpi(c, 0.7))!;
   // words on a grid make a table, unless the panel also holds coloured strokes or several vivid colours (a table's
   // rules and stripes are grey or one colour): then a line or scatter reading comes first and the table is the fallback
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;
