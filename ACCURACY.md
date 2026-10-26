@@ -667,6 +667,24 @@ The existing months-in-order rule then fills the months between.
 
 Real dashboards unchanged. Category labels shown now has its own gate in CI.
 
+## Phase 4(a), continued: bars of equal length, and KPIs with round icons (27 October 2026)
+
+- **Equal bars are not table stripes.** A bar chart whose bars are nearly one length, each with its category and value
+  beside it, was read as a table's zebra stripes. Stripes run across most of their table; these bars cover a small part
+  of their panel (Amazon's three category charts).
+- **A KPI with a round icon is a KPI.** The KPI-with-a-small-chart rule now takes a value at least 12% of the card's
+  height (it was 15%), as the plain KPI rule does, but never on a line chart or where bars cover much of the panel.
+  Northstar's cards, read as pies from their round icons, are KPIs again.
+
+| 39 real dashboards | Visuals found | Types right (of found) | End to end |
+|---|---|---|---|
+| Before | 83.4% | 76.5% | 63.8% |
+| After | **85%** | 77.3% | **65.8%** |
+
+Tableau now reads 83.2% of its visuals and types 80.6% of them
+right, ahead of Power BI. Two misses traded away earlier remain: a Power BI map whose pale land areas pass for two
+cards (each half then read on its own), and SaaS's row of small KPI boxes over a chart.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

@@ -871,7 +871,8 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const holdsWord = (m: Mark) => words.some((w) => { const y = wordCenter(w)[1]; return y >= m.b[1] && y <= m.b[3]; });
   const stripes = grid && rects.length >= 4 && rects.some((r) => {
     const same = rects.filter((m) => Math.abs(width(m.b) - width(r.b)) <= tol && Math.abs(m.b[0] - r.b[0]) <= tol && height(m.b) >= med * 1.5);
-    return same.length >= 4 && same.length >= rects.length * 0.8 && same.filter(holdsWord).length >= same.length / 2;
+    // (and run across most of the table: equal bars with their labels beside them cover a part of their panel)
+    return same.length >= 4 && same.length >= rects.length * 0.8 && same.filter(holdsWord).length >= same.length / 2 && width(r.b) >= width(b) * 0.3;
   });
   const barReading = stripes ? null : bars(c);
   // (the value is large for its card: masked data labels inside a big chart are not KPI values; a card holding a big
@@ -887,7 +888,9 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3) && !lineChart) return done(kpi(c, 0.85))!;
   // a KPI card with a small chart in it (a sparkline, mini columns, an icon) or with its delta and comparison masked too:
   // a really big value, few words and little ink; a chart's own numbers are never that big for its panel
-  if (bigH >= height(b) * 0.15 && words.length <= 18 && coverage < 0.12) return done(kpi(c, 0.7))!;
+  // (not a line chart, two or more coloured lines; nor bars across much of the panel)
+  const bigBars = !!barReading && rects.length >= 3 && width(hull(rects)) * height(hull(rects)) >= pa * 0.4;
+  if (bigH >= height(b) * 0.12 && words.length <= 18 && coverage < 0.12 && !lineChart && !bigBars) return done(kpi(c, 0.7))!;
   // words on a grid make a table, unless the panel also holds coloured strokes or several vivid colours (a table's
   // rules and stripes are grey or one colour): then a line or scatter reading comes first and the table is the fallback
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;

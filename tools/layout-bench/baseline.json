@@ -5,20 +5,21 @@
  "dashboards": {
   "count": 39,
   "visuals": 301,
-  "found": 251,
-  "foundPct": 83.4,
-  "extraPanels": 74,
-  "typesRightLenient": 192,
-  "typesRightStrict": 184,
-  "typesRightPct": 76.5,
-  "endToEndPct": 63.8,
+  "found": 256,
+  "foundPct": 85,
+  "extraPanels": 73,
+  "typesRightLenient": 198,
+  "typesRightStrict": 190,
+  "typesRightPct": 77.3,
+  "endToEndPct": 65.8,
   "seriesLayout": {
-   "checked": 59,
-   "right": 53,
-   "rightPct": 89.8,
+   "checked": 61,
+   "right": 54,
+   "rightPct": 88.5,
    "wrong": {
     "none→stacked": 1,
     "none→clustered": 3,
+    "percent→stacked": 1,
     "percent→none": 1,
     "stacked→clustered": 1
    }
@@ -32,18 +33,18 @@
    "Power BI": {
     "dashboards": 14,
     "visuals": 88,
-    "found": 68,
-    "typesRight": 48,
-    "foundPct": 77.3,
-    "typesRightPct": 70.6
+    "found": 73,
+    "typesRight": 49,
+    "foundPct": 83,
+    "typesRightPct": 67.1
    },
    "Tableau": {
     "dashboards": 14,
     "visuals": 161,
     "found": 134,
-    "typesRight": 103,
+    "typesRight": 108,
     "foundPct": 83.2,
-    "typesRightPct": 76.9
+    "typesRightPct": 80.6
    },
    "Looker": {
     "dashboards": 6,
