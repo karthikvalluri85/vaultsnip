@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- **A "Supported charts" page** showing every chart type VaultSnip can rebuild, each drawn live by the replica engine from an invented example. Behind it, one catalogue of chart types now feeds the AI instructions, "Fix it here" and the checks.
 - **An on-device self-check of each replica**: every chart is compared with its panel in the masked image, without anything leaving your device, and the comparison helps choose which uncertain visuals are worth asking your AI key about.
 - **Fewer charts misread on Tableau and Power BI dashboards**: bar charts of nearly equal bars are no longer taken for tables, and KPI cards with round icons are no longer taken for pies (real benchmark: 63.8% to 65.8% right end to end).
 - **More of the original's axis labels in replicas built without a key**, notably slanted month labels on line charts (labels shown on the generated benchmark: 59% to 64%).

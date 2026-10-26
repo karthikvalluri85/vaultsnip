@@ -1394,7 +1394,7 @@ VISUAL fields: "id", "type", "span" (1-12 grid columns; a row's spans sum to 12)
  "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line","measure":{…} (only on a combo series that uses its own axis, e.g. a % line over $ bars)}],
  "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool, "refLines":[{"name":string,"shape":0-100}].
  kpi: "shapeValue":0-100 for percentages (where the value sits on 0-100). Use format "ratio" with "outOf" for scores like "4.52 / 5", "duration" with a unit for times like "38 min", "integer" with unit "pts" for points.
-Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, gantt, table, pivot, text, map, placeholder.
+Types: ${VSCatalog.TYPES.join(', ')}.
  Orientation: "column" = vertical bars rising from the x-axis (categories along the bottom). "bar" = horizontal bars (categories down the left side) and must have "horizontal":true. Never send "column" with "horizontal":true.
  Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item. "stackedPercent":true (with "stacked":true) when every stack reaches the same height, a 100% stacked chart.
  Reference lines: a straight target, average or threshold line drawn across a bar, column, line or area chart goes in "refLines", one entry each, with "shape" on the same scale as the series shapes (100 = the largest single series value; above 100 when the line sits higher, e.g. over stacked totals) and "name" from its visible label ("Target", "Average"), else "Target". Never as a series.
@@ -1597,9 +1597,8 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   $('btn-fix-done').onclick = () => { $('fix-panel').hidden = true; if (S.local) S.local.fixing = false; renderLocalBanner(); };
 
   // "Fix it here": every visual with its type, title and how sure the builder was; changes redraw the replica
-  const FIX_TYPES = [['kpi', 'KPI card'], ['column', 'Column chart'], ['bar', 'Bar chart'], ['line', 'Line chart'], ['area', 'Area chart'], ['pie', 'Pie chart'], ['donut', 'Donut chart'],
-    ['treemap', 'Treemap'], ['scatter', 'Scatter plot'], ['gauge', 'Gauge'], ['funnel', 'Funnel'], ['gantt', 'Gantt / timeline'], ['heatmap', 'Heatmap'],
-    ['table', 'Table'], ['pivot', 'Matrix (pivot)'], ['text', 'Text'], ['placeholder', 'Something else']];
+  // (the types offered, and their names, from the chart catalogue: web/catalog.js)
+  const FIX_TYPES = VSCatalog.fixTypes();
   const DEFAULT_MEMBERS = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
   // a visual changed to another type keeps what still applies and gets sensible defaults for the rest
   function convertVisual(v, type) {
@@ -1855,5 +1854,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { refineSpec, uncertainVisuals, closeupScores, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { system: SYSTEM, refineSpec, uncertainVisuals, closeupScores, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

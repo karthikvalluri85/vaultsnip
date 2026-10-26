@@ -110,6 +110,16 @@ try {
   const genericRef = await page.evaluate(() => JSON.stringify(VSShare.forLevel({ title: 't', rows: [{ height: 'm', visuals: [{ id: 'c', type: 'column', span: 12, title: 'x', dimension: { name: 'Region', members: ['North'] }, series: [{ name: 'S', shape: [100] }], refLines: [{ name: 'Q3 board target', shape: 75 }] }] }] }, 'generic')));
   check(!/board target/.test(genericRef) && !/"shape":75/.test(genericRef) && /Reference line/.test(genericRef), 'Generic exports keep a reference line, without its name or its value');
 
+  // Phase 3: the chart catalogue; every type in it draws, on the public page made from it
+  const cp = await browser.newPage(); const cpErrs = []; cp.on('pageerror', e => cpErrs.push(e.message));
+  await cp.goto(base + 'charts.html'); await cp.waitForTimeout(1500);
+  const cat = await cp.evaluate(() => ({ types: VSCatalog.TYPES.length, cards: document.querySelectorAll('.entry').length,
+    blank: [...document.querySelectorAll('.entry')].filter(e => e.dataset.type !== 'placeholder' && (e.querySelector('.rp-ph') || !e.querySelector('.rp-card'))).map(e => e.dataset.type) }));
+  await cp.close();
+  check(cat.types >= 24 && cat.cards === cat.types && !cat.blank.length && !cpErrs.length, `every chart type in the catalogue draws on the supported-charts page (${cat.cards} types${cat.blank.length ? '; not drawn: ' + cat.blank.join(', ') : ''}${cpErrs.length ? '; errors: ' + cpErrs.join(' | ') : ''})`);
+  const sysTypes = await page.evaluate(() => { const line = (window.__DSC.test.system.match(/^Types: (.*)\.$/m) || [])[1] || ''; return line.split(', ').join(',') === VSCatalog.TYPES.join(','); });
+  check(sysTypes, 'the AI instructions list exactly the catalogue\'s types');
+
   // #12-#14: values a product owner would believe
   const real = await page.evaluate(() => {
     const root = document.getElementById('replica');

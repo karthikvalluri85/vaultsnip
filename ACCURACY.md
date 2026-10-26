@@ -707,6 +707,23 @@ as close-ups to the user's own AI. The "Check" marks stay on the confidence alon
 version comparing only where ink lay (AUC 0.65) was not good enough to use; the replica draws its axes and legends its
 own way, so the kind of marks carries the signal.
 
+## Phase 3: the chart catalogue (27 October 2026)
+
+`web/catalog.js` declares every visual type the replica draws (24), with the data each needs and an invented example.
+Everything that used to list types reads it: the AI instructions' list of types, the answer checker
+(`tools/ai-bench/validate.mjs`), the types offered in "Fix it here", and a new public page, **Supported charts**
+(`web/charts.html`, linked from the app), which draws every example live with the replica engine. An end-to-end check
+draws every type in the catalogue and fails if one falls back to a placeholder, and checks that the AI instructions list
+exactly the catalogue's types. Adding a type now means one entry in one file.
+
+**The strict answer format is not used, by measurement and by limit.** The recorded Claude answers had no malformed
+structure beyond row widths (which the app fits), so it was never needed for correctness. And it cannot express the
+spec faithfully: Claude's structured outputs require every object closed (`additionalProperties: false`) and allow at
+most 24 optional fields in a request, while a visual has well over 24 optional, type-specific fields across the 24
+types. Squeezing them in (a type's data as a JSON string inside a strict outer shape) would trade measured-good answers
+for a weaker format. OpenAI keeps its JSON mode; its strict mode requires every field present, which fits this optional-
+heavy shape no better. The answer checker runs on every recorded answer instead, and stays the guard.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after
@@ -729,6 +746,12 @@ interactive replica without any AI key. Work that improves the key-free path com
 on-device self-check (4c), more chart types the builder reads (5), the detector in the extension's chart blur, and a
 better reader (2b). Work that only improves the AI-key path (scoring it, the strict answer formats of Phase 3 and the
 close-ups of 4b) comes after.
+
+**Status (27 October 2026).** All phases are done: 0, 1 (a)-(e), 2, 2b, 3 (the catalogue; the strict format measured
+unnecessary and inexpressible, above), 4 (a)-(d) and 5 (combo, waterfall, series layouts, reference lines, gauges,
+funnels, Gantt charts and heatmaps). The extension's chart blur has used the detector since Phase 2. Open items are
+named under each phase (dark funnels, sunbursts, a gauge's value on a grey track, SaaS-style KPI rows, the real set's
+Gantt and calendar heatmap).
 
 What is deliberately not in the plan:
 
