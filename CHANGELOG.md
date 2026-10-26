@@ -25,6 +25,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **The AI-key path is measured** (`tools/ai-bench`, developer tool): generated, fictional dashboards are masked by the app and sent with the app's own request using the developer's key; the answers are scored against the on-device builder and checked for malformed layouts. On 60 dashboards Claude Sonnet 5.5 typed all 404 visuals right (96% end to end) for $1.44; see ACCURACY.md.
 
 ### Fixed
+- **Security: Apache ECharts upgraded from 5.6.1 to 6.1.0**, which fixes advisory GHSA-fgmj-fm8m-jvvx upstream (VaultSnip's own escaping already kept it from applying). Replicas, exports and share links look the same: rendered side by side, 0.09% of pixels differ (antialiasing). React exports already installed ECharts 6, as their instructions do not pin a version.
 - **Security: ECharts advisory GHSA-fgmj-fm8m-jvvx does not apply.** Flow-map lines in replicas escape every name in their tooltips; a share link with HTML in a flow's name runs nothing. An end-to-end check keeps it so.
 - **AI layouts fit the grid.** When an AI answer's row widths do not add up to the replica's 12-column grid (a quarter of answers did, on the AI-path benchmark), the app now scales them to fit instead of wrapping a visual onto its own line or leaving a gap.
 

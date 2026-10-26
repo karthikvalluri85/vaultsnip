@@ -525,7 +525,7 @@ with a key remains the most faithful; the close-ups are the cheaper step between
   visuals typed right (67 before), 85.0% end to end.
 - **ECharts advisory GHSA-fgmj-fm8m-jvvx** (Lines series tooltips render data names as HTML, before ECharts 6.1): the
   replica's flow-map lines have their own escaping tooltip and carry no raw names, so it does not apply; an end-to-end
-  check keeps it so. Moving to ECharts 6 is a separate, major upgrade.
+  check keeps it so. Moving to ECharts 6 is a separate, major upgrade. (Done on 27 October 2026: the app bundles ECharts 6.1.0.)
 
 ## Phase 1(b): the real set grown to 39 dashboards (26 October 2026)
 
