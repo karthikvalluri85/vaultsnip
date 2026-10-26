@@ -1,0 +1,28 @@
+{
+ "chartVariants": {
+  "charts": 48,
+  "typesRightPct": 89.6,
+  "seriesLayout": {
+   "checked": 27,
+   "right": 26,
+   "rightPct": 96.3,
+   "byVariant": {
+    "none": "8/8",
+    "clustered": "8/8",
+    "stacked": "5/6",
+    "percent": "5/5"
+   }
+  },
+  "refLines": {
+   "withLine": 19,
+   "found": 16,
+   "foundPct": 84.2,
+   "solid": "7/10",
+   "dashed": "9/9",
+   "withoutLine": 24,
+   "addedWhereNone": 0,
+   "namedFromLabel": "11/13",
+   "medianPositionError": 0
+  }
+ }
+}

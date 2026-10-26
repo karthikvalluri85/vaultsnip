@@ -58,6 +58,8 @@
       const g = { id: 'v' + (++vi), type: v.type, span: v.span, title: 'Visual ' + vi };
       ['horizontal', 'stacked', 'stackedPercent', 'valueLabels', 'sparkline', 'sorted', 'rowCount', 'pointCount', 'mapKind', 'originalType', 'delta', 'higherIsBetter', 'min', 'max', 'lastIsTotal', 'colorIndex', 'zeroBased', 'subtotals', 'grandTotal', 'totalColumn'].forEach(k => { if (v[k] !== undefined) g[k] = v[k]; });
       if (v.basemap) g.basemap = v.basemap;
+      // a reference line is kept, without its name or its place (the replica draws it at the average)
+      if (Array.isArray(v.refLines)) g.refLines = v.refLines.slice(0, 3).map(() => ({ name: 'Reference line' }));
       if (v.measure) g.measure = measure(v.measure);
       if (v.xMeasure) g.xMeasure = measure(v.xMeasure);
       if (v.yMeasure) g.yMeasure = measure(v.yMeasure);

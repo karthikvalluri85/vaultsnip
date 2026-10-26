@@ -45,6 +45,46 @@ const LENIENT = { combo: ['column', 'line', 'bar'], area: ['area', 'line'], line
 /** Whether a found type matches an annotated one; lenient accepts close cousins (line and area, combo and column). */
 export const same = (got, want, lenient) => { got = ALIAS[got] || got; want = ALIAS[want] || want; return got === want || (lenient && (LENIENT[want] || []).includes(got)); };
 
+/** How a chart's series sit, from its spec visual: none (one series), clustered, stacked or percent (100% stacked). */
+export function seriesLayout(v) {
+  if (!v) return 'none';
+  if (v.stackedPercent) return 'percent';
+  if (v.stacked) return 'stacked';
+  const bars = (v.series || []).filter((s) => v.type !== 'combo' || (s.kind || 'bar') === 'bar');
+  return bars.length > 1 ? (v.type === 'area' ? 'overlap' : 'clustered') : 'none';
+}
+const VARIANT_TYPES = ['column', 'bar', 'combo'], REF_TYPES = ['column', 'bar', 'combo', 'line', 'area'];
+/**
+ * Series layout and reference lines on the charts that were found with the right type: a bar, column or combo chart's
+ * layout is checked against its label (none when unlabelled), an area's only when labelled; a reference line is
+ * counted found, missed, or added where the original has none.
+ */
+export function chartDetails(truths, spec) {
+  const byVid = Object.fromEntries((spec?.rows || []).flatMap((r) => r.visuals || []).map((v) => [v.id, v]));
+  const out = { layoutChecked: 0, layoutRight: 0, layoutWrong: {}, refTruth: 0, refFound: 0, refFalse: 0 };
+  for (const t of truths) {
+    if (!t.hit || !same(t.hit.type, t.type, true)) continue;
+    const v = byVid[t.hit.vid];
+    if (VARIANT_TYPES.includes(t.type) || (t.type === 'area' && t.variant)) {
+      const want = t.variant || 'none', got = seriesLayout(v);
+      out.layoutChecked++;
+      if (got === want) out.layoutRight++; else { const k = `${want}→${got}`; out.layoutWrong[k] = (out.layoutWrong[k] || 0) + 1; }
+    }
+    if (REF_TYPES.includes(t.type)) {
+      const got = Array.isArray(v?.refLines) && v.refLines.length > 0;
+      if (t.refLine) { out.refTruth++; if (got) out.refFound++; } else if (got) out.refFalse++;
+    }
+  }
+  return out;
+}
+/** Adds one page's chartDetails into a running total. */
+export function addDetails(a, b) {
+  for (const k of ['layoutChecked', 'layoutRight', 'refTruth', 'refFound', 'refFalse']) a[k] = (a[k] || 0) + b[k];
+  a.layoutWrong = a.layoutWrong || {};
+  for (const [k, n] of Object.entries(b.layoutWrong)) a.layoutWrong[k] = (a.layoutWrong[k] || 0) + n;
+  return a;
+}
+
 /**
  * Matches panels to annotated visuals: a visual is found when a panel's centre is inside it and its centre inside the
  * panel. Panels inside an `ignore` box (page headers, filters) count neither way.

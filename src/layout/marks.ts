@@ -58,7 +58,15 @@ export function background(img: Img, box: Box): [number, number, number] {
     if (d >= edge && d < edge + band && add(ring, x, y)) ringN++;
   }
   const mode = (counts: ReturnType<typeof tally>) => { let best = { n: -1, rgb: [255, 255, 255] as [number, number, number] }; for (const e of counts.values()) if (e.n > best.n) best = e; return best; };
+  // (bars that run to the panel's edges can fill most of the border: a neutral colour (white, grey, near black) that holds
+  // a fair share of it is the background, not the vivid bars beside it)
+  const sat = (e: { rgb: [number, number, number] }) => Math.max(...e.rgb) - Math.min(...e.rgb);
   const r = mode(ring);
+  if (ringN >= 20 && sat(r) >= 60) {
+    let calm = { n: -1, rgb: r.rgb };
+    for (const e of ring.values()) if (sat(e) < 24 && e.n > calm.n) calm = e;
+    if (calm.n >= ringN * 0.2) return calm.rgb;
+  }
   return ringN >= 20 && r.n >= ringN * 0.3 ? r.rgb : mode(all).rgb;
 }
 

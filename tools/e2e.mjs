@@ -89,6 +89,27 @@ try {
   check(shaped.placeholders === 0 && shaped.gantts === 2, 'Gantt, timeline and "placeholder: gantt" all render as a Gantt');
   check(!/NaN|undefined/.test(shaped.kpi), `odd numbers from the AI never show as NaN (${shaped.kpi})`);
 
+  // reference lines and 100% stacks: drawn where the spec puts them, on the series' own scale
+  const refd = await page.evaluate(() => {
+    const root = document.getElementById('replica');
+    const dim = { name: 'Region', members: ['North', 'South', 'East', 'West'] };
+    DSCReplica.render(root, { title: 't', rows: [{ height: 'm', visuals: [
+      { id: 'c', type: 'column', span: 4, title: 'Sales by Region', dimension: dim, series: [{ name: 'Sales', shape: [100, 80, 60, 40] }], refLines: [{ name: 'Target', shape: 75 }] },
+      { id: 'b', type: 'bar', horizontal: true, span: 4, title: 'Units by Region', dimension: dim, series: [{ name: 'Units', shape: [100, 70, 40, 20] }], refLines: [{ name: 'Average', shape: 60 }] },
+      { id: 'p', type: 'column', stacked: true, stackedPercent: true, span: 4, title: 'Mix by Region', dimension: dim, series: [{ name: 'A', shape: [70, 40, 20, 50] }, { name: 'B', shape: [30, 60, 80, 50] }], refLines: [{ name: 'Target', shape: 50 }] }] }] }, { mode: 'shape', seed: 7, resetSelection: true });
+    const o = root._charts.map(c => c.getOption());
+    const ml = x => x.series.find(s => s.markLine && s.markLine.data && s.markLine.data.length);
+    const peak = x => Math.max(...x.series.flatMap(s => s.data.map(d => +(d.value ?? d))));
+    const col = ml(o[0]), bar = ml(o[1]);
+    return { colAt: col && col.markLine.data[0].yAxis / peak(o[0]), colName: col && col.markLine.data[0].name, barAt: bar && bar.markLine.data[0].xAxis / peak(o[1]), barName: bar && bar.markLine.data[0].name,
+      percentLine: !!ml(o[2]), percentTop: Math.max(...o[2].series[0].data.map((d, i) => o[2].series.reduce((a, s) => a + s.data[i].value, 0))) };
+  });
+  check(Math.abs(refd.colAt - 0.75) < 0.02 && refd.colName === 'Target', `a column chart's reference line sits at its value and keeps its name (${(refd.colAt * 100).toFixed(1)}% of the tallest bar, "${refd.colName}")`);
+  check(Math.abs(refd.barAt - 0.6) < 0.02 && refd.barName === 'Average', `a bar chart's reference line runs up the value axis (${(refd.barAt * 100).toFixed(1)}%, "${refd.barName}")`);
+  check(!refd.percentLine && Math.abs(refd.percentTop - 100) < 0.01, 'a 100% stacked chart fills every bar to 100% and draws no reference line');
+  const genericRef = await page.evaluate(() => JSON.stringify(VSShare.forLevel({ title: 't', rows: [{ height: 'm', visuals: [{ id: 'c', type: 'column', span: 12, title: 'x', dimension: { name: 'Region', members: ['North'] }, series: [{ name: 'S', shape: [100] }], refLines: [{ name: 'Q3 board target', shape: 75 }] }] }] }, 'generic')));
+  check(!/board target/.test(genericRef) && !/"shape":75/.test(genericRef) && /Reference line/.test(genericRef), 'Generic exports keep a reference line, without its name or its value');
+
   // #12-#14: values a product owner would believe
   const real = await page.evaluate(() => {
     const root = document.getElementById('replica');
@@ -850,12 +871,21 @@ try {
   check(fx.open && fx.rows === band.visuals, `"Fix it here" lists every visual (${fx.rows}, ${fx.checks} marked Check)`);
   // rename the column chart, turn it into a bar chart, then remove the footer text block
   const colRow = page.locator('#fix-list .fixrow').filter({ has: page.locator('select option:checked', { hasText: 'Column chart' }) }).first();
-  await colRow.locator('input').fill('Revenue by Market'); await colRow.locator('input').press('Tab'); await wait(300);
+  await colRow.locator('input[type=text]').fill('Revenue by Market'); await colRow.locator('input[type=text]').press('Tab'); await wait(300);
   check(/Revenue by Market/.test(await page.locator('#replica').textContent()), 'renaming a visual in the list renames it in the replica');
   const vid = await colRow.getAttribute('data-vid');
   await colRow.locator('select').selectOption('bar'); await wait(400);
   const asBar = await page.evaluate(id => { const v = window.__DSC.spec.rows.flatMap(r => r.visuals).find(x => x.id === id); const card = document.querySelector(`#replica [data-vid="${id}"]`); return { type: v.type, horizontal: v.horizontal, title: v.title, chart: !!(card && card.querySelector('.rp-chart svg')) }; }, vid);
   check(asBar.type === 'bar' && asBar.horizontal && asBar.title === 'Revenue by Market' && asBar.chart, 'changing a visual\'s type redraws it and keeps its title and data shape');
+  // add a reference line to it, then move it
+  const barRow = page.locator(`#fix-list .fixrow[data-vid="${vid}"]`);
+  await barRow.locator('.fixopts input[type=checkbox]').check(); await wait(300);
+  await barRow.locator('.fixopts input[type=number]').fill('50'); await barRow.locator('.fixopts input[type=number]').press('Tab'); await wait(300);
+  const withRef = await page.evaluate(id => { const v = window.__DSC.spec.rows.flatMap(r => r.visuals).find(x => x.id === id);
+    const card = document.querySelector(`#replica [data-vid="${id}"] .rp-chart`), inst = card && window.echarts.getInstanceByDom(card);
+    const s = inst && inst.getOption().series.find(x => x.markLine && x.markLine.data && x.markLine.data.length);
+    return { refs: v.refLines, drawn: !!s }; }, vid);
+  check(withRef.refs && withRef.refs.length === 1 && withRef.refs[0].shape === 50 && withRef.drawn, `"Fix it here" adds a reference line and moves it (${JSON.stringify(withRef.refs)})`);
   const cardsBefore = await page.locator('#replica .rp-card').count();
   await page.locator('#fix-list .fixrow').filter({ has: page.locator('select option:checked', { hasText: 'Text' }) }).first().locator('button', { hasText: 'Remove' }).click(); await wait(300);
   check(await page.locator('#replica .rp-card').count() === cardsBefore - 1 && (await page.evaluate(() => window.__DSC.spec.rows.every(r => r.visuals.reduce((s, v) => s + v.span, 0) <= 12))), 'removing a visual takes it out of the replica and the row still fits the grid');

@@ -1,5 +1,5 @@
 {
- "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), sunburst, table, pivot, map, scatter, treemap, waterfall, combo (bars + line), gauge, funnel, text, and other for a visual of a kind the builder has no type for (a Gantt chart, a dot matrix, a decomposition tree). Labelled with tools/layout-bench/annotate.html.",
+ "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), sunburst, table, pivot, map, scatter, treemap, waterfall, combo (bars + line), gauge, funnel, text, and other for a visual of a kind the builder has no type for (a Gantt chart, a dot matrix, a decomposition tree). Labelled with tools/layout-bench/annotate.html. Bar, column, combo and area charts carry variant (clustered, stacked or percent for 100% stacked; none for one series) and refLine when a straight reference line crosses them.",
  "dashboards": [
   {
    "id": "sample-it-spend_it3",
@@ -173,7 +173,8 @@
       85,
       470,
       300
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "combo",
@@ -183,7 +184,8 @@
       83,
       975,
       322
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "line",
@@ -817,7 +819,8 @@
       409,
       608,
       767
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "pie",
@@ -887,7 +890,8 @@
       970,
       794,
       1672
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "line",
@@ -1299,7 +1303,8 @@
       475,
       649,
       791
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "other",
@@ -1465,7 +1470,8 @@
       112,
       671,
       331
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "column",
@@ -1475,7 +1481,8 @@
       114,
       992,
       332
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "column",
@@ -1485,7 +1492,8 @@
       342,
       671,
       793
-     ]
+     ],
+     "variant": "percent"
     },
     {
      "type": "kpi",
@@ -1555,7 +1563,8 @@
       804,
       1336,
       1257
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "column",
@@ -1565,7 +1574,8 @@
       806,
       671,
       1254
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "bar",
@@ -1575,7 +1585,8 @@
       345,
       1338,
       793
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "column",
@@ -1585,7 +1596,8 @@
       579,
       1669,
       793
-     ]
+     ],
+     "variant": "clustered"
     }
    ]
   },
@@ -1701,7 +1713,8 @@
       587,
       1703,
       809
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "bar",
@@ -1711,7 +1724,8 @@
       116,
       1364,
       346
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "column",
@@ -1787,7 +1801,8 @@
       135,
       2105,
       438
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "line",
@@ -1833,7 +1848,8 @@
       659,
       2231,
       1099
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "map",
@@ -1893,7 +1909,8 @@
       427,
       1151,
       669
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "line",
@@ -1923,7 +1940,8 @@
       18,
       1149,
       225
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "kpi",
@@ -2101,7 +2119,8 @@
       11,
       449,
       207
-     ]
+     ],
+     "variant": "clustered"
     }
    ]
   },
@@ -2655,7 +2674,8 @@
       243,
       555,
       503
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "bar",
@@ -2915,7 +2935,8 @@
       506,
       720,
       724
-     ]
+     ],
+     "refLine": true
     },
     {
      "type": "bar",
@@ -2925,7 +2946,8 @@
       506,
       1252,
       724
-     ]
+     ],
+     "variant": "percent"
     },
     {
      "type": "table",
@@ -2945,7 +2967,8 @@
       770,
       660,
       990
-     ]
+     ],
+     "refLine": true
     },
     {
      "type": "line",
@@ -3353,7 +3376,8 @@
       159,
       681,
       474
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "pivot",
@@ -3383,7 +3407,8 @@
       521,
       1352,
       861
-     ]
+     ],
+     "variant": "percent"
     }
    ]
   },
@@ -3787,7 +3812,8 @@
       757,
       902,
       1330
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "map",
@@ -3907,7 +3933,8 @@
       330,
       1365,
       852
-     ]
+     ],
+     "variant": "stacked"
     }
    ]
   },
@@ -4181,7 +4208,8 @@
       626,
       1011,
       1035
-     ]
+     ],
+     "variant": "clustered"
     },
     {
      "type": "donut",
@@ -4211,7 +4239,8 @@
       198,
       1012,
       611
-     ]
+     ],
+     "variant": "stacked"
     }
    ]
   },
@@ -4241,7 +4270,8 @@
       689,
       2953,
       1672
-     ]
+     ],
+     "variant": "stacked"
     },
     {
      "type": "table",
@@ -4387,7 +4417,8 @@
       1270,
       1029,
       1828
-     ]
+     ],
+     "variant": "stacked"
     }
    ]
   }

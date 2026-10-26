@@ -55,9 +55,14 @@ jobs:
       - run: node tools/layout-bench/ocr.mjs
       - run: node tools/layout-bench/run.mjs --json layout.json
       - run: node tools/bench-gate.mjs layout.json tools/layout-bench/baseline.json
+      # series layout and reference lines on generated single charts (drawn locally by Vega-Lite, nothing fetched)
+      - run: node tools/synth-bench/chart-variants.mjs --json variants.json
+      - run: node tools/bench-gate.mjs variants.json tools/synth-bench/variants-baseline.json
       - if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: accuracy-layout
-          path: layout.json
+          path: |
+            layout.json
+            variants.json
           retention-days: 30

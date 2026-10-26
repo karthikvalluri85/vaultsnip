@@ -551,6 +551,31 @@ one or three); rows of KPI cards with an icon or a sparkline missed; types the b
 Gantt, dot matrix, decomposition tree, sunburst); and some charts read as maps or treemaps. These are the next targets,
 measured on all 39 so that the first 12 cannot regress unseen.
 
+## Phase 5: clustered, stacked and 100% stacked series, and reference lines (26 October 2026)
+
+The on-device builder now tells how a bar, column or combo chart's series sit (one series, clustered side by side,
+stacked, or 100% stacked) and reads **reference lines**: a straight target, average or threshold line across a column,
+bar, line or area chart, solid or dashed, at its value and named by the words beside it ("Target", "Average"), else
+"Target". The replica draws them as dashed lines at the same place; "Fix it here" switches a chart between side by side,
+stacked and 100% stacked and adds, moves or removes a reference line; the AI instructions ask for both. Generic exports
+keep a reference line without its name or value.
+
+Along the way: bars a line crosses are no longer cut in two; colours that never share a category are one series coloured
+by category (or one highlighted bar), not a clustered chart; a 100% stack is no longer read as a treemap; and a panel's
+background is a neutral colour that holds a fair share of its border, not vivid bars that run to its edges.
+
+| Measured on | Series layout right | Reference lines found | Added where there is none |
+|---|---|---|---|
+| 48 generated charts (`tools/synth-bench/chart-variants.mjs`, drawn by Vega-Lite) | 26/27 (96.3%) | 16/19 (84.2%; dashed 9/9, solid 7/10) | 0 of 24 |
+| 39 real dashboards (labelled in `truth.json`) | 48/55 (87.3%) | 1/1 | 1 |
+
+Found lines sit where they were drawn (median position error 0 on the 0-100 scale) and take
+their label's word in 11/13 labelled cases. On the generated charts, types read right rose from 77%
+to 89.6% (horizontal bars against a vivid edge and 100% stacks); on the real set, visuals found and typed
+are unchanged. Misses left: a solid line in nearly a series' own colour joins that series' bars, and one real dashboard's
+aligned per-bar target ticks read as a line. The real set has only one labelled reference line, so the generated charts
+carry most of this measurement; more real examples are welcome.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after

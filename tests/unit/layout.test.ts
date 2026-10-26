@@ -135,6 +135,77 @@ describe('chart types and shapes', () => {
     expect(f.stacked).toBe(true);
     expect(f.series.length).toBe(2);
   });
+  it('clustered columns: two series side by side, not stacked', () => {
+    const img = canvas(440, 300);
+    [[150, 100], [120, 160], [90, 60]].forEach(([a, b], i) => { fill(img, [40 + i * 130, 260 - a, 80 + i * 130, 260], BLUE); fill(img, [84 + i * 130, 260 - b, 124 + i * 130, 260], ORANGE); });
+    const r = readPanel(img, [0, 0, 440, 300], [], med, 'Revenue by Quarter');
+    const f = r.fields as { stacked: boolean; stackedPercent?: boolean; series: { shape: number[] }[] };
+    expect(r.type).toBe('column');
+    expect(f.series.length).toBe(2);
+    expect(f.stacked).toBe(false);
+    expect(f.stackedPercent).toBeUndefined();
+  });
+  it('100% stacked columns: every stack the same height', () => {
+    const img = canvas(400, 300);
+    [[150, 50], [80, 120], [40, 160]].forEach(([a, b], i) => { fill(img, [40 + i * 100, 260 - a, 90 + i * 100, 260], BLUE); fill(img, [40 + i * 100, 260 - a - b, 90 + i * 100, 260 - a], ORANGE); });
+    const f = readPanel(img, [0, 0, 400, 300], [], med, 'Share by Quarter').fields as { stacked: boolean; stackedPercent?: boolean };
+    expect(f.stacked).toBe(true);
+    expect(f.stackedPercent).toBe(true);
+  });
+  it('columns with a solid target line: the line is read at its value, named by its label, and is not a bar', () => {
+    const img = canvas(420, 300), ws: Word[] = [word('Target', 360, 103, 36)];
+    [200, 160, 120, 80].forEach((h, i) => fill(img, [40 + i * 80, 260 - h, 90 + i * 80, 260], BLUE));
+    fill(img, [30, 108, 350, 111], [220, 40, 40]);   // at 150 px above the baseline: 75% of the tallest bar
+    const r = readPanel(img, [0, 0, 420, 300], ws, med, 'Sales by Region');
+    const f = r.fields as { series: { shape: number[] }[]; refLines?: { name: string; shape: number }[] };
+    expect(r.type).toBe('column');
+    expect(f.series[0].shape.length).toBe(4);
+    expect(f.refLines).toHaveLength(1);
+    expect(f.refLines![0].name).toBe('Target');
+    expect(Math.abs(f.refLines![0].shape - 75)).toBeLessThanOrEqual(3);
+  });
+  it('a dashed average line over a line chart; light gridlines are not reference lines', () => {
+    const img = canvas(500, 300), ys = [250, 200, 220, 120, 60], xs = [50, 150, 250, 350, 450];
+    for (const gy of [80, 140, 200]) fill(img, [40, gy, 470, gy + 1], [225, 225, 225]);
+    for (let x = 40; x < 470; x += 14) fill(img, [x, 170, x + 8, 172], [90, 90, 90]);
+    polyline(img, xs.map((x, i) => [x, ys[i]] as [number, number]), BLUE);
+    const r = readPanel(img, [0, 0, 500, 300], [], med, 'Visits by Month');
+    const f = r.fields as { refLines?: { name: string; shape: number; dashed?: boolean }[] };
+    expect(r.type).toBe('line');
+    expect(f.refLines).toHaveLength(1);
+    expect(f.refLines![0].dashed).toBe(true);
+    expect(f.refLines![0].name).toBe('Target');
+  });
+  it('a fine dashed target (1 px, 3 px dashes) that the data line crosses', () => {
+    const img = canvas(500, 300), ws: Word[] = [word('Target', 40, 128, 36)];
+    for (let x = 40; x < 470; x += 5) fill(img, [x, 140, x + 3, 141], [40, 40, 40]);
+    polyline(img, [[50, 170], [150, 160], [250, 150], [350, 132], [450, 128]], BLUE);
+    const f = readPanel(img, [0, 0, 500, 300], ws, med, 'On-time % by Day').fields as { refLines?: { name: string; dashed?: boolean }[] };
+    expect(f.refLines).toHaveLength(1);
+    expect(f.refLines![0]).toMatchObject({ name: 'Target', dashed: true });
+  });
+  it('bars coloured by category are one series, not a clustered chart', () => {
+    const img = canvas(420, 300), cols: RGB[] = [BLUE, ORANGE, GREEN, [200, 60, 60]];
+    [200, 160, 120, 80].forEach((h, i) => fill(img, [40 + i * 80, 260 - h, 90 + i * 80, 260], cols[i]));
+    const f = readPanel(img, [0, 0, 420, 300], [], med, 'Sales by Region').fields as { series: { shape: number[] }[]; stacked: boolean };
+    expect(f.series).toHaveLength(1);
+    expect(near(f.series[0].shape, [100, 80, 60, 40], 2)).toBe(true);
+  });
+  it('horizontal bars with a vertical target line', () => {
+    const img = canvas(400, 260);
+    [300, 210, 120].forEach((w, i) => fill(img, [80, 40 + i * 60, 80 + w, 70 + i * 60], GREEN));
+    fill(img, [260, 30, 263, 220], [220, 40, 40]);   // 180 px from the axis: 60% of the longest bar
+    const f = readPanel(img, [0, 0, 400, 260], [], med, 'Units by Team').fields as { horizontal: boolean; refLines?: { shape: number }[] };
+    expect(f.horizontal).toBe(true);
+    expect(f.refLines).toHaveLength(1);
+    expect(Math.abs(f.refLines![0].shape - 60)).toBeLessThanOrEqual(3);
+  });
+  it('columns over plain grey gridlines have no reference line', () => {
+    const img = canvas(420, 300);
+    for (const gy of [60, 110, 160, 210]) fill(img, [30, gy, 400, gy + 1], [210, 210, 210]);
+    [200, 160, 120, 80].forEach((h, i) => fill(img, [40 + i * 80, 260 - h, 90 + i * 80, 260], BLUE));
+    expect((readPanel(img, [0, 0, 420, 300], [], med, 'Sales by Region').fields as { refLines?: unknown[] }).refLines).toBeUndefined();
+  });
   it('line chart: heights follow the line under each axis label', () => {
     const img = canvas(500, 300), ys = [250, 200, 220, 120, 60], xs = [50, 150, 250, 350, 450];
     polyline(img, xs.map((x, i) => [x, ys[i]] as [number, number]), BLUE);

@@ -10,7 +10,7 @@
 import { readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEFAULT_BENCH, ROOT, items, truth } from './items.mjs';
-import { layoutBuilder, same, scorePage } from './builder.mjs';
+import { addDetails, chartDetails, layoutBuilder, same, scorePage } from './builder.mjs';
 
 const arg = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null);
 const bench = (process.argv[2] && !process.argv[2].startsWith('--')) ? process.argv[2] : DEFAULT_BENCH;
@@ -28,11 +28,13 @@ const dump = { panels: [], pages: [] };
 const rows = [];
 const tools = {};
 let F = 0, V = 0, P = 0, TS = 0, TL = 0;
+const details = {};
 for (const d of truth.dashboards) {
   const r = await build(d.id);
   const { counted, truths, hits, strict, lenient: len } = scorePage(r.panels, d.visuals, d.ignore);
   for (const p of counted) { const t = truths.find((t) => t.hit === p); dump.panels.push({ dashboard: d.id, type: p.type, certainty: p.certainty, features: p.features, titled: !!p.title, area: ((p.box[2] - p.box[0]) * (p.box[3] - p.box[1])) / r.imageArea, found: !!t, truth: t?.type ?? null, correct: !!t && same(p.type, t.type, true) }); }
   dump.pages.push({ dashboard: d.id, visuals: truths.length, right: len, found: hits.length, predicted: counted.length, coverage: r.coverage, confidence: r.confidence ?? null });
+  addDetails(details, chartDetails(truths, r.spec));
   F += hits.length; V += truths.length; P += counted.length; TS += strict; TL += len;
   const t = tools[d.tool] ||= { dashboards: 0, visuals: 0, found: 0, typesRight: 0 };
   t.dashboards++; t.visuals += truths.length; t.found += hits.length; t.typesRight += len;
@@ -42,6 +44,8 @@ for (const d of truth.dashboards) {
 console.table(rows);
 if (arg('--dump')) await writeFile(arg('--dump'), JSON.stringify(dump, null, 1));
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
+const D = details;
+console.log(`CHART DETAILS: series layout right on ${D.layoutRight}/${D.layoutChecked} bar, column and combo charts found ${JSON.stringify(D.layoutWrong)}; reference lines found ${D.refFound}/${D.refTruth}, added where there is none ${D.refFalse}`);
 console.log(`DASHBOARDS: found ${F}/${V} visuals (${Math.round((F / V) * 100)}%), ${P} panels predicted, types ${TL}/${F} lenient (${Math.round((TL / Math.max(1, F)) * 100)}%), ${TS} strict`);
 
 // reports: structure of the whole page
@@ -75,7 +79,10 @@ if (arg('--json')) {
   await writeFile(arg('--json'), JSON.stringify({
     version, measured: new Date().toISOString().slice(0, 10), opts,
     dashboards: { count: truth.dashboards.length, visuals: V, found: F, foundPct: pct(F, V), extraPanels: P - F, typesRightLenient: TL, typesRightStrict: TS, typesRightPct: pct(TL, F),
-      endToEndPct: pct(TL, V), byTool: Object.fromEntries(Object.entries(tools).map(([k, t]) => [k, { ...t, foundPct: pct(t.found, t.visuals), typesRightPct: pct(t.typesRight, t.found) }])) },
+      endToEndPct: pct(TL, V),
+      seriesLayout: { checked: D.layoutChecked, right: D.layoutRight, rightPct: pct(D.layoutRight, D.layoutChecked), wrong: D.layoutWrong },
+      refLines: { inTruth: D.refTruth, found: D.refFound, addedWhereNone: D.refFalse },
+      byTool: Object.fromEntries(Object.entries(tools).map(([k, t]) => [k, { ...t, foundPct: pct(t.found, t.visuals), typesRightPct: pct(t.typesRight, t.found) }])) },
     reports: { count: rrows.length, checksRight: rrows.reduce((a, r) => a + r.right, 0), checks: rrows.reduce((a, r) => a + r.of, 0) },
     review,
   }, null, 1) + '\n');
