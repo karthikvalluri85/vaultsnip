@@ -1,5 +1,5 @@
 {
- "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), sunburst, table, pivot, map, scatter, treemap, waterfall, combo (bars + line), gauge, funnel, text, and other for a visual of a kind the builder has no type for (a Gantt chart, a dot matrix, a decomposition tree). Labelled with tools/layout-bench/annotate.html. Bar, column, combo and area charts carry variant (clustered, stacked or percent for 100% stacked; none for one series) and refLine when a straight reference line crosses them.",
+ "_note": "Hand annotations of real BI dashboards (facts about their layout; the images themselves are not redistributed). Boxes are [x0, y0, x1, y1] in pixels of the original image. 'ignore' marks page headers, filters and navigation: a panel found there is neither a hit nor a false positive. Types: kpi, column, bar, line, area, pie (incl. donut), sunburst, table, pivot, map, scatter, treemap, waterfall, combo (bars + line), gauge, funnel, gantt, heatmap, text, and other for a visual of a kind the builder has no type for (a dot matrix, a decomposition tree). Labelled with tools/layout-bench/annotate.html. Bar, column, combo and area charts carry variant (clustered, stacked or percent for 100% stacked; none for one series) and refLine when a straight reference line crosses them.",
  "dashboards": [
   {
    "id": "sample-it-spend_it3",
@@ -3099,7 +3099,7 @@
      ]
     },
     {
-     "type": "other",
+     "type": "gantt",
      "title": "Campaigns Calendar - Start Date and End Date",
      "bbox": [
       143,
@@ -3245,7 +3245,7 @@
      ]
     },
     {
-     "type": "other",
+     "type": "heatmap",
      "title": "Sales in the Last Month",
      "bbox": [
       63,

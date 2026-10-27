@@ -1,15 +1,15 @@
 {
- "measured": "2026-10-24",
+ "measured": "2026-10-26",
  "version": "0.7.0",
  "synthLayout": {
   "dashboards": 60,
   "visuals": 404,
-  "found": 374,
-  "foundPct": 92.6,
-  "extraPanels": 31,
-  "typesRight": 355,
-  "typesRightPct": 94.9,
-  "endToEndPct": 87.9,
+  "found": 379,
+  "foundPct": 93.8,
+  "extraPanels": 26,
+  "typesRight": 356,
+  "typesRightPct": 93.9,
+  "endToEndPct": 88.1,
   "byType": {
    "pie": {
     "visuals": 52,
@@ -21,9 +21,9 @@
    "column": {
     "visuals": 44,
     "found": 42,
-    "typesRight": 38,
+    "typesRight": 39,
     "foundPct": 95.5,
-    "typesRightPct": 90.5
+    "typesRightPct": 92.9
    },
    "kpi": {
     "visuals": 101,
@@ -35,30 +35,30 @@
    "map": {
     "visuals": 27,
     "found": 27,
-    "typesRight": 25,
+    "typesRight": 22,
     "foundPct": 100,
-    "typesRightPct": 92.6
+    "typesRightPct": 81.5
    },
    "bar": {
     "visuals": 94,
-    "found": 89,
-    "typesRight": 84,
-    "foundPct": 94.7,
-    "typesRightPct": 94.4
+    "found": 92,
+    "typesRight": 86,
+    "foundPct": 97.9,
+    "typesRightPct": 93.5
    },
    "line": {
     "visuals": 44,
-    "found": 43,
+    "found": 44,
     "typesRight": 41,
-    "foundPct": 97.7,
-    "typesRightPct": 95.3
+    "foundPct": 100,
+    "typesRightPct": 93.2
    },
    "table": {
     "visuals": 42,
-    "found": 39,
-    "typesRight": 37,
-    "foundPct": 92.9,
-    "typesRightPct": 94.9
+    "found": 40,
+    "typesRight": 38,
+    "foundPct": 95.2,
+    "typesRightPct": 95
    }
   }
  }

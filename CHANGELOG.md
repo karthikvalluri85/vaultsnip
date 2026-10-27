@@ -4,7 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-27
+
 ### Added
+- **A "Supported charts" page** showing every chart type VaultSnip can rebuild, each drawn live by the replica engine from an invented example. Behind it, one catalogue of chart types now feeds the AI instructions, "Fix it here" and the checks.
+- **An on-device self-check of each replica**: every chart is compared with its panel in the masked image, without anything leaving your device, and the comparison helps choose which uncertain visuals are worth asking your AI key about.
+- **Fewer charts misread on Tableau and Power BI dashboards**: bar charts of nearly equal bars are no longer taken for tables, and KPI cards with round icons are no longer taken for pies (real benchmark: 63.8% to 65.8% right end to end).
+- **More of the original's axis labels in replicas built without a key**, notably slanted month labels on line charts (labels shown on the generated benchmark: 59% to 64%).
+- **Gauges, funnels, Gantt charts and heatmaps are recognised without a key** and drawn as such in the replica; "Fix it here" offers them too. On generated charts, 89.3% of them are read right.
+- **KPI cards with icons, sparklines and mini charts are read as KPIs**, and KPI tiles that sat in one panel are split apart. On the real benchmark, KPIs read right rose from 60 to 75 of 113, and the share of a dashboard that comes out right from 58.5% to 63.5%.
 - **Dashboards with tinted, framed or shaded cards are no longer read as one big panel.** Narrow gaps between framed boxes, white cards on a coloured page, and cards that shade over a gradient are now told apart. On the real benchmark, visuals found rose from 72.4% to 81.1% and fully right from 52.2% to 58.5%.
 - **Reference lines, and clustered, stacked and 100% stacked charts.** Replicas built on this device now keep a chart's target or average line (solid or dashed, at its value, with its label) and show whether its series sit side by side, stacked or as a 100% stack. In "Fix it here" you can switch between those and add, move or remove a reference line. Answers from your AI key carry them too.
 - **A real benchmark three times the size.** 39 public dashboards (Power BI, Tableau, Looker and, new, Apache Superset) and 7 paginated reports, labelled with a new local labelling page (`tools/layout-bench/annotate.html`). On the 27 dashboards the builder was never tuned on, it gets 40% of visuals fully right, against 85% on the first 12: the figure every improvement is now measured by.
@@ -19,6 +27,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **The AI-key path is measured** (`tools/ai-bench`, developer tool): generated, fictional dashboards are masked by the app and sent with the app's own request using the developer's key; the answers are scored against the on-device builder and checked for malformed layouts. On 60 dashboards Claude Sonnet 5.5 typed all 404 visuals right (96% end to end) for $1.44; see ACCURACY.md.
 
 ### Fixed
+- **Security: Apache ECharts upgraded from 5.6.1 to 6.1.0**, which fixes advisory GHSA-fgmj-fm8m-jvvx upstream (VaultSnip's own escaping already kept it from applying). Replicas, exports and share links look the same: rendered side by side, 0.09% of pixels differ (antialiasing). React exports already installed ECharts 6, as their instructions do not pin a version.
 - **Security: ECharts advisory GHSA-fgmj-fm8m-jvvx does not apply.** Flow-map lines in replicas escape every name in their tooltips; a share link with HTML in a flow's name runs nothing. An end-to-end check keeps it so.
 - **AI layouts fit the grid.** When an AI answer's row widths do not add up to the replica's 12-column grid (a quarter of answers did, on the AI-path benchmark), the app now scales them to fit instead of wrapping a visual onto its own line or leaving a gap.
 
@@ -188,7 +197,8 @@ Tested against four product-owner screens (app health, pricing spreadsheet, voic
 ### Added
 - First browser-only release: local OCR, mask-by-default with allowlist, independent re-scan gate, exact-payload approval, bring-your-own Claude key, synthetic replica with three privacy modes, offline HTML export, Chrome/Edge extension.
 
-[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/karthikvalluri85/vaultsnip/compare/v0.5.1...v0.5.2

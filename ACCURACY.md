@@ -525,7 +525,7 @@ with a key remains the most faithful; the close-ups are the cheaper step between
   visuals typed right (67 before), 85.0% end to end.
 - **ECharts advisory GHSA-fgmj-fm8m-jvvx** (Lines series tooltips render data names as HTML, before ECharts 6.1): the
   replica's flow-map lines have their own escaping tooltip and carry no raw names, so it does not apply; an end-to-end
-  check keeps it so. Moving to ECharts 6 is a separate, major upgrade.
+  check keeps it so. Moving to ECharts 6 is a separate, major upgrade. (Done on 27 October 2026: the app bundles ECharts 6.1.0.)
 
 ## Phase 1(b): the real set grown to 39 dashboards (26 October 2026)
 
@@ -604,6 +604,126 @@ to 5, Superset's SaaS dashboard from 1 of 4 to 4. Two charts read right before a
 and a combo read as a KPI), against 26 more visuals found. The generated sets are unchanged or better (60 dashboards:
 80.1% end to end against 79.0%).
 
+## Phase 4(a), continued: KPI cards with icons, sparklines and mini charts (27 October 2026)
+
+KPI cards were the commonest visual on the real set (113 of 301) and among the most missed. Three changes:
+
+- **A KPI card with a small chart in it** (a sparkline, mini columns, an icon) or with its delta and comparison masked too
+  is read as a KPI, with its sparkline: a really big value (at least 15% of the card's height), few words and little
+  ink. Before, the small chart decided the type (Northstar's cards read as pies, Superstore's as columns, Amazon's as lines).
+- **KPI cards found as one panel are split** between their values: a panel holding two or more big masked values side
+  by side, each with a label and few words, is cut where a line from top to bottom crosses no word and next to no ink.
+  Never in a table or on a report.
+- **A card that is mostly a picture** (a map card, whose fill runs only round its edge) is still a card; before, its
+  map and the KPI tiles beside it were lost.
+
+| 39 real dashboards | Visuals found | Types right (of found) | End to end | KPIs found / read as KPIs (of 113) |
+|---|---|---|---|---|
+| Before | 81.1% | 72.1% | 58.5% | 77 / 60 |
+| After | 83.4% | **76.1%** | **63.5%** | **83 / 75** |
+
+Still missed: a row of small KPI boxes over a chart on a dark page (SaaS), and borderless cards that come apart into an
+icon, a value and a label (Supply Chain). The generated dashboards rose slightly (80.4% end to end).
+
+## Phase 5: gauges, funnels, Gantt charts and heatmaps (27 October 2026)
+
+The on-device builder now reads four more types, which the replica already draws:
+
+- **Gauge**: a half ring round a centre at its bottom, running from end to end; the value is how far the coloured arc
+  reaches. Read before the KPI rule, since a gauge shows its value big in its middle.
+- **Funnel**: three or more bars centred on one line, narrowing; a funnel's bars, each holding only its masked value, are
+  kept in one panel.
+- **Gantt**: one bar per row, starting at spread-out points (a diverging bar chart's bars all touch its zero line, and are
+  not one).
+- **Heatmap**: a regular grid of cells in shades of one colour, found from colour changes that fall at evenly spaced
+  positions across and down (neighbouring cells of close shades join into one mark, so cell outlines cannot be used).
+
+"Fix it here" offers the four types too. A new generated set (`tools/synth-bench/chart-types.mjs`: Plotly gauges and
+funnels, Vega-Lite Gantt charts and heatmaps, with column, pie and line charts as controls) measures them nightly:
+
+| 40 generated charts | Right |
+|---|---|
+| New types | **89.3%** (gauge 7/8, funnel 6/8, gantt 8/8, heatmap 4/4) |
+| Controls | 100% |
+
+On the real set, the Campaign dashboard's gauge is read as one (the real Gantt and calendar heatmap, relabelled from
+"other", are not yet); nothing read right before is lost. Still open: dark funnels whose connectors join their bars,
+a gauge's value when its progress arc is a darker grey of the same track, and sunbursts (read as donuts; the replica has
+none yet).
+
+## Phase 4(d), continued: more category labels read on the device (27 October 2026)
+
+Most category labels a replica missed were a line chart's months, slanted: each slanted label's box starts above the
+line's lowest point, so it was not counted as "below the line", and words at slightly different heights fell apart into
+phrases of one or two. The builder now takes a word as below the line by its middle, and groups an axis row's words by
+the labels' even spacing (word centres much closer than the usual step are one label: "Fe" + "b", "North America").
+The existing months-in-order rule then fills the months between.
+
+| 60 generated dashboards (set v5), on the device | Before | After |
+|---|---|---|
+| Category labels shown (of those left readable) | 59.4% | **63.5%** |
+| Charts with the right number of categories | 72.2% | **74.4%** |
+| Visuals sharing a row as in the original | 91.6% | 95.3% |
+
+Real dashboards unchanged. Category labels shown now has its own gate in CI.
+
+## Phase 4(a), continued: bars of equal length, and KPIs with round icons (27 October 2026)
+
+- **Equal bars are not table stripes.** A bar chart whose bars are nearly one length, each with its category and value
+  beside it, was read as a table's zebra stripes. Stripes run across most of their table; these bars cover a small part
+  of their panel (Amazon's three category charts).
+- **A KPI with a round icon is a KPI.** The KPI-with-a-small-chart rule now takes a value at least 12% of the card's
+  height (it was 15%), as the plain KPI rule does, but never on a line chart or where bars cover much of the panel.
+  Northstar's cards, read as pies from their round icons, are KPIs again.
+
+| 39 real dashboards | Visuals found | Types right (of found) | End to end |
+|---|---|---|---|
+| Before | 83.4% | 76.5% | 63.8% |
+| After | **85%** | 77.3% | **65.8%** |
+
+Tableau now reads 83.2% of its visuals and types 80.6% of them
+right, ahead of Power BI. Two misses traded away earlier remain: a Power BI map whose pale land areas pass for two
+cards (each half then read on its own), and SaaS's row of small KPI boxes over a chart.
+
+## Phase 4(c): the on-device self-check (27 October 2026)
+
+After a replica is built on the device, each charted visual is compared with its panel in the masked image, on the
+device (`web/selfcheck.js`; nothing leaves the page). Each side is reduced to the kind of marks it holds (how long ink
+runs across and down, how much of its area is filled), a coarse grid of where they lie, and its main colour; text is
+left out on both sides, and faint greys count as background.
+
+Measured on the 60 generated dashboards (`tools/synth-bench/self-check.mjs`, 258 charted visuals, 24 of them built
+wrong), by how well a score ranks the visuals built wrong below those built right (AUC, 0.5 is chance):
+
+| Score | AUC | "Check" marks (below 0.5) |
+|---|---|---|
+| The builder's own confidence | 0.862 | 13: 13 of 24 wrong, 0 right ones marked |
+| The self-check alone | 0.736 | |
+| The two averaged | **0.88** | 45: 18 of 24 wrong, 27 right ones marked |
+
+The average ranks better, but as a "Check" mark it would mark 27 visuals built right to catch 5 more built wrong,
+noise a user would learn to ignore. So it is used where ranking is what counts: choosing which uncertain visuals to send
+as close-ups to the user's own AI. The "Check" marks stay on the confidence alone, which marks none built right. A first
+version comparing only where ink lay (AUC 0.65) was not good enough to use; the replica draws its axes and legends its
+own way, so the kind of marks carries the signal.
+
+## Phase 3: the chart catalogue (27 October 2026)
+
+`web/catalog.js` declares every visual type the replica draws (24), with the data each needs and an invented example.
+Everything that used to list types reads it: the AI instructions' list of types, the answer checker
+(`tools/ai-bench/validate.mjs`), the types offered in "Fix it here", and a new public page, **Supported charts**
+(`web/charts.html`, linked from the app), which draws every example live with the replica engine. An end-to-end check
+draws every type in the catalogue and fails if one falls back to a placeholder, and checks that the AI instructions list
+exactly the catalogue's types. Adding a type now means one entry in one file.
+
+**The strict answer format is not used, by measurement and by limit.** The recorded Claude answers had no malformed
+structure beyond row widths (which the app fits), so it was never needed for correctness. And it cannot express the
+spec faithfully: Claude's structured outputs require every object closed (`additionalProperties: false`) and allow at
+most 24 optional fields in a request, while a visual has well over 24 optional, type-specific fields across the 24
+types. Squeezing them in (a type's data as a JSON string inside a strict outer shape) would trade measured-good answers
+for a weaker format. OpenAI keeps its JSON mode; its strict mode requires every field present, which fits this optional-
+heavy shape no better. The answer checker runs on every recorded answer instead, and stays the guard.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after
@@ -626,6 +746,12 @@ interactive replica without any AI key. Work that improves the key-free path com
 on-device self-check (4c), more chart types the builder reads (5), the detector in the extension's chart blur, and a
 better reader (2b). Work that only improves the AI-key path (scoring it, the strict answer formats of Phase 3 and the
 close-ups of 4b) comes after.
+
+**Status (27 October 2026).** All phases are done: 0, 1 (a)-(e), 2, 2b, 3 (the catalogue; the strict format measured
+unnecessary and inexpressible, above), 4 (a)-(d) and 5 (combo, waterfall, series layouts, reference lines, gauges,
+funnels, Gantt charts and heatmaps). The extension's chart blur has used the detector since Phase 2. Open items are
+named under each phase (dark funnels, sunbursts, a gauge's value on a grey track, SaaS-style KPI rows, the real set's
+Gantt and calendar heatmap).
 
 What is deliberately not in the plan:
 

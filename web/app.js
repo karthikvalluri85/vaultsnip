@@ -1394,7 +1394,7 @@ VISUAL fields: "id", "type", "span" (1-12 grid columns; a row's spans sum to 12)
  "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line","measure":{…} (only on a combo series that uses its own axis, e.g. a % line over $ bars)}],
  "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool, "refLines":[{"name":string,"shape":0-100}].
  kpi: "shapeValue":0-100 for percentages (where the value sits on 0-100). Use format "ratio" with "outOf" for scores like "4.52 / 5", "duration" with a unit for times like "38 min", "integer" with unit "pts" for points.
-Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, boxplot, histogram, sankey, gantt, table, pivot, text, map, placeholder.
+Types: ${VSCatalog.TYPES.join(', ')}.
  Orientation: "column" = vertical bars rising from the x-axis (categories along the bottom). "bar" = horizontal bars (categories down the left side) and must have "horizontal":true. Never send "column" with "horizontal":true.
  Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item. "stackedPercent":true (with "stacked":true) when every stack reaches the same height, a 100% stacked chart.
  Reference lines: a straight target, average or threshold line drawn across a bar, column, line or area chart goes in "refLines", one entry each, with "shape" on the same scale as the series shapes (100 = the largest single series value; above 100 when the line sits higher, e.g. over stacked totals) and "name" from its visible label ("Target", "Average"), else "Target". Never as a series.
@@ -1459,6 +1459,25 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   // a visual whose close-up fails keeps its local reading.
   const CLOSEUP_BELOW = 0.6, CLOSEUP_MAX = 6;
   const CLOSEUP_PROMPT = 'This image is one visual cut from a masked dashboard. Return the JSON spec of a dashboard with exactly one row holding exactly one VISUAL that reproduces it, following the same rules.';
+  // Phase 4(c): each charted visual of the replica compared on the device with its panel in the masked image
+  // (web/selfcheck.js), in the background. On the generated benchmark the comparison and the builder's own confidence,
+  // averaged, rank the visuals built wrong below those built right better than the confidence alone, so the average
+  // picks the close-ups; the "Check" marks stay on the confidence alone, which raises no false ones.
+  function selfCheck(L) {
+    if (!window.VSSelfCheck || !L) return;
+    setTimeout(async () => {
+      try {
+        const words = layoutInput().words;
+        const sims = await VSSelfCheck.compare($('replica'), maskedCanvas(1, '#787c82'), L.boxes || {}, words);
+        if (S.local === L) L.similar = sims;
+      } catch (e) { /* no comparison: the confidence stands alone */ }
+    }, 0);
+  }
+  /** Each visual's score for choosing close-ups: its confidence, averaged with the self-check where there is one. */
+  function closeupScores(L) {
+    const sim = (L && L.similar) || {};
+    return Object.fromEntries(Object.entries((L && L.byVid) || {}).map(([vid, c]) => [vid, sim[vid] == null ? c : (c + sim[vid]) / 2]));
+  }
   function uncertainVisuals(spec, byVid, boxes) {
     return spec.rows.flatMap(row => row.visuals).filter(v => boxes[v.id] && (byVid[v.id] ?? 1) < CLOSEUP_BELOW)
       .sort((a, b) => (byVid[a.id] ?? 1) - (byVid[b.id] ?? 1)).slice(0, CLOSEUP_MAX);
@@ -1485,10 +1504,10 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   async function refineLocal() {
     if (!S.local || !S.spec) return;
     if (!S.key) { $('btn-key').onclick(); return; }
-    const b = $('btn-local-refine'), n = uncertainVisuals(S.spec, S.local.byVid, S.local.boxes || {}).length;
+    const b = $('btn-local-refine'), n = uncertainVisuals(S.spec, closeupScores(S.local), S.local.boxes || {}).length;
     b.disabled = true; b.textContent = 'Asking ' + providerName() + ' about ' + n + ' visual' + (n === 1 ? '' : 's') + '…';
     try {
-      const res = await refineSpec(S.spec, S.local.byVid, S.local.boxes || {}, maskedCanvas(1));
+      const res = await refineSpec(S.spec, closeupScores(S.local), S.local.boxes || {}, maskedCanvas(1));
       S.spec = scrubVerbatims(res.spec);
       res.fixed.forEach(id => { S.local.byVid[id] = 0.9; });
       S.local.refined = (S.local.refined || 0) + res.fixed.length;
@@ -1535,6 +1554,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
         byVid: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.confidence])),
         boxes: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.box])), kept: false };
       showReplica();
+      selfCheck(S.local);
     } catch (e) {
       err.textContent = 'The on-device builder could not read this image: ' + (e && e.message || e); err.hidden = false;
       if (window.VSFeedback) VSFeedback.note(e, 'On-device layout builder');
@@ -1565,7 +1585,7 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     $('btn-local-fix').hidden = !below && !L.fixing; $('btn-local-keep').hidden = !below || L.kept;
     $('btn-local-key').textContent = below ? 'Use my AI key' : 'Use my AI key for a precise layout';
     // the cheaper fallback: only the visuals it is unsure of, as close-ups of the approved image
-    const unsure = uncertainVisuals(S.spec || { rows: [] }, L.byVid || {}, L.boxes || {}).length;
+    const unsure = uncertainVisuals(S.spec || { rows: [] }, closeupScores(L), L.boxes || {}).length;
     $('btn-local-refine').hidden = !below || !unsure;
     $('btn-local-refine').textContent = 'Check ' + unsure + ' uncertain visual' + (unsure === 1 ? '' : 's') + ' with my AI key';
     if (L.refined) $('local-stats').textContent += ' ' + providerName() + ' rechecked ' + L.refined + ' visual' + (L.refined === 1 ? '' : 's') + '.';
@@ -1577,8 +1597,8 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
   $('btn-fix-done').onclick = () => { $('fix-panel').hidden = true; if (S.local) S.local.fixing = false; renderLocalBanner(); };
 
   // "Fix it here": every visual with its type, title and how sure the builder was; changes redraw the replica
-  const FIX_TYPES = [['kpi', 'KPI card'], ['column', 'Column chart'], ['bar', 'Bar chart'], ['line', 'Line chart'], ['area', 'Area chart'], ['pie', 'Pie chart'], ['donut', 'Donut chart'],
-    ['treemap', 'Treemap'], ['scatter', 'Scatter plot'], ['table', 'Table'], ['pivot', 'Matrix (pivot)'], ['text', 'Text'], ['placeholder', 'Something else']];
+  // (the types offered, and their names, from the chart catalogue: web/catalog.js)
+  const FIX_TYPES = VSCatalog.fixTypes();
   const DEFAULT_MEMBERS = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
   // a visual changed to another type keeps what still applies and gets sensible defaults for the rest
   function convertVisual(v, type) {
@@ -1589,7 +1609,11 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
     // (between charts with an axis, stacking and reference lines carry over)
     const axisChart = t => ['column', 'bar', 'line', 'area', 'combo'].includes(t);
     const carry = axisChart(type) && axisChart(v.type) ? { ...(v.stacked ? { stacked: true } : {}), ...(v.stackedPercent ? { stackedPercent: true } : {}), ...(Array.isArray(v.refLines) && v.refLines.length ? { refLines: v.refLines } : {}) } : {};
-    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...carry });
+    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap', 'funnel'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...carry });
+    if (type === 'gauge') return Object.assign(keep, { type, measure, shapeValue: typeof v.shapeValue === 'number' ? v.shapeValue : 60, min: 0, max: 100 });
+    // (a timeline's tasks and a heatmap's rows and columns come from the visual's own members: the context names them)
+    if (type === 'gantt') return Object.assign(keep, { type, tasks: Array.isArray(v.tasks) && v.tasks.length ? v.tasks : dimension.members.map((m, i) => ({ name: m, start: i * 15, end: i * 15 + 25 })), timeLabels: v.timeLabels || [] });
+    if (type === 'heatmap') return Object.assign(keep, { type, measure, rows: v.rows || { name: dimension.name, members: dimension.members }, columns: v.columns || { name: 'Period', members: ['Q1', 'Q2', 'Q3', 'Q4'] }, matrix: v.matrix || dimension.members.map((_, i) => [0, 1, 2, 3].map((k) => (i * 17 + k * 29) % 100)) });
     if (type === 'kpi') return Object.assign(keep, { type, title: '', measure: { ...measure, name: measure.name || v.title || 'KPI' }, sparkline: false });
     if (type === 'scatter') return Object.assign(keep, { type, xMeasure: { name: 'X', format: 'number' }, yMeasure: { name: measure.name || 'Y', format: measure.format || 'number' }, points: Array.from({ length: 16 }, (_, i) => [5 + ((i * 37) % 90), 5 + ((i * 53) % 90), 50]) });
     if (type === 'table') return Object.assign(keep, { type, rowCount: v.rowCount || 6, columns: Array.isArray(v.columns) && v.columns.length ? v.columns : [{ name: dimension.name, kind: 'category', members: dimension.members }, { name: measure.name, kind: measure.format === 'currency' ? 'currency' : 'number', ...(measure.currency ? { currency: measure.currency } : {}) }] });
@@ -1830,5 +1854,5 @@ Types: kpi, bar, column, line, area, combo, pie, donut, treemap, funnel, waterfa
 
   // expose for tests
   window.__DSC = S;
-  S.test = { refineSpec, uncertainVisuals, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { system: SYSTEM, refineSpec, uncertainVisuals, closeupScores, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

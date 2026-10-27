@@ -1,0 +1,28 @@
+{
+ "selfCheck": {
+  "visuals": 258,
+  "right": 234,
+  "wrong": 24,
+  "auc": 0.736,
+  "below": 0.45,
+  "flagged": 90,
+  "wrongCaughtPct": 58.3,
+  "flagsRightPct": 15.6,
+  "medianRight": 0.6,
+  "medianWrong": 0.4,
+  "checkFlags": {
+   "confidence": {
+    "flags": 13,
+    "wrongCaught": 13,
+    "rightFlagged": 0
+   },
+   "withSelfCheck": {
+    "flags": 45,
+    "wrongCaught": 18,
+    "rightFlagged": 27
+   }
+  },
+  "aucConfidence": 0.862,
+  "aucWithSelfCheck": 0.88
+ }
+}

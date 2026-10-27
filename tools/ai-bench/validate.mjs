@@ -1,8 +1,9 @@
 // Structural checks on a replica spec, as the app's instructions (SYSTEM in web/app.js) define it: what a strict answer
 // format would have to prevent (developer tool, used by tools/ai-bench/run.mjs). Returns a list of problems, each a
 // short code and where it is; an empty list means the answer is well-formed.
-export const TYPES = ['kpi', 'bar', 'column', 'line', 'area', 'combo', 'pie', 'donut', 'treemap', 'funnel', 'waterfall', 'scatter', 'bubble',
-  'heatmap', 'gauge', 'boxplot', 'histogram', 'sankey', 'gantt', 'table', 'pivot', 'text', 'map', 'placeholder'];
+import { createRequire } from 'node:module';
+// the types the app knows, from its chart catalogue (web/catalog.js)
+export const TYPES = createRequire(import.meta.url)('../../web/catalog.js').TYPES;
 const SERIES = ['bar', 'column', 'line', 'area', 'combo', 'pie', 'donut', 'treemap', 'funnel', 'waterfall', 'histogram'];
 
 export function validate(spec) {
