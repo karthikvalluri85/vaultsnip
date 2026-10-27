@@ -212,7 +212,11 @@ export function buildSpec(input: BuildInput): BuildResult {
     && x.features.marks <= 8 && !x.features.rects && x.features.coverage < 0.12;
   const stack = [true, false].map((left) => readings.filter((x) => side(x, left)))
     .find((g) => g.length >= 3 && Math.max(...g.map((x) => x.p.b[3])) - Math.min(...g.map((x) => x.p.b[1])) >= H * 0.4) || [];
-  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !stack.includes(x));
+  // A band across the very top of the picture, five times wider than it is tall: the dashboard's own title bar, or the
+  // tool's. A visual that shape is rare; one in that place is rarer still.
+  const header = (x: (typeof readings)[number]) => x.p.b[1] <= H * 0.03 && width(x.p.b) >= W * 0.85
+    && width(x.p.b) > height(x.p.b) * 5;
+  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !header(x) && !stack.includes(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
