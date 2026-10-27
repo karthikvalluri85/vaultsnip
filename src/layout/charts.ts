@@ -571,7 +571,14 @@ function map(c: Ctx): Reading | null {
   // (an area chart's fill is one colour)
   // (not bars that touch, which the bar reader finds on a shared baseline, nor a pie, which is round and evenly filled)
   const round = (m: Mark) => { const r = width(m.b) / Math.max(1, height(m.b)); return r > 0.85 && r < 1.18 && m.fill > 0.68; };
-  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m))) return asMap;
+  // (nor a stacked area chart, which is also one large irregular shape in several colours: it stands on the plot's
+  //  baseline, inked right along its own bottom edge, where a continent's coastline is ragged)
+  const flatBottom = (m: Mark) => {
+    const y = Math.round(m.b[3] - 2); let n = 0, t = 0;
+    for (let x = Math.ceil(m.b[0]); x <= Math.floor(m.b[2]); x += 2) { t++; if (c.ink(x, y)) n++; }
+    return t > 0 && n / t >= 0.8;
+  };
+  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m) && !flatBottom(m))) return asMap;
   if (regions.length < 6 || c.thin.length > 2 || solid > regions.length * 0.5) return null;
   if (regions.reduce((a, m) => a + m.n, 0) < pa * 0.08) return null;
   // neighbouring regions share borders: most of them touch another
