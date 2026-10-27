@@ -346,7 +346,9 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
       const cand = ps.filter((p) => p !== s && overlapX(p) > 0.5 && !textOnly(p) && !big(p))
         // titles sit above their visual, so joining upward costs more, except for labels hugging the panel above (axis labels)
         .map((p) => ({ p, gap: p.b[1] >= s.b[3] ? p.b[1] - s.b[3] : s.b[1] >= p.b[3] ? (s.b[1] - p.b[3] < med * 1.5 ? (s.b[1] - p.b[3]) * 0.5 : (s.b[1] - p.b[3]) * 1.5) : Infinity }))
-        .filter((c) => c.gap < Math.max(med * 6, H * 0.06)).sort((a, b) => a.gap - b.gap);
+        // (a strip joins what it labels, not whatever lies furthest below it: at six line-heights a KPI card's own
+        //  label reached past the card and into the chart under it)
+        .filter((c) => c.gap < Math.max(med * 4.5, H * 0.045)).sort((a, b) => a.gap - b.gap);
       if (!cand.length) continue;
       const t = cand[0].p;
       t.b = [Math.min(t.b[0], s.b[0]), Math.min(t.b[1], s.b[1]), Math.max(t.b[2], s.b[2]), Math.max(t.b[3], s.b[3])];
