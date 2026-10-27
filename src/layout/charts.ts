@@ -563,7 +563,9 @@ function scatter(c: Ctx): Reading | null {
 function map(c: Ctx): Reading | null {
   const pa = width(c.b) * height(c.b);
   const thinSet = new Set(c.thin);
-  const regions = c.body.filter((m) => !thinSet.has(m) && m.fill >= 0.12 && m.fill < 0.8 && m.n >= pa * 0.0003 && Math.min(width(m.b), height(m.b)) >= 3);
+  // (a country is a piece of the panel, not a speck: at a floor of three ten-thousandths a legend's swatches counted
+  //  as six touching regions, and one stacked area chart beside its legend read as a continent)
+  const regions = c.body.filter((m) => !thinSet.has(m) && m.fill >= 0.12 && m.fill < 0.8 && m.n >= pa * 0.002 && Math.min(width(m.b), height(m.b)) >= 3);
   // (solid rectangles among the marks themselves: the column splitting behind c.rects slices irregular regions too)
   const solid = c.body.filter((m) => m.fill >= 0.85).length;
   const asMap = { type: 'map' as const, certainty: 0.55, fields: { basemap: 'world', mapKind: 'filled', dimension: { name: c.dName || 'Region', members: [] }, measure: c.measure, series: [{ name: c.measure.name, shape: [] }] } };
@@ -587,8 +589,8 @@ function map(c: Ctx): Reading | null {
   // (a stacked area chart's bands are irregular regions that touch too, and they can be six or more. The chart stands
   //  on the plot's baseline, so its largest band is inked right along its own bottom edge; a country's coastline is
   //  ragged, and a map's largest region is not.)
-  const biggest = regions.reduce((a, m) => (m.n > a.n ? m : a), regions[0]);
-  if (flatBottom(biggest)) return null;
+  const span = hull(regions), wide = regions.filter((m) => width(m.b) >= width(span) * 0.6).length;
+  if (wide >= Math.max(3, regions.length * 0.45)) return null;
   // neighbouring regions share borders: most of them touch another
   const touch = (a: Mark, b: Mark) => a.b[0] <= b.b[2] + 2 && b.b[0] <= a.b[2] + 2 && a.b[1] <= b.b[3] + 2 && b.b[1] <= a.b[3] + 2;
   if (regions.filter((m) => regions.some((o) => o !== m && touch(m, o))).length < regions.length * 0.6) return null;
