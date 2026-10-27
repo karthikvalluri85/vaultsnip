@@ -206,7 +206,13 @@ export function buildSpec(input: BuildInput): BuildResult {
     const a = width(x.p.b) / Math.max(1, height(x.p.b));
     return a > 4 || a < 0.7;
   };
-  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x));
+  // The same rail, cut into boxes: three or more panels stacked against one margin, none of them drawing much, running
+  // down most of the page between them. That is a filter pane or a navigation column, whatever the cutter made of it.
+  const side = (x: (typeof readings)[number], left: boolean) => (left ? x.p.b[2] <= W * 0.22 : x.p.b[0] >= W * 0.78)
+    && x.features.marks <= 8 && !x.features.rects && x.features.coverage < 0.12;
+  const stack = [true, false].map((left) => readings.filter((x) => side(x, left)))
+    .find((g) => g.length >= 3 && Math.max(...g.map((x) => x.p.b[3])) - Math.min(...g.map((x) => x.p.b[1])) >= H * 0.4) || [];
+  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !stack.includes(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
