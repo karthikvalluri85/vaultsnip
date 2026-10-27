@@ -1556,7 +1556,11 @@ Types: ${VSCatalog.TYPES.join(', ')}.
     setTimeout(async () => {
       try {
         const words = layoutInput().words;
-        const sims = await VSSelfCheck.compare($('replica'), maskedCanvas(1, '#787c82'), L.boxes || {}, words);
+        const root = $('replica');
+        // charts grow in when they are drawn: compare the finished picture, not the first frame of the animation
+        await Promise.all((root._charts || []).map(c => new Promise(res => { c.on('finished', res); setTimeout(res, 3000); })));
+        if (S.local !== L) return;
+        const sims = await VSSelfCheck.compare(root, maskedCanvas(1, '#787c82'), L.boxes || {}, words);
         if (S.local === L) L.similar = sims;
       } catch (e) { /* no comparison: the confidence stands alone */ }
     }, 0);
