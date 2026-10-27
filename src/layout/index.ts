@@ -207,11 +207,12 @@ export function buildSpec(input: BuildInput): BuildResult {
     && width(x.p.b) <= W * 0.16 && height(x.p.b) >= H * 0.3;
   // A KPI card is a card: a value with a label, in a block. Over four times as wide as it is tall, or taller than it is
   // wide by half, it is a caption, a legend or a note that happened to hold a masked word — not a card. (Of 86
-  // hand-labelled KPI cards on real dashboards, every one lies between 0.88 and 4.33 times as wide as tall.)
+  // hand-labelled KPI cards on real dashboards every one lies between 0.88 and 4.33 times as wide as tall, and the
+  // generated set runs to 10, so the bounds are drawn wide enough for both.)
   const oddKpi = (x: (typeof readings)[number]) => {
     if (x.r.type !== 'kpi') return false;
     const a = width(x.p.b) / Math.max(1, height(x.p.b));
-    return a > 4 || a < 0.7;
+    return a > 8 || a < 0.6;
   };
   // The same rail, cut into boxes: three or more panels stacked against one margin, none of them drawing much, running
   // down most of the page between them. That is a filter pane or a navigation column, whatever the cutter made of it.
