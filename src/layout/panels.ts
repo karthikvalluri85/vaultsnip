@@ -433,7 +433,11 @@ export function splitKpiRows(img: Img, ps: Panel[], words: Word[], med: number):
     const xs = [p.b[0], ...cuts, p.b[2]];
     const parts = xs.slice(1).map((x, i) => { const b: Box = [xs[i], p.b[1], x, p.b[3]]; return { b, words: wordsIn(words, b), med: p.med }; });
     // (each part a card: its value, a readable label, and few words; a chart's masked data labels sit among axis labels)
-    return parts.every((q) => q.words.length <= 8 && q.words.some(value) && q.words.some((w) => w.kept && w.text && !isBigBox(w, med))) ? parts : [p];
+    // (or a bare row of values, each part holding its value and nothing else, the labels having been cut into a strip
+    //  of their own above or below: a chart's data labels never sit alone like that)
+    const labelled = (q: Panel) => q.words.some((w) => w.kept && w.text && !isBigBox(w, med));
+    return parts.every((q) => q.words.length <= 8 && q.words.some(value))
+      && (parts.every(labelled) || parts.every((q) => q.words.length <= 3)) ? parts : [p];
   });
 }
 
