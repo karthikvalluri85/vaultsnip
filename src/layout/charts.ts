@@ -416,12 +416,8 @@ function bars(c: Ctx): Reading | null {
   // (in stacked columns most segments stand on another segment, not on the baseline: they count as standing)
   const stackedOn = (m: Mark) => rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2 && Math.min(o.b[2], m.b[2]) - Math.max(o.b[0], m.b[0]) >= width(m.b) * 0.6);
   const standing = rs.filter((m) => atBottom(m, bottom.at) || stackedOn(m)).length;
-  // (bars are as thick as one another: judged among the marks that stand on the baseline, which are the bars. Judged
-  //  over every mark in the panel, a legend swatch or a stray block vetoes a whole chart, and it ends up read as a line)
-  const onBase = rs.filter((m) => atBottom(m, bottom.at) || stackedOn(m));
-  const onLeft = rs.filter((m) => atLeft(m, left.at));
-  const vert = bottom.n >= 2 && standing >= rs.length * 0.5 && cv(onBase.map((m) => width(m.b))) < 0.35;
-  const horiz = left.n >= Math.max(2, rs.length * 0.5) && cv(onLeft.map((m) => height(m.b))) < 0.35;
+  const vert = bottom.n >= 2 && standing >= rs.length * 0.5 && cv(rs.map((m) => width(m.b))) < 0.35;
+  const horiz = left.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => height(m.b))) < 0.35;
   if (!vert && !horiz) return null;
   const isCol = vert && (!horiz || bottom.n > left.n || (bottom.n === left.n && height(hull(rs)) >= width(hull(rs))));
   const on = rs.filter((m) => (isCol ? atBottom(m, bottom.at) || rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2) : atLeft(m, left.at) || rs.some((o) => o !== m && Math.abs(o.b[2] - m.b[0]) <= 2)));
