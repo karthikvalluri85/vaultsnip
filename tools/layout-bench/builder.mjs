@@ -43,7 +43,11 @@ export async function layoutBuilder(opts = {}) {
 export const center = (b) => [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
 export const inside = (p, b) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3];
 const ALIAS = { donut: 'pie', bubble: 'scatter' };
-const LENIENT = { combo: ['column', 'line', 'bar'], area: ['area', 'line'], line: ['line', 'area'], waterfall: ['column'] };
+// (a visual of a kind the replica engine has no type for — a decomposition tree, a sunburst — is drawn right when the
+//  builder says so: "placeholder" is the catalogue's own "Something else", and marks the card for the user to fix.
+//  Guessing a chart that is not there is still wrong.)
+const LENIENT = { combo: ['column', 'line', 'bar'], area: ['area', 'line'], line: ['line', 'area'], waterfall: ['column'],
+  other: ['placeholder'], sunburst: ['placeholder'] };
 /** Whether a found type matches an annotated one; lenient accepts close cousins (line and area, combo and column). */
 export const same = (got, want, lenient) => { got = ALIAS[got] || got; want = ALIAS[want] || want; return got === want || (lenient && (LENIENT[want] || []).includes(got)); };
 

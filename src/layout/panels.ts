@@ -317,10 +317,12 @@ export interface Panel { b: Box; words: Word[]; med: number }
  * Regions to panels: text-only strips (titles, legends, axis labels) join the region below or above them; a region with
  * a big number stays on its own (a KPI); tiny specks and remains nested inside a larger panel are dropped.
  */
-export function assemblePanels(regions: Box[], words: Word[], W: number, H: number, medH?: number): Panel[] {
+export function assemblePanels(regions: Box[], words: Word[], W: number, H: number, medH?: number, allWords: Word[] = words): Panel[] {
   const med = medH ?? medianHeight(words);
-  const stacked = labelStacks(words, med);
-  const big = (p: { words: Word[] }) => p.words.some((w) => isBigBox(w, med) && !stacked.has(w));
+  const stacked = labelStacks(allWords, med);
+  // (judged on every word the reader found, masks included: the caller hides the tallest masks from the cutter, and a
+  //  KPI card whose value is one of them then looks like a strip of labels and is joined to the chart below it)
+  const big = (p: { b: Box }) => wordsIn(allWords, p.b).some((w) => isBigBox(w, med) && !stacked.has(w));
   let ps = regions.filter((b) => area(b) > W * H * 0.0008 && b[2] - b[0] > 6 && b[3] - b[1] > 6).map((b) => ({ b: [...b] as Box, words: wordsIn(words, b) }));
   const textOnly = (p: { b: Box; words: Word[] }) => {
     if (!p.words.length) return false;
@@ -500,7 +502,7 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
   const page = img.width * img.height, report = looksLikeTable(gridWords, med ?? medianHeight(gridWords));
   const giant = (rs: Box[]) => !report && rs.some((r) => area(r) > page * 0.45);
   const panelsGiant = (ps: Panel[]) => giant(ps.map((p) => p.b));
-  const fromCards = (cs: Box[], rescue = false) => fromCardsOf(img, words, med, cs, rescue);
+  const fromCards = (cs: Box[], rescue = false) => fromCardsOf(img, words, med, cs, rescue, gridWords);
   // (rescued cards hold words, a title or labels, as a dashboard's cards do; a single chart's bars, found as colour
   // areas, hold none: at least three cards, most of them with words)
   const worded = (cs: Box[]) => (cs.length >= 3 && cs.filter((c) => wordsIn(words, c).length >= 2).length >= cs.length * 0.6 ? cs : []);
@@ -515,9 +517,9 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
     const regions = findRegions(img);
     // (when the cuts leave one region over about half the page, the gutters between its cards were not found: try cards
     // in shaded fills, other colour families, or the colour of the screenshot's own frame)
-    if (!giant(regions)) return assemblePanels(regions, words, img.width, img.height, med);
+    if (!giant(regions)) return assemblePanels(regions, words, img.width, img.height, med, gridWords);
     const rescued = worded(findCards(img, true));
-    return rescued.length ? fromCards(rescued, true) : assemblePanels(regions, words, img.width, img.height, med);
+    return rescued.length ? fromCards(rescued, true) : assemblePanels(regions, words, img.width, img.height, med, gridWords);
   }
   const panels = fromCards(cards, grown);
   // (likewise when cards were found but a region over about half the page is left beside them)
@@ -527,11 +529,11 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
   if (!panelsGiant(wider)) return wider;
   // Still one block over half the page: this dashboard has no cards at all, only white space between its visuals, and
   // the fill finder has read the page itself as one card. Cut the white space instead.
-  const cut = assemblePanels(findRegions(img), words, img.width, img.height, med);
+  const cut = assemblePanels(findRegions(img), words, img.width, img.height, med, gridWords);
   return cut.length > wider.length ? cut : wider;
 }
 
-function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Box[], rescue: boolean): Panel[] {
+function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Box[], rescue: boolean, gridWords: Word[] = words): Panel[] {
   // one visual per card, unless the card clearly holds several (each part at least a fifth of the card)
   const regions: Box[] = [];
   for (const c of cards) {
@@ -543,5 +545,5 @@ function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Bo
   // (no single card covers much of it; in a rescue, the cards together: there, a region around the whole page holds them
   // all and would swallow them, while elsewhere such a region is a report's table, whose bands looked like cards)
   findRegions(img).forEach((r) => { if (rescue ? cards.reduce((a, c) => a + overlap(r, c), 0) <= area(r) * 0.2 : !cards.some((c) => overlap(r, c) > area(r) * 0.2)) regions.push(r); });
-  return assemblePanels(regions, words, img.width, img.height, med);
+  return assemblePanels(regions, words, img.width, img.height, med, gridWords);
 }
