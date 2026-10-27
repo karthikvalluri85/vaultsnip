@@ -378,8 +378,9 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
   const ps = findPanelsRaw(img, words, med, gridWords), m = med ?? medianHeight(words);
   // (never on a report: its table's masked numbers are not KPI values)
   // (values judged on the reader's own word boxes: the words given here leave out the tallest masks, which a big value is)
-  const split = looksLikeTable(gridWords, m) ? ps : splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m)
-    .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
+  const split = looksLikeTable(gridWords, m) ? ps
+    : splitKpiStacks(img, splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m), gridWords, m)
+      .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
   return split.filter((p) => couldBeVisual(p, img.width, img.height) || split.length === 1);
 }
 
@@ -433,6 +434,52 @@ export function splitKpiRows(img: Img, ps: Panel[], words: Word[], med: number):
     const parts = xs.slice(1).map((x, i) => { const b: Box = [xs[i], p.b[1], x, p.b[3]]; return { b, words: wordsIn(words, b), med: p.med }; });
     // (each part a card: its value, a readable label, and few words; a chart's masked data labels sit among axis labels)
     return parts.every((q) => q.words.length <= 8 && q.words.some(value) && q.words.some((w) => w.kept && w.text && !isBigBox(w, med))) ? parts : [p];
+  });
+}
+
+/**
+ * A KPI card sitting on top of its own chart, both inside one card (a Tableau favourite: "Conversion" with its big
+ * value, and a small column chart of the same measure by month under it). They are two visuals, and a replica that
+ * draws one loses the value or the chart. Split where a line from side to side crosses no word and next to no ink,
+ * below a big value in the upper part of the panel, with a real chart's ink below it.
+ */
+export function splitKpiStacks(img: Img, ps: Panel[], words: Word[], med: number): Panel[] {
+  const e = edges(img);
+  const stacked = labelStacks(words, med);
+  return ps.flatMap((p) => {
+    if (looksLikeTable(p.words, med)) return [p];
+    const hgt = p.b[3] - p.b[1], x0 = Math.max(0, Math.floor(p.b[0])), x1 = Math.min(img.width, Math.ceil(p.b[2])), wide = x1 - x0;
+    if (wide < med * 6 || hgt < med * 12) return [p];
+    // the card's value: the tallest masked word, and taller than any text a chart labels its marks with
+    const masked = p.words.filter((w) => !w.kept && isBigBox(w, med) && !stacked.has(w)).sort((a, b) => b.h - a.h);
+    const lead = masked[0];
+    if (!lead || lead.h < med * 2.2) return [p];
+    // it belongs to a card above the chart, not to the chart: it sits in the upper part of the panel
+    if (lead.y + lead.h - p.b[1] > hgt * 0.5) return [p];
+    // the widest word-free band below it, which is the gap between the card and the chart (gaps inside a card, between
+    // its value and its label, are smaller than a line of text)
+    const rowsOf = p.words.filter((w) => w.y + w.h > lead.y + lead.h).map((w) => [w.y, w.y + w.h] as [number, number]).sort((a, b) => a[0] - b[0]);
+    let gapTop = lead.y + lead.h, gapBot = p.b[3], at = -1, span = 0;
+    let edgeY = gapTop;
+    for (const [a, z] of rowsOf.concat([[p.b[3], p.b[3]]])) {
+      if (a - edgeY > span) { span = a - edgeY; gapTop = edgeY; gapBot = a; }
+      edgeY = Math.max(edgeY, z);
+    }
+    if (span < med * 0.9) return [p];
+    const ink = (y: number) => { let n = 0; for (let x = x0; x < x1; x++) n += e[y * img.width + x]; return n; };
+    let bestInk = Infinity;
+    for (let y = Math.ceil(gapTop); y <= Math.floor(gapBot); y++) { const n = ink(y); if (n < bestInk) { bestInk = n; at = y; } }
+    if (at < 0 || bestInk > wide * 0.12) return [p];
+    // below the cut a chart, not more of the card: ink spread down the part, and no text as big as the card's value
+    const below = Math.min(img.height, Math.ceil(p.b[3])) - at - 1;
+    if (below < hgt * 0.2) return [p];
+    let drawn = 0, total = 0;
+    for (let y = at + 1; y <= at + below; y++) { const n = ink(y); total += n; if (n > wide * 0.04) drawn++; }
+    if (drawn < below * 0.2 || total < wide * below * 0.012) return [p];
+    const parts = ([[p.b[0], p.b[1], p.b[2], at], [p.b[0], at, p.b[2], p.b[3]]] as Box[])
+      .map((b) => ({ b, words: wordsIn(words, b), med: p.med }));
+    return parts[0].words.length <= 10 && !parts[1].words.some((w) => w.h >= lead.h * 0.8)
+      && parts.every((q) => couldBeVisual(q, img.width, img.height)) ? parts : [p];
   });
 }
 
