@@ -747,10 +747,10 @@ that lowers it.
 
 | | At the start | Now |
 |---|---|---|
-| **Fidelity** | **40.6%** | **59.4%** |
-| Dashboards exactly right | 0 of 27 | 3 of 27 |
-| Visuals found | 178 of 221 (80.5%) | 187 of 221 (84.6%) |
-| Found and typed right | 131 (59.3%) | 146 (66.1%) |
+| **Fidelity** | **40.6%** | **60.5%** |
+| Dashboards exactly right | 0 of 27 | 2 of 27 (5 of all 39) |
+| Visuals found | 178 of 221 (80.5%) | 190 of 221 (86.0%) |
+| Found and typed right | 131 (59.3%) | 148 (67.0%) |
 | **Panels invented** | **122 (4.5 a page)** | **35 (1.3 a page)** |
 
 What made the difference, each measured on its own:
@@ -792,10 +792,15 @@ panel in the masked image using the app's own self-check, and take the closest. 
 right 60% of the time and the closest drawing 24%; of 68 the rules get right, drawing would break 43. Appearance is not
 a type classifier at this resolution, and the rules stay.
 
-**Still open**, and what the next passes go after: 41 visuals found but typed wrong, 34 not found (19 of them KPI
-cards, and 16 cases where a panel spans two visuals that were never cut apart) and 35 panels still invented. If every
-visual found were typed right the figure would be 77%; if every visual were found and nothing invented, 66%. Typing is
-the larger half of what is left.
+**A caution worth recording.** Two of these rules were first drawn from the 27 real dashboards alone - the shape of a
+KPI card (0.7 to 4 times as wide as tall) and the smallest visual (6.5% of the page high). The 60 generated dashboards
+have KPI cards up to ten times as wide as tall, so those bounds dropped 27 real visuals there and the generated set
+fell 3.5 points below its gate. Widened to 0.6-8 and 5.5%, both sets fit; the real set gives back 2.4 points of
+fidelity, which were never really there. Every rule here is checked against both sets for that reason.
+
+**Still open**, and what the next passes go after: 42 visuals found but typed wrong, 31 not found, and 35 panels still
+invented. If every visual found were typed right the figure would be about 79%; if every visual were found and nothing
+invented, about 66%. Typing is the larger half of what is left.
 
 ## The plan
 
