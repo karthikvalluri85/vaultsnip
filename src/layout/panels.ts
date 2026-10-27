@@ -323,6 +323,9 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
   // (judged on every word the reader found, masks included: the caller hides the tallest masks from the cutter, and a
   //  KPI card whose value is one of them then looks like a strip of labels and is joined to the chart below it)
   const big = (p: { b: Box }) => wordsIn(allWords, p.b).some((w) => isBigBox(w, med) && !stacked.has(w));
+  // (the words the cutter was given, not every word: a chart carries masked data labels that are big too, and a chart
+  //  is exactly what a strip of axis labels should be joining)
+  const bigCard = (p: { words: Word[] }) => p.words.some((w) => isBigBox(w, med) && !stacked.has(w));
   let ps = regions.filter((b) => area(b) > W * H * 0.0008 && b[2] - b[0] > 6 && b[3] - b[1] > 6).map((b) => ({ b: [...b] as Box, words: wordsIn(words, b) }));
   const textOnly = (p: { b: Box; words: Word[] }) => {
     if (!p.words.length) return false;
@@ -343,7 +346,7 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
       if (!ps.includes(s)) continue;
       const overlapX = (p: { b: Box }) => Math.max(0, Math.min(p.b[2], s.b[2]) - Math.max(p.b[0], s.b[0])) / Math.max(1, Math.min(p.b[2] - p.b[0], s.b[2] - s.b[0]));
       // (never onto a KPI tile: text above a row of tiles is a page or section heading)
-      const cand = ps.filter((p) => p !== s && overlapX(p) > 0.5 && !textOnly(p) && !big(p))
+      const cand = ps.filter((p) => p !== s && overlapX(p) > 0.5 && !textOnly(p) && !bigCard(p))
         // titles sit above their visual, so joining upward costs more, except for labels hugging the panel above (axis labels)
         .map((p) => ({ p, gap: p.b[1] >= s.b[3] ? p.b[1] - s.b[3] : s.b[1] >= p.b[3] ? (s.b[1] - p.b[3] < med * 1.5 ? (s.b[1] - p.b[3]) * 0.5 : (s.b[1] - p.b[3]) * 1.5) : Infinity }))
         // (a strip joins what it labels, not whatever lies furthest below it: at six line-heights a KPI card's own
