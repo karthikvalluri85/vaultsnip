@@ -39,6 +39,8 @@ export const PANEL_OPTS = {
   trimTol: 0,          // ink allowed in a margin row next to a border line (rounded frame corners; measured: 0 is best)
   band: false,         // children keep the full band across a cut (measured: worse on real pages)
   filled: false,       // a gutter row is one colour, so a row through a solid bar is not one (measured: worse on real pages)
+  atomArea: 0.005,     // a region this small a share of the page is one visual at most: cutting it only breaks a title
+  atomH: 0.06,          // into words and a card into its value and its label (0 for either turns the stop off)
 };
 
 /** Raw regions from the cut tree, as boxes. */
@@ -116,6 +118,10 @@ export function findRegions(img: Img, o: Partial<typeof PANEL_OPTS> = {}, within
     const frame: Box = [left >= 0 ? left : x0, top >= 0 ? top : y0, right >= 0 ? right + 1 : x1, bottom >= 0 ? bottom + 1 : y1];
     const node: Node = { b: framed ? frame : [x0, y0, x1, y1], inner: [x0, y0, x1, y1], framed, kids: null, axis: null };
     if (depth > 14) return node;
+    // A region already no bigger than the smallest visual a dashboard uses holds one visual at most. Cutting on it
+    // only breaks a title into its words and a card into its value and its label, and those pieces are then too small
+    // to be visuals at all. (On a page of cards this never bites: a card is far bigger than this.)
+    if (opts.atomArea > 0 && opts.atomH > 0 && w * h < W * H * opts.atomArea && h < H * opts.atomH) return node;
     const py = Array.from({ length: h }, (_, i) => rowInk(x0, x1, y0 + i)), px = Array.from({ length: w }, (_, i) => colInk(y0, y1, x0 + i));
     const cy = Array.from({ length: h }, (_, i) => rowCross(x0, x1, y0 + i)), cx = Array.from({ length: w }, (_, i) => colCross(y0, y1, x0 + i));
     // (only lines that pass the edge test need the colour test)
