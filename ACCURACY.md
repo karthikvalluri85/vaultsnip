@@ -747,11 +747,11 @@ that lowers it.
 
 | | At the start | Now |
 |---|---|---|
-| **Fidelity** | **40.6%** | **55.6%** |
-| Dashboards exactly right | 0 of 27 | 2 of 27 |
-| Visuals found | 178 of 221 (80.5%) | 186 of 221 (84.2%) |
-| Found and typed right | 131 (59.3%) | 139 (62.9%) |
-| **Panels invented** | **122 (4.5 a page)** | **39 (1.4 a page)** |
+| **Fidelity** | **40.6%** | **59.4%** |
+| Dashboards exactly right | 0 of 27 | 3 of 27 |
+| Visuals found | 178 of 221 (80.5%) | 187 of 221 (84.6%) |
+| Found and typed right | 131 (59.3%) | 146 (66.1%) |
+| **Panels invented** | **122 (4.5 a page)** | **35 (1.3 a page)** |
 
 What made the difference, each measured on its own:
 
@@ -771,13 +771,31 @@ What made the difference, each measured on its own:
 - **A page with no cards at all** — plain white, visuals separated by space — now falls back to cutting the white space
   instead of returning one panel for the whole picture.
 
+- **A region's big value is judged on every word the reader found, masks included.** The cutter is given the words with
+  the tallest masks hidden, because those blocks distort a column of numbers; the same list was then used to ask whether
+  a region holds a big value, so a KPI card whose value was one of those masks looked like a strip of labels, and was
+  joined to the chart below it.
+- **A label strip joins what it labels**, not whatever lies furthest below it (four and a half line-heights, not six).
+- **Two charts side by side are two visuals.** Pieces of a borderless chart are joined when they share a baseline; the
+  rule let that happen even where both pieces carried their own words, which is exactly where axis labels sit.
+- **A visual is not narrower than a column of labels** (6.7% of the page is the slimmest hand-labelled one).
+- **A stacked area chart is not a continent**, and a map's regions are pieces of the panel rather than a legend's
+  swatches.
+- **The cutter stops at a region already no bigger than one visual**, instead of breaking a title into its words.
+
 Also fixed here: the on-device self-check compared the replica the instant it was drawn, while its charts were still
 growing in, so it was comparing half-drawn pictures. It now waits for each chart to finish.
 
-**Still open**, and what the next passes go after: 47 visuals found but typed wrong (the commonest confusions are a
-stacked area read as a map, a column chart read as a KPI, and several charts read as line charts when their bars are
-not recognised), 35 not found (21 of them KPI cards, often tiles nested inside a bigger card), and 39 panels still
-invented.
+**An experiment run to a conclusion, so nobody repeats it.** `tools/layout-bench/typecheck.mjs` asks whether a visual's
+type can be settled by *drawing* it: draw the panel as each type the engine can draw, compare each drawing with the
+panel in the masked image using the app's own self-check, and take the closest. Over 113 visuals the rules name the type
+right 60% of the time and the closest drawing 24%; of 68 the rules get right, drawing would break 43. Appearance is not
+a type classifier at this resolution, and the rules stay.
+
+**Still open**, and what the next passes go after: 41 visuals found but typed wrong, 34 not found (19 of them KPI
+cards, and 16 cases where a panel spans two visuals that were never cut apart) and 35 panels still invented. If every
+visual found were typed right the figure would be 77%; if every visual were found and nothing invented, 66%. Typing is
+the larger half of what is left.
 
 ## The plan
 

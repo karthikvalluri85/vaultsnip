@@ -5,6 +5,15 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- **Fidelity, the measure a replica is judged by.** `tools/layout-bench/fidelity.mjs` scores `right ÷ max(visuals in the original, panels produced)` over the real dashboards and counts **every** panel the builder makes, including ones drawn over a toolbar or a filter bar, which the older figures hid. A page scores 100% only when every visual is found, each is typed right and nothing else is drawn. The rule is written into `CLAUDE.md` and no change ships that lowers it.
+
+### Changed
+- **Replicas built on this device look much more like the original.** Fidelity on the 27 dashboards the builder was never tuned on rises from 40.6% to 59.4%, three of them now exactly right, and the cards invented out of nothing fall from 4.5 a dashboard to 1.3. In particular a replica no longer turns the browser's own toolbar into KPI cards, a filter rail into a chart, a stacked area chart into a map, or two charts side by side into one.
+
+### Fixed
+- **The on-device self-check compared half-drawn charts.** It measured the replica the instant it was rendered, while the charts were still animating in; it now waits for each one to finish.
+
+### Added
 - **"Hide everything uncertain"**: one click on the review screen masks every item the pre-flight check left open, numbers and unlisted words alike, so the check passes. Nothing hidden is shown, and each new box can still be switched off.
 - **A safe-to-share receipt** next to the masked image, as PNG or PDF: what was hidden (counts and kinds, never the hidden text), that the check passed, that it was made on this device, and the SHA-256 of the masked image file, so anyone can confirm a file is the one described. Made in the browser, with no library and nothing sent.
 - **Paste and copy everywhere.** Paste a screenshot on any screen (it asks before replacing the one in progress), or click **Paste a screenshot** on the start screen. **Copy masked image** and, on the replica, **Copy image** put a picture on the clipboard to paste straight into Teams, Slack, a ticket or a slide; where a browser cannot copy images, the picture is downloaded instead.
