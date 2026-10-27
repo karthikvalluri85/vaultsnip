@@ -186,7 +186,11 @@ export function buildSpec(input: BuildInput): BuildResult {
   // label, and little else. (Drawing them loses nothing of the original and spares the user cards it never had.)
   const furniture = (x: (typeof readings)[number]) => x.features.marks <= 1 && x.features.coverage < 0.025 && !x.features.grid
     && !(x.r.type === 'kpi' && x.features.bigMasked <= 4);
-  const real = readings.filter((x) => !furniture(x));
+  // A narrow strip running down one side of the page is the tool's rail — navigation, a filter pane, a slicer list —
+  // not a visual. No dashboard puts a chart in a sixth of the width over a third of the height against the margin.
+  const rail = (x: (typeof readings)[number]) => (x.p.b[0] <= W * 0.03 || x.p.b[2] >= W * 0.97)
+    && width(x.p.b) <= W * 0.16 && height(x.p.b) >= H * 0.3;
+  const real = readings.filter((x) => !furniture(x) && !rail(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
