@@ -428,7 +428,7 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
       const a: Box = axis === 'x' ? [p.b[0], p.b[1], at, p.b[3]] : [p.b[0], p.b[1], p.b[2], at];
       const b: Box = axis === 'x' ? [at, p.b[1], p.b[2], p.b[3]] : [p.b[0], at, p.b[2], p.b[3]];
       const parts = [a, b].map((q) => ({ b: q, words: wordsIn(words, q), med: p.med }));
-      if (!parts.every((q) => couldBeVisual(q, img.width, img.height) && q.words.length >= 5)) return null;
+      if (!parts.every((q) => couldBeVisual(q, img.width, img.height, med) && q.words.length >= 5)) return null;
       // each side draws something of its own: a panel split off its own white margin is not two visuals
       const drawn = (q: Panel) => {
         let n = 0;
@@ -455,7 +455,7 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
     : splitKpiStacks(img, splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m), gridWords, m)
       .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
   const apart = splitClearBands(img, split, gridWords, m).map((q) => ({ ...q, words: wordsIn(words, q.b) }));
-  return apart.filter((p) => couldBeVisual(p, img.width, img.height) || apart.length === 1);
+  return apart.filter((p) => couldBeVisual(p, img.width, img.height, m) || apart.length === 1);
 }
 
 /**
@@ -466,8 +466,15 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
  * 6.5% of the height, 5.5% of the width or 0.4% of the area is chrome, not a visual. (A page that yields one panel keeps it: that is a single visual snipped on
  * its own, and the page is its own scale.)
  */
-export function couldBeVisual(p: { b: Box }, W: number, H: number): boolean {
+export function couldBeVisual(p: { b: Box; words?: Word[] }, W: number, H: number, med = 0): boolean {
   const w = p.b[2] - p.b[0], h = p.b[3] - p.b[1];
+  // (a wide line of prose is a note or a footer, and a visual of the page however short it is: six or more words
+  //  running together on one line, where a legend or a filter list sets one or two to a line)
+  if (med > 0 && w >= W * 0.4 && p.words && p.words.length >= 6) {
+    const rows = new Map<number, number>();
+    for (const q of p.words) { const k = Math.round((q.y + q.h / 2) / med); rows.set(k, (rows.get(k) || 0) + 1); }
+    if ([...rows.values()].some((n) => n >= 6)) return w * h >= W * H * 0.001;
+  }
   // (narrow as well as short: the slimmest hand-labelled visual is 6.7% of the page wide, so a column of words
   //  narrower than that is an axis's labels or a legend standing on its own, not a visual)
   return w * h >= W * H * 0.004 && h >= H * 0.065 && w >= W * 0.055;
@@ -559,7 +566,7 @@ export function splitKpiStacks(img: Img, ps: Panel[], words: Word[], med: number
     const parts = ([[p.b[0], p.b[1], p.b[2], at], [p.b[0], at, p.b[2], p.b[3]]] as Box[])
       .map((b) => ({ b, words: wordsIn(words, b), med: p.med }));
     return parts[0].words.length <= 10 && !parts[1].words.some((w) => w.h >= lead.h * 0.8)
-      && parts.every((q) => couldBeVisual(q, img.width, img.height)) ? parts : [p];
+      && parts.every((q) => couldBeVisual(q, img.width, img.height, med)) ? parts : [p];
   });
 }
 

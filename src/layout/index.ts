@@ -191,7 +191,14 @@ export function buildSpec(input: BuildInput): BuildResult {
   // (only a narrow one: a real table runs across its card, and plenty are drawn without a single rule)
   const bareTable = (x: (typeof readings)[number]) => x.r.type === 'table' && !x.features.marks && !x.features.coverage
     && width(x.p.b) < W * 0.25;
-  const furniture = (x: (typeof readings)[number]) => (x.features.marks <= 1 && x.features.coverage < 0.025
+  // (a line of six or more words running together is a sentence: a note, a footer, a commentary box. A filter list or
+  //  a legend sets one or two words to a line.)
+  const prose = (x: (typeof readings)[number]) => {
+    const rows = new Map<number, number>();
+    for (const w of x.p.words) { const k = Math.round((w.y + w.h / 2) / Math.max(1, med)); rows.set(k, (rows.get(k) || 0) + 1); }
+    return [...rows.values()].some((n) => n >= 6);
+  };
+  const furniture = (x: (typeof readings)[number]) => !prose(x) && (x.features.marks <= 1 && x.features.coverage < 0.025
     && !x.features.grid && !(x.features.thin && (x.features.vivid || x.features.swatches))
     && !(x.r.type === 'kpi' && x.features.bigMasked <= 4)) || bareTable(x);
   // A narrow strip running down one side of the page is the tool's rail — navigation, a filter pane, a slicer list —
