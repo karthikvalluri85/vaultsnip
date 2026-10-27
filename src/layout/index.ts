@@ -184,7 +184,10 @@ export function buildSpec(input: BuildInput): BuildResult {
   // note or callout over the picture. Each is words on the page with nothing drawn — no chart marks, no table rules,
   // next to no ink — while every real visual either draws something or is a KPI card, which is a value or two, a
   // label, and little else. (Drawing them loses nothing of the original and spares the user cards it never had.)
-  const furniture = (x: (typeof readings)[number]) => x.features.marks <= 1 && x.features.coverage < 0.025 && !x.features.grid
+  // (a line chart is a stroke and little else: a sparse line over a wide card inks barely any of it, so a panel
+  //  holding a thin stroke is a chart however little of the card it covers)
+  const furniture = (x: (typeof readings)[number]) => x.features.marks <= 1 && x.features.coverage < 0.025
+    && !x.features.grid && !(x.features.thin && (x.features.vivid || x.features.swatches))
     && !(x.r.type === 'kpi' && x.features.bigMasked <= 4);
   // A narrow strip running down one side of the page is the tool's rail — navigation, a filter pane, a slicer list —
   // not a visual. No dashboard puts a chart in a sixth of the width over a third of the height against the margin.
