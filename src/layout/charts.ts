@@ -923,6 +923,10 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // Gantt bars float off any baseline)
   // (a heatmap first: its columns of cells reach one height, as a 100% stack's do, but in shades of one colour)
   return done(heatmap(c)) || percentBars || done(funnel(c)) || done(gantt(c)) || done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
+    // (boxes scattered about, joined by a stroke or two and not standing on any baseline: a decomposition tree, an
+    //  org chart, a diagram. Saying so is truer than drawing a line chart that is not there.)
+    || (rects.length >= 8 && !barReading && thin.length <= 3 && coverage < 0.06
+      ? done({ type: "placeholder", certainty: 0.35, fields: { originalType: "chart" } })! : null)
     || done(lines(c)) || done(scatter(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
