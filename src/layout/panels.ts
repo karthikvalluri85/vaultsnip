@@ -403,7 +403,9 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
  */
 export function couldBeVisual(p: { b: Box }, W: number, H: number): boolean {
   const w = p.b[2] - p.b[0], h = p.b[3] - p.b[1];
-  return w * h >= W * H * 0.004 && h >= H * 0.055;
+  // (narrow as well as short: the slimmest hand-labelled visual is 6.7% of the page wide, so a column of words
+  //  narrower than that is an axis's labels or a legend standing on its own, not a visual)
+  return w * h >= W * H * 0.004 && h >= H * 0.055 && w >= W * 0.055;
 }
 
 /**
