@@ -378,8 +378,22 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
   const ps = findPanelsRaw(img, words, med, gridWords), m = med ?? medianHeight(words);
   // (never on a report: its table's masked numbers are not KPI values)
   // (values judged on the reader's own word boxes: the words given here leave out the tallest masks, which a big value is)
-  return looksLikeTable(gridWords, m) ? ps : splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m)
+  const split = looksLikeTable(gridWords, m) ? ps : splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m)
     .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
+  return split.filter((p) => couldBeVisual(p, img.width, img.height) || split.length === 1);
+}
+
+/**
+ * Could this panel hold a visual at all? Toolbars, breadcrumbs, tab strips, page titles and the rails of the tool the
+ * dashboard was screenshotted in come out of the region finder as panels, and anything with a word in it then reads as
+ * a KPI card, which the user sees at once as a card the original never had. A visual is a block of the page: across 221
+ * hand-labelled visuals on real dashboards the smallest is 6.8% of the page tall and 0.51% of its area, so a band below
+ * 5.5% and 0.4% is chrome, not a visual. (A page that yields one panel keeps it: that is a single visual snipped on
+ * its own, and the page is its own scale.)
+ */
+export function couldBeVisual(p: { b: Box }, W: number, H: number): boolean {
+  const w = p.b[2] - p.b[0], h = p.b[3] - p.b[1];
+  return w * h >= W * H * 0.004 && h >= H * 0.055;
 }
 
 /**
