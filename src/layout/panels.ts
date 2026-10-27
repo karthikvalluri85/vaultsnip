@@ -383,6 +383,67 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
   return ps.filter((p) => area(p.b) > W * H * 0.004 || big(p)).map((p) => ({ ...p, med }));
 }
 
+
+/**
+ * A panel still holding two visuals, split at a clear band. The cutter works on the whole page and its gutter has to be
+ * wide enough not to break charts apart; a panel is a smaller question, so a narrower band will do here, as long as
+ * each side is big enough to be a visual on its own and has something drawn in it. A band must cross the whole panel
+ * without touching a word or any ink: a chart's own gaps are crossed by its axis labels, and a line or a bar chart has
+ * ink across every column of its plot.
+ */
+export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: number, depth = 0): Panel[] {
+  if (depth > 2) return ps;
+  const e = edges(img);
+  let cut = false;
+  const out = ps.flatMap((p) => {
+    const x0 = Math.max(0, Math.floor(p.b[0])), x1 = Math.min(img.width, Math.ceil(p.b[2]));
+    const y0 = Math.max(0, Math.floor(p.b[1])), y1 = Math.min(img.height, Math.ceil(p.b[3]));
+    const W = x1 - x0, H = y1 - y0;
+    if (W < 20 || H < 20) return [p];
+    // (never a table: its own column gaps are clear bands, and each column alone is just words)
+    if (looksLikeTable(p.words, med)) return [p];
+    if (W * H < img.width * img.height * 0.12) return [p];
+    const minBand = Math.max(14, Math.round(med * 2));
+    const colInk = (x: number) => { let n = 0; for (let y = y0; y < y1; y++) n += e[y * img.width + x]; return n; };
+    const rowInk = (y: number) => { let n = 0; const o = y * img.width; for (let x = x0; x < x1; x++) n += e[o + x]; return n; };
+    const clearCol = (x: number) => colInk(x) <= 1 && !p.words.some((w) => w.x <= x && w.x + w.w >= x);
+    const clearRow = (y: number) => rowInk(y) <= 1 && !p.words.some((w) => w.y <= y && w.y + w.h >= y);
+    /** The widest run of clear lines strictly inside the panel, as [start, end). */
+    const widest = (from: number, to: number, clear: (i: number) => boolean) => {
+      let best: [number, number] | null = null, s = -1;
+      for (let i = from; i <= to; i++) {
+        const ok = i < to && clear(i);
+        if (ok && s < 0) s = i;
+        if (!ok && s >= 0) { if (s > from && i < to && (!best || i - s > best[1] - best[0])) best = [s, i]; s = -1; }
+      }
+      return best;
+    };
+    const gx = widest(x0, x1, clearCol), gy = widest(y0, y1, clearRow);
+    const pick = (gap: [number, number] | null, axis: 'x' | 'y') => {
+      if (!gap || gap[1] - gap[0] < minBand) return null;
+      const at = Math.round((gap[0] + gap[1]) / 2);
+      const a: Box = axis === 'x' ? [p.b[0], p.b[1], at, p.b[3]] : [p.b[0], p.b[1], p.b[2], at];
+      const b: Box = axis === 'x' ? [at, p.b[1], p.b[2], p.b[3]] : [p.b[0], at, p.b[2], p.b[3]];
+      const parts = [a, b].map((q) => ({ b: q, words: wordsIn(words, q), med: p.med }));
+      if (!parts.every((q) => couldBeVisual(q, img.width, img.height) && q.words.length >= 5)) return null;
+      // each side draws something of its own: a panel split off its own white margin is not two visuals
+      const drawn = (q: Panel) => {
+        let n = 0;
+        for (let y = Math.max(0, Math.floor(q.b[1])); y < Math.min(img.height, Math.ceil(q.b[3])); y += 2) {
+          for (let x = Math.max(0, Math.floor(q.b[0])); x < Math.min(img.width, Math.ceil(q.b[2])); x += 2) if (e[y * img.width + x]) n++;
+        }
+        return n >= 40;
+      };
+      return parts.every(drawn) ? parts : null;
+    };
+    const best = (gx && gy && gx[1] - gx[0] >= gy[1] - gy[0] ? pick(gx, 'x') || pick(gy, 'y') : pick(gy, 'y') || pick(gx, 'x'));
+    if (!best) return [p];
+    cut = true;
+    return best;
+  });
+  return cut ? splitClearBands(img, out, words, med, depth + 1) : out;
+}
+
 export function findPanels(img: Img, words: Word[], med?: number, gridWords: Word[] = words): Panel[] {
   const ps = findPanelsRaw(img, words, med, gridWords), m = med ?? medianHeight(words);
   // (never on a report: its table's masked numbers are not KPI values)
@@ -390,7 +451,8 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
   const split = looksLikeTable(gridWords, m) ? ps
     : splitKpiStacks(img, splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m), gridWords, m)
       .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
-  return split.filter((p) => couldBeVisual(p, img.width, img.height) || split.length === 1);
+  const apart = splitClearBands(img, split, gridWords, m).map((q) => ({ ...q, words: wordsIn(words, q.b) }));
+  return apart.filter((p) => couldBeVisual(p, img.width, img.height) || apart.length === 1);
 }
 
 /**
