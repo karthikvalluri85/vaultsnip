@@ -494,7 +494,12 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
   // (rescued cards hold words, a title or labels, as a dashboard's cards do; a single chart's bars, found as colour
   // areas, hold none: at least three cards, most of them with words)
   const worded = (cs: Box[]) => (cs.length >= 3 && cs.filter((c) => wordsIn(words, c).length >= 2).length >= cs.length * 0.6 ? cs : []);
-  let cards = findCards(img);
+  let cards = findCards(img), grown = false;
+  // A screenshot taken with the tool's own frame around it puts that frame's colour along the image border, so the
+  // page colour is read from the frame and the dashboard's own background looks like a card. The wider search knows
+  // that case (it tries the colour families and the frame's colour too); it used to run only when the cuts left one
+  // giant region, which never happens on a page whose cards the cuts break into fragments.
+  if (!cards.length) { const wider = worded(findCards(img, true)); if (wider.length) { cards = wider; grown = true; } }
   if (!cards.length) cards = findOutlinedCards(img);
   if (!cards.length) {
     const regions = findRegions(img);
@@ -504,7 +509,7 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
     const rescued = worded(findCards(img, true));
     return rescued.length ? fromCards(rescued, true) : assemblePanels(regions, words, img.width, img.height, med);
   }
-  const panels = fromCards(cards);
+  const panels = fromCards(cards, grown);
   // (likewise when cards were found but a region over about half the page is left beside them)
   if (!panelsGiant(panels)) return panels;
   const more = worded(findCards(img, true));
