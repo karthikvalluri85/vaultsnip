@@ -724,6 +724,61 @@ types. Squeezing them in (a type's data as a JSON string inside a strict outer s
 for a weaker format. OpenAI keeps its JSON mode; its strict mode requires every field present, which fits this optional-
 heavy shape no better. The answer checker runs on every recorded answer instead, and stays the guard.
 
+## Phase 6: fidelity — the replica has to look like the original (27 October 2026)
+
+A user compared a Power BI dashboard with the replica VaultSnip built from it and said, fairly, that it was not the
+same page. It had cards the original never had (the browser's own toolbar, read as seven KPI tiles), it had lost the
+waterfall and the decomposition tree, and it had turned the map into a treemap and the stacked area chart into a map.
+
+The figures we kept — *visuals found*, *types right of those found* — could not see most of that. They scored only the
+visuals the original has, through each dashboard's `ignore` list, so **panels invented out of application chrome were
+never counted**. The measure flattered the builder and hid the thing a user notices first.
+
+**Fidelity** replaces them as the figure this project is judged by (`tools/layout-bench/fidelity.mjs`):
+
+```
+fidelity = right / max(visuals in the original, panels produced)
+```
+
+counting **every** panel the builder makes, on the 27 dashboards it was never tuned on. A page scores 100% only when
+every visual is found, each is typed right, and nothing else is drawn. It is deliberately harsh: nothing invented,
+nothing dropped, the right kind, in the right place. The rule is written into [CLAUDE.md](CLAUDE.md); no change ships
+that lowers it.
+
+| | At the start | Now |
+|---|---|---|
+| **Fidelity** | **40.6%** | **55.6%** |
+| Dashboards exactly right | 0 of 27 | 2 of 27 |
+| Visuals found | 178 of 221 (80.5%) | 186 of 221 (84.2%) |
+| Found and typed right | 131 (59.3%) | 139 (62.9%) |
+| **Panels invented** | **122 (4.5 a page)** | **39 (1.4 a page)** |
+
+What made the difference, each measured on its own:
+
+- **A band under 5.5% of the page tall, or 0.4% of its area, is not a visual.** Of 221 hand-labelled visuals the
+  smallest is 6.8% tall and 0.51% of the page, so toolbars, breadcrumbs and tab strips can be ruled out without losing
+  anything real. Invented panels 122 → 61.
+- **Page furniture is not a visual.** A filter row, a lone legend or a note over the picture is words with nothing
+  drawn: no marks, no table rules, next to no ink. Every real visual either draws something or is a KPI card.
+- **A narrow strip down the side of the page is the tool's rail**, not a chart.
+- **A KPI card is a block**: of 86 hand-labelled KPI cards every one is between 0.88 and 4.33 times as wide as tall.
+- **A KPI card stacked over its own chart is two visuals** (a Tableau habit), split at the widest clear band under the
+  card's value. One dashboard went from 33% to 54%.
+- **Cards are found when the screenshot carries the tool's own frame.** The frame's colour sits along the image border,
+  so the page colour was read from the frame and the dashboard's background looked like a card.
+- **Narrower gutters are cut.** `gapFrac` was tuned when the measure was visuals found; against fidelity 0.7% of the
+  page's short side beats 1.1%. Every other cut option was re-tuned too and the old values held.
+- **A page with no cards at all** — plain white, visuals separated by space — now falls back to cutting the white space
+  instead of returning one panel for the whole picture.
+
+Also fixed here: the on-device self-check compared the replica the instant it was drawn, while its charts were still
+growing in, so it was comparing half-drawn pictures. It now waits for each chart to finish.
+
+**Still open**, and what the next passes go after: 47 visuals found but typed wrong (the commonest confusions are a
+stacked area read as a map, a column chart read as a KPI, and several charts read as line charts when their bars are
+not recognised), 35 not found (21 of them KPI cards, often tiles nested inside a bigger card), and 39 panels still
+invented.
+
 ## The plan
 
 Each phase ships on its own branch, must not lower any figure it does not target, and records its before-and-after
