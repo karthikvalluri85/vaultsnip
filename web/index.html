@@ -80,6 +80,8 @@ label.f{display:grid;gap:4px;font-size:13px;font-weight:600;margin-top:10px}
 label.f span{font-weight:400;color:var(--muted);font-size:12px}
 input[type=text],input[type=password]{font:inherit;font-size:14px;padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:100%}
 .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.receipt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}.receipt .note{flex:1 1 320px;margin:0}
+#btn-paste{margin-top:10px}#btn-hide-unsure{margin-top:8px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{border:0;background:transparent;color:var(--muted);padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer}
 .seg button + button{border-left:1px solid var(--line)}
@@ -180,6 +182,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
           <p class="note">Any source: BI tools, Excel, PDF report pages, web analytics, SaaS apps</p>
           <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
         </div>
+        <button class="btn" id="btn-paste" type="button">Paste a screenshot</button>
         <p class="err" id="drop-err" role="alert" hidden></p>
       </div>
     </div>
@@ -221,6 +224,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
             <div class="kpi you"><b id="k-you">0</b><span>Changed by you</span><small>your own decisions</small></div>
           </div>
           <p class="nextstep" id="next-step" role="status" aria-live="polite"></p>
+          <button class="btn primary" id="btn-hide-unsure" type="button" hidden title="Masks every item the check left open. Nothing hidden is shown; you can still switch any box off.">Hide everything uncertain</button>
         </div>
         <div class="panel">
           <h3>What is hidden</h3>
@@ -299,6 +303,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <span class="sp" style="flex:1"></span>
       <button class="btn" id="btn-restart" type="button">Start over</button>
       <button class="btn" id="btn-csv" type="button">Download data (CSV)</button>
+      <button class="btn" id="btn-copy-replica" type="button" title="Copies a picture of the replica (generated values only) to paste into Teams, Slack, a ticket or a slide">Copy image</button>
       <button class="btn" id="btn-share" type="button">Share link</button>
       <button class="btn" id="btn-figma" type="button" title="Layered SVG with editable text and vector charts, for Figma, Penpot or Illustrator">Export for Figma (SVG)</button>
       <button class="btn" id="btn-react" type="button" title="A live React component (zip): values, charts, filters and CSV are generated at runtime">Export React code</button>
@@ -321,6 +326,11 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
     </dl>
     <p class="note" id="pf-warn"><b>Look over the image before sending.</b> The on-device reader can miss very small numbers beside bars or inside coloured badges, and cannot read slanted or vertical labels (for example rotated axis labels). Close this, then drag a box over anything still readable.</p>
     <label class="check"><input type="checkbox" id="pf-ok"> I have looked over the masked image and nothing sensitive is readable.</label>
+    <div class="receipt" id="receipt-row">
+      <span class="note"><b>Safe-to-share receipt</b>: what was hidden (counts and kinds, never the text), that the check passed and that it was made on this device, with the image's SHA-256.</span>
+      <button class="btn" id="btn-receipt-png" type="button" disabled>Receipt (PNG)</button>
+      <button class="btn" id="btn-receipt-pdf" type="button" disabled>Receipt (PDF)</button>
+    </div>
     <div class="keybox" id="keybox" hidden>
       <strong>Add your AI key</strong>
       <div id="kp-send"></div>
@@ -329,6 +339,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
     <div class="row" style="justify-content:flex-end">
       <label class="note" style="margin-right:auto;align-self:center"><input type="checkbox" id="pf-credit" checked> Add a small "masked with VaultSnip" tag</label>
       <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn" id="btn-copy-masked" type="button" title="Copies the masked image to paste into Teams, Slack, a ticket or a slide">Copy masked image</button>
       <button class="btn" id="btn-dl-masked" type="button">Download masked image</button>
       <button class="btn" id="btn-local" type="button" title="Reads the layout, chart types and shapes from the masked image on this device. No key, nothing is sent.">Build on this device (beta)</button>
       <button class="btn primary" id="btn-confirm" type="button">Send and build replica</button>
@@ -397,6 +408,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="lib/vs-layout.js"></script>
 <script src="samples.js"></script>
 <script src="share.js"></script>
+<script src="receipt.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

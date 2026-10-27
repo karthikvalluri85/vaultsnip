@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **"Hide everything uncertain"**: one click on the review screen masks every item the pre-flight check left open, numbers and unlisted words alike, so the check passes. Nothing hidden is shown, and each new box can still be switched off.
+- **A safe-to-share receipt** next to the masked image, as PNG or PDF: what was hidden (counts and kinds, never the hidden text), that the check passed, that it was made on this device, and the SHA-256 of the masked image file, so anyone can confirm a file is the one described. Made in the browser, with no library and nothing sent.
+- **Paste and copy everywhere.** Paste a screenshot on any screen (it asks before replacing the one in progress), or click **Paste a screenshot** on the start screen. **Copy masked image** and, on the replica, **Copy image** put a picture on the clipboard to paste straight into Teams, Slack, a ticket or a slide; where a browser cannot copy images, the picture is downloaded instead.
+
 ## [0.8.0] - 2026-10-27
 
 ### Added

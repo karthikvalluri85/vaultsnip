@@ -4,6 +4,7 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join, extname, dirname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -25,6 +26,7 @@ let failures = 0;
 const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); if (!cond) failures++; };
 const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
 const pageErrors = []; page.on('pageerror', e => pageErrors.push(e.message));
 // anything the site's Content-Security-Policy blocks is a bug: the app must work entirely within it
 const cspBlocked = []; page.on('console', m => { if (/Content Security Policy|Refused to (load|connect|execute|create|apply)/i.test(m.text())) cspBlocked.push(m.text().slice(0, 200)); });
@@ -792,6 +794,20 @@ try {
   await keepBtn.click();
   const afterKeep = await page.evaluate(() => ({ gate: document.querySelector('.gate').textContent, kept: window.__DSC.masks.filter(m => m.type === 'Kept by you' && !m.on && m.userOff).length }));
   check(/Pass/.test(afterKeep.gate) && afterKeep.kept === 1, `keeping it resolves the finding and records the spot as yours (${afterKeep.gate.trim().slice(0, 20)})`);
+  // "Hide everything uncertain": one click masks every open finding, numbers and unlisted words alike
+  const hu0 = await page.evaluate(() => window.__DSC.masks.length);
+  await page.evaluate(() => {
+    const S = window.__DSC;
+    S.flags = [{ x: 60, y: 60, w: 30, h: 20, text: '42', type: 'Number or money', severity: 'block', resolved: false },
+      { x: 120, y: 60, w: 60, h: 20, text: 'Zorblat', type: 'Text not on allowlist', severity: 'review', resolved: false }];
+    S.test.updateGate();
+  });
+  const huBtn = page.locator('#btn-hide-unsure');
+  check(await huBtn.isVisible() && /\(2\)/.test(await huBtn.textContent()), `"Hide everything uncertain" appears with the number of open findings (${(await huBtn.textContent()).trim()})`);
+  await huBtn.click();
+  const hu = await page.evaluate(() => ({ gate: document.querySelector('.gate').textContent, added: window.__DSC.masks.slice(-2).map(m => m.on && m.src === 'check' && m.type === 'Added after check'), n: window.__DSC.masks.length }));
+  check(/Pass/.test(hu.gate) && hu.n === hu0 + 2 && hu.added.every(Boolean) && await huBtn.isHidden(), 'one click hides both, counts them as your decisions, and the gate passes');
+  await page.evaluate(() => { const S = window.__DSC; S.masks.splice(-2, 2); S.flags = []; S.test.updateGate(); });
   // the review summary: plain numbers that add up, your decisions counted, and a clear next step
   const sum = await page.evaluate(() => {
     const S = window.__DSC, words = S.words.filter(w => !w.ghost);
@@ -839,6 +855,62 @@ try {
   check(px.mask.join() === '120,124,130', 'masks in the PNG are solid grey');
   check(px.tag.every(c => c < 110), 'the PNG carries a small "masked with VaultSnip" tag unless unticked');
   await page.keyboard.press('Escape');
+
+  console.log('Hide everything uncertain, copy, and the safe-to-share receipt');
+  // the policy typed above, applied: the check runs again, and one click settles whatever it leaves open
+  await page.click('#btn-reapply');
+  await page.waitForFunction(() => /Blocked|Review|Pass/.test(document.querySelector('.gate').textContent) && !/Checking/.test(document.querySelector('.gate').textContent), null, { timeout: 180000 });
+  if (await page.locator('#btn-hide-unsure').isVisible()) await page.click('#btn-hide-unsure');
+  check(/Pass/.test(await page.locator('.gate').textContent()) && await page.locator('#btn-send').isEnabled(), 'after "Hide everything uncertain" the check passes and the masked image can be previewed');
+  await page.click('#btn-send');
+  check(await page.locator('#btn-copy-masked').isDisabled() && await page.locator('#btn-receipt-png').isDisabled(), 'copying and the receipt wait for "I have looked over the masked image", like downloading');
+  await page.check('#pf-ok');
+  const [dlM2] = await Promise.all([page.waitForEvent('download'), page.click('#btn-dl-masked')]);
+  const fileM = await readFile(await dlM2.path()), shaM = createHash('sha256').update(fileM).digest('hex');
+  // "Copy masked image": the clipboard gets the downloaded picture, pixel for pixel (browsers re-encode clipboard images)
+  await page.click('#btn-copy-masked');
+  await page.waitForFunction(() => /Copied|does not work/.test(document.getElementById('send-err').textContent), null, { timeout: 10000 });
+  const clipSame = await page.evaluate(async b64 => {
+    const pix = async src => { const im = new Image(); im.src = src; await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0); return x.getImageData(0, 0, c.width, c.height); };
+    const it = (await navigator.clipboard.read())[0], a = await pix(URL.createObjectURL(await it.getType('image/png'))), b = await pix('data:image/png;base64,' + b64);
+    if (a.width !== b.width || a.height !== b.height) return `${a.width}×${a.height} vs ${b.width}×${b.height}`;
+    let diff = 0; for (let i = 0; i < a.data.length; i++) if (a.data[i] !== b.data[i]) diff++;
+    return diff;
+  }, fileM.toString('base64'));
+  check(clipSame === 0, `"Copy masked image" copies exactly the downloaded picture (${clipSame} values differ)`);
+  // the safe-to-share receipt: counts and kinds, the check, where it was made, and the file's SHA-256; never hidden text
+  const rf = await page.evaluate(async () => { const f = await window.__DSC.test.receiptFacts(); return { sha: f.sha, text: f.rows.map(r => r.join(' ')).join('\n') + f.subtitle + f.note }; });
+  const hiddenWords = await page.evaluate(() => { const S = window.__DSC, on = S.masks.filter(m => m.on); return [...new Set(S.words.filter(w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h)).map(w => w.text.replace(/[^\p{L}\p{N}]/gu, '')).filter(t => t.length >= 4))]; });
+  check(rf.sha === shaM, `the receipt names the downloaded file by its SHA-256 (${shaM.slice(0, 12)}…)`);
+  check(/Passed/.test(rf.text) && /On this device/.test(rf.text) && /Numbers/.test(rf.text) && /VaultSnip 0\.\d+\.\d+/.test(rf.text), 'the receipt says the check passed, that it was made on this device, and what kinds were hidden');
+  const leakedR = hiddenWords.filter(t => rf.text.includes(t));
+  check(hiddenWords.length > 10 && !leakedR.length, `the receipt never contains hidden text (${hiddenWords.length} hidden words checked${leakedR.length ? '; found: ' + leakedR.slice(0, 5).join(', ') : ''})`);
+  const [dlRcpt] = await Promise.all([page.waitForEvent('download'), page.click('#btn-receipt-png')]);
+  const rcPng = await readFile(await dlRcpt.path());
+  check(dlRcpt.suggestedFilename() === 'sample-masked-receipt.png' && rcPng.readUInt32BE(16) === 1000 && rcPng.readUInt32BE(20) > 600, `the receipt downloads as a PNG (${dlRcpt.suggestedFilename()}, ${rcPng.readUInt32BE(16)} × ${rcPng.readUInt32BE(20)})`);
+  const [dlRcP] = await Promise.all([page.waitForEvent('download'), page.click('#btn-receipt-pdf')]);
+  const rcPdf = (await readFile(await dlRcP.path())).toString('latin1');
+  const sx = +(/startxref\n(\d+)/.exec(rcPdf) || [])[1], offs = [...rcPdf.slice(sx).matchAll(/^(\d{10}) 00000 n $/gm)].map(m => +m[1]);
+  check(/^%PDF-1\.4/.test(rcPdf) && rcPdf.slice(sx, sx + 4) === 'xref' && offs.length === 6 && offs.every((o, i) => rcPdf.startsWith(`${i + 1} 0 obj`, o)) && /DCTDecode/.test(rcPdf) && rcPdf.includes(shaM), 'the PDF receipt is a well-formed one-page PDF that carries the SHA-256 in its properties');
+  await page.keyboard.press('Escape');
+
+  console.log('Paste and copy everywhere');
+  const pasteOn = async () => page.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = 360; const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, 640, 360); x.fillStyle = '#14181e'; x.font = '28px sans-serif'; x.fillText('Revenue 4,210', 40, 80);
+    const b = await new Promise(r => c.toBlob(r, 'image/png')), dt = new DataTransfer(); dt.items.add(new File([b], 'image.png', { type: 'image/png' }));
+    window.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true }));
+  });
+  let asked = 0; const onDlg = d => { asked++; d.accept(); }; page.on('dialog', onDlg);
+  await pasteOn();
+  await page.waitForFunction(() => !document.getElementById('s-review').hidden && window.__DSC.img && window.__DSC.img.width === 640, null, { timeout: 30000 }).catch(() => {});
+  check(asked === 1 && await page.evaluate(() => window.__DSC.img && window.__DSC.img.width === 640), 'pasting a screenshot on the review screen asks first, then starts again with it');
+  page.off('dialog', onDlg);
+  await page.evaluate(() => document.getElementById('btn-restart').click());
+  await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 500; c.height = 300; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 500, 300); const b = await new Promise(r => c.toBlob(r, 'image/png')); await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]); });
+  await page.click('#btn-paste');
+  await page.waitForFunction(() => window.__DSC.img && window.__DSC.img.width === 500, null, { timeout: 30000 }).catch(() => {});
+  check(await page.evaluate(() => window.__DSC.img && window.__DSC.img.width === 500 && !document.getElementById('s-review').hidden), '"Paste a screenshot" on the start screen reads the clipboard after a click');
 
   console.log('On-device layout builder (Phase 2, beta)');
   // the bundled demo screenshot, reviewed afresh, then built on this device with no key
@@ -912,6 +984,17 @@ try {
   await page.locator('#modes button[data-mode="shape"]').click(); await wait(400);
   const [csvL] = await Promise.all([page.waitForEvent('download'), page.click('#btn-csv')]);
   check(/^visual,visual_type,/.test((await readFile(await csvL.path(), 'utf8')).replace(/^﻿/, '')), '"Download data (CSV)" works for a locally built replica');
+  await page.evaluate(() => navigator.clipboard.writeText(''));
+  await page.click('#btn-copy-replica');
+  await page.waitForFunction(() => /Copied|downloaded|could not/.test(document.getElementById('export-note').textContent), null, { timeout: 20000 }).catch(() => {});
+  const clipR = await page.evaluate(async () => {
+    const it = (await navigator.clipboard.read())[0]; if (!it || !it.types.includes('image/png')) return null;
+    const b = await it.getType('image/png'), im = new Image(); im.src = URL.createObjectURL(b); await im.decode();
+    const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height).data; let ink = 0; for (let i = 0; i < d.length; i += 4 * 97) if (d[i] < 200 || d[i + 1] < 200 || d[i + 2] < 200) ink++;
+    return { w: im.width, h: im.height, ink: ink / (d.length / (4 * 97)), note: document.getElementById('export-note').textContent };
+  });
+  check(!!clipR && clipR.w >= 1800 && clipR.h > 600 && clipR.ink > 0.02, `"Copy image" puts a sharp picture of the replica on the clipboard (${clipR ? clipR.w + ' × ' + clipR.h + ', ' + Math.round(clipR.ink * 100) + '% ink' : 'nothing copied'})`);
   const dlL = await exportReact('tsx');
   const tsxL = unzipText(await readFile(await dlL.path()));
   const ldir = await unpack(tsxL);

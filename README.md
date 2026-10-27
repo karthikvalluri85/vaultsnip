@@ -30,13 +30,13 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Area | Status |
 |---|---|
 | Samples first on screen 1 (no key needed) | ✅ 4 samples; the first runs the full redaction demo, the last is a paginated report |
-| Upload, paste, extension snip with crop | ✅ |
+| Upload, paste (on any screen, or with the Paste button), extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
 | Mask by default, allowlist to keep | ✅ client names, IDs, emails and unlisted text are masked; numbers are replaced with invented values of the same size (or masked, if you prefer) |
 | Blur text in charts on any page (extension) | ✅ right-click → "Blur text in charts on this page" or Alt+Shift+B: charts drawn on canvas (Power BI, Tableau, ECharts…) are read on your device and sensitive text is blurred in place; run again to remove |
 | On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |
 | Unread-text check (AI) | ✅ two small PP-OCRv5 models (5 MB and 7 MB) find every patch of text and read it again line by line, and mask any the reader missed or could not vouch for; only adds masks; can be switched off |
-| Independent re-scan gate (Pass / Review / Blocked) | ✅ four independent re-reads of the masked image, plus "Mask all" |
+| Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain** |
 | Review: click to toggle, drag to add masks | ✅ |
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in; replicas quote only words that were readable in the approved image |
 | Exact-payload preview before anything is sent | ✅ |
@@ -53,7 +53,9 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | **Export for Figma (SVG)** | ✅ one layered SVG: editable text, vector charts, watermark drawn in; opens in Figma, Penpot, Illustrator |
 | **Export React code: editable TypeScript** | ✅ typed `.tsx` project, one component per card in the page's order and widths; values, filters, search and CSV stay live via `DSCReplica.model()`; no AI, no network |
 | **Export React code** | ✅ zip with a live React component running the replica engine: values, charts, filters and CSV generated at runtime from its spec and `seed` prop |
-| **Mask-only download** (no key) | ✅ masked PNG for forums, bug reports and slides |
+| **Mask-only download** (no key) | ✅ masked PNG for forums, bug reports and slides, or **Copy masked image** to paste it anywhere |
+| **Safe-to-share receipt** | ✅ PNG or PDF beside the masked image: what was hidden (counts and kinds, never the text), the check, made on this device, and the image's SHA-256 |
+| **Copy image** of the replica | ✅ a sharp picture with generated values only, for chats, tickets and slides |
 | **Share links** | ✅ the replica lives in the link itself; the sharer picks Shape, Structure or Generic and the receiver cannot unlock more |
 | **Synthetic data download** | ✅ tidy CSV of every generated data point, for Excel, Power BI, Tableau, Looker Studio |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |

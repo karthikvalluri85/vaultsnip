@@ -983,6 +983,15 @@ customer service staff agent team people everyone nobody someone something nothi
     setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
     draw();
   }
+  // One click for the cautious answer: every finding the check left open is masked, numbers and unlisted words alike.
+  // Nothing hidden is shown; each new box counts as your decision and can still be switched off.
+  function hideUncertain() {
+    const open = S.flags.filter(f => !f.resolved);
+    open.forEach(f => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Added after check', text: f.text, on: true, src: 'check' }); f.resolved = true; });
+    updateGate(); renderTypes(); draw();
+    if (open.length) setStatus(`Hid ${open.length} uncertain item${open.length > 1 ? 's' : ''}. Check passed.`, false);
+    return open.length;
+  }
   function updateGate() {
     const open = S.flags.filter(f => !f.resolved);
     S.gate = open.some(f => f.severity === 'block') ? 'blocked' : open.length ? 'review' : 'pass';
@@ -1009,7 +1018,7 @@ customer service staff agent team people everyone nobody someone something nothi
     const openFlags = S.flags.filter(f => !f.resolved);
     if (openFlags.length > 1) {
       const all = document.createElement('button'); all.type = 'button'; all.className = 'btn'; all.textContent = `Mask all ${openFlags.length} findings`;
-      all.onclick = () => { openFlags.forEach(f => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Added after check', text: f.text, on: true, src: 'check' }); f.resolved = true; }); updateGate(); renderTypes(); draw(); };
+      all.onclick = hideUncertain;
       fl.appendChild(all);
     }
     S.flags.forEach((f, i) => {
@@ -1067,13 +1076,16 @@ customer service staff agent team people everyone nobody someone something nothi
     renderSummary();
   }
   // Summary for the reviewer: how much is hidden, how much stays readable, how many decisions are theirs, and what to do next
-  function renderSummary() {
-    if (!$('k-hidden')) return;
+  function tally() {
     const words = (S.words || []).filter(w => !w.ghost);
     const active = S.masks.filter(m => m.on);
     const covered = w => { const cx = w.x + w.w / 2, cy = w.y + w.h / 2; return active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h); };
-    const hidden = words.filter(covered).length, kept = words.length - hidden;
-    const yours = S.masks.filter(byUser).length + (S.sessionAllow ? S.sessionAllow.size : 0);
+    const hidden = words.filter(covered).length;
+    return { hidden, kept: words.length - hidden, yours: S.masks.filter(byUser).length + (S.sessionAllow ? S.sessionAllow.size : 0) };
+  }
+  function renderSummary() {
+    if (!$('k-hidden')) return;
+    const { hidden, kept, yours } = tally();
     $('k-hidden').textContent = hidden; $('k-kept').textContent = kept; $('k-you').textContent = yours;
     const open = (S.flags || []).filter(f => !f.resolved), blocks = open.filter(f => f.severity === 'block').length, plural = (n, a, b) => n + ' ' + (n === 1 ? a : b);
     const msg = {
@@ -1086,7 +1098,11 @@ customer service staff agent team people everyone nobody someone something nothi
       pass: `Ready: ${plural(hidden, 'item', 'items')} hidden and ${plural(kept, 'safe word', 'safe words')} kept${yours ? `, including ${plural(yours, 'decision', 'decisions')} of yours` : ''}. Preview the masked image to continue.`
     }[S.gate] || '';
     $('next-step').textContent = msg;
+    const hu = $('btn-hide-unsure');
+    hu.hidden = !open.length || (S.gate !== 'blocked' && S.gate !== 'review');
+    hu.textContent = `Hide everything uncertain (${open.length})`;
   }
+  $('btn-hide-unsure').onclick = hideUncertain;
   function renderTypes() { renderCounts(); renderMaskList(); renderCtxNote(); }
   // The same masks as a list of checkboxes: works with a keyboard and a screen reader, unlike the canvas.
   S.maskFilter = 'all';
@@ -1295,7 +1311,29 @@ customer service staff agent team people everyone nobody someone something nothi
   drop.ondragleave = () => drop.classList.remove('over');
   drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) useFile(f); };
   file.onchange = () => { if (file.files[0]) useFile(file.files[0]); file.value = ''; };
-  window.addEventListener('paste', e => { if ($('s-drop').hidden) return; const it = [...(e.clipboardData || {}).items || []].find(i => i.type.startsWith('image/')); if (it) useFile(it.getAsFile()); });
+  // Paste works on every screen. On the start screen it opens the image; elsewhere it asks first, as it replaces the work
+  // in progress. Pasting into a text box (a table copied from Excel carries a picture too) is left to the text box.
+  window.addEventListener('paste', e => {
+    const items = [...((e.clipboardData || {}).items || [])], it = items.find(i => i.type.startsWith('image/'));
+    if (!it || document.querySelector('dialog[open]') || !$('s-crop').hidden) return;
+    if (/^(INPUT|TEXTAREA)$/.test((e.target || {}).tagName || '') && items.some(i => i.type === 'text/plain')) return;
+    const f = it.getAsFile(); if (!f) return;
+    e.preventDefault();
+    if ($('s-drop').hidden && !confirm('Start again with the pasted screenshot? The current one and its masks are cleared.')) return;
+    if (!$('s-drop').hidden) return useFile(f);
+    startOver(); useFile(f);
+  });
+  // The same for anyone who does not know the shortcut (or uses a touch screen): reads the clipboard after a click.
+  $('btn-paste').onclick = async () => {
+    dropError('');
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const t = item.types.find(x => x.startsWith('image/'));
+        if (t) return useFile(new File([await item.getType(t)], 'pasted-screenshot.' + t.split('/')[1], { type: t }));
+      }
+      dropError('The clipboard holds no picture. Take a screenshot first (Windows: Win+Shift+S; Mac: Ctrl+Shift+⌘+4), then paste.');
+    } catch (e) { dropError('This browser did not let the page read the clipboard. Press Ctrl+V (⌘V on a Mac) instead.'); }
+  };
   function dropError(msg) { const e = $('drop-err'); e.textContent = msg || ''; e.hidden = !msg; }
   async function useFile(f) {
     dropError('');
@@ -1335,20 +1373,70 @@ customer service staff agent team people everyone nobody someone something nothi
     $('send-err').hidden = true;
     // the user confirms they looked: the reader cannot promise it caught everything
     $('pf-ok').checked = false;
-    $('btn-confirm').disabled = true; $('btn-dl-masked').disabled = true; $('btn-local').disabled = true;
+    AFTER_LOOK.forEach(id => { $(id).disabled = true; });
     $('btn-confirm').textContent = isSample ? 'Build replica' : 'Send and build replica';
     $('dlg-send').showModal();
   };
-  $('pf-ok').onchange = () => { $('btn-confirm').disabled = $('btn-dl-masked').disabled = $('btn-local').disabled = !$('pf-ok').checked; };
+  const AFTER_LOOK = ['btn-confirm', 'btn-dl-masked', 'btn-local', 'btn-copy-masked', 'btn-receipt-png', 'btn-receipt-pdf'];
+  $('pf-ok').onchange = () => AFTER_LOOK.forEach(id => { $(id).disabled = !$('pf-ok').checked; });
+  // The masked image exactly as it is saved, copied and described by the receipt: the same pixels, so the same bytes.
+  function maskedImage() { const c = maskedCanvas(1); if ($('pf-credit').checked) creditTag(c); return c; }
+  const pngOf = c => new Promise(r => c.toBlob(r, 'image/png'));
+  const maskedName = () => (S.sample ? 'sample' : (S.fileBase || 'screenshot')) + '-masked.png';
+  const dlgNote = t => { const err = $('send-err'); err.hidden = false; err.className = 'note'; err.textContent = t; };
   // Mask-only: the masked image as a PNG, no key and no network. Optionally tagged so others can find the tool.
   $('btn-dl-masked').onclick = async () => {
     if (!$('pf-ok').checked) return;
-    const c = maskedCanvas(1);
-    if ($('pf-credit').checked) creditTag(c);
-    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-    saveFile(blob, (S.sample ? 'sample' : (S.fileBase || 'screenshot')) + '-masked.png');
-    const err = $('send-err'); err.hidden = false; err.className = 'note'; err.textContent = 'Saved. The file holds exactly the image above.';
+    saveFile(await pngOf(maskedImage()), maskedName());
+    dlgNote('Saved. The file holds exactly the image above.');
   };
+  // Straight into Teams, Slack, a ticket or a slide: the clipboard gets the same PNG as the download.
+  async function copyPng(blobPromise) {
+    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('This browser cannot copy images.');
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
+  }
+  $('btn-copy-masked').onclick = async () => {
+    if (!$('pf-ok').checked) return;
+    try { await copyPng(pngOf(maskedImage())); dlgNote('Copied. Paste it into a chat, a ticket or a slide; it is exactly the image above.'); }
+    catch (e) { dlgNote('Copying images does not work in this browser. Use "Download masked image" instead.'); }
+  };
+  // The safe-to-share receipt: counts and kinds of what was hidden (never the hidden text), the check, where it was made,
+  // and the SHA-256 of the masked image file, so anyone can confirm a file is the one the receipt describes.
+  async function receiptFacts() {
+    const image = maskedImage(), blob = await pngOf(image), sha = await VSReceipt.sha256(blob);
+    const on = S.masks.filter(m => m.on), counts = {};
+    on.forEach(m => { counts[m.type] = (counts[m.type] || 0) + 1; });
+    const t = tally(), flags = S.flags || [], plural = (n, a, b) => n + ' ' + (n === 1 ? a : b);
+    const masked = flags.filter(f => S.masks.some(m => m.src === 'check' && m.on && m.x === f.x && m.y === f.y)).length;
+    const keptByYou = flags.length - masked;
+    const state = s => ({ ready: 'ran', off: 'switched off', error: 'could not run in this browser', running: 'still running when this was made', idle: 'not run' }[s] || 'not run');
+    const made = new Date();
+    const rows = [
+      ['Image', `${maskedName()}, ${image.width} × ${image.height} px`],
+      ['SHA-256', sha || 'not available (this page is not served over https)', true],
+      ['Made', made.toLocaleString() + ' (' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time') + ')'],
+      ['Where', 'On this device, in the browser. The original screenshot and the words read from it never left it.'],
+      ['Pre-flight check', S.gate === 'pass' ? 'Passed. The masked image was read again six independent ways on this device; nothing readable is left outside the masks.'
+        + (flags.length ? ` ${plural(flags.length, 'finding was', 'findings were')} resolved: ${[masked ? masked + ' masked' : '', keptByYou ? keptByYou + ' kept as not sensitive' : ''].filter(Boolean).join(', ')}.` : '') : 'Not passed'],
+      ['Hidden', `${plural(t.hidden, 'word or number', 'words and numbers')} in ${plural(on.length, 'box', 'boxes')}: ` + Object.keys(TYPES).filter(k => counts[k]).map(k => `${label(k)} ${counts[k]}`).join(' · ')],
+      ['Numbers', !on.some(isNumberMask) ? 'None hidden' : S.fakeNumbers ? 'Replaced with invented values of the same size; the image says so below it' : 'Covered with grey boxes'],
+      ['Kept readable', plural(t.kept, 'safe report word', 'safe report words') + (S.keepComments ? ', and the wording of customer comments (names, companies, emails and numbers in them masked)' : '')],
+      ['Your decisions', String(t.yours)],
+      ['On-device AI', `Names among safe words: ${state(S.ctx.on ? S.ctx.state : 'off')}. Text the reader could not read: ${state(S.unread.on ? S.unread.state : 'off')}.`],
+      ['Reviewed', 'The person who made it confirmed they looked over the masked image and nothing sensitive is readable.'],
+    ];
+    return { image, blob, sha, made, rows, passKey: 'Pre-flight check', file: maskedName(),
+      subtitle: `Made with VaultSnip ${(window.VSFeedback && VSFeedback.VERSION) || ''}, free and open source. Goes with ${maskedName()}.`,
+      note: 'This receipt lists counts and kinds only; it never contains what was hidden. To confirm a file is the one described, compare its SHA-256: on Windows, certutil -hashfile <file> SHA256; on macOS or Linux, shasum -a 256 <file>.' };
+  }
+  async function saveReceipt(kind) {
+    if (!$('pf-ok').checked) return;
+    const f = await receiptFacts(), c = VSReceipt.draw(f, f.image), name = maskedName().replace(/\.png$/, '-receipt.' + kind);
+    saveFile(kind === 'pdf' ? VSReceipt.pdf(c, { title: 'VaultSnip safe-to-share receipt', subject: `${f.file} SHA-256 ${f.sha}`, creator: 'VaultSnip', made: f.made }) : await pngOf(c), name);
+    dlgNote(`Saved ${name}. It goes with ${f.file}` + (f.sha ? ` (SHA-256 ${f.sha.slice(0, 12)}…).` : '.'));
+  }
+  $('btn-receipt-png').onclick = () => saveReceipt('png');
+  $('btn-receipt-pdf').onclick = () => saveReceipt('pdf');
   function creditTag(c) {
     const x = c.getContext('2d'), fs = Math.max(11, Math.round(c.width / 120)), text = 'masked with vaultsnip.pages.dev';
     x.font = `600 ${fs}px system-ui, sans-serif`;
@@ -1795,6 +1883,32 @@ Types: ${VSCatalog.TYPES.join(', ')}.
       $('btn-figma').disabled = false;
     }
   };
+  // A picture of the replica for chats, tickets and slides: the Figma SVG (this mode's copy, generated values only) drawn
+  // at twice its size. Copied where the browser can; downloaded where it cannot.
+  async function replicaPng() {
+    const copy = await designCopy();
+    try {
+      const url = URL.createObjectURL(new Blob([VSDesign.toSvg(copy.el, { title: designTitle() })], { type: 'image/svg+xml' }));
+      try {
+        const im = new Image(); im.src = url; await im.decode();
+        const k = Math.min(2, 4000 / im.naturalWidth), c = document.createElement('canvas');
+        c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+        return await pngOf(c);
+      } finally { URL.revokeObjectURL(url); }
+    } finally { copy.done(); }
+  }
+  $('btn-copy-replica').onclick = async () => {
+    const b = $('btn-copy-replica'); b.disabled = true;
+    const png = replicaPng();
+    try {
+      await copyPng(png);
+      $('export-note').textContent = 'Copied a picture of the replica, with generated values only. Paste it into a chat, a ticket or a slide.';
+    } catch (e) {
+      try { saveFile(await png, replicaBase() + '-replica-synthetic.png'); $('export-note').textContent = 'This browser cannot copy images, so the picture was downloaded instead.'; }
+      catch (e2) { $('export-note').textContent = 'The picture could not be made: ' + (e2 && e2.message || e2); }
+    } finally { b.disabled = false; }
+  };
   // The React package runs the replica engine itself, so values, sizes, labels, filters and the CSV download stay live.
   $('btn-react').onclick = () => $('dlg-react').showModal();
   $('react-go').onclick = async () => {
@@ -1854,5 +1968,5 @@ Types: ${VSCatalog.TYPES.join(', ')}.
 
   // expose for tests
   window.__DSC = S;
-  S.test = { system: SYSTEM, refineSpec, uncertainVisuals, closeupScores, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { system: SYSTEM, hideUncertain, receiptFacts, replicaPng, refineSpec, uncertainVisuals, closeupScores, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();
