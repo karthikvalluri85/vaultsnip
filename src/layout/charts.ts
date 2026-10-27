@@ -573,14 +573,22 @@ function map(c: Ctx): Reading | null {
   const round = (m: Mark) => { const r = width(m.b) / Math.max(1, height(m.b)); return r > 0.85 && r < 1.18 && m.fill > 0.68; };
   // (nor a stacked area chart, which is also one large irregular shape in several colours: it stands on the plot's
   //  baseline, inked right along its own bottom edge, where a continent's coastline is ragged)
-  const flatBottom = (m: Mark) => {
-    const y = Math.round(m.b[3] - 2); let n = 0, t = 0;
-    for (let x = Math.ceil(m.b[0]); x <= Math.floor(m.b[2]); x += 2) { t++; if (c.ink(x, y)) n++; }
-    return t > 0 && n / t >= 0.8;
+  // (and its top is a profile that rises and falls, where a map drawn on a square tile is inked along its top edge
+  //  as well as its bottom one)
+  const inkedRow = (m: Mark, y: number) => {
+    let n = 0, t = 0;
+    for (let x = Math.ceil(m.b[0]); x <= Math.floor(m.b[2]); x += 2) { t++; if (c.ink(x, Math.round(y))) n++; }
+    return t > 0 ? n / t : 0;
   };
+  const flatBottom = (m: Mark) => inkedRow(m, m.b[3] - 2) >= 0.8 && inkedRow(m, m.b[1] + 2) < 0.8;
   if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m) && !flatBottom(m))) return asMap;
   if (regions.length < 6 || c.thin.length > 2 || solid > regions.length * 0.5) return null;
   if (regions.reduce((a, m) => a + m.n, 0) < pa * 0.08) return null;
+  // (a stacked area chart's bands are irregular regions that touch too, and they can be six or more. The chart stands
+  //  on the plot's baseline, so its largest band is inked right along its own bottom edge; a country's coastline is
+  //  ragged, and a map's largest region is not.)
+  const biggest = regions.reduce((a, m) => (m.n > a.n ? m : a), regions[0]);
+  if (flatBottom(biggest)) return null;
   // neighbouring regions share borders: most of them touch another
   const touch = (a: Mark, b: Mark) => a.b[0] <= b.b[2] + 2 && b.b[0] <= a.b[2] + 2 && a.b[1] <= b.b[3] + 2 && b.b[1] <= a.b[3] + 2;
   if (regions.filter((m) => regions.some((o) => o !== m && touch(m, o))).length < regions.length * 0.6) return null;
