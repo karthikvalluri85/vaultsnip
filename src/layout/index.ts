@@ -180,6 +180,14 @@ export function buildSpec(input: BuildInput): BuildResult {
 
   foldSubFigures(readings, W, H, med, words);
 
+  // Page furniture, not visuals: a filter or slicer row, a breadcrumb, a tab strip, a legend standing on its own, a
+  // note or callout over the picture. Each is words on the page with nothing drawn — no chart marks, no table rules,
+  // next to no ink — while every real visual either draws something or is a KPI card, which is a value or two, a
+  // label, and little else. (Drawing them loses nothing of the original and spares the user cards it never had.)
+  const furniture = (x: (typeof readings)[number]) => x.features.marks <= 1 && x.features.coverage < 0.025 && !x.features.grid
+    && !(x.r.type === 'kpi' && x.features.bigMasked <= 4);
+  const real = readings.filter((x) => !furniture(x));
+  if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
   const ordered = [...kept].sort((a, b) => a.p.b[1] - b.p.b[1] || a.p.b[0] - b.p.b[0]);
