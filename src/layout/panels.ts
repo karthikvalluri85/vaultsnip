@@ -396,16 +396,16 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
 /**
  * Could this panel hold a visual at all? Toolbars, breadcrumbs, tab strips, page titles and the rails of the tool the
  * dashboard was screenshotted in come out of the region finder as panels, and anything with a word in it then reads as
- * a KPI card, which the user sees at once as a card the original never had. A visual is a block of the page: across 221
- * hand-labelled visuals on real dashboards the smallest is 6.8% of the page tall and 0.51% of its area, so a band below
- * 5.5% and 0.4% is chrome, not a visual. (A page that yields one panel keeps it: that is a single visual snipped on
+ * a KPI card, which the user sees at once as a card the original never had. A visual is a block of the page: of 221
+ * hand-labelled visuals on real dashboards the smallest is 6.8% of the page tall and 0.51% of its area, so a band under
+ * 6.5% of the height, 5.5% of the width or 0.4% of the area is chrome, not a visual. (A page that yields one panel keeps it: that is a single visual snipped on
  * its own, and the page is its own scale.)
  */
 export function couldBeVisual(p: { b: Box }, W: number, H: number): boolean {
   const w = p.b[2] - p.b[0], h = p.b[3] - p.b[1];
   // (narrow as well as short: the slimmest hand-labelled visual is 6.7% of the page wide, so a column of words
   //  narrower than that is an axis's labels or a legend standing on its own, not a visual)
-  return w * h >= W * H * 0.004 && h >= H * 0.055 && w >= W * 0.055;
+  return w * h >= W * H * 0.004 && h >= H * 0.065 && w >= W * 0.055;
 }
 
 /**
