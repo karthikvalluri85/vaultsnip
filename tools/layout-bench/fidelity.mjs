@@ -61,7 +61,7 @@ export function fidelity(panels, visuals) {
 
 if (import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}` || process.argv[1].endsWith('fidelity.mjs')) {
   const byId = Object.fromEntries(items(bench).map((it) => [it.id, it]));
-  const builder = await layoutBuilder();
+  const builder = await layoutBuilder(arg('--opts') ? JSON.parse(arg('--opts')) : {});
   const rows = [], dump = [];
   let R = 0, V = 0, P = 0, F = 0, INV = 0, perfect = 0;
   try {

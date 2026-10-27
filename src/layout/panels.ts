@@ -34,7 +34,7 @@ interface Node { b: Box; inner: Box; framed: boolean; kids: Node[] | null; axis:
 /** Segmentation settings (measured on tools/layout-bench; exposed so the benchmark can compare alternatives). */
 export const PANEL_OPTS = {
   threshold: 12,       // edge contrast
-  gapFrac: 0.011,      // smallest gutter, as a share of the page's short side
+  gapFrac: 0.007,      // smallest gutter, as a share of the page's short side (measured on fidelity: 0.011 missed narrow ones)
   cross: false,        // a line running across an empty band blocks a cut there (measured: worse on real pages)
   trimTol: 0,          // ink allowed in a margin row next to a border line (rounded frame corners; measured: 0 is best)
   band: false,         // children keep the full band across a cut (measured: worse on real pages)
@@ -513,7 +513,12 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
   // (likewise when cards were found but a region over about half the page is left beside them)
   if (!panelsGiant(panels)) return panels;
   const more = worded(findCards(img, true));
-  return more.length > cards.length ? fromCards(more, true) : panels;
+  const wider = more.length > cards.length ? fromCards(more, true) : panels;
+  if (!panelsGiant(wider)) return wider;
+  // Still one block over half the page: this dashboard has no cards at all, only white space between its visuals, and
+  // the fill finder has read the page itself as one card. Cut the white space instead.
+  const cut = assemblePanels(findRegions(img), words, img.width, img.height, med);
+  return cut.length > wider.length ? cut : wider;
 }
 
 function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Box[], rescue: boolean): Panel[] {
