@@ -186,9 +186,14 @@ export function buildSpec(input: BuildInput): BuildResult {
   // label, and little else. (Drawing them loses nothing of the original and spares the user cards it never had.)
   // (a line chart is a stroke and little else: a sparse line over a wide card inks barely any of it, so a panel
   //  holding a thin stroke is a chart however little of the card it covers)
-  const furniture = (x: (typeof readings)[number]) => x.features.marks <= 1 && x.features.coverage < 0.025
+  // (a table is words on a grid, and the grid is drawn: words laid out in columns with no rule, no stripe and no ink
+  //  at all are a legend or a list of filter values, which is furniture like the rest)
+  // (only a narrow one: a real table runs across its card, and plenty are drawn without a single rule)
+  const bareTable = (x: (typeof readings)[number]) => x.r.type === 'table' && !x.features.marks && !x.features.coverage
+    && width(x.p.b) < W * 0.25;
+  const furniture = (x: (typeof readings)[number]) => (x.features.marks <= 1 && x.features.coverage < 0.025
     && !x.features.grid && !(x.features.thin && (x.features.vivid || x.features.swatches))
-    && !(x.r.type === 'kpi' && x.features.bigMasked <= 4);
+    && !(x.r.type === 'kpi' && x.features.bigMasked <= 4)) || bareTable(x);
   // A narrow strip running down one side of the page is the tool's rail — navigation, a filter pane, a slicer list —
   // not a visual. No dashboard puts a chart in a sixth of the width over a third of the height against the margin.
   const rail = (x: (typeof readings)[number]) => (x.p.b[0] <= W * 0.03 || x.p.b[2] >= W * 0.97)
