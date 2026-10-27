@@ -364,14 +364,13 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
     const span = axis === 'x' ? Math.min(a[3] - a[1], b[3] - b[1]) : Math.min(a[2] - a[0], b[2] - b[0]);
     return gap >= 0 && gap <= Math.max(med * 6, W * 0.05) && ov >= span * 0.3;
   };
-  const untitled = (p: { b: Box; words: Word[] }) => p.words.filter((w) => w.kept && w.text).every((w) => w.y > p.b[1] + (p.b[3] - p.b[1]) * 0.7);
   for (let merged = true; merged;) {
     merged = false;
     for (const p of ps) {
       // (stacked pieces only when one has no words: two charts one above the other, each with its axis labels, are two
       // visuals even when the upper one's title is masked)
       const q = ps.find((q) => q !== p && !big(p) && !big(q)
-        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length || untitled(p)))
+        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length))
           || (near(p.b, q.b, 'y') && (Math.abs(p.b[0] - q.b[0]) <= 4 || Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8) && (!p.words.length || !q.words.length))
           // (centred on one line, one above the other, holding nothing but masked values: a funnel's bars)
           || (Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8 && near(p.b, q.b, 'y') && p.words.every((w) => !w.kept) && q.words.every((w) => !w.kept))));
