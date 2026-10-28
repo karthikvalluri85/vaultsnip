@@ -34,11 +34,13 @@ interface Node { b: Box; inner: Box; framed: boolean; kids: Node[] | null; axis:
 /** Segmentation settings (measured on tools/layout-bench; exposed so the benchmark can compare alternatives). */
 export const PANEL_OPTS = {
   threshold: 12,       // edge contrast
-  gapFrac: 0.011,      // smallest gutter, as a share of the page's short side
+  gapFrac: 0.007,      // smallest gutter, as a share of the page's short side (measured on fidelity: 0.011 missed narrow ones)
   cross: false,        // a line running across an empty band blocks a cut there (measured: worse on real pages)
   trimTol: 0,          // ink allowed in a margin row next to a border line (rounded frame corners; measured: 0 is best)
   band: false,         // children keep the full band across a cut (measured: worse on real pages)
   filled: false,       // a gutter row is one colour, so a row through a solid bar is not one (measured: worse on real pages)
+  atomArea: 0.005,     // a region this small a share of the page is one visual at most: cutting it only breaks a title
+  atomH: 0.06,          // into words and a card into its value and its label (0 for either turns the stop off)
 };
 
 /** Raw regions from the cut tree, as boxes. */
@@ -116,6 +118,10 @@ export function findRegions(img: Img, o: Partial<typeof PANEL_OPTS> = {}, within
     const frame: Box = [left >= 0 ? left : x0, top >= 0 ? top : y0, right >= 0 ? right + 1 : x1, bottom >= 0 ? bottom + 1 : y1];
     const node: Node = { b: framed ? frame : [x0, y0, x1, y1], inner: [x0, y0, x1, y1], framed, kids: null, axis: null };
     if (depth > 14) return node;
+    // A region already no bigger than the smallest visual a dashboard uses holds one visual at most. Cutting on it
+    // only breaks a title into its words and a card into its value and its label, and those pieces are then too small
+    // to be visuals at all. (On a page of cards this never bites: a card is far bigger than this.)
+    if (opts.atomArea > 0 && opts.atomH > 0 && w * h < W * H * opts.atomArea && h < H * opts.atomH) return node;
     const py = Array.from({ length: h }, (_, i) => rowInk(x0, x1, y0 + i)), px = Array.from({ length: w }, (_, i) => colInk(y0, y1, x0 + i));
     const cy = Array.from({ length: h }, (_, i) => rowCross(x0, x1, y0 + i)), cx = Array.from({ length: w }, (_, i) => colCross(y0, y1, x0 + i));
     // (only lines that pass the edge test need the colour test)
@@ -311,10 +317,15 @@ export interface Panel { b: Box; words: Word[]; med: number }
  * Regions to panels: text-only strips (titles, legends, axis labels) join the region below or above them; a region with
  * a big number stays on its own (a KPI); tiny specks and remains nested inside a larger panel are dropped.
  */
-export function assemblePanels(regions: Box[], words: Word[], W: number, H: number, medH?: number): Panel[] {
+export function assemblePanels(regions: Box[], words: Word[], W: number, H: number, medH?: number, allWords: Word[] = words): Panel[] {
   const med = medH ?? medianHeight(words);
-  const stacked = labelStacks(words, med);
-  const big = (p: { words: Word[] }) => p.words.some((w) => isBigBox(w, med) && !stacked.has(w));
+  const stacked = labelStacks(allWords, med);
+  // (judged on every word the reader found, masks included: the caller hides the tallest masks from the cutter, and a
+  //  KPI card whose value is one of them then looks like a strip of labels and is joined to the chart below it)
+  const big = (p: { b: Box }) => wordsIn(allWords, p.b).some((w) => isBigBox(w, med) && !stacked.has(w));
+  // (the words the cutter was given, not every word: a chart carries masked data labels that are big too, and a chart
+  //  is exactly what a strip of axis labels should be joining)
+  const bigCard = (p: { words: Word[] }) => p.words.some((w) => isBigBox(w, med) && !stacked.has(w));
   let ps = regions.filter((b) => area(b) > W * H * 0.0008 && b[2] - b[0] > 6 && b[3] - b[1] > 6).map((b) => ({ b: [...b] as Box, words: wordsIn(words, b) }));
   const textOnly = (p: { b: Box; words: Word[] }) => {
     if (!p.words.length) return false;
@@ -335,10 +346,12 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
       if (!ps.includes(s)) continue;
       const overlapX = (p: { b: Box }) => Math.max(0, Math.min(p.b[2], s.b[2]) - Math.max(p.b[0], s.b[0])) / Math.max(1, Math.min(p.b[2] - p.b[0], s.b[2] - s.b[0]));
       // (never onto a KPI tile: text above a row of tiles is a page or section heading)
-      const cand = ps.filter((p) => p !== s && overlapX(p) > 0.5 && !textOnly(p) && !big(p))
+      const cand = ps.filter((p) => p !== s && overlapX(p) > 0.5 && !textOnly(p) && !bigCard(p))
         // titles sit above their visual, so joining upward costs more, except for labels hugging the panel above (axis labels)
         .map((p) => ({ p, gap: p.b[1] >= s.b[3] ? p.b[1] - s.b[3] : s.b[1] >= p.b[3] ? (s.b[1] - p.b[3] < med * 1.5 ? (s.b[1] - p.b[3]) * 0.5 : (s.b[1] - p.b[3]) * 1.5) : Infinity }))
-        .filter((c) => c.gap < Math.max(med * 6, H * 0.06)).sort((a, b) => a.gap - b.gap);
+        // (a strip joins what it labels, not whatever lies furthest below it: at six line-heights a KPI card's own
+        //  label reached past the card and into the chart under it)
+        .filter((c) => c.gap < Math.max(med * 4.5, H * 0.045)).sort((a, b) => a.gap - b.gap);
       if (!cand.length) continue;
       const t = cand[0].p;
       t.b = [Math.min(t.b[0], s.b[0]), Math.min(t.b[1], s.b[1]), Math.max(t.b[2], s.b[2]), Math.max(t.b[3], s.b[3])];
@@ -354,14 +367,13 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
     const span = axis === 'x' ? Math.min(a[3] - a[1], b[3] - b[1]) : Math.min(a[2] - a[0], b[2] - b[0]);
     return gap >= 0 && gap <= Math.max(med * 6, W * 0.05) && ov >= span * 0.3;
   };
-  const untitled = (p: { b: Box; words: Word[] }) => p.words.filter((w) => w.kept && w.text).every((w) => w.y > p.b[1] + (p.b[3] - p.b[1]) * 0.7);
   for (let merged = true; merged;) {
     merged = false;
     for (const p of ps) {
       // (stacked pieces only when one has no words: two charts one above the other, each with its axis labels, are two
       // visuals even when the upper one's title is masked)
       const q = ps.find((q) => q !== p && !big(p) && !big(q)
-        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length || untitled(p)))
+        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length))
           || (near(p.b, q.b, 'y') && (Math.abs(p.b[0] - q.b[0]) <= 4 || Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8) && (!p.words.length || !q.words.length))
           // (centred on one line, one above the other, holding nothing but masked values: a funnel's bars)
           || (Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8 && near(p.b, q.b, 'y') && p.words.every((w) => !w.kept) && q.words.every((w) => !w.kept))));
@@ -374,12 +386,98 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
   return ps.filter((p) => area(p.b) > W * H * 0.004 || big(p)).map((p) => ({ ...p, med }));
 }
 
+
+/**
+ * A panel still holding two visuals, split at a clear band. The cutter works on the whole page and its gutter has to be
+ * wide enough not to break charts apart; a panel is a smaller question, so a narrower band will do here, as long as
+ * each side is big enough to be a visual on its own and has something drawn in it. A band must cross the whole panel
+ * without touching a word or any ink: a chart's own gaps are crossed by its axis labels, and a line or a bar chart has
+ * ink across every column of its plot.
+ */
+export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: number, depth = 0): Panel[] {
+  if (depth > 2) return ps;
+  const e = edges(img);
+  let cut = false;
+  const out = ps.flatMap((p) => {
+    const x0 = Math.max(0, Math.floor(p.b[0])), x1 = Math.min(img.width, Math.ceil(p.b[2]));
+    const y0 = Math.max(0, Math.floor(p.b[1])), y1 = Math.min(img.height, Math.ceil(p.b[3]));
+    const W = x1 - x0, H = y1 - y0;
+    if (W < 20 || H < 20) return [p];
+    // (never a table: its own column gaps are clear bands, and each column alone is just words)
+    if (looksLikeTable(p.words, med)) return [p];
+    if (W * H < img.width * img.height * 0.12) return [p];
+    const minBand = Math.max(14, Math.round(med * 2));
+    const colInk = (x: number) => { let n = 0; for (let y = y0; y < y1; y++) n += e[y * img.width + x]; return n; };
+    const rowInk = (y: number) => { let n = 0; const o = y * img.width; for (let x = x0; x < x1; x++) n += e[o + x]; return n; };
+    const clearCol = (x: number) => colInk(x) <= 1 && !p.words.some((w) => w.x <= x && w.x + w.w >= x);
+    const clearRow = (y: number) => rowInk(y) <= 1 && !p.words.some((w) => w.y <= y && w.y + w.h >= y);
+    /** The widest run of clear lines strictly inside the panel, as [start, end). */
+    const widest = (from: number, to: number, clear: (i: number) => boolean) => {
+      let best: [number, number] | null = null, s = -1;
+      for (let i = from; i <= to; i++) {
+        const ok = i < to && clear(i);
+        if (ok && s < 0) s = i;
+        if (!ok && s >= 0) { if (s > from && i < to && (!best || i - s > best[1] - best[0])) best = [s, i]; s = -1; }
+      }
+      return best;
+    };
+    const gx = widest(x0, x1, clearCol), gy = widest(y0, y1, clearRow);
+    const pick = (gap: [number, number] | null, axis: 'x' | 'y') => {
+      if (!gap || gap[1] - gap[0] < minBand) return null;
+      const at = Math.round((gap[0] + gap[1]) / 2);
+      const a: Box = axis === 'x' ? [p.b[0], p.b[1], at, p.b[3]] : [p.b[0], p.b[1], p.b[2], at];
+      const b: Box = axis === 'x' ? [at, p.b[1], p.b[2], p.b[3]] : [p.b[0], at, p.b[2], p.b[3]];
+      const parts = [a, b].map((q) => ({ b: q, words: wordsIn(words, q), med: p.med }));
+      if (!parts.every((q) => couldBeVisual(q, img.width, img.height, med) && q.words.length >= 5)) return null;
+      // each side draws something of its own: a panel split off its own white margin is not two visuals
+      const drawn = (q: Panel) => {
+        let n = 0;
+        for (let y = Math.max(0, Math.floor(q.b[1])); y < Math.min(img.height, Math.ceil(q.b[3])); y += 2) {
+          for (let x = Math.max(0, Math.floor(q.b[0])); x < Math.min(img.width, Math.ceil(q.b[2])); x += 2) if (e[y * img.width + x]) n++;
+        }
+        return n >= 40;
+      };
+      return parts.every(drawn) ? parts : null;
+    };
+    const best = (gx && gy && gx[1] - gx[0] >= gy[1] - gy[0] ? pick(gx, 'x') || pick(gy, 'y') : pick(gy, 'y') || pick(gx, 'x'));
+    if (!best) return [p];
+    cut = true;
+    return best;
+  });
+  return cut ? splitClearBands(img, out, words, med, depth + 1) : out;
+}
+
 export function findPanels(img: Img, words: Word[], med?: number, gridWords: Word[] = words): Panel[] {
   const ps = findPanelsRaw(img, words, med, gridWords), m = med ?? medianHeight(words);
   // (never on a report: its table's masked numbers are not KPI values)
   // (values judged on the reader's own word boxes: the words given here leave out the tallest masks, which a big value is)
-  return looksLikeTable(gridWords, m) ? ps : splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m)
-    .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
+  const split = looksLikeTable(gridWords, m) ? ps
+    : splitKpiStacks(img, splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m), gridWords, m)
+      .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
+  const apart = splitClearBands(img, split, gridWords, m).map((q) => ({ ...q, words: wordsIn(words, q.b) }));
+  return apart.filter((p) => couldBeVisual(p, img.width, img.height, m) || apart.length === 1);
+}
+
+/**
+ * Could this panel hold a visual at all? Toolbars, breadcrumbs, tab strips, page titles and the rails of the tool the
+ * dashboard was screenshotted in come out of the region finder as panels, and anything with a word in it then reads as
+ * a KPI card, which the user sees at once as a card the original never had. A visual is a block of the page: of 221
+ * hand-labelled visuals on real dashboards the smallest is 6.8% of the page tall and 0.51% of its area, so a band under
+ * 5.5% of the height, 5.5% of the width or 0.4% of the area is chrome, not a visual. (A page that yields one panel keeps it: that is a single visual snipped on
+ * its own, and the page is its own scale.)
+ */
+export function couldBeVisual(p: { b: Box; words?: Word[] }, W: number, H: number, med = 0): boolean {
+  const w = p.b[2] - p.b[0], h = p.b[3] - p.b[1];
+  // (a wide line of prose is a note or a footer, and a visual of the page however short it is: six or more words
+  //  running together on one line, where a legend or a filter list sets one or two to a line)
+  if (med > 0 && w >= W * 0.4 && p.words && p.words.length >= 6) {
+    const rows = new Map<number, number>();
+    for (const q of p.words) { const k = Math.round((q.y + q.h / 2) / med); rows.set(k, (rows.get(k) || 0) + 1); }
+    if ([...rows.values()].some((n) => n >= 6)) return w * h >= W * H * 0.001;
+  }
+  // (narrow as well as short: the slimmest hand-labelled visual is 6.7% of the page wide, so a column of words
+  //  narrower than that is an axis's labels or a legend standing on its own, not a visual)
+  return w * h >= W * H * 0.004 && h >= H * 0.055 && w >= W * 0.055;
 }
 
 /**
@@ -418,7 +516,57 @@ export function splitKpiRows(img: Img, ps: Panel[], words: Word[], med: number):
     const xs = [p.b[0], ...cuts, p.b[2]];
     const parts = xs.slice(1).map((x, i) => { const b: Box = [xs[i], p.b[1], x, p.b[3]]; return { b, words: wordsIn(words, b), med: p.med }; });
     // (each part a card: its value, a readable label, and few words; a chart's masked data labels sit among axis labels)
-    return parts.every((q) => q.words.length <= 8 && q.words.some(value) && q.words.some((w) => w.kept && w.text && !isBigBox(w, med))) ? parts : [p];
+    // (or a bare row of values, each part holding its value and nothing else, the labels having been cut into a strip
+    //  of their own above or below: a chart's data labels never sit alone like that)
+    const labelled = (q: Panel) => q.words.some((w) => w.kept && w.text && !isBigBox(w, med));
+    return parts.every((q) => q.words.length <= 8 && q.words.some(value))
+      && (parts.every(labelled) || parts.every((q) => q.words.length <= 3)) ? parts : [p];
+  });
+}
+
+/**
+ * A KPI card sitting on top of its own chart, both inside one card (a Tableau favourite: "Conversion" with its big
+ * value, and a small column chart of the same measure by month under it). They are two visuals, and a replica that
+ * draws one loses the value or the chart. Split where a line from side to side crosses no word and next to no ink,
+ * below a big value in the upper part of the panel, with a real chart's ink below it.
+ */
+export function splitKpiStacks(img: Img, ps: Panel[], words: Word[], med: number): Panel[] {
+  const e = edges(img);
+  const stacked = labelStacks(words, med);
+  return ps.flatMap((p) => {
+    if (looksLikeTable(p.words, med)) return [p];
+    const hgt = p.b[3] - p.b[1], x0 = Math.max(0, Math.floor(p.b[0])), x1 = Math.min(img.width, Math.ceil(p.b[2])), wide = x1 - x0;
+    if (wide < med * 6 || hgt < med * 12) return [p];
+    // the card's value: the tallest masked word, and taller than any text a chart labels its marks with
+    const masked = p.words.filter((w) => !w.kept && isBigBox(w, med) && !stacked.has(w)).sort((a, b) => b.h - a.h);
+    const lead = masked[0];
+    if (!lead || lead.h < med * 2.2) return [p];
+    // it belongs to a card above the chart, not to the chart: it sits in the upper part of the panel
+    if (lead.y + lead.h - p.b[1] > hgt * 0.5) return [p];
+    // the widest word-free band below it, which is the gap between the card and the chart (gaps inside a card, between
+    // its value and its label, are smaller than a line of text)
+    const rowsOf = p.words.filter((w) => w.y + w.h > lead.y + lead.h).map((w) => [w.y, w.y + w.h] as [number, number]).sort((a, b) => a[0] - b[0]);
+    let gapTop = lead.y + lead.h, gapBot = p.b[3], at = -1, span = 0;
+    let edgeY = gapTop;
+    for (const [a, z] of rowsOf.concat([[p.b[3], p.b[3]]])) {
+      if (a - edgeY > span) { span = a - edgeY; gapTop = edgeY; gapBot = a; }
+      edgeY = Math.max(edgeY, z);
+    }
+    if (span < med * 0.9) return [p];
+    const ink = (y: number) => { let n = 0; for (let x = x0; x < x1; x++) n += e[y * img.width + x]; return n; };
+    let bestInk = Infinity;
+    for (let y = Math.ceil(gapTop); y <= Math.floor(gapBot); y++) { const n = ink(y); if (n < bestInk) { bestInk = n; at = y; } }
+    if (at < 0 || bestInk > wide * 0.12) return [p];
+    // below the cut a chart, not more of the card: ink spread down the part, and no text as big as the card's value
+    const below = Math.min(img.height, Math.ceil(p.b[3])) - at - 1;
+    if (below < hgt * 0.2) return [p];
+    let drawn = 0, total = 0;
+    for (let y = at + 1; y <= at + below; y++) { const n = ink(y); total += n; if (n > wide * 0.04) drawn++; }
+    if (drawn < below * 0.2 || total < wide * below * 0.012) return [p];
+    const parts = ([[p.b[0], p.b[1], p.b[2], at], [p.b[0], at, p.b[2], p.b[3]]] as Box[])
+      .map((b) => ({ b, words: wordsIn(words, b), med: p.med }));
+    return parts[0].words.length <= 10 && !parts[1].words.some((w) => w.h >= lead.h * 0.8)
+      && parts.every((q) => couldBeVisual(q, img.width, img.height, med)) ? parts : [p];
   });
 }
 
@@ -429,28 +577,38 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
   const page = img.width * img.height, report = looksLikeTable(gridWords, med ?? medianHeight(gridWords));
   const giant = (rs: Box[]) => !report && rs.some((r) => area(r) > page * 0.45);
   const panelsGiant = (ps: Panel[]) => giant(ps.map((p) => p.b));
-  const fromCards = (cs: Box[], rescue = false) => fromCardsOf(img, words, med, cs, rescue);
+  const fromCards = (cs: Box[], rescue = false) => fromCardsOf(img, words, med, cs, rescue, gridWords);
   // (rescued cards hold words, a title or labels, as a dashboard's cards do; a single chart's bars, found as colour
   // areas, hold none: at least three cards, most of them with words)
   const worded = (cs: Box[]) => (cs.length >= 3 && cs.filter((c) => wordsIn(words, c).length >= 2).length >= cs.length * 0.6 ? cs : []);
-  let cards = findCards(img);
+  let cards = findCards(img), grown = false;
+  // A screenshot taken with the tool's own frame around it puts that frame's colour along the image border, so the
+  // page colour is read from the frame and the dashboard's own background looks like a card. The wider search knows
+  // that case (it tries the colour families and the frame's colour too); it used to run only when the cuts left one
+  // giant region, which never happens on a page whose cards the cuts break into fragments.
+  if (!cards.length) { const wider = worded(findCards(img, true)); if (wider.length) { cards = wider; grown = true; } }
   if (!cards.length) cards = findOutlinedCards(img);
   if (!cards.length) {
     const regions = findRegions(img);
     // (when the cuts leave one region over about half the page, the gutters between its cards were not found: try cards
     // in shaded fills, other colour families, or the colour of the screenshot's own frame)
-    if (!giant(regions)) return assemblePanels(regions, words, img.width, img.height, med);
+    if (!giant(regions)) return assemblePanels(regions, words, img.width, img.height, med, gridWords);
     const rescued = worded(findCards(img, true));
-    return rescued.length ? fromCards(rescued, true) : assemblePanels(regions, words, img.width, img.height, med);
+    return rescued.length ? fromCards(rescued, true) : assemblePanels(regions, words, img.width, img.height, med, gridWords);
   }
-  const panels = fromCards(cards);
+  const panels = fromCards(cards, grown);
   // (likewise when cards were found but a region over about half the page is left beside them)
   if (!panelsGiant(panels)) return panels;
   const more = worded(findCards(img, true));
-  return more.length > cards.length ? fromCards(more, true) : panels;
+  const wider = more.length > cards.length ? fromCards(more, true) : panels;
+  if (!panelsGiant(wider)) return wider;
+  // Still one block over half the page: this dashboard has no cards at all, only white space between its visuals, and
+  // the fill finder has read the page itself as one card. Cut the white space instead.
+  const cut = assemblePanels(findRegions(img), words, img.width, img.height, med, gridWords);
+  return cut.length > wider.length ? cut : wider;
 }
 
-function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Box[], rescue: boolean): Panel[] {
+function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Box[], rescue: boolean, gridWords: Word[] = words): Panel[] {
   // one visual per card, unless the card clearly holds several (each part at least a fifth of the card)
   const regions: Box[] = [];
   for (const c of cards) {
@@ -462,5 +620,5 @@ function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Bo
   // (no single card covers much of it; in a rescue, the cards together: there, a region around the whole page holds them
   // all and would swallow them, while elsewhere such a region is a report's table, whose bands looked like cards)
   findRegions(img).forEach((r) => { if (rescue ? cards.reduce((a, c) => a + overlap(r, c), 0) <= area(r) * 0.2 : !cards.some((c) => overlap(r, c) > area(r) * 0.2)) regions.push(r); });
-  return assemblePanels(regions, words, img.width, img.height, med);
+  return assemblePanels(regions, words, img.width, img.height, med, gridWords);
 }

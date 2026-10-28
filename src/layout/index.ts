@@ -180,6 +180,52 @@ export function buildSpec(input: BuildInput): BuildResult {
 
   foldSubFigures(readings, W, H, med, words);
 
+  // Page furniture, not visuals: a filter or slicer row, a breadcrumb, a tab strip, a legend standing on its own, a
+  // note or callout over the picture. Each is words on the page with nothing drawn — no chart marks, no table rules,
+  // next to no ink — while every real visual either draws something or is a KPI card, which is a value or two, a
+  // label, and little else. (Drawing them loses nothing of the original and spares the user cards it never had.)
+  // (a line chart is a stroke and little else: a sparse line over a wide card inks barely any of it, so a panel
+  //  holding a thin stroke is a chart however little of the card it covers)
+  // (a table is words on a grid, and the grid is drawn: words laid out in columns with no rule, no stripe and no ink
+  //  at all are a legend or a list of filter values, which is furniture like the rest)
+  // (only a narrow one: a real table runs across its card, and plenty are drawn without a single rule)
+  const bareTable = (x: (typeof readings)[number]) => x.r.type === 'table' && !x.features.marks && !x.features.coverage
+    && width(x.p.b) < W * 0.25;
+  // (a line of six or more words running together is a sentence: a note, a footer, a commentary box. A filter list or
+  //  a legend sets one or two words to a line.)
+  const prose = (x: (typeof readings)[number]) => {
+    const rows = new Map<number, number>();
+    for (const w of x.p.words) { const k = Math.round((w.y + w.h / 2) / Math.max(1, med)); rows.set(k, (rows.get(k) || 0) + 1); }
+    return [...rows.values()].some((n) => n >= 6);
+  };
+  const furniture = (x: (typeof readings)[number]) => !prose(x) && (x.features.marks <= 1 && x.features.coverage < 0.025
+    && !x.features.grid && !(x.features.thin && (x.features.vivid || x.features.swatches))
+    && !(x.r.type === 'kpi' && x.features.bigMasked <= 4)) || bareTable(x);
+  // A narrow strip running down one side of the page is the tool's rail — navigation, a filter pane, a slicer list —
+  // not a visual. No dashboard puts a chart in a sixth of the width over a third of the height against the margin.
+  const rail = (x: (typeof readings)[number]) => (x.p.b[0] <= W * 0.03 || x.p.b[2] >= W * 0.97)
+    && width(x.p.b) <= W * 0.16 && height(x.p.b) >= H * 0.3;
+  // A KPI card is a card: a value with a label, in a block. Over four times as wide as it is tall, or taller than it is
+  // wide by half, it is a caption, a legend or a note that happened to hold a masked word — not a card. (Of 86
+  // hand-labelled KPI cards on real dashboards every one lies between 0.88 and 4.33 times as wide as tall, and the
+  // generated set runs to 10, so the bounds are drawn wide enough for both.)
+  const oddKpi = (x: (typeof readings)[number]) => {
+    if (x.r.type !== 'kpi') return false;
+    const a = width(x.p.b) / Math.max(1, height(x.p.b));
+    return a > 8 || a < 0.6;
+  };
+  // The same rail, cut into boxes: three or more panels stacked against one margin, none of them drawing much, running
+  // down most of the page between them. That is a filter pane or a navigation column, whatever the cutter made of it.
+  const side = (x: (typeof readings)[number], left: boolean) => (left ? x.p.b[2] <= W * 0.22 : x.p.b[0] >= W * 0.78)
+    && x.features.marks <= 8 && !x.features.rects && x.features.coverage < 0.12;
+  const stack = [true, false].map((left) => readings.filter((x) => side(x, left)))
+    .find((g) => g.length >= 3 && Math.max(...g.map((x) => x.p.b[3])) - Math.min(...g.map((x) => x.p.b[1])) >= H * 0.4) || [];
+  // A band across the very top of the picture, five times wider than it is tall: the dashboard's own title bar, or the
+  // tool's. A visual that shape is rare; one in that place is rarer still.
+  const header = (x: (typeof readings)[number]) => x.p.b[1] <= H * 0.03 && width(x.p.b) >= W * 0.85
+    && width(x.p.b) > height(x.p.b) * 5;
+  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !header(x) && !stack.includes(x));
+  if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
   const ordered = [...kept].sort((a, b) => a.p.b[1] - b.p.b[1] || a.p.b[0] - b.p.b[0]);

@@ -40,6 +40,8 @@ try {
       const x = c.getContext('2d'); x.drawImage(im, 0, 0, c.width, c.height); x.fillStyle = '#787c82'; review.masks.forEach((m) => x.fillRect(m.x, m.y, m.w, m.h));
       const root = document.getElementById('replica'); root.style.width = Math.min(1400, review.width) + 'px';
       window.DSCReplica.render(root, spec, { mode: 'shape', seed: 7, realistic: true, quiet: true });
+      // charts grow in: compare the finished picture, as the app does
+      await Promise.all((root._charts || []).map((ch) => new Promise((res) => { ch.on('finished', res); setTimeout(res, 3000); })));
       return window.VSSelfCheck.compare(root, c, boxes, review.words);
     }, { img, mime: /jpe?g$/.test(truth.file) ? 'image/jpeg' : 'image/png', review, spec: r.spec, boxes });
     for (const p of r.panels.filter((p) => p.vid && sims[p.vid] != null)) {

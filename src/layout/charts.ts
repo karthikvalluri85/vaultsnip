@@ -559,7 +559,9 @@ function scatter(c: Ctx): Reading | null {
 function map(c: Ctx): Reading | null {
   const pa = width(c.b) * height(c.b);
   const thinSet = new Set(c.thin);
-  const regions = c.body.filter((m) => !thinSet.has(m) && m.fill >= 0.12 && m.fill < 0.8 && m.n >= pa * 0.0003 && Math.min(width(m.b), height(m.b)) >= 3);
+  // (a country is a piece of the panel, not a speck: at a floor of three ten-thousandths a legend's swatches counted
+  //  as six touching regions, and one stacked area chart beside its legend read as a continent)
+  const regions = c.body.filter((m) => !thinSet.has(m) && m.fill >= 0.12 && m.fill < 0.8 && m.n >= pa * 0.002 && Math.min(width(m.b), height(m.b)) >= 3);
   // (solid rectangles among the marks themselves: the column splitting behind c.rects slices irregular regions too)
   const solid = c.body.filter((m) => m.fill >= 0.85).length;
   const asMap = { type: 'map' as const, certainty: 0.55, fields: { basemap: 'world', mapKind: 'filled', dimension: { name: c.dName || 'Region', members: [] }, measure: c.measure, series: [{ name: c.measure.name, shape: [] }] } };
@@ -567,9 +569,24 @@ function map(c: Ctx): Reading | null {
   // (an area chart's fill is one colour)
   // (not bars that touch, which the bar reader finds on a shared baseline, nor a pie, which is round and evenly filled)
   const round = (m: Mark) => { const r = width(m.b) / Math.max(1, height(m.b)); return r > 0.85 && r < 1.18 && m.fill > 0.68; };
-  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m))) return asMap;
+  // (nor a stacked area chart, which is also one large irregular shape in several colours: it stands on the plot's
+  //  baseline, inked right along its own bottom edge, where a continent's coastline is ragged)
+  // (and its top is a profile that rises and falls, where a map drawn on a square tile is inked along its top edge
+  //  as well as its bottom one)
+  const inkedRow = (m: Mark, y: number) => {
+    let n = 0, t = 0;
+    for (let x = Math.ceil(m.b[0]); x <= Math.floor(m.b[2]); x += 2) { t++; if (c.ink(x, Math.round(y))) n++; }
+    return t > 0 ? n / t : 0;
+  };
+  const flatBottom = (m: Mark) => inkedRow(m, m.b[3] - 2) >= 0.8 && inkedRow(m, m.b[1] + 2) < 0.8;
+  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m) && !flatBottom(m))) return asMap;
   if (regions.length < 6 || c.thin.length > 2 || solid > regions.length * 0.5) return null;
   if (regions.reduce((a, m) => a + m.n, 0) < pa * 0.08) return null;
+  // (a stacked area chart's bands are irregular regions that touch too, and they can be six or more. The chart stands
+  //  on the plot's baseline, so its largest band is inked right along its own bottom edge; a country's coastline is
+  //  ragged, and a map's largest region is not.)
+  const span = hull(regions), wide = regions.filter((m) => width(m.b) >= width(span) * 0.6).length;
+  if (wide >= Math.max(3, regions.length * 0.45)) return null;
   // neighbouring regions share borders: most of them touch another
   const touch = (a: Mark, b: Mark) => a.b[0] <= b.b[2] + 2 && b.b[0] <= a.b[2] + 2 && a.b[1] <= b.b[3] + 2 && b.b[1] <= a.b[3] + 2;
   if (regions.filter((m) => regions.some((o) => o !== m && touch(m, o))).length < regions.length * 0.6) return null;
@@ -902,6 +919,10 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // Gantt bars float off any baseline)
   // (a heatmap first: its columns of cells reach one height, as a 100% stack's do, but in shades of one colour)
   return done(heatmap(c)) || percentBars || done(funnel(c)) || done(gantt(c)) || done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
+    // (boxes scattered about, joined by a stroke or two and not standing on any baseline: a decomposition tree, an
+    //  org chart, a diagram. Saying so is truer than drawing a line chart that is not there.)
+    || (rects.length >= 8 && !barReading && thin.length <= 3 && coverage < 0.06
+      ? done({ type: "placeholder", certainty: 0.35, fields: { originalType: "chart" } })! : null)
     || done(lines(c)) || done(scatter(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
