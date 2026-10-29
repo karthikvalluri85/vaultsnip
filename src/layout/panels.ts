@@ -403,9 +403,7 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
     const y0 = Math.max(0, Math.floor(p.b[1])), y1 = Math.min(img.height, Math.ceil(p.b[3]));
     const W = x1 - x0, H = y1 - y0;
     if (W < 20 || H < 20) return [p];
-    // (never a table: its own column gaps are clear bands, and each column alone is just words)
-    if (looksLikeTable(p.words, med)) return [p];
-    if (W * H < img.width * img.height * 0.12) return [p];
+    if (W * H < img.width * img.height * 0.10) return [p];
     const minBand = Math.max(14, Math.round(med * 2));
     const colInk = (x: number) => { let n = 0; for (let y = y0; y < y1; y++) n += e[y * img.width + x]; return n; };
     const rowInk = (y: number) => { let n = 0; const o = y * img.width; for (let x = x0; x < x1; x++) n += e[o + x]; return n; };
@@ -439,6 +437,14 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
       };
       return parts.every(drawn) ? parts : null;
     };
+    // Never split a table-like panel vertically: its column gaps are clear bands and each column alone is just words.
+    // Horizontal splits of tall panels are fine even when the words look grid-like (two stacked charts can share axis-label alignment).
+    if (looksLikeTable(p.words, med)) {
+      const best = pick(gy, 'y');
+      if (!best) return [p];
+      cut = true;
+      return best;
+    }
     const best = (gx && gy && gx[1] - gx[0] >= gy[1] - gy[0] ? pick(gx, 'x') || pick(gy, 'y') : pick(gy, 'y') || pick(gx, 'x'));
     if (!best) return [p];
     cut = true;
