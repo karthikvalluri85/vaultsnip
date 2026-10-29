@@ -372,7 +372,7 @@ export function foldSubFigures<T extends { p: { b: Box; words: Word[] }; r: { ty
   readings: T[], W: number, H: number, med: number, words: Word[]): void {
   const union = (a: Box, b: Box): Box => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
   for (const f of [...readings]) {
-    if (!(f.r.type === 'kpi' || f.r.type === 'placeholder') || (f.features.marks || 0) > 1 || f.p.words.length > 10 || area(f.p.b) > W * H * 0.008) continue;
+    if (!(f.r.type === 'kpi' || f.r.type === 'placeholder') || (f.features.marks || 0) > 1 || f.p.words.length > 10 || area(f.p.b) > W * H * 0.008 || (f.r.type === 'kpi' && (f.features.bigMasked ?? 0) >= 2)) continue;
     const [cx, cy] = [(f.p.b[0] + f.p.b[2]) / 2, (f.p.b[1] + f.p.b[3]) / 2];
     const over = (h: Box) => Math.min(h[2], f.p.b[2]) - Math.max(h[0], f.p.b[0]);
     const host = readings.filter((h) => h !== f && area(h.p.b) >= area(f.p.b) * 3 && (
