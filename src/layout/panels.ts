@@ -347,8 +347,10 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
       const overlapX = (p: { b: Box }) => Math.max(0, Math.min(p.b[2], s.b[2]) - Math.max(p.b[0], s.b[0])) / Math.max(1, Math.min(p.b[2] - p.b[0], s.b[2] - s.b[0]));
       // (never onto a KPI tile: text above a row of tiles is a page or section heading)
       const cand = ps.filter((p) => p !== s && overlapX(p) > 0.5 && !textOnly(p) && !bigCard(p))
-        // titles sit above their visual, so joining upward costs more, except for labels hugging the panel above (axis labels)
-        .map((p) => ({ p, gap: p.b[1] >= s.b[3] ? p.b[1] - s.b[3] : s.b[1] >= p.b[3] ? (s.b[1] - p.b[3] < med * 1.5 ? (s.b[1] - p.b[3]) * 0.5 : (s.b[1] - p.b[3]) * 1.5) : Infinity }))
+        // joining cost: labels hugging the panel above get 0.5×; non-hugging labels joining upward get 1.5×; strips joining
+        // downward (title above chart) also get 1.5× so a fragment cut off a KPI card by the XY-cut doesn't swallow a
+        // neighbour by landing just within the raw gap limit
+        .map((p) => ({ p, gap: p.b[1] >= s.b[3] ? (p.b[1] - s.b[3]) * 1.5 : s.b[1] >= p.b[3] ? (s.b[1] - p.b[3] < med * 1.5 ? (s.b[1] - p.b[3]) * 0.5 : (s.b[1] - p.b[3]) * 1.5) : Infinity }))
         // (a strip joins what it labels, not whatever lies furthest below it: at six line-heights a KPI card's own
         //  label reached past the card and into the chart under it)
         .filter((c) => c.gap < Math.max(med * 4.5, H * 0.045)).sort((a, b) => a.gap - b.gap);
@@ -374,7 +376,8 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
       // visuals even when the upper one's title is masked)
       const q = ps.find((q) => q !== p && !big(p) && !big(q)
         && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length) && Math.min(p.b[2] - p.b[0], q.b[2] - q.b[0]) <= Math.max(p.b[2] - p.b[0], q.b[2] - q.b[0]) * 0.25)
-          || (near(p.b, q.b, 'y') && (Math.abs(p.b[0] - q.b[0]) <= 4 || Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8) && (!p.words.length || !q.words.length))
+          || (near(p.b, q.b, 'y') && (Math.abs(p.b[0] - q.b[0]) <= 4 || Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8) && (!p.words.length || !q.words.length)
+              && Math.max(p.b[1], q.b[1]) - Math.min(p.b[3], q.b[3]) <= Math.max(2, Math.round(med * 1.5)))
           // (centred on one line, one above the other, holding nothing but masked values: a funnel's bars)
           || (Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8 && near(p.b, q.b, 'y') && p.words.every((w) => !w.kept) && q.words.every((w) => !w.kept))));
       if (!q) continue;
