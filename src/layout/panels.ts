@@ -40,7 +40,7 @@ export const PANEL_OPTS = {
   band: false,         // children keep the full band across a cut (measured: worse on real pages)
   filled: false,       // a gutter row is one colour, so a row through a solid bar is not one (measured: worse on real pages)
   atomArea: 0.005,     // a region this small a share of the page is one visual at most: cutting it only breaks a title
-  atomH: 0.06,          // into words and a card into its value and its label (0 for either turns the stop off)
+  atomH: 0.062,         // into words and a card into its value and its label (0 for either turns the stop off)
 };
 
 /** Raw regions from the cut tree, as boxes. */
@@ -712,10 +712,15 @@ function findPanelsRaw(img: Img, words: Word[], med?: number, gridWords: Word[] 
 
 function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Box[], rescue: boolean, gridWords: Word[] = words): Panel[] {
   // one visual per card, unless the card clearly holds several (each part at least a fifth of the card)
+  const W = img.width, H = img.height;
   const regions: Box[] = [];
   for (const c of cards) {
     const parts = findRegions(img, {}, c).filter((r) => area(r) >= area(c) * 0.2);
-    if (parts.length >= 2) regions.push(...parts); else regions.push(c);
+    // Only split the card when at least one part is large enough to be a visual on its own; if all parts
+    // are too thin/narrow (a KPI card split by a horizontal gap between its value and its trend row), the
+    // card itself is the visual and splitting it produces sub-regions that are all filtered by couldBeVisual.
+    const anyViable = parts.some((r) => { const w = r[2] - r[0], h = r[3] - r[1]; return w * h >= W * H * 0.004 && h >= H * 0.055 && w >= W * 0.055; });
+    if (parts.length >= 2 && anyViable) regions.push(...parts); else regions.push(c);
   }
   // and whatever sits outside the cards (a page title, a filter strip)
   const overlap = (r: Box, c: Box) => Math.max(0, Math.min(r[2], c[2]) - Math.max(r[0], c[0])) * Math.max(0, Math.min(r[3], c[3]) - Math.max(r[1], c[1]));

@@ -832,6 +832,7 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const markArea = body.reduce((a, m) => a + m.n, 0), coverage = markArea / Math.max(1, pa);
   const stacked = labelStacks(words, med);
   const bigMasked = words.filter((w) => !w.kept && isBigBox(w, med) && !stacked.has(w));
+  const masked = words.filter((w) => !w.kept && !stacked.has(w));
   const grid = looksLikeTable(gridWords, med);
   const series = bySeries(body);
   const sat = (k: number) => { const r = (k >> 8) & 15, g = (k >> 4) & 15, b = k & 15; return Math.max(r, g, b) - Math.min(r, g, b); };
@@ -875,7 +876,7 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // 1 px separators of a lighter shade, is solid too, so every mark is tried)
   const rects = body.flatMap((m) => { const parts = splitColumns(img, m, ink); return parts.length > 1 ? parts : m.fill >= 0.8 ? [m] : []; })
     .filter((m) => m.fill >= 0.8 && Math.min(width(m.b), height(m.b)) >= 3);
-  Object.assign(features, { coverage: Math.round(coverage * 1000) / 1000, marks: body.length, rects: rects.length, thin: thin.length, series: series.length, words: words.length, bigMasked: bigMasked.length, grid: grid ? 1 : 0, swatches: swatches.length, vivid: vivid.length });
+  Object.assign(features, { coverage: Math.round(coverage * 1000) / 1000, marks: body.length, rects: rects.length, thin: thin.length, series: series.length, words: words.length, bigMasked: bigMasked.length, masked: masked.length, grid: grid ? 1 : 0, swatches: swatches.length, vivid: vivid.length });
   const c: Ctx = { img, b, words, med, title, ink, body, rects, thin, markArea, coverage, nameOf, measure, dName, plot: plotBox(b, words, med), all: all.filter((m) => !swatchSet.has(m)) };
   const done = (r: Reading | null) => (r ? { ...r, color } : null);
 

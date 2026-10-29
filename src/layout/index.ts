@@ -137,7 +137,7 @@ export function buildSpec(input: BuildInput): BuildResult {
   // as a title band just because the user has not yet drawn any redaction boxes.
   const tiles = readings.filter((x) => inBand(x) && (
     (x.r.type === 'kpi' && x.features.bigMasked >= 1) ||
-    (x.r.type === 'placeholder' && (x.features.marks ?? 0) >= 1 && width(x.p.b) / Math.max(1, height(x.p.b)) <= 4.5)));
+    (x.r.type === 'placeholder' && ((x.features.marks ?? 0) >= 1 || (x.features.masked ?? 0) >= 1) && width(x.p.b) / Math.max(1, height(x.p.b)) <= 4.5)));
   const topBand = readings.filter((x) => inBand(x) && (x.r.type === 'kpi' || x.r.type === 'text' || x.r.type === 'placeholder') && !(tiles.length >= 2 && tiles.includes(x)));
   if (topBand.length && topBand.length < readings.length) {
     const ws = topBand.flatMap((x) => x.p.words).sort((a, b) => a.x - b.x);
