@@ -404,10 +404,14 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
     const W = x1 - x0, H = y1 - y0;
     if (W < 20 || H < 20) return [p];
     if (W * H < img.width * img.height * 0.10) return [p];
-    const minBand = Math.max(14, Math.round(med * 2));
+    // Row gaps (horizontal splits) keep the original round-based minimum; column gaps (vertical splits) use floor
+    // so a chart boundary at exactly 2×med wide isn't missed by rounding up.
+    const minBandY = Math.max(14, Math.round(med * 2));
+    const minBandX = Math.max(12, Math.floor(med * 1.8));
     const colInk = (x: number) => { let n = 0; for (let y = y0; y < y1; y++) n += e[y * img.width + x]; return n; };
     const rowInk = (y: number) => { let n = 0; const o = y * img.width; for (let x = x0; x < x1; x++) n += e[o + x]; return n; };
-    const clearCol = (x: number) => colInk(x) <= 1 && !p.words.some((w) => w.x <= x && w.x + w.w >= x);
+    // Only kept (visible) words block a column gap; masked words have inaccurate OCR bounds and must not veto a split.
+    const clearCol = (x: number) => colInk(x) <= 3 && !p.words.some((w) => w.kept && w.x <= x && w.x + w.w >= x);
     const clearRow = (y: number) => rowInk(y) <= 1 && !p.words.some((w) => w.y <= y && w.y + w.h >= y);
     /** The widest run of clear lines strictly inside the panel, as [start, end). */
     const widest = (from: number, to: number, clear: (i: number) => boolean) => {
@@ -421,7 +425,7 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
     };
     const gx = widest(x0, x1, clearCol), gy = widest(y0, y1, clearRow);
     const pick = (gap: [number, number] | null, axis: 'x' | 'y') => {
-      if (!gap || gap[1] - gap[0] < minBand) return null;
+      if (!gap || gap[1] - gap[0] < (axis === 'x' ? minBandX : minBandY)) return null;
       const at = Math.round((gap[0] + gap[1]) / 2);
       const a: Box = axis === 'x' ? [p.b[0], p.b[1], at, p.b[3]] : [p.b[0], p.b[1], p.b[2], at];
       const b: Box = axis === 'x' ? [at, p.b[1], p.b[2], p.b[3]] : [p.b[0], at, p.b[2], p.b[3]];
