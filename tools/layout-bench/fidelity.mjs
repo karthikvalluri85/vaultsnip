@@ -81,7 +81,7 @@ if (import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}` || proce
         invented: f.invented.map((p) => ({ type: p.type, box: p.box.map(Math.round), title: p.title || '', certainty: p.certainty, features: p.features })),
         // every panel with what it matched, so a candidate rule can be tried against this file without building again
         panelList: r.panels.map((p) => { const t = f.truths.find((t) => t.hit === p); return { type: p.type, box: p.box.map(Math.round), title: p.title || '', certainty: p.certainty, features: p.features, truth: t ? t.type : null, right: !!t && same(p.type, t.type, true) }; }),
-        size: [r.fileWidth ?? 0, r.fileHeight ?? 0] });
+        size: d.size });
     }
   } finally { await builder.close(); }
   rows.sort((a, b) => parseFloat(a.fidelity) - parseFloat(b.fidelity));

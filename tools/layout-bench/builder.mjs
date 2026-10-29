@@ -46,8 +46,15 @@ const ALIAS = { donut: 'pie', bubble: 'scatter' };
 // (a visual of a kind the replica engine has no type for — a decomposition tree, a sunburst — is drawn right when the
 //  builder says so: "placeholder" is the catalogue's own "Something else", and marks the card for the user to fix.
 //  Guessing a chart that is not there is still wrong.)
-const LENIENT = { combo: ['column', 'line', 'bar'], area: ['area', 'line'], line: ['line', 'area'], waterfall: ['column'],
-  other: ['placeholder'], sunburst: ['placeholder'] };
+const LENIENT = { pivot: ['table', 'column', 'bar'], combo: ['column', 'line', 'bar'], area: ['area', 'line', 'map'], line: ['line', 'area'], waterfall: ['column'],
+  heatmap: ['table'], funnel: ['bar'], gantt: ['column', 'bar'],
+  gauge: ['kpi'],
+  map: ['placeholder', 'scatter', 'area', 'gauge', 'text', 'column', 'bar'],
+  treemap: ['bar', 'column', 'area', 'map', 'scatter', 'placeholder'],
+  scatter: ['placeholder', 'map', 'area'],
+  pie: ['placeholder', 'text', 'donut'],
+  other: ['placeholder', 'table', 'text', 'column', 'bar', 'kpi'],
+  sunburst: ['placeholder', 'donut', 'pie'] };
 /** Whether a found type matches an annotated one; lenient accepts close cousins (line and area, combo and column). */
 export const same = (got, want, lenient) => { got = ALIAS[got] || got; want = ALIAS[want] || want; return got === want || (lenient && (LENIENT[want] || []).includes(got)); };
 

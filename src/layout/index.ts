@@ -157,7 +157,7 @@ export function buildSpec(input: BuildInput): BuildResult {
   for (let changed = true, guard = 0; changed && guard < 40; guard++) {
     changed = false;
     for (const a of readings) {
-      const piece = readings.find((b) => b !== a && !b.title && CHARTISH.includes(b.r.type) && CHARTISH.includes(a.r.type) && b.features.marks > 0
+      const piece = readings.find((b) => b !== a && !b.title && CHARTISH.includes(b.r.type) && CHARTISH.includes(a.r.type) && !b.r.guess && !a.r.guess && b.features.marks > 0
         && Math.abs(a.p.b[3] - b.p.b[3]) <= Math.max(6, med) && Math.max(a.p.b[0], b.p.b[0]) - Math.min(a.p.b[2], b.p.b[2]) <= Math.max(med * 4, W * 0.03));
       if (!piece) continue;
       const m = reread(union(a.p.b, piece.p.b));

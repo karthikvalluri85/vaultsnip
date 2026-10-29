@@ -417,7 +417,13 @@ function bars(c: Ctx): Reading | null {
   const stackedOn = (m: Mark) => rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2 && Math.min(o.b[2], m.b[2]) - Math.max(o.b[0], m.b[0]) >= width(m.b) * 0.6);
   const standing = rs.filter((m) => atBottom(m, bottom.at) || stackedOn(m)).length;
   const vert = bottom.n >= 2 && standing >= rs.length * 0.5 && cv(rs.map((m) => width(m.b))) < 0.35;
-  const horiz = left.n >= Math.max(2, rs.length * 0.5) && cv(rs.map((m) => height(m.b))) < 0.35;
+  // (in a horizontal bar chart every bar spans one row height — a mark that is many times larger or smaller than the
+  //  typical bar is a chart background, legend icon or other decoration, not a bar; use the median to find the
+  //  representative height and exclude anything outside ½× to 2.5× that value)
+  const hHeights = rs.map((m) => height(m.b));
+  const medBarH = [...hHeights].sort((a, b) => a - b)[hHeights.length >> 1];
+  const horizRs = rs.filter((m) => height(m.b) >= medBarH * 0.5 && height(m.b) <= medBarH * 2.5);
+  const horiz = left.n >= Math.max(2, rs.length * 0.5) && horizRs.length >= 2 && cv(horizRs.map((m) => height(m.b))) < 0.35;
   if (!vert && !horiz) return null;
   const isCol = vert && (!horiz || bottom.n > left.n || (bottom.n === left.n && height(hull(rs)) >= width(hull(rs))));
   const on = rs.filter((m) => (isCol ? atBottom(m, bottom.at) || rs.some((o) => o !== m && Math.abs(o.b[1] - m.b[3]) <= 2) : atLeft(m, left.at) || rs.some((o) => o !== m && Math.abs(o.b[2] - m.b[0]) <= 2)));
@@ -535,8 +541,10 @@ function lines(c: Ctx): Reading | null {
 
 /** Scatter or bubble: many small solid dots. */
 function scatter(c: Ctx): Reading | null {
-  const dots = c.body.filter((m) => Math.max(width(m.b), height(m.b)) < Math.min(width(c.b), height(c.b)) * 0.08 && m.fill > 0.45 && Math.abs(width(m.b) - height(m.b)) <= Math.max(2, width(m.b) * 0.4));
-  if (dots.length < 8 || dots.length < c.body.length * 0.5) return null;
+  // (bubble charts have fewer, larger dots than tight scatter plots; allow dots up to 15% of the panel's
+  //  short side, and accept as few as 3 when the panel has very few marks overall)
+  const dots = c.body.filter((m) => Math.max(width(m.b), height(m.b)) < Math.min(width(c.b), height(c.b)) * 0.15 && m.fill > 0.45 && Math.abs(width(m.b) - height(m.b)) <= Math.max(2, width(m.b) * 0.4));
+  if (dots.length < 3 || dots.length < c.body.length * 0.35) return null;
   const xs = dots.map((d) => d.cx), ys = dots.map((d) => d.cy);
   const dx0 = Math.min(...xs), dx1 = Math.max(...xs), dy0 = Math.min(...ys), dy1 = Math.max(...ys);
   // dots in a row along one line are a dotted sparkline or markers on a line, not a scatter
@@ -563,7 +571,10 @@ function map(c: Ctx): Reading | null {
   //  as six touching regions, and one stacked area chart beside its legend read as a continent)
   const regions = c.body.filter((m) => !thinSet.has(m) && m.fill >= 0.12 && m.fill < 0.8 && m.n >= pa * 0.002 && Math.min(width(m.b), height(m.b)) >= 3);
   // (solid rectangles among the marks themselves: the column splitting behind c.rects slices irregular regions too)
-  const solid = c.body.filter((m) => m.fill >= 0.85).length;
+  // (colour-scale legend strips are tiny solid marks much smaller than any region; exclude them from the solid count so
+  //  they do not suppress map detection — but large solid marks, such as treemap tiles, are still counted)
+  const minRegionN = regions.length ? Math.min(...regions.map((m) => m.n)) : 0;
+  const solid = c.body.filter((m) => m.fill >= 0.85 && (!minRegionN || m.n >= minRegionN * 0.4)).length;
   const asMap = { type: 'map' as const, certainty: 0.55, fields: { basemap: 'world', mapKind: 'filled', dimension: { name: c.dName || 'Region', members: [] }, measure: c.measure, series: [{ name: c.measure.name, shape: [] }] } };
   // neighbouring regions in close shades join into one mark: one large irregular mark holding many shades is a map too
   // (an area chart's fill is one colour)
@@ -579,7 +590,25 @@ function map(c: Ctx): Reading | null {
     return t > 0 ? n / t : 0;
   };
   const flatBottom = (m: Mark) => inkedRow(m, m.b[3] - 2) >= 0.8 && inkedRow(m, m.b[1] + 2) < 0.8;
-  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m) && !flatBottom(m))) return asMap;
+  // (an area chart's bands span nearly the full panel width; a single map region does not)
+  if (c.thin.length <= 2 && !bars(c) && c.body.some((m) => m.n >= pa * 0.08 && m.fill >= 0.15 && m.fill < 0.85 && m.colors >= 4 && !round(m) && !flatBottom(m) && width(m.b) < width(c.b) * 0.85)) return asMap;
+  // Choropleth-with-background: a large neutral (grey or unsaturated) base map + a few coloured country overlays
+  // (e.g. a Power BI European choropleth with 3-6 highlighted countries on a world base map)
+  const satK = (k: number) => { const r = (k >> 8) & 15, g = (k >> 4) & 15, b = k & 15; return Math.max(r, g, b) - Math.min(r, g, b); };
+  const bgMark = !bars(c) && c.thin.length <= 2 && c.body.find((m) => !thinSet.has(m) && m.n >= pa * 0.15 && m.fill >= 0.5 && satK(m.key) <= 2);
+  if (bgMark) {
+    const overlays = regions.filter((m) => m !== bgMark && satK(m.key) >= 2);
+    if (overlays.length >= 3 && overlays.length <= 10) {
+      const sp2 = hull(overlays);
+      const wd2 = overlays.filter((m) => width(m.b) >= width(sp2) * 0.6).length;
+      const yOv2 = (a: Mark, b: Mark) => Math.max(0, Math.min(a.b[3], b.b[3]) - Math.max(a.b[1], b.b[1]));
+      const stacked2 = overlays.every((r, i) => overlays.slice(i + 1).every((o) => yOv2(r, o) <= 5));
+      if (!stacked2 && wd2 <= 1) {
+        const tc2 = (a: Mark, b: Mark) => a.b[0] <= b.b[2] + 2 && b.b[0] <= a.b[2] + 2 && a.b[1] <= b.b[3] + 2 && b.b[1] <= a.b[3] + 2;
+        if (overlays.filter((r) => overlays.some((o) => o !== r && tc2(r, o))).length >= overlays.length * 0.4) return asMap;
+      }
+    }
+  }
   if (regions.length < 6 || c.thin.length > 2 || solid > regions.length * 0.5) return null;
   if (regions.reduce((a, m) => a + m.n, 0) < pa * 0.08) return null;
   // (a stacked area chart's bands are irregular regions that touch too, and they can be six or more. The chart stands
@@ -587,6 +616,9 @@ function map(c: Ctx): Reading | null {
   //  ragged, and a map's largest region is not.)
   const span = hull(regions), wide = regions.filter((m) => width(m.b) >= width(span) * 0.6).length;
   if (wide >= Math.max(3, regions.length * 0.45)) return null;
+  // (stacked area bands form non-overlapping horizontal stripes; map regions freely overlap in Y)
+  const yOv = (a: Mark, b: Mark) => Math.max(0, Math.min(a.b[3], b.b[3]) - Math.max(a.b[1], b.b[1]));
+  if (regions.every((r, i) => regions.slice(i + 1).every((o) => yOv(r, o) <= 5)) && wide >= 2) return null;
   // neighbouring regions share borders: most of them touch another
   const touch = (a: Mark, b: Mark) => a.b[0] <= b.b[2] + 2 && b.b[0] <= a.b[2] + 2 && a.b[1] <= b.b[3] + 2 && b.b[1] <= a.b[3] + 2;
   if (regions.filter((m) => regions.some((o) => o !== m && touch(m, o))).length < regions.length * 0.6) return null;
@@ -633,6 +665,15 @@ function treemap(c: Ctx): Reading | null {
   // tiled in two directions: tiles start at several x and several y positions, and they do not share a baseline
   const starts = (v: number[]) => v.filter((x, i) => v.findIndex((y) => Math.abs(y - x) <= 3) === i).length;
   if (starts(rs.map((m) => m.b[0])) < 2 || starts(rs.map((m) => m.b[1])) < 2 || mode(rs.map((m) => m.b[3]), 3).n === rs.length) return null;
+  // a real treemap distributes area; one dominant tile (>85 % of all tile pixels) with a few tiny strips is a map's
+  // colour-scale legend beside its background region, not a treemap
+  const totalN = rs.reduce((a, m) => a + m.n, 0);
+  if (Math.max(...rs.map((m) => m.n)) > totalN * 0.85) return null;
+  // (treemap tiles are roughly rectangular; stacked bar segments are strongly elongated — their median aspect ratio
+  //  is 4:1 or more, while a real treemap's tiles stay close to square or mildly rectangular)
+  const aspects = rs.map((m) => Math.max(width(m.b), height(m.b)) / Math.max(1, Math.min(width(m.b), height(m.b))));
+  const medAspect = [...aspects].sort((a, b) => a - b)[aspects.length >> 1];
+  if (medAspect > 4) return null;
   const tiles = [...rs].sort((a, b) => b.n - a.n).slice(0, 20);
   const members = tiles.map((t, i) => {
     const ws = c.words.filter((w) => { const [x, y] = wordCenter(w); return x >= t.b[0] && x <= t.b[2] && y >= t.b[1] && y <= t.b[3]; });
@@ -647,7 +688,9 @@ function treemap(c: Ctx): Reading | null {
  * far round the coloured arc reaches, 0-100 (shapeValue).
  */
 function gauge(c: Ctx): Reading | null {
-  const arcs = c.body.filter((m) => m.fill < 0.7 && m.n >= 30 && width(m.b) >= width(c.b) * 0.08);
+  // (a full semicircle arc has low fill; a partial progress arc covering < 30% of the semicircle has a compact bbox
+  //  that pushes fill above 0.7, so use 0.85 to catch thick short arcs without admitting solid bars)
+  const arcs = c.body.filter((m) => m.fill < 0.85 && m.n >= 30 && width(m.b) >= width(c.b) * 0.08);
   // (a single piece, or the arc in two: a progress part and the track's remainder, each only part of the half ring)
   const union = arcs.length >= 2 ? [{ ...arcs[0], b: hull(arcs), keys: arcs.map((a) => a.key) }] : [];
   const cands = [...arcs.map((m) => ({ ...m, keys: [m.key] })), ...union]
@@ -902,15 +945,25 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // (a gauge shows its value big in its middle, as a KPI does: its half ring decides first)
   const gaugeReading = gauge(c);
   if (gaugeReading) return done(gaugeReading)!;
-  if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 3) && !lineChart) return done(kpi(c, 0.85))!;
+  // (a panel whose row marks look like table stripes is a chart or table, not a KPI: its bar reader was suppressed to
+  //  let the table path win, and the KPI check must not fire before the table path gets its turn)
+  // (solid rectangular marks that collectively cover a significant area are chart bars, not KPI decoration: a KPI's
+  //  mini sparkline bars are tiny and cover well under 10% of the card; a full bar or column chart's bars cover 15%+)
+  const rectArea = rects.reduce((s, r) => s + width(r.b) * height(r.b), 0);
+  const chartRects = rects.length >= 5 && rectArea >= pa * 0.12;
+  if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 2) && !chartRects && !lineChart && !stripes && coverage < 0.15) return done(kpi(c, 0.85))!;
   // a KPI card with a small chart in it (a sparkline, mini columns, an icon) or with its delta and comparison masked too:
   // a really big value, few words and little ink; a chart's own numbers are never that big for its panel
   // (not a line chart, two or more coloured lines; nor bars across much of the panel)
   const bigBars = !!barReading && rects.length >= 3 && width(hull(rects)) * height(hull(rects)) >= pa * 0.4;
-  if (bigH >= height(b) * 0.12 && words.length <= 18 && coverage < 0.12 && !lineChart && !bigBars) return done(kpi(c, 0.7))!;
+  if (bigH >= height(b) * 0.12 && words.length <= 18 && coverage < 0.12 && !lineChart && !(bigBars || chartRects) && !stripes) return done(kpi(c, 0.7))!;
   // words on a grid make a table, unless the panel also holds coloured strokes or several vivid colours (a table's
   // rules and stripes are grey or one colour): then a line or scatter reading comes first and the table is the fallback
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;
+  // a masked table: many words, many masked value boxes, no solid bars and little ink (rows of data with sensitive values)
+  // (a real masked table has many hidden value cells relative to its total word count; a text panel has few)
+  const maskedTable = !grid && words.length >= 35 && bigMasked.length >= 4 && bigMasked.length >= words.length * 0.25 && rects.length <= 1 && coverage < 0.08
+    ? { type: 'table' as const, certainty: 0.65, fields: {} } : null;
   const colourful = vivid.length >= 2 || thin.some((t) => sat(t.key) >= 3);
   // (a waterfall is read before columns: two of its columns may stand on the baseline, but its steps float)
   // (a 100% stack fills a rectangle as a treemap does: its repeated series colours decide)
@@ -918,12 +971,18 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // (a heatmap's cells fill a rectangle as a treemap's tiles do; funnel and
   // Gantt bars float off any baseline)
   // (a heatmap first: its columns of cells reach one height, as a 100% stack's do, but in shades of one colour)
-  return done(heatmap(c)) || percentBars || done(funnel(c)) || done(gantt(c)) || done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (table && !colourful ? done(table) : null)
+  // (a table whose rows have coloured backgrounds is still a table: stripes being true already suppressed the bar reader,
+  //  and the colour from the row banding must not let lines() fire ahead of the table reader)
+  return done(heatmap(c)) || percentBars || done(funnel(c)) || done(gantt(c)) || done(pie(c)) || done(treemap(c)) || done(map(c)) || done(waterfall(c)) || done(combo(barReading)) || (maskedTable ? done(maskedTable) : (table && (!colourful || stripes) ? done(table) : null))
     // (boxes scattered about, joined by a stroke or two and not standing on any baseline: a decomposition tree, an
     //  org chart, a diagram. Saying so is truer than drawing a line chart that is not there.)
     || (rects.length >= 8 && !barReading && thin.length <= 3 && coverage < 0.06
       ? done({ type: "placeholder", certainty: 0.35, fields: { originalType: "chart" } })! : null)
-    || done(lines(c)) || done(scatter(c)) || done(table)
+    || done(scatter(c))
+    // (very-low-ink, no-grid panels with many words and few masked values are prose text — grey separator lines from
+    //  panel borders create thin marks that fool lines(); a masked chart has many masked axis-label boxes)
+    || (coverage < 0.015 && words.length >= 25 && !lineChart && !grid && bigMasked.length < words.length * 0.25 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
+    || done(lines(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
     || done(bestGuess())
