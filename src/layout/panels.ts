@@ -453,6 +453,71 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
   return cut ? splitClearBands(img, out, words, med, depth + 1) : out;
 }
 
+/**
+ * Splits a merged panel at a high-ink vertical separator line (a visible card border between
+ * adjacent chart areas). Unlike splitClearBands, which requires a wide ink-free gap, this handles
+ * the case where a solid 1-2 px border divides two chart cards -- the separator has
+ * colInk >= H*0.65 while both halves independently pass couldBeVisual.
+ *
+ * To avoid false splits on chart frame borders and treemap/chart internal dividers, the separator
+ * must have clear flanks: the 3 columns on each side must each have colInk < H*0.07.
+ * This distinguishes true card-border gutters (< 6% of H on each side) from chart content
+ * that bleeds into the adjacent columns (8-10% or more).
+ *
+ * Single-pass only (no recursion) to prevent chained splits from producing invented panels
+ * when the right half already contains a matched truth alongside another card border.
+ */
+function splitAtSeparators(img: Img, ps: Panel[], words: Word[], med: number): Panel[] {
+  const e = edges(img);
+  return ps.flatMap((p) => {
+    const x0 = Math.max(0, Math.floor(p.b[0])), x1 = Math.min(img.width, Math.ceil(p.b[2]));
+    const y0 = Math.max(0, Math.floor(p.b[1])), y1 = Math.min(img.height, Math.ceil(p.b[3]));
+    const W = x1 - x0, H = y1 - y0;
+    if (W * H < img.width * img.height * 0.10) return [p];
+    const colInk = (x: number) => { let n = 0; for (let y = y0; y < y1; y++) n += e[y * img.width + x]; return n; };
+    // Search between 30% and 70% of panel width -- keeps y-axis lines (typically left 15-25%) out.
+    const minOffset = Math.round(W * 0.30);
+    const sepThresh = H * 0.65;
+    const flankThresh = H * 0.07; // gutters on each side must stay below 7% of H
+    const flankW = 3;             // columns to check on each side
+
+    let xstart = -1;
+    for (let x = x0 + minOffset; x < x1 - minOffset; x++) {
+      if (colInk(x) >= sepThresh) { xstart = x; break; }
+    }
+    if (xstart < 0) return [p];
+    // Extend the separator group rightward (handles 1- or 2-px wide borders).
+    let xend = xstart;
+    while (xend + 1 < x1 - minOffset && colInk(xend + 1) >= sepThresh) xend++;
+    // Both flanks must be clear gutters -- chart content bleeding in (> 7% of H) blocks the split.
+    if (xstart - flankW < x0 || xend + flankW >= x1) return [p];
+    const flankOk = (start: number, dir: -1 | 1) =>
+      Array.from({ length: flankW }, (_, i) => colInk(start + dir * (i + 1))).every(n => n < flankThresh);
+    if (!flankOk(xstart, -1) || !flankOk(xend, 1)) return [p];
+    // A true card-border separator is paired: the adjacent card also has a border within ~50px.
+    // A chart frame border or internal grid line has no such pair, so we reject unpaired separators.
+    const pairWindow = 50;
+    let hasPair = false;
+    for (let x = xend + 1; x < Math.min(xend + pairWindow, x1 - minOffset); x++) {
+      if (colInk(x) >= sepThresh) { hasPair = true; break; }
+    }
+    if (!hasPair) return [p];
+
+    const aBox: Box = [p.b[0], p.b[1], xstart, p.b[3]];
+    const bBox: Box = [xstart, p.b[1], p.b[2], p.b[3]];
+    const parts = [aBox, bBox].map((q) => ({ b: q, words: wordsIn(words, q), med: p.med }));
+    if (!parts.every((q) => couldBeVisual(q, img.width, img.height, med) && q.words.length >= 5)) return [p];
+    const drawn = (q: Panel) => {
+      let n = 0;
+      for (let y = Math.max(0, Math.floor(q.b[1])); y < Math.min(img.height, Math.ceil(q.b[3])); y += 2)
+        for (let x = Math.max(0, Math.floor(q.b[0])); x < Math.min(img.width, Math.ceil(q.b[2])); x += 2) if (e[y * img.width + x]) n++;
+      return n >= 40;
+    };
+    if (!parts.every(drawn)) return [p];
+    return parts;
+  });
+}
+
 export function findPanels(img: Img, words: Word[], med?: number, gridWords: Word[] = words): Panel[] {
   const ps = findPanelsRaw(img, words, med, gridWords), m = med ?? medianHeight(words);
   // (never on a report: its table's masked numbers are not KPI values)
@@ -461,7 +526,8 @@ export function findPanels(img: Img, words: Word[], med?: number, gridWords: Wor
     : splitKpiStacks(img, splitKpiRows(img, ps.map((p) => ({ ...p, words: wordsIn(gridWords, p.b) })), gridWords, m), gridWords, m)
       .map((p) => ({ ...p, words: wordsIn(words, p.b) }));
   const apart = splitClearBands(img, split, gridWords, m).map((q) => ({ ...q, words: wordsIn(words, q.b) }));
-  return apart.filter((p) => couldBeVisual(p, img.width, img.height, m) || apart.length === 1);
+  const withSep = splitAtSeparators(img, apart, words, m);
+  return withSep.filter((p) => couldBeVisual(p, img.width, img.height, m) || withSep.length === 1);
 }
 
 /**

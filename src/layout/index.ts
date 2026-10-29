@@ -154,6 +154,9 @@ export function buildSpec(input: BuildInput): BuildResult {
   const head = readings.find((x) => (x.r.type === 'text' || x.r.type === 'placeholder') && height(x.p.b) < H * 0.12 && x.p.words.length <= 10
     && (others(x).every((o) => o.p.b[1] >= x.p.b[3] - 2) || (x.p.b[1] <= firstY + 2 && width(x.p.b) > W * 0.5)));
   if (head) { if (!pageTitle) pageTitle = head.title; headingBottom = Math.max(headingBottom, head.p.b[3]); readings.splice(readings.indexOf(head), 1); }
+  // Promote tile-matched placeholders to KPI: readPanel saw no masked values (bigMasked=0) so fell back to
+  // 'placeholder', but the tile shape (narrow, has marks) identifies them as unmasked KPI cards.
+  for (const x of readings) if (tiles.includes(x) && x.r.type === 'placeholder') (x.r as { type: string }).type = 'kpi';
 
   // second look, with the readings in hand: a chart cut into pieces (bars far apart, nothing framing them) is re-read as
   // one panel, and a title strip sitting right above a chart becomes its title
