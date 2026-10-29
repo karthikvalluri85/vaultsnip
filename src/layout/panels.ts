@@ -373,7 +373,7 @@ export function assemblePanels(regions: Box[], words: Word[], W: number, H: numb
       // (stacked pieces only when one has no words: two charts one above the other, each with its axis labels, are two
       // visuals even when the upper one's title is masked)
       const q = ps.find((q) => q !== p && !big(p) && !big(q)
-        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length))
+        && ((near(p.b, q.b, 'x') && Math.abs(p.b[3] - q.b[3]) <= Math.max(4, med * 0.6) && (!p.words.length || !q.words.length) && Math.min(p.b[2] - p.b[0], q.b[2] - q.b[0]) <= Math.max(p.b[2] - p.b[0], q.b[2] - q.b[0]) * 0.25)
           || (near(p.b, q.b, 'y') && (Math.abs(p.b[0] - q.b[0]) <= 4 || Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8) && (!p.words.length || !q.words.length))
           // (centred on one line, one above the other, holding nothing but masked values: a funnel's bars)
           || (Math.abs(p.b[0] + p.b[2] - q.b[0] - q.b[2]) <= 8 && near(p.b, q.b, 'y') && p.words.every((w) => !w.kept) && q.words.every((w) => !w.kept))));

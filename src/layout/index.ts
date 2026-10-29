@@ -130,10 +130,14 @@ export function buildSpec(input: BuildInput): BuildResult {
   // with many UI-element marks; the tiles guard below still protects two-or-more real KPI tiles at the top).
   // Text/placeholder panels get a slightly taller band (0.13) to catch full-width filter bars that sit just above 0.12.
   const inBand = (x: (typeof readings)[number]) => {
-    const limit = (x.r.type === 'text' || x.r.type === 'placeholder') ? H * 0.13 : H * 0.12;
-    return x.p.b[3] <= limit && (x.features.marks <= 2 || (x.r.type === 'kpi' && x.features.marks <= 12));
+    return x.p.b[3] <= H * 0.13 && (x.features.marks <= 2 || (x.r.type === 'kpi' && x.features.marks <= 12));
   };
-  const tiles = readings.filter((x) => inBand(x) && x.r.type === 'kpi' && x.features.bigMasked >= 1);
+  // Unmasked KPI tiles read as placeholder (no masked values → bigMasked = 0) but still have a mark (trend arrow,
+  // delta indicator). Count them alongside real masked KPI tiles so that a row of KPI tiles is never misidentified
+  // as a title band just because the user has not yet drawn any redaction boxes.
+  const tiles = readings.filter((x) => inBand(x) && (
+    (x.r.type === 'kpi' && x.features.bigMasked >= 1) ||
+    (x.r.type === 'placeholder' && (x.features.marks ?? 0) >= 1 && width(x.p.b) / Math.max(1, height(x.p.b)) <= 4.5)));
   const topBand = readings.filter((x) => inBand(x) && (x.r.type === 'kpi' || x.r.type === 'text' || x.r.type === 'placeholder') && !(tiles.length >= 2 && tiles.includes(x)));
   if (topBand.length && topBand.length < readings.length) {
     const ws = topBand.flatMap((x) => x.p.words).sort((a, b) => a.x - b.x);
@@ -164,7 +168,8 @@ export function buildSpec(input: BuildInput): BuildResult {
     changed = false;
     for (const a of readings) {
       const piece = readings.find((b) => b !== a && !b.title && CHARTISH.includes(b.r.type) && CHARTISH.includes(a.r.type) && !b.r.guess && !a.r.guess && b.features.marks > 0
-        && Math.abs(a.p.b[3] - b.p.b[3]) <= Math.max(6, med) && Math.max(a.p.b[0], b.p.b[0]) - Math.min(a.p.b[2], b.p.b[2]) <= Math.max(med * 4, W * 0.03));
+        && Math.abs(a.p.b[3] - b.p.b[3]) <= Math.max(6, med) && Math.max(a.p.b[0], b.p.b[0]) - Math.min(a.p.b[2], b.p.b[2]) <= Math.max(med * 4, W * 0.03)
+        && Math.min(a.p.b[2] - a.p.b[0], b.p.b[2] - b.p.b[0]) <= Math.max(a.p.b[2] - a.p.b[0], b.p.b[2] - b.p.b[0]) * 0.50);
       if (!piece) continue;
       const m = reread(union(a.p.b, piece.p.b));
       if (m.r.type !== 'column' && m.r.type !== 'bar' && m.r.type !== a.r.type) continue;
@@ -206,7 +211,9 @@ export function buildSpec(input: BuildInput): BuildResult {
   };
   const furniture = (x: (typeof readings)[number]) => !prose(x) && (x.features.marks <= 1 && x.features.coverage < 0.025
     && !x.features.grid && !(x.features.thin && (x.features.vivid || x.features.swatches))
-    && !(x.r.type === 'kpi' && x.features.bigMasked <= 4)) || bareTable(x);
+    && !(x.r.type === 'kpi' && (x.features.bigMasked ?? 0) <= 4)
+    // (an unmasked KPI tile reads as placeholder with one mark: the delta arrow or trend indicator; protect it)
+    && !(x.r.type === 'placeholder' && (x.features.marks ?? 0) >= 1 && width(x.p.b) / Math.max(1, height(x.p.b)) <= 4.5)) || bareTable(x);
   // A narrow strip running down one side of the page is the tool's rail — navigation, a filter pane, a slicer list —
   // not a visual. No dashboard puts a chart in a sixth of the width over a third of the height against the margin.
   const rail = (x: (typeof readings)[number]) => (x.p.b[0] <= W * 0.03 || x.p.b[2] >= W * 0.97)
@@ -290,8 +297,12 @@ export function buildSpec(input: BuildInput): BuildResult {
     .find((g) => g.length >= 3 && Math.max(...g.map((x) => x.p.b[3])) - Math.min(...g.map((x) => x.p.b[1])) >= H * 0.4) || [];
   // A band across the very top of the picture, five times wider than it is tall: the dashboard's own title bar, or the
   // tool's. A visual that shape is rare; one in that place is rarer still.
+  // (a real chart starting at the very top edge — a full-width line over the first 3 % of the page — is not a title bar;
+  //  chart types with more than 2 marks are data visuals, not chrome, however wide and thin they appear)
+  const HEADER_CHART_TYPES = ['column', 'bar', 'line', 'area', 'scatter', 'pie', 'donut', 'treemap', 'combo'];
   const header = (x: (typeof readings)[number]) => x.p.b[1] <= H * 0.03 && width(x.p.b) >= W * 0.85
-    && width(x.p.b) > height(x.p.b) * 5;
+    && width(x.p.b) > height(x.p.b) * 5
+    && !(HEADER_CHART_TYPES.includes(x.r.type) && x.features.marks > 2);
   const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !topWideKpi(x) && !narrowKpi(x) && !sideWordyKpi(x) && !thinChart(x) && !wideTextStrip(x) && !topEdgeChart(x) && !topEdgeArea(x) && !heavyBottomLine(x) && !bottomFooter(x) && !smallPlaceholder(x) && !busyKpi(x) && !header(x) && !stack.includes(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right

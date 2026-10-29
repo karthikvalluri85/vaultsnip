@@ -1,0 +1,6235 @@
+[
+ {
+  "id": "pbi-competitive-marketing",
+  "tool": "Power BI",
+  "score": 1,
+  "visuals": 8,
+  "panels": 8,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     214,
+     102,
+     418,
+     170
+    ],
+    "title": "Total Sales",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 3,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     432,
+     102,
+     636,
+     170
+    ],
+    "title": "Online Sales",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     650,
+     102,
+     856,
+     170
+    ],
+    "title": "Social [Client] Sales",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     870,
+     102,
+     1076,
+     170
+    ],
+    "title": "Stores Sales",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1088,
+     102,
+     1294,
+     170
+    ],
+    "title": "[Client] Sales",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "donut",
+    "box": [
+     214,
+     228,
+     638,
+     416
+    ],
+    "title": "® Online",
+    "certainty": 1,
+    "features": {
+     "coverage": 0.119,
+     "marks": 11,
+     "rects": 1,
+     "thin": 0,
+     "series": 9,
+     "words": 16,
+     "bigMasked": 7,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "donut",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     650,
+     228,
+     1294,
+     416
+    ],
+    "title": "@® Online",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.226,
+     "marks": 28,
+     "rects": 12,
+     "thin": 3,
+     "series": 11,
+     "words": 27,
+     "bigMasked": 7,
+     "grid": 1,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     214,
+     450,
+     1294,
+     666
+    ],
+    "title": "[Client] Stores",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.15,
+     "marks": 78,
+     "rects": 45,
+     "thin": 1,
+     "series": 13,
+     "words": 62,
+     "bigMasked": 19,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "column",
+    "right": true
+   }
+  ],
+  "size": [
+   1354,
+   683
+  ]
+ },
+ {
+  "id": "pbi-corporate-spend",
+  "tool": "Power BI",
+  "score": 1,
+  "visuals": 4,
+  "panels": 4,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     127,
+     300,
+     614,
+     463
+    ],
+    "title": "",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.192,
+     "marks": 16,
+     "rects": 8,
+     "thin": 0,
+     "series": 5,
+     "words": 16,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "combo",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     72,
+     479,
+     650,
+     787
+    ],
+    "title": "Actual [Client] Period and [Client]",
+    "certainty": 0.8,
+    "features": {
+     "coverage": 0.219,
+     "marks": 7,
+     "rects": 0,
+     "thin": 0,
+     "series": 4,
+     "words": 46,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     667,
+     157,
+     1245,
+     464
+    ],
+    "title": "Select Sales Region Europe",
+    "certainty": 0.87,
+    "features": {
+     "coverage": 0.563,
+     "marks": 5,
+     "rects": 6,
+     "thin": 1,
+     "series": 3,
+     "words": 40,
+     "bigMasked": 6,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 0
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "placeholder",
+    "box": [
+     667,
+     497,
+     1245,
+     805
+    ],
+    "title": "Q Sales Region",
+    "certainty": 0.35,
+    "features": {
+     "coverage": 0.047,
+     "marks": 21,
+     "rects": 13,
+     "thin": 3,
+     "series": 5,
+     "words": 29,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "other",
+    "right": true
+   }
+  ],
+  "size": [
+   1307,
+   817
+  ]
+ },
+ {
+  "id": "pbi-team-scorecard",
+  "tool": "Power BI",
+  "score": 0.625,
+  "visuals": 8,
+  "panels": 6,
+  "wrong": [
+   {
+    "truth": "kpi",
+    "got": "placeholder",
+    "title": "Revenue Status (Total Year)",
+    "box": [
+     703,
+     26,
+     950,
+     137
+    ]
+   }
+  ],
+  "missed": [
+   {
+    "type": "kpi",
+    "title": "Number of Products",
+    "box": [
+     1350,
+     40,
+     1585,
+     164
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Gross Margin %",
+    "box": [
+     1654,
+     44,
+     1864,
+     180
+    ]
+   }
+  ],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "placeholder",
+    "box": [
+     716,
+     36,
+     939,
+     125
+    ],
+    "title": "Revenue Status (Total Year)",
+    "certainty": 0.2,
+    "features": {
+     "coverage": 0.01,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 0,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": false
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1034,
+     64,
+     1275,
+     146
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 4,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     245,
+     202,
+     1108,
+     609
+    ],
+    "title": "Revenue [Client] Variance to Budget by Month and [Client]",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.187,
+     "marks": 21,
+     "rects": 8,
+     "thin": 0,
+     "series": 9,
+     "words": 38,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     1195,
+     179,
+     1871,
+     615
+    ],
+    "title": "Total Revenue by Region",
+    "certainty": 0.75,
+    "features": {
+     "coverage": 0.506,
+     "marks": 14,
+     "rects": 5,
+     "thin": 1,
+     "series": 12,
+     "words": 8,
+     "bigMasked": 0,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "treemap",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     237,
+     752,
+     1134,
+     1104
+    ],
+    "title": "",
+    "certainty": 0.88,
+    "features": {
+     "coverage": 0.456,
+     "marks": 8,
+     "rects": 7,
+     "thin": 1,
+     "series": 3,
+     "words": 14,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "combo",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     1146,
+     670,
+     1945,
+     1135
+    ],
+    "title": "[Client] by State",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.633,
+     "marks": 29,
+     "rects": 21,
+     "thin": 0,
+     "series": 6,
+     "words": 26,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "map",
+    "right": true
+   }
+  ],
+  "size": [
+   1954,
+   1141
+  ]
+ },
+ {
+  "id": "pbi-opportunity-dashboard",
+  "tool": "Power BI",
+  "score": 0.8461538461538461,
+  "visuals": 13,
+  "panels": 12,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "column",
+    "title": "Opportunity Count by Partner Driven, Sales Stage",
+    "box": [
+     683,
+     114,
+     992,
+     332
+    ]
+   },
+   {
+    "type": "pie",
+    "title": "Opportunity Count by Region",
+    "box": [
+     1011,
+     111,
+     1334,
+     334
+    ]
+   }
+  ],
+  "invented": [
+   {
+    "type": "column",
+    "box": [
+     682,
+     115,
+     1666,
+     410
+    ],
+    "title": "[Client] Count",
+    "certainty": 0.83,
+    "features": {
+     "coverage": 0.039,
+     "marks": 19,
+     "rects": 4,
+     "thin": 1,
+     "series": 5,
+     "words": 39,
+     "bigMasked": 8,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    }
+   }
+  ],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     18,
+     180,
+     336,
+     333
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 1,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     351,
+     180,
+     669,
+     333
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.077,
+     "marks": 10,
+     "rects": 6,
+     "thin": 1,
+     "series": 5,
+     "words": 7,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1347,
+     180,
+     1668,
+     333
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.003,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 1,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     18,
+     411,
+     669,
+     795
+    ],
+    "title": "Sales Stage [Client]",
+    "certainty": 0.62,
+    "features": {
+     "coverage": 0.502,
+     "marks": 38,
+     "rects": 35,
+     "thin": 1,
+     "series": 6,
+     "words": 27,
+     "bigMasked": 8,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 3
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     684,
+     411,
+     1335,
+     795
+    ],
+    "title": "",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.277,
+     "marks": 14,
+     "rects": 9,
+     "thin": 0,
+     "series": 5,
+     "words": 13,
+     "bigMasked": 8,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     1347,
+     411,
+     1668,
+     564
+    ],
+    "title": "Lead",
+    "certainty": 0.78,
+    "features": {
+     "coverage": 0.087,
+     "marks": 5,
+     "rects": 3,
+     "thin": 0,
+     "series": 1,
+     "words": 10,
+     "bigMasked": 0,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "funnel",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1347,
+     642,
+     1668,
+     795
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.064,
+     "marks": 11,
+     "rects": 6,
+     "thin": 0,
+     "series": 5,
+     "words": 8,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     18,
+     807,
+     669,
+     1254
+    ],
+    "title": "Revenue",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.096,
+     "marks": 20,
+     "rects": 10,
+     "thin": 0,
+     "series": 4,
+     "words": 21,
+     "bigMasked": 13,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     684,
+     807,
+     1335,
+     1254
+    ],
+    "title": "Average Revenue",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.105,
+     "marks": 18,
+     "rects": 6,
+     "thin": 0,
+     "series": 5,
+     "words": 20,
+     "bigMasked": 9,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1347,
+     807,
+     1668,
+     1026
+    ],
+    "title": "[Client] Revenue",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     1347,
+     1101,
+     1668,
+     1254
+    ],
+    "title": "",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.154,
+     "marks": 9,
+     "rects": 3,
+     "thin": 0,
+     "series": 3,
+     "words": 5,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     682,
+     115,
+     1666,
+     410
+    ],
+    "title": "[Client] Count",
+    "certainty": 0.83,
+    "features": {
+     "coverage": 0.039,
+     "marks": 19,
+     "rects": 4,
+     "thin": 1,
+     "series": 5,
+     "words": 39,
+     "bigMasked": 8,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": null,
+    "right": false
+   }
+  ],
+  "size": [
+   1679,
+   1270
+  ]
+ },
+ {
+  "id": "pbi-retail-dashboard",
+  "tool": "Power BI",
+  "score": 1,
+  "visuals": 12,
+  "panels": 12,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     18,
+     186,
+     345,
+     342
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 1,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     360,
+     186,
+     684,
+     342
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 1,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "pie",
+    "box": [
+     699,
+     186,
+     1023,
+     342
+    ],
+    "title": "",
+    "certainty": 1,
+    "features": {
+     "coverage": 0.159,
+     "marks": 3,
+     "rects": 0,
+     "thin": 0,
+     "series": 3,
+     "words": 4,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "pie",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1038,
+     186,
+     1362,
+     342
+    ],
+    "title": "[Client] Stores [Client] Stores Target",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.066,
+     "marks": 7,
+     "rects": 2,
+     "thin": 1,
+     "series": 6,
+     "words": 7,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1377,
+     186,
+     1701,
+     342
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.006,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 1,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     18,
+     420,
+     684,
+     810
+    ],
+    "title": "® [Client] Year Sales [Client]",
+    "certainty": 0.8,
+    "features": {
+     "coverage": 0.365,
+     "marks": 7,
+     "rects": 5,
+     "thin": 0,
+     "series": 3,
+     "words": 22,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "scatter",
+    "box": [
+     699,
+     420,
+     1362,
+     810
+    ],
+    "title": "",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.05,
+     "marks": 12,
+     "rects": 4,
+     "thin": 2,
+     "series": 9,
+     "words": 32,
+     "bigMasked": 8,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 5
+    },
+    "truth": "scatter",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1377,
+     420,
+     1701,
+     576
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 1,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1377,
+     657,
+     1701,
+     810
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.097,
+     "marks": 24,
+     "rects": 7,
+     "thin": 1,
+     "series": 8,
+     "words": 15,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     1377,
+     891,
+     1701,
+     1047
+    ],
+    "title": "",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.189,
+     "marks": 35,
+     "rects": 8,
+     "thin": 1,
+     "series": 6,
+     "words": 18,
+     "bigMasked": 4,
+     "grid": 1,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     18,
+     911,
+     684,
+     1279
+    ],
+    "title": "",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.703,
+     "marks": 28,
+     "rects": 13,
+     "thin": 0,
+     "series": 5,
+     "words": 56,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     697,
+     832,
+     1361,
+     1273
+    ],
+    "title": "[Client] Sales",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.518,
+     "marks": 168,
+     "rects": 80,
+     "thin": 0,
+     "series": 10,
+     "words": 102,
+     "bigMasked": 37,
+     "grid": 0,
+     "swatches": 15,
+     "vivid": 2
+    },
+    "truth": "map",
+    "right": true
+   }
+  ],
+  "size": [
+   1714,
+   1294
+  ]
+ },
+ {
+  "id": "pbi-new-stores",
+  "tool": "Power BI",
+  "score": 1,
+  "visuals": 4,
+  "panels": 4,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "gauge",
+    "box": [
+     23,
+     170,
+     933,
+     791
+    ],
+    "title": "[Client] Year Sales by City and Chain",
+    "certainty": 0.75,
+    "features": {
+     "coverage": 0.627,
+     "marks": 200,
+     "rects": 74,
+     "thin": 0,
+     "series": 7,
+     "words": 107,
+     "bigMasked": 23,
+     "grid": 0,
+     "swatches": 15,
+     "vivid": 1
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     968,
+     136,
+     2107,
+     440
+    ],
+    "title": "",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.129,
+     "marks": 8,
+     "rects": 5,
+     "thin": 0,
+     "series": 3,
+     "words": 25,
+     "bigMasked": 2,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     966,
+     479,
+     2099,
+     752
+    ],
+    "title": "Sales Per [Client] by Name",
+    "certainty": 0.88,
+    "features": {
+     "coverage": 0.196,
+     "marks": 27,
+     "rects": 12,
+     "thin": 1,
+     "series": 8,
+     "words": 44,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     23,
+     802,
+     1719,
+     1176
+    ],
+    "title": "[Client] Year Sales by [Client]",
+    "certainty": 0.83,
+    "features": {
+     "coverage": 0.024,
+     "marks": 10,
+     "rects": 0,
+     "thin": 1,
+     "series": 3,
+     "words": 18,
+     "bigMasked": 0,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   }
+  ],
+  "size": [
+   2112,
+   1208
+  ]
+ },
+ {
+  "id": "pbi-ytd-category-trend",
+  "tool": "Power BI",
+  "score": 1,
+  "visuals": 4,
+  "panels": 4,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "text",
+    "box": [
+     15,
+     699,
+     528,
+     1110
+    ],
+    "title": "",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.012,
+     "marks": 7,
+     "rects": 0,
+     "thin": 0,
+     "series": 4,
+     "words": 10,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     7,
+     147,
+     1038,
+     635
+    ],
+    "title": "",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.612,
+     "marks": 20,
+     "rects": 13,
+     "thin": 2,
+     "series": 13,
+     "words": 26,
+     "bigMasked": 17,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 3
+    },
+    "truth": "treemap",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     1076,
+     145,
+     2227,
+     633
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.044,
+     "marks": 38,
+     "rects": 0,
+     "thin": 5,
+     "series": 5,
+     "words": 30,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 3
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     1077,
+     681,
+     2219,
+     1137
+    ],
+    "title": "[Client] \\ [Client]",
+    "certainty": 0.83,
+    "features": {
+     "coverage": 0.107,
+     "marks": 64,
+     "rects": 21,
+     "thin": 2,
+     "series": 13,
+     "words": 36,
+     "bigMasked": 14,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 3
+    },
+    "truth": "column",
+    "right": true
+   }
+  ],
+  "size": [
+   2267,
+   1193
+  ]
+ },
+ {
+  "id": "pbi-market-share",
+  "tool": "Power BI",
+  "score": 0.6666666666666666,
+  "visuals": 6,
+  "panels": 4,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "column",
+    "title": "% Unit Market Share YOY Change by Rolling Period and Region",
+    "box": [
+     500,
+     18,
+     1149,
+     225
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Total Category Volume",
+    "box": [
+     41,
+     126,
+     232,
+     191
+    ]
+   }
+  ],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     292,
+     139,
+     384,
+     178
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 6,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     14,
+     253,
+     485,
+     407
+    ],
+    "title": "Units Market Share [Client] Units [Client] Market Share R12M",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.03,
+     "marks": 13,
+     "rects": 1,
+     "thin": 1,
+     "series": 5,
+     "words": 33,
+     "bigMasked": 21,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     500,
+     255,
+     1123,
+     407
+    ],
+    "title": "",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.226,
+     "marks": 9,
+     "rects": 2,
+     "thin": 1,
+     "series": 4,
+     "words": 8,
+     "bigMasked": 6,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     4,
+     448,
+     1156,
+     647
+    ],
+    "title": "[Client] Yes",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.197,
+     "marks": 80,
+     "rects": 46,
+     "thin": 2,
+     "series": 11,
+     "words": 86,
+     "bigMasked": 61,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   }
+  ],
+  "size": [
+   1171,
+   693
+  ]
+ },
+ {
+  "id": "pbi-sentiment",
+  "tool": "Power BI",
+  "score": 0.6,
+  "visuals": 5,
+  "panels": 3,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "kpi",
+    "title": "Sentiment",
+    "box": [
+     387,
+     39,
+     492,
+     103
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Sentiment Gap",
+    "box": [
+     543,
+     35,
+     677,
+     110
+    ]
+   }
+  ],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "line",
+    "box": [
+     11,
+     122,
+     662,
+     387
+    ],
+    "title": "",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.018,
+     "marks": 13,
+     "rects": 0,
+     "thin": 2,
+     "series": 2,
+     "words": 37,
+     "bigMasked": 20,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     12,
+     438,
+     668,
+     678
+    ],
+    "title": "",
+    "certainty": 0.86,
+    "features": {
+     "coverage": 0.013,
+     "marks": 6,
+     "rects": 0,
+     "thin": 2,
+     "series": 2,
+     "words": 30,
+     "bigMasked": 18,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     842,
+     90,
+     1102,
+     655
+    ],
+    "title": "",
+    "certainty": 0.73,
+    "features": {
+     "coverage": 0.065,
+     "marks": 41,
+     "rects": 20,
+     "thin": 7,
+     "series": 12,
+     "words": 2,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "bar",
+    "right": true
+   }
+  ],
+  "size": [
+   1176,
+   697
+  ]
+ },
+ {
+  "id": "pbi-supplier-quality",
+  "tool": "Power BI",
+  "score": 0.6,
+  "visuals": 5,
+  "panels": 4,
+  "wrong": [
+   {
+    "truth": "line",
+    "got": "column",
+    "title": "Total Defect Qty by Month and Year",
+    "box": [
+     464,
+     74,
+     1140,
+     246
+    ]
+   }
+  ],
+  "missed": [
+   {
+    "type": "column",
+    "title": "Total Defect Qty by Category and Defect Type",
+    "box": [
+     13,
+     11,
+     449,
+     207
+    ]
+   }
+  ],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "column",
+    "box": [
+     9,
+     17,
+     1138,
+     235
+    ],
+    "title": "",
+    "certainty": 0.92,
+    "features": {
+     "coverage": 0.04,
+     "marks": 26,
+     "rects": 17,
+     "thin": 2,
+     "series": 6,
+     "words": 49,
+     "bigMasked": 16,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "line",
+    "right": false
+   },
+   {
+    "type": "scatter",
+    "box": [
+     6,
+     235,
+     452,
+     432
+    ],
+    "title": "Category [Client] @ Logistics @ [Client] & C... @ [Client]",
+    "certainty": 0.45,
+    "features": {
+     "coverage": 0.023,
+     "marks": 4,
+     "rects": 3,
+     "thin": 1,
+     "series": 4,
+     "words": 29,
+     "bigMasked": 11,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "scatter",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     12,
+     456,
+     313,
+     606
+    ],
+    "title": "[Client] Type Total [Client] Qty Total [Client] Minutes",
+    "certainty": 0.8,
+    "features": {
+     "coverage": 0.03,
+     "marks": 19,
+     "rects": 0,
+     "thin": 1,
+     "series": 3,
+     "words": 34,
+     "bigMasked": 1,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     466,
+     272,
+     965,
+     567
+    ],
+    "title": "[Client] Type [Client]",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.384,
+     "marks": 94,
+     "rects": 24,
+     "thin": 0,
+     "series": 11,
+     "words": 87,
+     "bigMasked": 29,
+     "grid": 0,
+     "swatches": 16,
+     "vivid": 1
+    },
+    "truth": "map",
+    "right": true
+   }
+  ],
+  "size": [
+   1151,
+   607
+  ]
+ },
+ {
+  "id": "ServiceIndustryAnalytics",
+  "tool": "Tableau",
+  "score": 0.7368421052631579,
+  "visuals": 19,
+  "panels": 15,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "kpi",
+    "title": "Avg Drive Time",
+    "box": [
+     1254,
+     582,
+     1397,
+     660
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Idle Time %",
+    "box": [
+     1399,
+     583,
+     1537,
+     662
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Job per Truck",
+    "box": [
+     1539,
+     583,
+     1677,
+     660
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "First Time Fix Rate",
+    "box": [
+     1677,
+     581,
+     1817,
+     662
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Service Call Completed",
+    "box": [
+     835,
+     70,
+     1032,
+     195
+    ]
+   }
+  ],
+  "invented": [
+   {
+    "type": "column",
+    "box": [
+     222,
+     933,
+     489,
+     1089
+    ],
+    "title": "[Client] & [Client]",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.023,
+     "marks": 5,
+     "rects": 3,
+     "thin": 2,
+     "series": 3,
+     "words": 21,
+     "bigMasked": 9,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    }
+   }
+  ],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     222,
+     75,
+     420,
+     201
+    ],
+    "title": "Total Revenue",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.024,
+     "marks": 1,
+     "rects": 2,
+     "thin": 0,
+     "series": 1,
+     "words": 10,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     426,
+     75,
+     624,
+     201
+    ],
+    "title": "Gross Margin",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.023,
+     "marks": 2,
+     "rects": 1,
+     "thin": 0,
+     "series": 1,
+     "words": 12,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     633,
+     81,
+     828,
+     195
+    ],
+    "title": "Net Profit",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 12,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1041,
+     81,
+     1236,
+     195
+    ],
+    "title": "Avg Ticket [Client]",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 14,
+     "bigMasked": 4,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1245,
+     81,
+     1440,
+     195
+    ],
+    "title": "[Client] Revenue",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 12,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1449,
+     81,
+     1644,
+     195
+    ],
+    "title": "[Client] Rate",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.006,
+     "marks": 2,
+     "rects": 0,
+     "thin": 1,
+     "series": 2,
+     "words": 12,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     222,
+     213,
+     732,
+     534
+    ],
+    "title": "[Client] Revenue",
+    "certainty": 0.9,
+    "features": {
+     "coverage": 0.031,
+     "marks": 16,
+     "rects": 1,
+     "thin": 2,
+     "series": 4,
+     "words": 21,
+     "bigMasked": 12,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     744,
+     213,
+     1269,
+     534
+    ],
+    "title": "Revenue by [Client]",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.173,
+     "marks": 15,
+     "rects": 5,
+     "thin": 3,
+     "series": 3,
+     "words": 21,
+     "bigMasked": 13,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "donut",
+    "box": [
+     1281,
+     213,
+     1818,
+     534
+    ],
+    "title": "Revenue by [Client] Type",
+    "certainty": 1,
+    "features": {
+     "coverage": 0.106,
+     "marks": 7,
+     "rects": 5,
+     "thin": 1,
+     "series": 5,
+     "words": 38,
+     "bigMasked": 14,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "donut",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     222,
+     555,
+     666,
+     921
+    ],
+    "title": "Top Margin [Client]",
+    "certainty": 0.65,
+    "features": {
+     "coverage": 0.005,
+     "marks": 5,
+     "rects": 0,
+     "thin": 1,
+     "series": 3,
+     "words": 36,
+     "bigMasked": 21,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     678,
+     555,
+     1242,
+     921
+    ],
+    "title": "",
+    "certainty": 0.65,
+    "features": {
+     "coverage": 0,
+     "marks": 1,
+     "rects": 1,
+     "thin": 0,
+     "series": 1,
+     "words": 39,
+     "bigMasked": 32,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     1254,
+     555,
+     1818,
+     921
+    ],
+    "title": "Avg [Client] Time",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.542,
+     "marks": 78,
+     "rects": 11,
+     "thin": 1,
+     "series": 6,
+     "words": 45,
+     "bigMasked": 26,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 0
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     222,
+     933,
+     489,
+     1089
+    ],
+    "title": "[Client] & [Client]",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.023,
+     "marks": 5,
+     "rects": 3,
+     "thin": 2,
+     "series": 3,
+     "words": 21,
+     "bigMasked": 9,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "table",
+    "box": [
+     489,
+     933,
+     1824,
+     1089
+    ],
+    "title": "",
+    "certainty": 0.65,
+    "features": {
+     "coverage": 0.015,
+     "marks": 8,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 65,
+     "bigMasked": 23,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "other",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1680,
+     79,
+     1820,
+     160
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 5,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   }
+  ],
+  "size": [
+   1850,
+   1127
+  ]
+ },
+ {
+  "id": "SupplyChainPerformance",
+  "tool": "Tableau",
+  "score": 1,
+  "visuals": 9,
+  "panels": 9,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     220,
+     104,
+     440,
+     253
+    ],
+    "title": "Total Supply Spend",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.01,
+     "marks": 7,
+     "rects": 0,
+     "thin": 0,
+     "series": 4,
+     "words": 10,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     450,
+     104,
+     676,
+     228
+    ],
+    "title": "On-Time Delivery",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.049,
+     "marks": 10,
+     "rects": 7,
+     "thin": 0,
+     "series": 5,
+     "words": 4,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     686,
+     104,
+     912,
+     256
+    ],
+    "title": "Quantity [Client] Rate",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.047,
+     "marks": 12,
+     "rects": 8,
+     "thin": 0,
+     "series": 6,
+     "words": 8,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     928,
+     104,
+     1146,
+     256
+    ],
+    "title": "[Client] On-Time Rate",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.019,
+     "marks": 7,
+     "rects": 0,
+     "thin": 0,
+     "series": 4,
+     "words": 11,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1162,
+     104,
+     1382,
+     256
+    ],
+    "title": "[Client] Rate",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.042,
+     "marks": 12,
+     "rects": 4,
+     "thin": 0,
+     "series": 4,
+     "words": 7,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     216,
+     264,
+     796,
+     550
+    ],
+    "title": "Monthly Supply Spend",
+    "certainty": 0.86,
+    "features": {
+     "coverage": 0.442,
+     "marks": 3,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 19,
+     "bigMasked": 12,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     804,
+     264,
+     1386,
+     550
+    ],
+    "title": "Monthly Delivery Performance",
+    "certainty": 0.86,
+    "features": {
+     "coverage": 0.017,
+     "marks": 2,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 24,
+     "bigMasked": 14,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     216,
+     558,
+     608,
+     858
+    ],
+    "title": "[Client] On- Time Rate by Department",
+    "certainty": 0.65,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 47,
+     "bigMasked": 11,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 0
+    },
+    "truth": "other",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     608,
+     558,
+     1386,
+     858
+    ],
+    "title": "",
+    "certainty": 0.86,
+    "features": {
+     "coverage": 0.171,
+     "marks": 17,
+     "rects": 11,
+     "thin": 1,
+     "series": 4,
+     "words": 71,
+     "bigMasked": 23,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "bar",
+    "right": true
+   }
+  ],
+  "size": [
+   1400,
+   927
+  ]
+ },
+ {
+  "id": "AmazonSalesOverview",
+  "tool": "Tableau",
+  "score": 1,
+  "visuals": 10,
+  "panels": 10,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     1161,
+     168,
+     1341,
+     276
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.036,
+     "marks": 10,
+     "rects": 0,
+     "thin": 1,
+     "series": 3,
+     "words": 4,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     261,
+     171,
+     438,
+     276
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.021,
+     "marks": 9,
+     "rects": 0,
+     "thin": 1,
+     "series": 4,
+     "words": 6,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     486,
+     171,
+     663,
+     276
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.023,
+     "marks": 11,
+     "rects": 0,
+     "thin": 1,
+     "series": 4,
+     "words": 5,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     711,
+     171,
+     888,
+     276
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.022,
+     "marks": 9,
+     "rects": 0,
+     "thin": 1,
+     "series": 3,
+     "words": 7,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     936,
+     171,
+     1116,
+     276
+    ],
+    "title": "Units [Client]",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.009,
+     "marks": 8,
+     "rects": 0,
+     "thin": 0,
+     "series": 4,
+     "words": 7,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 3
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     627,
+     321,
+     1338,
+     624
+    ],
+    "title": "Monthly Sales Over Time",
+    "certainty": 0.9,
+    "features": {
+     "coverage": 0.018,
+     "marks": 3,
+     "rects": 0,
+     "thin": 2,
+     "series": 3,
+     "words": 26,
+     "bigMasked": 18,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     258,
+     324,
+     606,
+     621
+    ],
+    "title": "Monthly Sales by Country",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.065,
+     "marks": 10,
+     "rects": 4,
+     "thin": 1,
+     "series": 3,
+     "words": 22,
+     "bigMasked": 11,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     261,
+     648,
+     609,
+     948
+    ],
+    "title": "Monthly Sales by Category",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.092,
+     "marks": 9,
+     "rects": 6,
+     "thin": 2,
+     "series": 3,
+     "words": 29,
+     "bigMasked": 14,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     627,
+     648,
+     975,
+     948
+    ],
+    "title": "Order Status",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.09,
+     "marks": 9,
+     "rects": 5,
+     "thin": 2,
+     "series": 3,
+     "words": 18,
+     "bigMasked": 10,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     990,
+     648,
+     1341,
+     948
+    ],
+    "title": "[Client] Type",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.124,
+     "marks": 9,
+     "rects": 6,
+     "thin": 2,
+     "series": 3,
+     "words": 29,
+     "bigMasked": 18,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "bar",
+    "right": true
+   }
+  ],
+  "size": [
+   1400,
+   1027
+  ]
+ },
+ {
+  "id": "RenewalsForecasting",
+  "tool": "Tableau",
+  "score": 1,
+  "visuals": 11,
+  "panels": 11,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     18,
+     96,
+     225,
+     183
+    ],
+    "title": "Total [Client]",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.002,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     246,
+     96,
+     450,
+     183
+    ],
+    "title": "[Client] Revenue at [Client]",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.029,
+     "marks": 3,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 5,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     471,
+     96,
+     675,
+     183
+    ],
+    "title": "[Client] Forecast",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.001,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 5,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     696,
+     96,
+     903,
+     222
+    ],
+    "title": "Unknown Attrition",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.002,
+     "marks": 2,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 7,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     924,
+     96,
+     1134,
+     183
+    ],
+    "title": "Forecast [Client]",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.001,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     18,
+     237,
+     567,
+     513
+    ],
+    "title": "[Client] regions [Client]",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.507,
+     "marks": 8,
+     "rects": 3,
+     "thin": 3,
+     "series": 4,
+     "words": 13,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     582,
+     237,
+     1134,
+     522
+    ],
+    "title": "[Client] products [Client] the [Client] revenue at [Client]",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.242,
+     "marks": 9,
+     "rects": 4,
+     "thin": 2,
+     "series": 5,
+     "words": 20,
+     "bigMasked": 11,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "donut",
+    "box": [
+     18,
+     528,
+     567,
+     819
+    ],
+    "title": "[Client] customers [Client] to churn?",
+    "certainty": 0.91,
+    "features": {
+     "coverage": 0.087,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 23,
+     "bigMasked": 10,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "donut",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     582,
+     540,
+     1134,
+     819
+    ],
+    "title": "[Client] fiscal quarters [Client] the [Client]",
+    "certainty": 0.57,
+    "features": {
+     "coverage": 0.01,
+     "marks": 2,
+     "rects": 0,
+     "thin": 3,
+     "series": 1,
+     "words": 18,
+     "bigMasked": 10,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     582,
+     834,
+     1134,
+     1113
+    ],
+    "title": "[Client] customer accounts [Client]",
+    "certainty": 0.65,
+    "features": {
+     "coverage": 0.025,
+     "marks": 27,
+     "rects": 0,
+     "thin": 1,
+     "series": 2,
+     "words": 125,
+     "bigMasked": 26,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     16,
+     832,
+     566,
+     1143
+    ],
+    "title": "[Client] customer segments [Client] the [Client] revenue [Client]",
+    "certainty": 0.88,
+    "features": {
+     "coverage": 0.638,
+     "marks": 6,
+     "rects": 2,
+     "thin": 1,
+     "series": 4,
+     "words": 36,
+     "bigMasked": 17,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "treemap",
+    "right": true
+   }
+  ],
+  "size": [
+   1150,
+   1187
+  ]
+ },
+ {
+  "id": "NorthstarControlTower",
+  "tool": "Tableau",
+  "score": 1,
+  "visuals": 17,
+  "panels": 17,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     189,
+     177,
+     504,
+     339
+    ],
+    "title": "ORDERS COMPLETED",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.088,
+     "marks": 16,
+     "rects": 7,
+     "thin": 1,
+     "series": 3,
+     "words": 6,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     513,
+     177,
+     828,
+     339
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.081,
+     "marks": 11,
+     "rects": 4,
+     "thin": 1,
+     "series": 6,
+     "words": 7,
+     "bigMasked": 6,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     834,
+     177,
+     1149,
+     339
+    ],
+    "title": "AVG LEAD TIME",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.059,
+     "marks": 8,
+     "rects": 0,
+     "thin": 1,
+     "series": 4,
+     "words": 9,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1158,
+     177,
+     1470,
+     339
+    ],
+    "title": "BACKLOG",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.029,
+     "marks": 4,
+     "rects": 0,
+     "thin": 1,
+     "series": 4,
+     "words": 6,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1479,
+     177,
+     1794,
+     339
+    ],
+    "title": "SLA [Client]",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.076,
+     "marks": 6,
+     "rects": 4,
+     "thin": 1,
+     "series": 3,
+     "words": 6,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     189,
+     375,
+     852,
+     495
+    ],
+    "title": "PERFORMANCE [Client]",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.184,
+     "marks": 3,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 32,
+     "bigMasked": 10,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "text",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     855,
+     402,
+     1014,
+     495
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.011,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1014,
+     402,
+     1245,
+     495
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.024,
+     "marks": 2,
+     "rects": 1,
+     "thin": 0,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1245,
+     402,
+     1491,
+     495
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.023,
+     "marks": 2,
+     "rects": 1,
+     "thin": 0,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1491,
+     402,
+     1788,
+     495
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.021,
+     "marks": 2,
+     "rects": 1,
+     "thin": 0,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     195,
+     507,
+     720,
+     726
+    ],
+    "title": "ON-TIME [Client] BY WAREHOUSE",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.277,
+     "marks": 9,
+     "rects": 5,
+     "thin": 0,
+     "series": 5,
+     "words": 54,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 4
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     729,
+     507,
+     1254,
+     726
+    ],
+    "title": "[Client] ORDERS [Client]",
+    "certainty": 0.65,
+    "features": {
+     "coverage": 0.216,
+     "marks": 31,
+     "rects": 12,
+     "thin": 0,
+     "series": 9,
+     "words": 54,
+     "bigMasked": 27,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 3
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     1263,
+     507,
+     1788,
+     726
+    ],
+    "title": "BACKLOG BY WAREHOUSE",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.114,
+     "marks": 7,
+     "rects": 0,
+     "thin": 1,
+     "series": 5,
+     "words": 38,
+     "bigMasked": 0,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     195,
+     771,
+     660,
+     990
+    ],
+    "title": "ON-TIME [Client] vs TARGET",
+    "certainty": 0.64,
+    "features": {
+     "coverage": 0.02,
+     "marks": 5,
+     "rects": 0,
+     "thin": 2,
+     "series": 3,
+     "words": 30,
+     "bigMasked": 6,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     669,
+     771,
+     1137,
+     990
+    ],
+    "title": "SLA [Client] (Last 30 days)",
+    "certainty": 0.81,
+    "features": {
+     "coverage": 0.013,
+     "marks": 2,
+     "rects": 0,
+     "thin": 1,
+     "series": 2,
+     "words": 26,
+     "bigMasked": 8,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     1143,
+     771,
+     1611,
+     990
+    ],
+    "title": "BACKLOG OVER TIME",
+    "certainty": 0.81,
+    "features": {
+     "coverage": 0.011,
+     "marks": 1,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 21,
+     "bigMasked": 8,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "text",
+    "box": [
+     1623,
+     777,
+     1794,
+     987
+    ],
+    "title": "[Client] AT A [Client]",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.007,
+     "marks": 3,
+     "rects": 0,
+     "thin": 2,
+     "series": 2,
+     "words": 44,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 0
+    },
+    "truth": "text",
+    "right": true
+   }
+  ],
+  "size": [
+   1800,
+   1027
+  ]
+ },
+ {
+  "id": "CampaignManagementKPI",
+  "tool": "Tableau",
+  "score": 1,
+  "visuals": 9,
+  "panels": 9,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "column",
+    "box": [
+     141,
+     110,
+     383,
+     351
+    ],
+    "title": "Revenue Forecast",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.085,
+     "marks": 35,
+     "rects": 11,
+     "thin": 1,
+     "series": 4,
+     "words": 14,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     395,
+     110,
+     633,
+     348
+    ],
+    "title": "[Client] Forecast",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.115,
+     "marks": 36,
+     "rects": 11,
+     "thin": 0,
+     "series": 3,
+     "words": 11,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     644,
+     110,
+     885,
+     351
+    ],
+    "title": "Average [Client] Trends",
+    "certainty": 0.9,
+    "features": {
+     "coverage": 0.009,
+     "marks": 10,
+     "rects": 0,
+     "thin": 1,
+     "series": 5,
+     "words": 18,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "gauge",
+    "box": [
+     332,
+     375,
+     503,
+     508
+    ],
+    "title": "Completed [Client]",
+    "certainty": 0.75,
+    "features": {
+     "coverage": 0.093,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "gauge",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     522,
+     375,
+     691,
+     508
+    ],
+    "title": "In Progress [Client]",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.081,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "gauge",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     706,
+     375,
+     865,
+     507
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.048,
+     "marks": 2,
+     "rects": 1,
+     "thin": 0,
+     "series": 1,
+     "words": 5,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "gauge",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     140,
+     536,
+     767,
+     816
+    ],
+    "title": "[Client] Date and [Client] Date",
+    "certainty": 0.3,
+    "features": {
+     "coverage": 0.133,
+     "marks": 13,
+     "rects": 12,
+     "thin": 0,
+     "series": 10,
+     "words": 85,
+     "bigMasked": 20,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 7
+    },
+    "truth": "gantt",
+    "right": true
+   },
+   {
+    "type": "placeholder",
+    "box": [
+     41,
+     840,
+     507,
+     1125
+    ],
+    "title": "Target [Client]",
+    "certainty": 0.35,
+    "features": {
+     "coverage": 0.015,
+     "marks": 14,
+     "rects": 10,
+     "thin": 1,
+     "series": 8,
+     "words": 41,
+     "bigMasked": 17,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 6
+    },
+    "truth": "other",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     518,
+     840,
+     884,
+     1123
+    ],
+    "title": "Marketing Channel",
+    "certainty": 0.65,
+    "features": {
+     "coverage": 0.021,
+     "marks": 20,
+     "rects": 0,
+     "thin": 1,
+     "series": 4,
+     "words": 48,
+     "bigMasked": 14,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "other",
+    "right": true
+   }
+  ],
+  "size": [
+   900,
+   1127
+  ]
+ },
+ {
+  "id": "Superstore2026Dark",
+  "tool": "Tableau",
+  "score": 1,
+  "visuals": 10,
+  "panels": 10,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     60,
+     282,
+     375,
+     405
+    ],
+    "title": "[Client] Sales",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.093,
+     "marks": 15,
+     "rects": 11,
+     "thin": 0,
+     "series": 4,
+     "words": 6,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     387,
+     282,
+     696,
+     405
+    ],
+    "title": "= Profit",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.076,
+     "marks": 12,
+     "rects": 11,
+     "thin": 0,
+     "series": 3,
+     "words": 5,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     705,
+     282,
+     1017,
+     405
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.092,
+     "marks": 13,
+     "rects": 12,
+     "thin": 0,
+     "series": 3,
+     "words": 5,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1026,
+     282,
+     1341,
+     405
+    ],
+    "title": "[Client] Customers",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.086,
+     "marks": 13,
+     "rects": 12,
+     "thin": 0,
+     "series": 3,
+     "words": 6,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     60,
+     417,
+     480,
+     672
+    ],
+    "title": "Sales in the Last Month",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.156,
+     "marks": 32,
+     "rects": 35,
+     "thin": 0,
+     "series": 3,
+     "words": 25,
+     "bigMasked": 0,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "heatmap",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     492,
+     417,
+     912,
+     662
+    ],
+    "title": "Sales YTD by Segment",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.109,
+     "marks": 10,
+     "rects": 6,
+     "thin": 0,
+     "series": 3,
+     "words": 15,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     492,
+     662,
+     912,
+     942
+    ],
+    "title": "Sales YTD by Category",
+    "certainty": 0.83,
+    "features": {
+     "coverage": 0.108,
+     "marks": 9,
+     "rects": 7,
+     "thin": 0,
+     "series": 3,
+     "words": 16,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     921,
+     417,
+     1341,
+     672
+    ],
+    "title": "Sales YTD by Managers",
+    "certainty": 0.83,
+    "features": {
+     "coverage": 0.083,
+     "marks": 16,
+     "rects": 5,
+     "thin": 0,
+     "series": 7,
+     "words": 29,
+     "bigMasked": 10,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "map",
+    "box": [
+     60,
+     684,
+     480,
+     942
+    ],
+    "title": "Sales YTD by State",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.187,
+     "marks": 11,
+     "rects": 5,
+     "thin": 0,
+     "series": 4,
+     "words": 17,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     921,
+     684,
+     1341,
+     942
+    ],
+    "title": "Sales YTD by Top 5 [Client]",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.172,
+     "marks": 10,
+     "rects": 4,
+     "thin": 0,
+     "series": 3,
+     "words": 21,
+     "bigMasked": 10,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "bar",
+    "right": true
+   }
+  ],
+  "size": [
+   1400,
+   1027
+  ]
+ },
+ {
+  "id": "SaaSRevenuePerformance",
+  "tool": "Tableau",
+  "score": 0.625,
+  "visuals": 8,
+  "panels": 7,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "kpi",
+    "title": "Total Revenue",
+    "box": [
+     574,
+     51,
+     756,
+     128
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Paid Users",
+    "box": [
+     763,
+     51,
+     926,
+     127
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "ARPPU",
+    "box": [
+     931,
+     51,
+     1087,
+     127
+    ]
+   }
+  ],
+  "invented": [
+   {
+    "type": "kpi",
+    "box": [
+     1182,
+     39,
+     1334,
+     203
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.024,
+     "marks": 3,
+     "rects": 3,
+     "thin": 0,
+     "series": 2,
+     "words": 6,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    }
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1001,
+     532,
+     1307,
+     628
+    ],
+    "title": "[Client] Revenue Share Over",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 13,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    }
+   }
+  ],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     1182,
+     39,
+     1334,
+     203
+    ],
+    "title": "",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.024,
+     "marks": 3,
+     "rects": 3,
+     "thin": 0,
+     "series": 2,
+     "words": 6,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "column",
+    "box": [
+     37,
+     155,
+     685,
+     458
+    ],
+    "title": "Monthly Revenue by",
+    "certainty": 0.59,
+    "features": {
+     "coverage": 0.082,
+     "marks": 60,
+     "rects": 42,
+     "thin": 2,
+     "series": 7,
+     "words": 37,
+     "bigMasked": 11,
+     "grid": 0,
+     "swatches": 4,
+     "vivid": 4
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     747,
+     242,
+     1247,
+     463
+    ],
+    "title": "",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.094,
+     "marks": 12,
+     "rects": 4,
+     "thin": 1,
+     "series": 2,
+     "words": 9,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 0
+    },
+    "truth": "combo",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     29,
+     532,
+     625,
+     847
+    ],
+    "title": "Revenue by [Client] and Product",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.238,
+     "marks": 22,
+     "rects": 8,
+     "thin": 1,
+     "series": 5,
+     "words": 37,
+     "bigMasked": 18,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 3
+    },
+    "truth": "pivot",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     663,
+     532,
+     965,
+     697
+    ],
+    "title": "Revenue by [Client]",
+    "certainty": 0.77,
+    "features": {
+     "coverage": 0.047,
+     "marks": 7,
+     "rects": 2,
+     "thin": 1,
+     "series": 6,
+     "words": 20,
+     "bigMasked": 9,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1001,
+     532,
+     1307,
+     628
+    ],
+    "title": "[Client] Revenue Share Over",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 13,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "area",
+    "box": [
+     1031,
+     639,
+     1340,
+     852
+    ],
+    "title": "",
+    "certainty": 0.84,
+    "features": {
+     "coverage": 0.658,
+     "marks": 2,
+     "rects": 1,
+     "thin": 0,
+     "series": 2,
+     "words": 9,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   }
+  ],
+  "size": [
+   1366,
+   900
+  ]
+ },
+ {
+  "id": "SalesAgentPerformance",
+  "tool": "Tableau",
+  "score": 0.5,
+  "visuals": 12,
+  "panels": 12,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "kpi",
+    "title": "Performance Score",
+    "box": [
+     332,
+     30,
+     733,
+     201
+    ]
+   },
+   {
+    "type": "combo",
+    "title": "Conversion by Month",
+    "box": [
+     753,
+     212,
+     954,
+     439
+    ]
+   },
+   {
+    "type": "kpi",
+    "title": "Volume Conversion",
+    "box": [
+     1180,
+     30,
+     1557,
+     201
+    ]
+   },
+   {
+    "type": "combo",
+    "title": "Volume Conversion by Month",
+    "box": [
+     1180,
+     213,
+     1369,
+     437
+    ]
+   },
+   {
+    "type": "combo",
+    "title": "Leads by Month",
+    "box": [
+     328,
+     642,
+     531,
+     867
+    ]
+   },
+   {
+    "type": "combo",
+    "title": "Cancellation Rate by Month",
+    "box": [
+     1177,
+     642,
+     1367,
+     865
+    ]
+   }
+  ],
+  "invented": [
+   {
+    "type": "column",
+    "box": [
+     756,
+     179,
+     1156,
+     440
+    ],
+    "title": "MONTH OVER MONTH",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.309,
+     "marks": 10,
+     "rects": 3,
+     "thin": 0,
+     "series": 4,
+     "words": 13,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    }
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1178,
+     32,
+     1580,
+     440
+    ],
+    "title": "VOLUME CONVERSION",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.053,
+     "marks": 11,
+     "rects": 4,
+     "thin": 2,
+     "series": 5,
+     "words": 18,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    }
+   },
+   {
+    "type": "table",
+    "box": [
+     332,
+     608,
+     734,
+     870
+    ],
+    "title": "MONTH [Client]",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.336,
+     "marks": 19,
+     "rects": 5,
+     "thin": 1,
+     "series": 4,
+     "words": 14,
+     "bigMasked": 4,
+     "grid": 1,
+     "swatches": 1,
+     "vivid": 1
+    }
+   },
+   {
+    "type": "column",
+    "box": [
+     1178,
+     609,
+     1580,
+     870
+    ],
+    "title": "MONTH OVER MONTH",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.166,
+     "marks": 6,
+     "rects": 3,
+     "thin": 0,
+     "series": 3,
+     "words": 13,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    }
+   },
+   {
+    "type": "text",
+    "box": [
+     10,
+     10,
+     289,
+     412
+    ],
+    "title": "Last Lead [Client]",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.024,
+     "marks": 7,
+     "rects": 5,
+     "thin": 0,
+     "series": 3,
+     "words": 30,
+     "bigMasked": 6,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    }
+   },
+   {
+    "type": "table",
+    "box": [
+     149,
+     503,
+     258,
+     810
+    ],
+    "title": "",
+    "certainty": 0.8,
+    "features": {
+     "coverage": 0.014,
+     "marks": 6,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 12,
+     "bigMasked": 11,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    }
+   }
+  ],
+  "panelList": [
+   {
+    "type": "line",
+    "box": [
+     332,
+     32,
+     734,
+     440
+    ],
+    "title": "PERFORMANCE SCORE",
+    "certainty": 0.87,
+    "features": {
+     "coverage": 0.188,
+     "marks": 18,
+     "rects": 9,
+     "thin": 1,
+     "series": 4,
+     "words": 16,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 0
+    },
+    "truth": "combo",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     756,
+     32,
+     1156,
+     179
+    ],
+    "title": "CONVERSION",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.021,
+     "marks": 2,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 2,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     756,
+     179,
+     1156,
+     440
+    ],
+    "title": "MONTH OVER MONTH",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.309,
+     "marks": 10,
+     "rects": 3,
+     "thin": 0,
+     "series": 4,
+     "words": 13,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1178,
+     32,
+     1580,
+     440
+    ],
+    "title": "VOLUME CONVERSION",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.053,
+     "marks": 11,
+     "rects": 4,
+     "thin": 2,
+     "series": 5,
+     "words": 18,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "kpi",
+    "box": [
+     332,
+     462,
+     734,
+     608
+    ],
+    "title": "LEADS",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.014,
+     "marks": 2,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 3,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     332,
+     608,
+     734,
+     870
+    ],
+    "title": "MONTH [Client]",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.336,
+     "marks": 19,
+     "rects": 5,
+     "thin": 1,
+     "series": 4,
+     "words": 14,
+     "bigMasked": 4,
+     "grid": 1,
+     "swatches": 1,
+     "vivid": 1
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "kpi",
+    "box": [
+     756,
+     462,
+     1156,
+     618
+    ],
+    "title": "SALES VOLUME",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.007,
+     "marks": 2,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 9,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     756,
+     618,
+     1156,
+     870
+    ],
+    "title": "MONTH OVER MONTH",
+    "certainty": 0.76,
+    "features": {
+     "coverage": 0.259,
+     "marks": 12,
+     "rects": 8,
+     "thin": 0,
+     "series": 4,
+     "words": 14,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "combo",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1178,
+     462,
+     1580,
+     609
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.011,
+     "marks": 3,
+     "rects": 0,
+     "thin": 2,
+     "series": 2,
+     "words": 4,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     1178,
+     609,
+     1580,
+     870
+    ],
+    "title": "MONTH OVER MONTH",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.166,
+     "marks": 6,
+     "rects": 3,
+     "thin": 0,
+     "series": 3,
+     "words": 13,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "text",
+    "box": [
+     10,
+     10,
+     289,
+     412
+    ],
+    "title": "Last Lead [Client]",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.024,
+     "marks": 7,
+     "rects": 5,
+     "thin": 0,
+     "series": 3,
+     "words": 30,
+     "bigMasked": 6,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "table",
+    "box": [
+     149,
+     503,
+     258,
+     810
+    ],
+    "title": "",
+    "certainty": 0.8,
+    "features": {
+     "coverage": 0.014,
+     "marks": 6,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 12,
+     "bigMasked": 11,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": null,
+    "right": false
+   }
+  ],
+  "size": [
+   1600,
+   927
+  ]
+ },
+ {
+  "id": "SLAServicePerformance",
+  "tool": "Tableau",
+  "score": 1,
+  "visuals": 13,
+  "panels": 13,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     196,
+     110,
+     406,
+     206
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 4,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     426,
+     63,
+     732,
+     206
+    ],
+    "title": "Resolution [Client] and [Client]",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.002,
+     "marks": 2,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 8,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     646,
+     110,
+     844,
+     206
+    ],
+    "title": "Avg. [Client] Time",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 4,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     864,
+     110,
+     1064,
+     206
+    ],
+    "title": "Avg. Resolution Time",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 5,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1084,
+     110,
+     1292,
+     206
+    ],
+    "title": "Total [Client] Time",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 6,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     196,
+     226,
+     530,
+     430
+    ],
+    "title": "",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.194,
+     "marks": 5,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 18,
+     "bigMasked": 1,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     566,
+     248,
+     729,
+     405
+    ],
+    "title": "Target Completed by Year",
+    "certainty": 0.86,
+    "features": {
+     "coverage": 0.418,
+     "marks": 1,
+     "rects": 0,
+     "thin": 0,
+     "series": 1,
+     "words": 9,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "bar",
+    "box": [
+     904,
+     226,
+     1292,
+     430
+    ],
+    "title": "SLA Target Status By Year",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.128,
+     "marks": 4,
+     "rects": 4,
+     "thin": 0,
+     "series": 1,
+     "words": 28,
+     "bigMasked": 0,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "bar",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     196,
+     450,
+     580,
+     644
+    ],
+    "title": "Avg. [Client]",
+    "certainty": 0.82,
+    "features": {
+     "coverage": 0.012,
+     "marks": 4,
+     "rects": 0,
+     "thin": 2,
+     "series": 2,
+     "words": 14,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     600,
+     450,
+     960,
+     644
+    ],
+    "title": "Total [Client] by Priority",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.108,
+     "marks": 4,
+     "rects": 2,
+     "thin": 0,
+     "series": 2,
+     "words": 13,
+     "bigMasked": 6,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "placeholder",
+    "box": [
+     980,
+     450,
+     1292,
+     644
+    ],
+    "title": "",
+    "certainty": 0.2,
+    "features": {
+     "coverage": 0.09,
+     "marks": 4,
+     "rects": 0,
+     "thin": 0,
+     "series": 3,
+     "words": 10,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "donut",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     196,
+     664,
+     922,
+     878
+    ],
+    "title": "SLA Performance [Client]",
+    "certainty": 0.8,
+    "features": {
+     "coverage": 0.025,
+     "marks": 23,
+     "rects": 0,
+     "thin": 4,
+     "series": 1,
+     "words": 110,
+     "bigMasked": 8,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     942,
+     664,
+     1292,
+     878
+    ],
+    "title": "Top 5 Region By [Client]",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.132,
+     "marks": 5,
+     "rects": 4,
+     "thin": 0,
+     "series": 1,
+     "words": 26,
+     "bigMasked": 10,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "column",
+    "right": true
+   }
+  ],
+  "size": [
+   1320,
+   927
+  ]
+ },
+ {
+  "id": "looker-business-overview",
+  "tool": "Looker",
+  "score": 1,
+  "visuals": 6,
+  "panels": 6,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     56,
+     336,
+     468,
+     728
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 7,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     492,
+     336,
+     904,
+     728
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.005,
+     "marks": 1,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 5,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     928,
+     336,
+     1340,
+     728
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 5,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1364,
+     336,
+     1776,
+     728
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 6,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     56,
+     752,
+     904,
+     1560
+    ],
+    "title": "Sales by Product Category",
+    "certainty": 0.81,
+    "features": {
+     "coverage": 0.153,
+     "marks": 30,
+     "rects": 14,
+     "thin": 1,
+     "series": 7,
+     "words": 38,
+     "bigMasked": 0,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "scatter",
+    "box": [
+     1100,
+     940,
+     1568,
+     1284
+    ],
+    "title": "",
+    "certainty": 0.53,
+    "features": {
+     "coverage": 0.107,
+     "marks": 22,
+     "rects": 2,
+     "thin": 1,
+     "series": 5,
+     "words": 23,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "map",
+    "right": true
+   }
+  ],
+  "size": [
+   1824,
+   1592
+  ]
+ },
+ {
+  "id": "looker-order-data",
+  "tool": "Looker",
+  "score": 1,
+  "visuals": 2,
+  "panels": 2,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "map",
+    "box": [
+     50,
+     233,
+     698,
+     854
+    ],
+    "title": "Customer [Client] by State",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.353,
+     "marks": 9,
+     "rects": 0,
+     "thin": 1,
+     "series": 4,
+     "words": 4,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     716,
+     330,
+     1364,
+     854
+    ],
+    "title": "[Client] Category Orders by Date",
+    "certainty": 0.7,
+    "features": {
+     "coverage": 0.201,
+     "marks": 37,
+     "rects": 22,
+     "thin": 3,
+     "series": 7,
+     "words": 31,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 4
+    },
+    "truth": "column",
+    "right": true
+   }
+  ],
+  "size": [
+   1414,
+   888
+  ]
+ },
+ {
+  "id": "looker-order-analysis-edit",
+  "tool": "Looker",
+  "score": 1,
+  "visuals": 2,
+  "panels": 2,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "map",
+    "box": [
+     150,
+     370,
+     1084,
+     1127
+    ],
+    "title": "Users by State",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.374,
+     "marks": 52,
+     "rects": 17,
+     "thin": 0,
+     "series": 6,
+     "words": 6,
+     "bigMasked": 0,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 0
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "donut",
+    "box": [
+     1113,
+     370,
+     2184,
+     1128
+    ],
+    "title": "Top Sales by Category",
+    "certainty": 1,
+    "features": {
+     "coverage": 0.1,
+     "marks": 6,
+     "rects": 0,
+     "thin": 0,
+     "series": 6,
+     "words": 23,
+     "bigMasked": 0,
+     "grid": 0,
+     "swatches": 1,
+     "vivid": 5
+    },
+    "truth": "donut",
+    "right": true
+   }
+  ],
+  "size": [
+   2200,
+   1144
+  ]
+ },
+ {
+  "id": "superset-saas-growth",
+  "tool": "Superset",
+  "score": 0.75,
+  "visuals": 4,
+  "panels": 4,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "kpi",
+    "title": "Paid Customers",
+    "box": [
+     32,
+     119,
+     533,
+     507
+    ]
+   }
+  ],
+  "invented": [
+   {
+    "type": "area",
+    "box": [
+     565,
+     140,
+     965,
+     490
+    ],
+    "title": "Customers by Country",
+    "certainty": 0.69,
+    "features": {
+     "coverage": 0.179,
+     "marks": 10,
+     "rects": 0,
+     "thin": 0,
+     "series": 6,
+     "words": 9,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    }
+   }
+  ],
+  "panelList": [
+   {
+    "type": "area",
+    "box": [
+     565,
+     140,
+     965,
+     490
+    ],
+    "title": "Customers by Country",
+    "certainty": 0.69,
+    "features": {
+     "coverage": 0.179,
+     "marks": 10,
+     "rects": 0,
+     "thin": 0,
+     "series": 6,
+     "words": 9,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 2
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "map",
+    "box": [
+     999,
+     136,
+     1556,
+     472
+    ],
+    "title": "TO",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.324,
+     "marks": 22,
+     "rects": 15,
+     "thin": 0,
+     "series": 7,
+     "words": 3,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "pie",
+    "box": [
+     32,
+     524,
+     794,
+     900
+    ],
+    "title": "Customers by [Client]",
+    "certainty": 1,
+    "features": {
+     "coverage": 0.233,
+     "marks": 8,
+     "rects": 7,
+     "thin": 0,
+     "series": 6,
+     "words": 15,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "pie",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     810,
+     524,
+     1572,
+     900
+    ],
+    "title": "[Client] distribution",
+    "certainty": 0.95,
+    "features": {
+     "coverage": 0.144,
+     "marks": 55,
+     "rects": 24,
+     "thin": 4,
+     "series": 9,
+     "words": 26,
+     "bigMasked": 12,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   }
+  ],
+  "size": [
+   1600,
+   900
+  ]
+ },
+ {
+  "id": "superset-sales",
+  "tool": "Superset",
+  "score": 0.8571428571428571,
+  "visuals": 7,
+  "panels": 7,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "text",
+    "title": "Vehicle Sales",
+    "box": [
+     1031,
+     190,
+     1272,
+     625
+    ]
+   }
+  ],
+  "invented": [
+   {
+    "type": "kpi",
+    "box": [
+     528,
+     630,
+     1014,
+     748
+    ],
+    "title": "Quarterly Revenue (By Product Line)",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.012,
+     "marks": 5,
+     "rects": 1,
+     "thin": 0,
+     "series": 3,
+     "words": 20,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    }
+   }
+  ],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     273,
+     140,
+     513,
+     396
+    ],
+    "title": "@\" Sales Overview",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.058,
+     "marks": 8,
+     "rects": 0,
+     "thin": 1,
+     "series": 4,
+     "words": 7,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "column",
+    "box": [
+     528,
+     189,
+     1014,
+     612
+    ],
+    "title": "Quarterly Revenue",
+    "certainty": 0.74,
+    "features": {
+     "coverage": 0.154,
+     "marks": 36,
+     "rects": 17,
+     "thin": 2,
+     "series": 9,
+     "words": 27,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     276,
+     414,
+     513,
+     612
+    ],
+    "title": "Total Products [Client]",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.068,
+     "marks": 3,
+     "rects": 0,
+     "thin": 1,
+     "series": 1,
+     "words": 4,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     276,
+     630,
+     513,
+     1029
+    ],
+    "title": "Products [Client] By",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.092,
+     "marks": 8,
+     "rects": 0,
+     "thin": 2,
+     "series": 2,
+     "words": 28,
+     "bigMasked": 1,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     528,
+     630,
+     1014,
+     748
+    ],
+    "title": "Quarterly Revenue (By Product Line)",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.012,
+     "marks": 5,
+     "rects": 1,
+     "thin": 0,
+     "series": 3,
+     "words": 20,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "column",
+    "box": [
+     528,
+     748,
+     1014,
+     1029
+    ],
+    "title": "",
+    "certainty": 0.94,
+    "features": {
+     "coverage": 0.087,
+     "marks": 77,
+     "rects": 37,
+     "thin": 1,
+     "series": 19,
+     "words": 16,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 5
+    },
+    "truth": "column",
+    "right": true
+   },
+   {
+    "type": "text",
+    "box": [
+     1029,
+     630,
+     1266,
+     1029
+    ],
+    "title": "Total Revenue By",
+    "certainty": 0.5,
+    "features": {
+     "coverage": 0.03,
+     "marks": 4,
+     "rects": 0,
+     "thin": 0,
+     "series": 3,
+     "words": 12,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "donut",
+    "right": true
+   }
+  ],
+  "size": [
+   1280,
+   1113
+  ]
+ },
+ {
+  "id": "superset-slack",
+  "tool": "Superset",
+  "score": 0.8333333333333334,
+  "visuals": 6,
+  "panels": 6,
+  "wrong": [],
+  "missed": [
+   {
+    "type": "kpi",
+    "title": "Weekly Threads",
+    "box": [
+     541,
+     135,
+     1009,
+     669
+    ]
+   }
+  ],
+  "invented": [
+   {
+    "type": "kpi",
+    "box": [
+     50,
+     136,
+     517,
+     413
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.011,
+     "marks": 7,
+     "rects": 6,
+     "thin": 0,
+     "series": 5,
+     "words": 2,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 4
+    }
+   }
+  ],
+  "panelList": [
+   {
+    "type": "kpi",
+    "box": [
+     50,
+     136,
+     517,
+     413
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.011,
+     "marks": 7,
+     "rects": 6,
+     "thin": 0,
+     "series": 5,
+     "words": 2,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 4
+    },
+    "truth": null,
+    "right": false
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1033,
+     136,
+     1501,
+     666
+    ],
+    "title": "Weekly [Client]",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.085,
+     "marks": 3,
+     "rects": 2,
+     "thin": 0,
+     "series": 1,
+     "words": 6,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     1525,
+     136,
+     1993,
+     666
+    ],
+    "title": "New [Client] per Month",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.072,
+     "marks": 5,
+     "rects": 1,
+     "thin": 1,
+     "series": 2,
+     "words": 9,
+     "bigMasked": 2,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     2017,
+     136,
+     2976,
+     666
+    ],
+    "title": "Top [Client] for [Client]",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.156,
+     "marks": 2,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 26,
+     "bigMasked": 0,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     50,
+     438,
+     517,
+     666
+    ],
+    "title": "Number of [Client]",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0,
+     "marks": 0,
+     "rects": 0,
+     "thin": 0,
+     "series": 0,
+     "words": 7,
+     "bigMasked": 1,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     50,
+     876,
+     2976,
+     1707
+    ],
+    "title": "",
+    "certainty": 0.74,
+    "features": {
+     "coverage": 0.241,
+     "marks": 6,
+     "rects": 0,
+     "thin": 2,
+     "series": 4,
+     "words": 16,
+     "bigMasked": 0,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 1
+    },
+    "truth": "area",
+    "right": true
+   }
+  ],
+  "size": [
+   3024,
+   1710
+  ]
+ },
+ {
+  "id": "superset-world-bank",
+  "tool": "Superset",
+  "score": 1,
+  "visuals": 7,
+  "panels": 7,
+  "wrong": [],
+  "missed": [],
+  "invented": [],
+  "panelList": [
+   {
+    "type": "map",
+    "box": [
+     1299,
+     169,
+     2255,
+     739
+    ],
+    "title": "-",
+    "certainty": 0.55,
+    "features": {
+     "coverage": 0.265,
+     "marks": 56,
+     "rects": 52,
+     "thin": 1,
+     "series": 7,
+     "words": 30,
+     "bigMasked": 7,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 3
+    },
+    "truth": "map",
+    "right": true
+   },
+   {
+    "type": "table",
+    "box": [
+     2302,
+     146,
+     3030,
+     1248
+    ],
+    "title": "[Client] Countries",
+    "certainty": 0.6,
+    "features": {
+     "coverage": 0.099,
+     "marks": 2,
+     "rects": 0,
+     "thin": 0,
+     "series": 2,
+     "words": 68,
+     "bigMasked": 13,
+     "grid": 1,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "table",
+    "right": true
+   },
+   {
+    "type": "kpi",
+    "box": [
+     56,
+     469,
+     529,
+     770
+    ],
+    "title": "",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.121,
+     "marks": 5,
+     "rects": 1,
+     "thin": 1,
+     "series": 1,
+     "words": 6,
+     "bigMasked": 3,
+     "grid": 0,
+     "swatches": 0,
+     "vivid": 0
+    },
+    "truth": "kpi",
+    "right": true
+   },
+   {
+    "type": "line",
+    "box": [
+     56,
+     792,
+     1528,
+     1248
+    ],
+    "title": "Growth Rate",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.081,
+     "marks": 18,
+     "rects": 0,
+     "thin": 9,
+     "series": 6,
+     "words": 62,
+     "bigMasked": 11,
+     "grid": 1,
+     "swatches": 10,
+     "vivid": 2
+    },
+    "truth": "line",
+    "right": true
+   },
+   {
+    "type": "donut",
+    "box": [
+     1554,
+     792,
+     2281,
+     1248
+    ],
+    "title": "",
+    "certainty": 1,
+    "features": {
+     "coverage": 0.139,
+     "marks": 10,
+     "rects": 3,
+     "thin": 0,
+     "series": 5,
+     "words": 6,
+     "bigMasked": 5,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 1
+    },
+    "truth": "sunburst",
+    "right": true
+   },
+   {
+    "type": "area",
+    "box": [
+     56,
+     1274,
+     1029,
+     1825
+    ],
+    "title": "[Client] Growth",
+    "certainty": 0.85,
+    "features": {
+     "coverage": 0.464,
+     "marks": 8,
+     "rects": 0,
+     "thin": 2,
+     "series": 5,
+     "words": 35,
+     "bigMasked": 4,
+     "grid": 0,
+     "swatches": 2,
+     "vivid": 0
+    },
+    "truth": "area",
+    "right": true
+   },
+   {
+    "type": "placeholder",
+    "box": [
+     1054,
+     1274,
+     3030,
+     1825
+    ],
+    "title": "",
+    "certainty": 0.35,
+    "features": {
+     "coverage": 0.03,
+     "marks": 25,
+     "rects": 8,
+     "thin": 1,
+     "series": 8,
+     "words": 96,
+     "bigMasked": 8,
+     "grid": 0,
+     "swatches": 7,
+     "vivid": 0
+    },
+    "truth": "scatter",
+    "right": true
+   }
+  ],
+  "size": [
+   3064,
+   1828
+  ]
+ }
+]
