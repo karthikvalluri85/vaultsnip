@@ -962,7 +962,7 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;
   // a masked table: many words, many masked value boxes, no solid bars and little ink (rows of data with sensitive values)
   // (a real masked table has many hidden value cells relative to its total word count; a text panel has few)
-  const maskedTable = !grid && words.length >= 35 && bigMasked.length >= 4 && bigMasked.length >= words.length * 0.25 && rects.length <= 1 && coverage < 0.08
+  const maskedTable = !grid && words.length >= 35 && bigMasked.length >= 4 && bigMasked.length >= words.length * 0.20 && rects.length <= 1 && coverage < 0.08
     ? { type: 'table' as const, certainty: 0.65, fields: {} } : null;
   const colourful = vivid.length >= 2 || thin.some((t) => sat(t.key) >= 3);
   // (a waterfall is read before columns: two of its columns may stand on the baseline, but its steps float)
@@ -981,7 +981,7 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
     || done(scatter(c))
     // (very-low-ink, no-grid panels with many words and few masked values are prose text — grey separator lines from
     //  panel borders create thin marks that fool lines(); a masked chart has many masked axis-label boxes)
-    || (coverage < 0.015 && words.length >= 25 && !lineChart && !grid && bigMasked.length < words.length * 0.25 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
+    || (coverage < 0.015 && words.length >= 25 && !lineChart && !grid && bigMasked.length < words.length * 0.20 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)
     || done(lines(c)) || done(table)
     || (prominent && words.length <= 24 ? done(kpi(c, 0.5))! : null)
     || (coverage < 0.05 && words.length >= 6 ? done({ type: 'text', certainty: 0.5, fields: {} })! : null)

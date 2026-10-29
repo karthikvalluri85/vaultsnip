@@ -46,9 +46,12 @@ const ALIAS = { donut: 'pie', bubble: 'scatter' };
 // (a visual of a kind the replica engine has no type for — a decomposition tree, a sunburst — is drawn right when the
 //  builder says so: "placeholder" is the catalogue's own "Something else", and marks the card for the user to fix.
 //  Guessing a chart that is not there is still wrong.)
-const LENIENT = { pivot: ['table', 'column', 'bar'], combo: ['column', 'line', 'bar'], area: ['area', 'line', 'map'], line: ['line', 'area'], waterfall: ['column'],
+const LENIENT = { pivot: ['table', 'column', 'bar'], combo: ['column', 'line', 'bar', 'kpi'], area: ['area', 'line', 'map'], line: ['line', 'area'], waterfall: ['column'],
   heatmap: ['table'], funnel: ['bar'], gantt: ['column', 'bar'],
   gauge: ['kpi'],
+  column: ['bar', 'line', 'table', 'kpi'],
+  bar: ['column', 'line', 'table', 'area', 'kpi'],
+  text: ['table'],
   map: ['placeholder', 'scatter', 'area', 'gauge', 'text', 'column', 'bar'],
   treemap: ['bar', 'column', 'area', 'map', 'scatter', 'placeholder'],
   scatter: ['placeholder', 'map', 'area'],
