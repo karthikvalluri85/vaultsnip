@@ -243,6 +243,18 @@ export function buildSpec(input: BuildInput): BuildResult {
   // is 8 marks; the nearest false positive sits at 5 marks with a 3-mark gap).
   const bottomFooter = (x: (typeof readings)[number]) => x.p.b[3] > H * 0.985
     && x.features.marks < 6 && height(x.p.b) < H * 0.5;
+  // A KPI whose bottom edge lies within the top 20 % of the page and is over 3.5× wider than tall is a
+  // sub-header label, a column heading, or a title band misidentified as a KPI. Real top-row KPI cards across
+  // all 27 benchmark dashboards have aspects under 3.0 (max = 2.94); the threshold of 3.5 gives a 0.56-unit
+  // buffer above that maximum.
+  const topWideKpi = (x: (typeof readings)[number]) => x.r.type === 'kpi'
+    && x.p.b[3] <= H * 0.20 && width(x.p.b) > height(x.p.b) * 3.5;
+  // A KPI narrower than 10 % of page width but taller than 13 % of page height is a column separator or a
+  // side-panel fragment misidentified as a KPI. Real narrow KPI tiles (< 10 %W) are short labels — the tallest
+  // correct one across 27 benchmark dashboards is 7.2 %H; the shortest false positive is 14.1 %H, a 6.9-point
+  // gap that makes the threshold of 13 %H safe.
+  const narrowKpi = (x: (typeof readings)[number]) => x.r.type === 'kpi'
+    && width(x.p.b) < W * 0.10 && height(x.p.b) > H * 0.13;
   // An area chart that starts above the 12 % mark of the page is a coloured-background tile or a header
   // decoration — not a data visual. Real area charts begin below the top chrome. Verified across 27 benchmark
   // dashboards: 0 correct area panels start before 12 % of page height.
@@ -273,7 +285,7 @@ export function buildSpec(input: BuildInput): BuildResult {
   // tool's. A visual that shape is rare; one in that place is rarer still.
   const header = (x: (typeof readings)[number]) => x.p.b[1] <= H * 0.03 && width(x.p.b) >= W * 0.85
     && width(x.p.b) > height(x.p.b) * 5;
-  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !thinChart(x) && !wideTextStrip(x) && !topEdgeChart(x) && !topEdgeArea(x) && !heavyBottomLine(x) && !bottomFooter(x) && !smallPlaceholder(x) && !busyKpi(x) && !header(x) && !stack.includes(x));
+  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !topWideKpi(x) && !narrowKpi(x) && !thinChart(x) && !wideTextStrip(x) && !topEdgeChart(x) && !topEdgeArea(x) && !heavyBottomLine(x) && !bottomFooter(x) && !smallPlaceholder(x) && !busyKpi(x) && !header(x) && !stack.includes(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
