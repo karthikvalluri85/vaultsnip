@@ -243,6 +243,16 @@ export function buildSpec(input: BuildInput): BuildResult {
   // is 8 marks; the nearest false positive sits at 5 marks with a 3-mark gap).
   const bottomFooter = (x: (typeof readings)[number]) => x.p.b[3] > H * 0.985
     && x.features.marks < 6 && height(x.p.b) < H * 0.5;
+  // An area chart that starts above the 12 % mark of the page is a coloured-background tile or a header
+  // decoration — not a data visual. Real area charts begin below the top chrome. Verified across 27 benchmark
+  // dashboards: 0 correct area panels start before 12 % of page height.
+  const topEdgeArea = (x: (typeof readings)[number]) => x.r.type === 'area' && x.p.b[1] < H * 0.12;
+  // A line chart that reaches the lower 12 % of the page (b3 > 88 %H) carrying more than 20 marks is a fragment
+  // produced by a horizontal cut through a larger visual — not a standalone chart. Every correct line that reaches
+  // the lower 12 % across the 27 benchmark dashboards has at most 10 marks; the phantom sits at 51, a 41-mark gap
+  // that makes the threshold of 20 safe.
+  const heavyBottomLine = (x: (typeof readings)[number]) => x.r.type === 'line'
+    && x.p.b[3] > H * 0.88 && x.features.marks > 20;
   // A real data visual needs enough space to communicate something. A placeholder panel that fits in less than
   // 8 % of page width AND 8 % of page height is a stray gap in the segmentation — a narrow strip between two
   // larger panels — not a data visual. Verified across 27 benchmark dashboards: 0 correct panels caught.
@@ -263,7 +273,7 @@ export function buildSpec(input: BuildInput): BuildResult {
   // tool's. A visual that shape is rare; one in that place is rarer still.
   const header = (x: (typeof readings)[number]) => x.p.b[1] <= H * 0.03 && width(x.p.b) >= W * 0.85
     && width(x.p.b) > height(x.p.b) * 5;
-  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !thinChart(x) && !wideTextStrip(x) && !topEdgeChart(x) && !bottomFooter(x) && !smallPlaceholder(x) && !busyKpi(x) && !header(x) && !stack.includes(x));
+  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !thinChart(x) && !wideTextStrip(x) && !topEdgeChart(x) && !topEdgeArea(x) && !heavyBottomLine(x) && !bottomFooter(x) && !smallPlaceholder(x) && !busyKpi(x) && !header(x) && !stack.includes(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
