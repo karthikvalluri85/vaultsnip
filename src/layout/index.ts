@@ -127,8 +127,12 @@ export function buildSpec(input: BuildInput): BuildResult {
   // visuals; a group set far to the right (a date range) is the subtitle
   // (but a row of KPI cards across the top is not a title: two or more KPI tiles side by side, each with a big value)
   // marks <= 2 excludes real charts; KPI panels up to marks=12 are also included (navigation bars render as KPI panels
-  // with many UI-element marks; the tiles guard below still protects two-or-more real KPI tiles at the top)
-  const inBand = (x: (typeof readings)[number]) => x.p.b[3] <= H * 0.12 && (x.features.marks <= 2 || (x.r.type === 'kpi' && x.features.marks <= 12));
+  // with many UI-element marks; the tiles guard below still protects two-or-more real KPI tiles at the top).
+  // Text/placeholder panels get a slightly taller band (0.13) to catch full-width filter bars that sit just above 0.12.
+  const inBand = (x: (typeof readings)[number]) => {
+    const limit = (x.r.type === 'text' || x.r.type === 'placeholder') ? H * 0.13 : H * 0.12;
+    return x.p.b[3] <= limit && (x.features.marks <= 2 || (x.r.type === 'kpi' && x.features.marks <= 12));
+  };
   const tiles = readings.filter((x) => inBand(x) && x.r.type === 'kpi' && x.features.bigMasked >= 1);
   const topBand = readings.filter((x) => inBand(x) && (x.r.type === 'kpi' || x.r.type === 'text' || x.r.type === 'placeholder') && !(tiles.length >= 2 && tiles.includes(x)));
   if (topBand.length && topBand.length < readings.length) {
