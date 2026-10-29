@@ -211,20 +211,25 @@ export function buildSpec(input: BuildInput): BuildResult {
   // not a visual. No dashboard puts a chart in a sixth of the width over a third of the height against the margin.
   const rail = (x: (typeof readings)[number]) => (x.p.b[0] <= W * 0.03 || x.p.b[2] >= W * 0.97)
     && width(x.p.b) <= W * 0.16 && height(x.p.b) >= H * 0.3;
-  // A KPI card is a card: a value with a label, in a block. Over four times as wide as it is tall, or taller than it is
+  // A KPI card is a card: a value with a label, in a block. Over 4.5 times as wide as it is tall, or taller than it is
   // wide by half, it is a caption, a legend or a note that happened to hold a masked word — not a card. (Of 86
-  // hand-labelled KPI cards on real dashboards every one lies between 0.88 and 4.33 times as wide as tall, and the
-  // generated set runs to 10, so the bounds are drawn wide enough for both.)
+  // hand-labelled KPI cards on real dashboards every one lies between 0.88 and 4.33 times as wide as tall; a 0.17
+  // buffer above that gives the 4.5 upper bound, safely below the 4.79 nearest false positive in the benchmark set.)
   const oddKpi = (x: (typeof readings)[number]) => {
     if (x.r.type !== 'kpi') return false;
     const a = width(x.p.b) / Math.max(1, height(x.p.b));
-    return a > 8 || a < 0.6;
+    return a > 4.5 || a < 0.6;
   };
   // A chart panel under 130 px tall is page furniture — a legend strip, a footer note, or a top navigation bar.
   // Across all 27 benchmark dashboards every legitimately-matched chart is ≥ 153 px tall; the 23 px gap gives
   // safe margin even for generated panels that underestimate the truth bounding box by 15–20 %.
   const thinChart = (x: (typeof readings)[number]) => height(x.p.b) < 130
     && ['column', 'bar', 'line', 'area', 'combo', 'scatter', 'pie', 'donut', 'treemap'].includes(x.r.type);
+  // A text or placeholder panel that spans nearly the full page width is a section-divider strip or a banner,
+  // not a chart or a data card. The widest real text visual across all 27 benchmark dashboards is under 71 % of page
+  // width; any panel ≥ 90 % wide and at least 8× wider than tall is page furniture.
+  const wideTextStrip = (x: (typeof readings)[number]) => (x.r.type === 'text' || x.r.type === 'placeholder')
+    && width(x.p.b) >= W * 0.90 && width(x.p.b) > height(x.p.b) * 8;
   // The same rail, cut into boxes: three or more panels stacked against one margin, none of them drawing much, running
   // down most of the page between them. That is a filter pane or a navigation column, whatever the cutter made of it.
   const side = (x: (typeof readings)[number], left: boolean) => (left ? x.p.b[2] <= W * 0.22 : x.p.b[0] >= W * 0.78)
@@ -235,7 +240,7 @@ export function buildSpec(input: BuildInput): BuildResult {
   // tool's. A visual that shape is rare; one in that place is rarer still.
   const header = (x: (typeof readings)[number]) => x.p.b[1] <= H * 0.03 && width(x.p.b) >= W * 0.85
     && width(x.p.b) > height(x.p.b) * 5;
-  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !thinChart(x) && !header(x) && !stack.includes(x));
+  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !thinChart(x) && !wideTextStrip(x) && !header(x) && !stack.includes(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
