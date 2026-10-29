@@ -406,26 +406,36 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
     const y0 = Math.max(0, Math.floor(p.b[1])), y1 = Math.min(img.height, Math.ceil(p.b[3]));
     const W = x1 - x0, H = y1 - y0;
     if (W < 20 || H < 20) return [p];
-    if (W * H < img.width * img.height * 0.10) return [p];
+    // A narrow horizontal strip where every word is masked (kept=false) is a KPI card bar: the values
+    // are too small for splitKpiRows to detect, but the gaps between tiles are clear enough for band-
+    // splitting. Use a lower area floor and word minimum, and try ALL clear bands widest-first so that
+    // a wide empty margin (which fails because one side is tiny) doesn't block narrower tile gaps.
+    const isNarrowMaskedStrip = H < img.height * 0.15 && W > H * 3
+      && p.words.length > 0 && p.words.every((w) => !w.kept);
+    if (W * H < img.width * img.height * (isNarrowMaskedStrip ? 0.04 : 0.10)) return [p];
     // Row gaps (horizontal splits) keep the original round-based minimum; column gaps (vertical splits) use floor
     // so a chart boundary at exactly 2×med wide isn't missed by rounding up.
     const minBandY = Math.max(14, Math.round(med * 2));
     const minBandX = Math.max(12, Math.floor(med * 1.8));
+    const wordFloor = isNarrowMaskedStrip ? 2 : 5;
     const colInk = (x: number) => { let n = 0; for (let y = y0; y < y1; y++) n += e[y * img.width + x]; return n; };
     const rowInk = (y: number) => { let n = 0; const o = y * img.width; for (let x = x0; x < x1; x++) n += e[o + x]; return n; };
     // Only kept (visible) words block a column gap; masked words have inaccurate OCR bounds and must not veto a split.
     const clearCol = (x: number) => colInk(x) <= 3 && !p.words.some((w) => w.kept && w.x <= x && w.x + w.w >= x);
     const clearRow = (y: number) => rowInk(y) <= 1 && !p.words.some((w) => w.y <= y && w.y + w.h >= y);
-    /** The widest run of clear lines strictly inside the panel, as [start, end). */
-    const widest = (from: number, to: number, clear: (i: number) => boolean) => {
-      let best: [number, number] | null = null, s = -1;
+    /** All runs of clear lines strictly inside [from, to), sorted widest-first. */
+    const allBands = (from: number, to: number, clear: (i: number) => boolean): [number, number][] => {
+      const runs: [number, number][] = [];
+      let s = -1;
       for (let i = from; i <= to; i++) {
         const ok = i < to && clear(i);
         if (ok && s < 0) s = i;
-        if (!ok && s >= 0) { if (s > from && i < to && (!best || i - s > best[1] - best[0])) best = [s, i]; s = -1; }
+        if (!ok && s >= 0) { if (s > from && i < to) runs.push([s, i]); s = -1; }
       }
-      return best;
+      return runs.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
     };
+    /** The widest run of clear lines strictly inside the panel, as [start, end). */
+    const widest = (from: number, to: number, clear: (i: number) => boolean) => allBands(from, to, clear)[0] ?? null;
     const gx = widest(x0, x1, clearCol), gy = widest(y0, y1, clearRow);
     const pick = (gap: [number, number] | null, axis: 'x' | 'y') => {
       if (!gap || gap[1] - gap[0] < (axis === 'x' ? minBandX : minBandY)) return null;
@@ -433,7 +443,7 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
       const a: Box = axis === 'x' ? [p.b[0], p.b[1], at, p.b[3]] : [p.b[0], p.b[1], p.b[2], at];
       const b: Box = axis === 'x' ? [at, p.b[1], p.b[2], p.b[3]] : [p.b[0], at, p.b[2], p.b[3]];
       const parts = [a, b].map((q) => ({ b: q, words: wordsIn(words, q), med: p.med }));
-      if (!parts.every((q) => couldBeVisual(q, img.width, img.height, med) && q.words.length >= 5)) return null;
+      if (!parts.every((q) => couldBeVisual(q, img.width, img.height, med) && q.words.length >= wordFloor)) return null;
       // each side draws something of its own: a panel split off its own white margin is not two visuals
       const drawn = (q: Panel) => {
         let n = 0;
@@ -448,6 +458,19 @@ export function splitClearBands(img: Img, ps: Panel[], words: Word[], med: numbe
     // Horizontal splits of tall panels are fine even when the words look grid-like (two stacked charts can share axis-label alignment).
     if (looksLikeTable(p.words, med)) {
       const best = pick(gy, 'y');
+      if (!best) return [p];
+      cut = true;
+      return best;
+    }
+    if (isNarrowMaskedStrip) {
+      // Try every column band (widest-first) then every row band so that a wide empty margin that
+      // fails the word-count check does not prevent a narrower inter-tile gap from being used.
+      const tryAll = (bands: [number, number][], axis: 'x' | 'y') => {
+        const min = axis === 'x' ? minBandX : minBandY;
+        for (const b of bands) { if (b[1] - b[0] < min) break; const r = pick(b, axis); if (r) return r; }
+        return null;
+      };
+      const best = tryAll(allBands(x0, x1, clearCol), 'x') || tryAll(allBands(y0, y1, clearRow), 'y');
       if (!best) return [p];
       cut = true;
       return best;
