@@ -230,6 +230,13 @@ export function buildSpec(input: BuildInput): BuildResult {
   // width; any panel ≥ 90 % wide and at least 8× wider than tall is page furniture.
   const wideTextStrip = (x: (typeof readings)[number]) => (x.r.type === 'text' || x.r.type === 'placeholder')
     && width(x.p.b) >= W * 0.90 && width(x.p.b) > height(x.p.b) * 8;
+  // A chart panel that starts within the top 5 % of the page and ends before the 22 % mark, with at most 2 marks,
+  // is part of the application's header chrome — a banner graphic, a logo area, or a decorative sparkline in the
+  // title bar — not a data visual. Real charts never start that high with so little drawn ink.
+  const topEdgeChart = (x: (typeof readings)[number]) => {
+    const CHART_TYPES = ['area', 'line', 'column', 'bar', 'scatter', 'pie', 'donut', 'treemap', 'combo'];
+    return CHART_TYPES.includes(x.r.type) && x.p.b[1] <= H * 0.05 && x.p.b[3] <= H * 0.22 && x.features.marks <= 2;
+  };
   // A panel whose bottom clips into the last 1.5 % of the page and draws fewer than 6 marks is a footer element —
   // a page number, a thin navigation strip, or a table that ran off the screenshot edge. Real visuals at the
   // page bottom always draw more marks (across 27 benchmark dashboards the minimum for a correct bottom-edge panel
@@ -246,7 +253,7 @@ export function buildSpec(input: BuildInput): BuildResult {
   // tool's. A visual that shape is rare; one in that place is rarer still.
   const header = (x: (typeof readings)[number]) => x.p.b[1] <= H * 0.03 && width(x.p.b) >= W * 0.85
     && width(x.p.b) > height(x.p.b) * 5;
-  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !thinChart(x) && !wideTextStrip(x) && !bottomFooter(x) && !header(x) && !stack.includes(x));
+  const real = readings.filter((x) => !furniture(x) && !rail(x) && !oddKpi(x) && !thinChart(x) && !wideTextStrip(x) && !topEdgeChart(x) && !bottomFooter(x) && !header(x) && !stack.includes(x));
   if (real.length) readings.splice(0, readings.length, ...real);
   // keep the largest visuals when there are too many; then rows by vertical overlap, left to right
   const kept = readings.length > MAX_VISUALS ? [...readings].sort((a, b) => area(b.p.b) - area(a.p.b)).slice(0, MAX_VISUALS) : readings;
