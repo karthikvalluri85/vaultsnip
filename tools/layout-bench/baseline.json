@@ -1,74 +1,75 @@
 {
- "version": "0.7.0",
- "measured": "2026-10-26",
+ "version": "0.8.0",
+ "measured": "2026-10-29",
  "opts": {},
  "dashboards": {
   "count": 39,
   "visuals": 301,
-  "found": 256,
-  "foundPct": 85,
-  "extraPanels": 73,
-  "typesRightLenient": 198,
-  "typesRightStrict": 190,
-  "typesRightPct": 77.3,
-  "endToEndPct": 65.8,
+  "found": 250,
+  "foundPct": 83.1,
+  "extraPanels": 22,
+  "typesRightLenient": 245,
+  "typesRightStrict": 201,
+  "typesRightPct": 98,
+  "endToEndPct": 81.4,
   "seriesLayout": {
-   "checked": 61,
-   "right": 54,
-   "rightPct": 88.5,
+   "checked": 68,
+   "right": 50,
+   "rightPct": 73.5,
    "wrong": {
-    "none→stacked": 1,
-    "none→clustered": 3,
+    "stacked→none": 4,
+    "none→clustered": 5,
+    "clustered→none": 5,
     "percent→stacked": 1,
-    "percent→none": 1,
+    "percent→none": 2,
     "stacked→clustered": 1
    }
   },
   "refLines": {
    "inTruth": 2,
    "found": 1,
-   "addedWhereNone": 1
+   "addedWhereNone": 0
   },
   "byTool": {
    "Power BI": {
     "dashboards": 14,
     "visuals": 88,
-    "found": 73,
-    "typesRight": 49,
-    "foundPct": 83,
-    "typesRightPct": 67.1
+    "found": 74,
+    "typesRight": 72,
+    "foundPct": 84.1,
+    "typesRightPct": 97.3
    },
    "Tableau": {
     "dashboards": 14,
     "visuals": 161,
-    "found": 134,
-    "typesRight": 108,
-    "foundPct": 83.2,
-    "typesRightPct": 80.6
+    "found": 128,
+    "typesRight": 126,
+    "foundPct": 79.5,
+    "typesRightPct": 98.4
    },
    "Looker": {
     "dashboards": 6,
     "visuals": 20,
-    "found": 19,
-    "typesRight": 17,
-    "foundPct": 95,
-    "typesRightPct": 89.5
+    "found": 20,
+    "typesRight": 19,
+    "foundPct": 100,
+    "typesRightPct": 95
    },
    "VaultSnip": {
     "dashboards": 1,
     "visuals": 8,
-    "found": 8,
-    "typesRight": 8,
-    "foundPct": 100,
+    "found": 7,
+    "typesRight": 7,
+    "foundPct": 87.5,
     "typesRightPct": 100
    },
    "Superset": {
     "dashboards": 4,
     "visuals": 24,
-    "found": 22,
-    "typesRight": 16,
-    "foundPct": 91.7,
-    "typesRightPct": 72.7
+    "found": 21,
+    "typesRight": 21,
+    "foundPct": 87.5,
+    "typesRightPct": 100
    }
   }
  },
