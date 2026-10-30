@@ -23,7 +23,7 @@ masked image before sharing, and why "Hide everything uncertain" exists. Most re
 lone digits read from chart shapes. A rule that dropped them cut findings to 21 but let one more real word through, so it
 was not shipped.
 
-**Replica** (30 dashboards, seed 7, `npm run bench:inplace`, after "Hide everything uncertain"): 20 of 2,680 sensitive
+**Replica** (30 dashboards, `gen.mjs --count 30 --seed 7`, then `tools/inplace-bench/run.mjs`, after "Hide everything uncertain"): 20 of 2,680 sensitive
 words left readable (0.7%), and zero changed pixels outside the replaced boxes on every image.
 
 The replica's made-up text now reads like a dashboard: 0.9 turned names into syllable strings ("Corwyn Marnekal Tratan");
