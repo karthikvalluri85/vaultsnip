@@ -127,6 +127,14 @@ Rules:
       return part.replace(/[A-Za-z]+(?:[A-Za-z'’-]*[A-Za-z])?/, w);
     }).join('');
   }
+  // an address of about the same length as the hidden one (which the reader may have cut short), at a reserved domain
+  function email(text, r) {
+    const domain = ['example.com', 'example.org', 'example.net'][Math.floor(r() * 3)];
+    const n = Math.max(3, String(text).length - domain.length - 1);
+    let local = '';
+    while (local.length < n) local += SYL[Math.floor(r() * SYL.length)];
+    return local.slice(0, n) + '@' + domain;
+  }
   function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
@@ -144,9 +152,11 @@ Rules:
       else if (t.kind === 'number') s = helpers && helpers.fakeValue ? helpers.fakeValue(t.original, hash(t.original + '|' + t.bbox[0] + '|' + t.bbox[1]) ^ seed, axes.get(t.mask)) : t.original.replace(/\d/g, () => String(Math.floor(r() * 10)));
       else if (faker && t.kind === 'person') s = faker.person(key);
       else if (faker && t.kind === 'client') s = faker.company(key);
-      else if (faker && t.kind === 'email') s = faker.email(key);
+      else if (t.kind === 'email') s = email(t.original, r);
       else if (faker && t.kind === 'id') s = faker.id(t.context || 'ID', key);
       else s = word(t.original, r);
+      // a made-up name far longer than the text it replaces would not fit its box: a word of the same length instead
+      if (t.kind !== 'number' && t.kind !== 'email' && s.length > t.original.length * 1.4 + 2) s = word(t.original, r);
       out.set(t.id, { synthetic: s, note: '', axis: axes.has(t.mask) });
     });
     return out;

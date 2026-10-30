@@ -611,6 +611,8 @@ customer service staff agent team people everyone nobody someone something nothi
       const out = `${String(d).padStart(date[1].length, '0')}${date[2]}${mon}${date[2]}${date[4]}`;
       return out === text && depth < 8 ? fakeValue(text, seed + 1, undefined, depth + 1) : out;
     }
+    // the exact value (an axis tick) belongs to the text's main number, the longest run of digits
+    const runs = text.match(/\d[\d,]*(?:\.\d+)?/g) || [], longest = runs.reduce((a, b) => (b.length > a.length ? b : a), '');
     let first = true;
     let out = text.replace(/\d[\d,]*(?:\.\d+)?/g, (run, offset) => {
       if (/^(19|20)\d{2}$/.test(run)) return run;                                   // a year is a label, not a value
@@ -625,8 +627,10 @@ customer service staff agent team people everyone nobody someone something nothi
         // the real value scaled, kept to the same number of digits (a percentage stays at or under 100); a whole number
         // that would round back to itself (1 × 1.3) is not a change
         const fit = x => { const s = Math.round(x).toString(); return x > 0 && s.length === plain.length && (!pct || x <= 100) && x <= cap && (dec || Math.round(x) !== v); };
-        let f = randomFactor(r), nv = exact != null && first ? exact : v * f;
-        first = false;
+        const mine = exact != null && first && run === longest;
+        if (mine && exact === 0) { first = false; return run.replace(/\d/g, '0').replace(/^0+(?=0)/, ''); }   // an axis's 0 stays 0
+        let f = randomFactor(r), nv = mine ? exact : v * f;
+        if (mine) first = false;
         if (!fit(nv)) nv = v * (f > 1 ? 0.55 + r() * 0.3 : 1.18 + r() * 0.62);
         if (v === 0 || !fit(nv)) nv = parseFloat(plain.length === 1 ? digit(1) : digit(1) + Array.from({ length: plain.length - 1 }, () => digit()).join('')) + (dec ? r() : 0);
         if (nv > cap) nv = cap * (0.5 + 0.45 * r());                                  // a score stays within its scale
@@ -639,13 +643,14 @@ customer service staff agent team people everyone nobody someone something nothi
       return grouped + (nd2 !== undefined ? '.' + nd2 : '');
     });
     // try again only when there is a number to change (a lone year stays as it is), and never endlessly
-    if (out === text && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run))) out = fakeValue(text, seed + 7, undefined, depth + 1);
+    if (out === text && exact !== 0 && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run))) out = fakeValue(text, seed + 7, undefined, depth + 1);
     return out;
   }
   // Numbers stacked as an axis (three or more in a column or a row, evenly spaced) share one factor, so the invented scale
   // stays in order and evenly stepped.
   function axisFactors(nums) {
-    const out = new Map(), val = m => parseFloat((m.text.match(/\d[\d,]*(?:\.\d+)?/) || ['NaN'])[0].replace(/,/g, ''));
+    const main = t => (t.match(/\d[\d,]*(?:\.\d+)?/g) || ['NaN']).reduce((a, b) => (b.length > a.length ? b : a));
+    const out = new Map(), val = m => parseFloat(main(m.text).replace(/,/g, ''));
     const lines = (key, along) => {
       const groups = [];
       nums.filter(m => !out.has(m) && Number.isFinite(val(m))).forEach(m => {
@@ -653,28 +658,69 @@ customer service staff agent team people everyone nobody someone something nothi
         const g = groups.find(g => Math.abs(key(g[0]) - key(m)) < Math.max(4, Math.min(g[0].w, m.w) * 0.6) && Math.abs(g[0].h - m.h) < Math.max(g[0].h, m.h) * 0.4);
         if (g) g.push(m); else groups.push([m]);
       });
+      // one line of numbers can hold several axes (two charts one above the other) and stray figures far away: split
+      // it where neighbours are much further apart than usual on that line, and judge each run on its own
+      const runs = [];
       groups.filter(g => g.length >= 3).forEach(g => {
         g.sort((a, b) => along(a) - along(b));
-        const gaps = g.slice(1).map((m, i) => along(m) - along(g[i])), mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-        const even = mean > 0 && gaps.every(d => Math.abs(d - mean) < mean * 0.25);
-        // an axis steps its values evenly too (8, 7, 6, 5…); a table column of real figures does not, and sharing a factor
-        // there would keep the true ratios between its rows
-        const vals = g.map(val), steps = vals.slice(1).map((v, i) => v - vals[i]), ms = steps.reduce((a, b) => a + b, 0) / steps.length;
-        const stepped = ms !== 0 && steps.every(d => Math.abs(d - ms) <= Math.abs(ms) * 0.1);
-        if (!even || !stepped) return;
-        // one factor that keeps every tick to its number of digits (else each would fall back to its own and break the scale)
-        // rebuilt as an even scale: a new start and a new step, at the labels' precision, every tick keeping its digits
+        const gaps = g.slice(1).map((m, i) => along(m) - along(g[i])).sort((a, b) => a - b), usual = gaps[Math.floor(gaps.length / 2)];
+        let run = [g[0]];
+        for (let i = 1; i < g.length; i++) {
+          if (along(g[i]) - along(g[i - 1]) > usual * 2.5) { runs.push(run); run = []; }
+          run.push(g[i]);
+        }
+        runs.push(run);
+      });
+      // an axis is evenly spaced, and steps its values evenly too (8, 7, 6, 5…); a table column of real figures does not,
+      // and sharing a factor there would keep the true ratios between its rows
+      // A tick the reader missed (or kept apart) leaves a double gap: each gap may span a whole number of steps, as long as
+      // its value changes by the same number of steps.
+      const isAxis = g => {
+        const gaps = g.slice(1).map((m, i) => along(m) - along(g[i])), unit = Math.min(...gaps);
+        if (!(unit > 0)) return false;
+        const n = gaps.map(d => Math.round(d / unit));
+        if (n.some((k, i) => k < 1 || k > 3 || Math.abs(gaps[i] / k - unit) > unit * 0.3)) return false;
+        const vals = g.map(val), per = vals.slice(1).map((v, i) => (v - vals[i]) / n[i]), ms = per.reduce((a, b) => a + b, 0) / per.length;
+        return ms !== 0 && per.every(d => Math.abs(d - ms) <= Math.abs(ms) * 0.1);
+      };
+      // the longest stretch that is an axis: a stray figure read beside the first or last tick does not spoil the rest
+      const axisIn = run => {
+        for (let len = run.length; len >= 3; len--) for (let i = 0; i + len <= run.length; i++) { const g = run.slice(i, i + len); if (isAxis(g)) return g; }
+        return null;
+      };
+      runs.map(axisIn).filter(Boolean).forEach(g => {
+        const vals = g.map(val), gaps = g.slice(1).map((m, i) => along(m) - along(g[i])), unitGap0 = Math.min(...gaps);
+        const idx = [0]; gaps.forEach(d => idx.push(idx[idx.length - 1] + Math.round(d / unitGap0)));
+        const perStep = (vals[vals.length - 1] - vals[0]) / idx[idx.length - 1];
+        // one factor for the whole axis, tried until every tick keeps its number of digits
         const r = seeded(hash(g.map(m => m.text).join('|'))), digits = v => String(Math.floor(Math.abs(v))).length;
-        const decs = Math.max(...g.map(m => ((m.text.match(/\d[\d,]*(?:\.(\d+))?/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
+        const decs = Math.max(...g.map(m => ((main(m.text).match(/\.(\d+)/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
         for (let k = 0; k < 24; k++) {
-          const f = randomFactor(r), start = q(vals[0] * f), step = q(ms * f) || Math.sign(ms) * unit;
-          const next = vals.map((_, i) => q(start + i * step));
-          if (next.every((v, i) => v > 0 && digits(v) === digits(vals[i]) && v !== vals[i])) { g.forEach((m, i) => out.set(m, next[i])); break; }
+          // a new start and a new step, at the labels' precision (so the steps stay exactly even); counted in steps, so a
+          // missing tick leaves its gap, and anchored on the axis's 0 when it has one, which stays exactly 0
+          const f = randomFactor(r), qs = q(perStep * f) || Math.sign(perStep) * unit, z = vals.indexOf(0);
+          const next = idx.map(k => (z >= 0 ? (k - idx[z]) * qs : q(vals[0] * f) + k * qs)).map(q), idx_ = idx;
+          if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && digits(v) === digits(vals[i]) && v !== vals[i]))) {
+            g.forEach((m, i) => out.set(m, next[i]));
+            // a tick at a missing step (kept out by its odd size: the reader joined a stray letter to it) takes the same
+            // scale when its value is the one that step should have
+            const a0 = along(g[0]), unitGap = Math.min(...g.slice(1).map((m, i) => along(m) - along(g[i]))), unitVal = (vals[1] - vals[0]) / Math.round((along(g[1]) - a0) / unitGap);
+            nums.filter(m => !out.has(m) && Number.isFinite(val(m)) && Math.abs(key(m) - key(g[0])) < Math.max(6, g[0].h)).forEach(m => {
+              const k = (along(m) - a0) / unitGap, idx = Math.round(k);
+              if (idx < 0 || Math.abs(k - idx) > 0.3 || along(m) > along(g[g.length - 1])) return;
+              const want = vals[0] + idx * unitVal;
+              const v = q(z >= 0 ? (idx - idx_[z]) * qs : q(vals[0] * f) + idx * qs);
+              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m))) out.set(m, v);
+            });
+            break;
+          }
         }
       });
     };
-    lines(m => m.x + m.w / 2, m => m.y);   // y-axis ticks: one column
-    lines(m => m.y + m.h / 2, m => m.x);   // x-axis ticks: one row
+    // positions are measured at each label's middle: a tick read with a stray letter beside it has a taller box
+    lines(m => m.x + m.w, m => m.y + m.h / 2);       // y-axis ticks: one column, right-aligned
+    lines(m => m.x + m.w / 2, m => m.y + m.h / 2);   // or centred
+    lines(m => m.y + m.h / 2, m => m.x + m.w / 2);   // x-axis ticks: one row
     return out;
   }
   // Paints number masks with the background colour and an invented value in the same style; other masks stay grey. A
@@ -1173,7 +1219,7 @@ customer service staff agent team people everyone nobody someone something nothi
   /* ---------------- screens ---------------- */
   function show(id) { ['s-drop', 's-crop', 's-review', 's-replica'].forEach(s => $(s).hidden = s !== id); window.scrollTo(0, 0); }
 
-  const MAX_PIXELS = 2200 * 2200, MAX_SIDE = 8000;
+  const MAX_PIXELS = 2200 * 2200, MAX_SIDE = 8000, MAX_FULL_PIXELS = 40e6, MAX_FULL_SIDE = 16000;
   async function loadImage(src) {
     const img = new Image();
     img.decoding = 'async';
@@ -1184,6 +1230,16 @@ customer service staff agent team people everyone nobody someone something nothi
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    // the replica is drawn on the picture at its own size (within what a canvas can hold), not on the reading copy
+    if (k < 1) {
+      const kf = Math.min(1, Math.sqrt(MAX_FULL_PIXELS / (W * H)), MAX_FULL_SIDE / Math.max(W, H));
+      if (kf > k) {
+        const f = document.createElement('canvas');
+        f.width = Math.round(W * kf); f.height = Math.round(H * kf);
+        f.getContext('2d').drawImage(img, 0, 0, f.width, f.height);
+        c.full = f;
+      }
+    }
     return c;
   }
 
@@ -1475,13 +1531,28 @@ customer service staff agent team people everyone nobody someone something nothi
   // sends (only each box's kind, character pattern and the visible labels beside it; never the hidden text), else made
   // here. A layer of hotspots over the picture explains each replaced box.
   S.fid = null;           // { canvas, patches, ai: provider name or '' }
+  const seededRandom = seed => seeded(seed);
   async function buildInPlace(useAi) {
     // with the AI: the boxes as shown in the send dialog; the request is the one the user saw there
     const toks = useAi && S.sendToks ? S.sendToks : VSSynth.tokens(S.masks.filter(m => m.on), S.words);
     const fallback = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
     let answer = null;
     if (useAi && S.sendReq.tokens.length) answer = await askSynth(S.sendReq);
-    const res = VSInpaint.patch(S.img, VSSynth.combine(toks, answer, fallback));
+    // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
+    const full = S.img.full || S.img, k = full.width / S.img.width;
+    const map = VSSynth.combine(toks, answer, fallback).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k }));
+    // chart shapes the reader took for text stay as they are (judged on the reading copy, where the words were measured)
+    const im = S.img.getContext('2d').getImageData(0, 0, S.img.width, S.img.height).data;
+    const hs = S.words.map(w => w.h).sort((a, b) => a - b), medH = hs[Math.floor(hs.length / 2)] || 12;
+    map.forEach((p, i) => {
+      const m = toks[i].mask;
+      // text the detector found (but could not read) is text: never left as it is
+      if (!m.text || m.text === '(table column)' || m.type === 'Unread text') return;
+      const inside = S.words.filter(w => w.x + w.w / 2 > m.x && w.x + w.w / 2 < m.x + m.w && w.y + w.h / 2 > m.y && w.y + w.h / 2 < m.y + m.h);
+      const minConf = inside.length ? Math.min(...inside.map(w => w.conf == null ? 100 : w.conf)) : 0;
+      if (VSInpaint.looksLikeShape(im, S.img.width, S.img.height, m, medH, minConf, m.text)) Object.assign(p, { keep: true, synthetic: '' });
+    });
+    const r = seededRandom(S.seed), res = VSInpaint.patch(full, map, { slantText: n => VSSynth.word(n > 9 ? 'Aaaaa ' + 'A' + 'a'.repeat(n - 7) : 'A' + 'a'.repeat(n - 1), r) });
     S.fid = { canvas: res.canvas, patches: res.patches, ai: useAi ? providerName() : '' };
     showInPlace();
   }
@@ -1495,9 +1566,10 @@ customer service staff agent team people everyone nobody someone something nothi
     if (retry) throw new Error(providerName() + ' returned replacements that could not be read. Try again, pick a stronger model, or build on this device.');
     return askSynth(req, true);
   }
-  const KIND_NAMES = { number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Unread text (cleared)' };
+  const KIND_NAMES = { number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Text that could not be read (a made-up label, or cleared)' };
   // What a hotspot tells: the synthetic value and why it is there. Never the hidden text.
   function describePatch(p) {
+    if (p.keep) return ['Left as it was', 'The reader took this part of a chart for text; it is not text, so it was not changed.'];
     const lines = [p.synthetic ? p.synthetic : 'Cleared', KIND_NAMES[p.kind] || 'Replaced text'];
     if (p.context) lines.push('Beside: ' + p.context);
     if (p.note) lines.push(p.note);
@@ -1506,11 +1578,13 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   function showInPlace() {
     show('s-replica');
-    const f = S.fid, ai = f.patches.filter(p => p.source === 'ai').length;
+    const f = S.fid, ai = f.patches.filter(p => p.source === 'ai' && !p.keep).length, kept = f.patches.filter(p => p.keep).length;
     VSInpaint.mount($('replica'), f.canvas, f.patches, { label: 'The screenshot with every sensitive text replaced by synthetic text', describe: describePatch });
     $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
-    $('fid-summary').textContent = `${f.patches.length} ${f.patches.length === 1 ? 'box' : 'boxes'} replaced in place` +
-      (f.ai ? `, ${ai} written by ${f.ai} and ${f.patches.length - ai} on this device` : ', all on this device') +
+    const n = f.patches.length - kept;
+    $('fid-summary').textContent = `${n} ${n === 1 ? 'box' : 'boxes'} replaced in place` +
+      (f.ai ? `, ${ai} written by ${f.ai} and ${n - ai} on this device` : ', all on this device') +
+      (kept ? `; ${kept} chart ${kept === 1 ? 'shape' : 'shapes'} the reader took for text left as ${kept === 1 ? 'it was' : 'they were'}` : '') +
       '. Everything else is the original picture. Hover or tab to a replaced value to see what it stands for.';
     $('export-note').textContent = '';
   }

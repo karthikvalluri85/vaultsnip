@@ -67,6 +67,17 @@ try {
   check(kept.length === 0, `no number keeps its real value, over 300 seeds${kept.length ? ' (' + kept.slice(0, 5).join(', ') + ')' : ''}`);
   check(synth.length > 5 && synth.every(([o, s]) => o !== s), `numbers become different synthetic values (${synth.slice(0, 3).map(x => x[1]).join(', ')}…)`);
 
+  // axes stay on one even scale: a stray figure beside a tick, a tick kept apart by its odd size, and a zero
+  const axis = await page.evaluate(() => {
+    const T = window.__DSC.test, M = [['800,000-', 52, 503, 69, 21], ['600,000-', 52, 547, 69, 21], ['2 400,000-', 32, 581, 91, 34.6], ['200,000-', 52, 634, 69, 20], ['0-', 101, 678, 21, 18], ['2', 111, 733, 21, 19]]
+      .map(([text, x, y, w, h]) => ({ text, x, y, w, h })), a = T.axisFactors(M);
+    return { v: M.map(m => a.get(m)), zero: T.fakeValue('0-', 9, 0) };
+  });
+  const [v8, v6, v4, v2, v0, stray] = axis.v;
+  check(v8 > 0 && Math.abs((v8 - v6) - (v6 - v4)) <= 2 && Math.abs((v4 - v2) - (v2 - v0)) <= 2 && v0 === 0 && stray === undefined && v8 !== 800000,
+    `an axis keeps one even scale, its zero and a tick with a stray digit beside it (${axis.v.join(', ')})`);
+  check(axis.zero === '0-', 'an axis zero stays 0');
+
   console.log('Overlay');
   const spots = await page.evaluate(() => document.querySelectorAll('#replica .ip-spot').length);
   check(spots === c1.patches, `one hotspot per replaced box (${spots})`);

@@ -71,16 +71,36 @@
     const max = far[0] || 0;
     if (max < 60) return { color: lum(bg) > 128 ? [32, 33, 36] : [240, 241, 243], weight: 400, ink: null };
     const cut = Math.max(60, max * 0.6), sum = [0, 0, 0];
-    let n = 0, ix0 = Infinity, iy0 = Infinity, ix1 = -1, iy1 = -1;
+    let n = 0, ix0 = Infinity, iy0 = Infinity, ix1 = -1, iy1 = -1, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
     for (const [x, y, p] of inside) {
       if (dist(p, bg) < cut) continue;
       sum[0] += p[0]; sum[1] += p[1]; sum[2] += p[2]; n++;
+      sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
       if (x < ix0) ix0 = x; if (x > ix1) ix1 = x; if (y < iy0) iy0 = y; if (y > iy1) iy1 = y;
     }
     const ink = n ? { x: ix0, y: iy0, w: ix1 - ix0 + 1, h: iy1 - iy0 + 1 } : null;
     // ink coverage of the glyphs' own box: bold strokes fill more of it
     const cover = ink ? n / (ink.w * ink.h) : 0;
-    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.38 ? 700 : cover > 0.3 ? 600 : 400, ink };
+    // the line the text runs along: the main axis of its ink. A slanted or vertical axis label runs at an angle; its
+    // size comes from the ink's spread across that axis (with ascenders and descenders, about 0.27 of the size)
+    let slant = null;
+    if (n > 20) {
+      const mx = sx / n, my = sy / n, cxx = sxx / n - mx * mx, cyy = syy / n - my * my, cxy = sxy / n - mx * my;
+      const tr = cxx + cyy, det = cxx * cyy - cxy * cxy, gap = Math.sqrt(Math.max(0, tr * tr / 4 - det));
+      const major = tr / 2 + gap, minor = Math.max(0.01, tr / 2 - gap), angle = 0.5 * Math.atan2(2 * cxy, cxx - cyy);
+      if (major / minor > 6 && Math.abs(angle) > 0.35 && Math.abs(angle) < Math.PI / 2 + 0.01)
+        slant = { angle, cx: mx, cy: my, length: 2 * Math.sqrt(3 * major), size: Math.sqrt(minor) / 0.27 };
+    }
+    // the height of the glyphs' main band: rows holding under a fifth of the busiest row's ink (a comma's tail, the
+    // dot of a decimal point below the line) do not count
+    let band = null;
+    if (ink) {
+      const rows = new Array(ink.h).fill(0);
+      for (const [, y, p] of inside) if (dist(p, bg) >= cut) rows[y - ink.y]++;
+      const top = Math.max(...rows), keep = rows.map((c, i) => (c >= top * 0.2 ? i : -1)).filter(i => i >= 0);
+      band = keep.length ? keep[keep.length - 1] - keep[0] + 1 : ink.h;
+    }
+    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.48 ? 700 : cover > 0.42 ? 600 : 400, ink, slant, band };
   }
 
   // Font size from the box height (Tier 2 rule: 75% of the box); when the glyphs' own height is known it is used instead,
@@ -96,10 +116,12 @@
   }
 
   // Everything a patch needs, read from the original pixels (never from a canvas already patched next door).
-  function styleFor(data, W, H, box) {
+  // numeric: the box holds a number, whose glyphs all stand on the line at full height (so its main band is its height)
+  function styleFor(data, W, H, box, numeric) {
     const bg = sampleBackground(data, W, H, box);
     const ink = sampleInk(data, W, H, box, bg.color);
-    return { bg, ink: ink.color, weight: ink.weight, size: fontSize(box, ink.ink), align: alignOf(box, ink.ink), inkBox: ink.ink };
+    const glyphs = numeric && ink.ink && ink.band ? Object.assign({}, ink.ink, { h: ink.band }) : ink.ink;
+    return { bg, ink: ink.color, weight: ink.weight, size: ink.slant ? Math.max(7, Math.round(ink.slant.size)) : fontSize(box, glyphs), align: alignOf(box, ink.ink), inkBox: ink.ink, slant: ink.slant };
   }
 
   function clearBox(ctx, box, bg) {
@@ -117,12 +139,20 @@
   // or just below the box at that column is background and stays (so a bar's top edge or a coloured cell border running
   // through the box survives); any other pixel is text, grown by one pixel for its anti-aliasing, and takes the colour of
   // the background beside it in its row, or else above or below it in its column. src: the original RGBA; dst: the RGBA written to.
-  function inpaintRegion(src, dst, W, H, box, tol = 40) {
+  // style (optional): the box's sampled background and ink. When the box is tight and a glyph touches its edge, the colour
+  // just above or below is the text's own; such a reference is replaced by the background, so the glyph is not taken
+  // for background and left behind.
+  function inpaintRegion(src, dst, W, H, box, tol = 40, style) {
     const { x0, y0, x1, y1 } = clampBox(box, W, H), w = x1 - x0, h = y1 - y0;
     if (w < 1 || h < 1) return;
     const ink = new Uint8Array(w * h);
     for (let x = x0; x < x1; x++) {
-      const top = px(src, W, x, Math.max(0, y0 - 1)), bot = px(src, W, x, Math.min(H - 1, y1));
+      let top = px(src, W, x, Math.max(0, y0 - 1)), bot = px(src, W, x, Math.min(H - 1, y1));
+      if (style) {
+        const inky = c => dist(c, style.ink) < dist(c, style.bg.color) && dist(c, style.bg.color) > tol;
+        if (inky(top)) top = style.bg.color;
+        if (inky(bot)) bot = style.bg.color;
+      }
       for (let y = y0; y < y1; y++) {
         const p = px(src, W, x, y);
         if (dist(p, top) > tol && dist(p, bot) > tol) ink[(y - y0) * w + (x - x0)] = 1;
@@ -172,16 +202,63 @@
     ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
     const font = () => `${st.weight} ${size}px ${FONT}`;
     ctx.font = font();
-    const room = Math.max(4, box.w - 2), wide = ctx.measureText(text).width;
-    if (wide > room) { size = Math.max(6, size * room / wide); ctx.font = font(); }
     ctx.fillStyle = css(st.ink); ctx.textBaseline = 'middle';
+    // text a little too wide is narrowed (down to 75%) before it is made smaller, so it keeps the original's height
+    const fit = room => {
+      const wide = ctx.measureText(text).width;
+      if (wide <= room) return 1;
+      const k = room / wide;
+      if (k >= 0.75) return k;
+      size = Math.max(6, size * k / 0.75); ctx.font = font();
+      return Math.min(1, room / ctx.measureText(text).width);
+    };
+    if (st.slant) {
+      // slanted or vertical text: drawn along the same line, centred where the original was
+      ctx.translate(st.slant.cx, st.slant.cy); ctx.rotate(st.slant.angle);
+      const k = fit(Math.max(4, st.slant.length * 1.05));
+      ctx.scale(k, 1); ctx.textAlign = 'center';
+      ctx.fillText(text, 0, size * 0.04);
+      ctx.restore();
+      return;
+    }
+    const hk = fit(Math.max(4, box.w - 2));
     const mid = st.inkBox ? st.inkBox.y + st.inkBox.h / 2 : box.y + box.h / 2;
     let x;
     if (st.align === 'left') { ctx.textAlign = 'left'; x = st.inkBox ? st.inkBox.x : box.x + 1; }
     else if (st.align === 'right') { ctx.textAlign = 'right'; x = st.inkBox ? st.inkBox.x + st.inkBox.w : box.x + box.w - 1; }
     else { ctx.textAlign = 'center'; x = st.inkBox ? st.inkBox.x + st.inkBox.w / 2 : box.x + box.w / 2; }
-    ctx.fillText(text, x, mid + size * 0.04);
+    // narrowed about the anchor, so left, right and centred text keep their edge
+    ctx.translate(x, 0); ctx.scale(hk, 1);
+    ctx.fillText(text, 0, mid + size * 0.04);
     ctx.restore();
+  }
+
+  // OCR sometimes reads a chart shape (a bar, a map region) as a large "2" or "4 8". Such a box is left as it is: clearing
+  // it would erase part of the chart, and drawing a number would add a large stray digit. A box is taken for a shape when
+  // it is much taller than the page's text and either is mostly ink (text covers well under half of its box) or holds a
+  // short, low-confidence reading on a background that is not plain (a large KPI value sits on a plain tile).
+  // medH: the median height of the words read on the page; minConf: the lowest confidence of the words in the box.
+  // A short reading (a legend's colour swatch read as "BM") whose box is mostly ink is a shape at any size.
+  function looksLikeShape(data, W, H, box, medH, minConf, text) {
+    // a confident reading is text, whatever is behind it: a value on a coloured bar or pie slice is never left as it is
+    if (minConf >= 80) return false;
+    // masks are padded by about 18% of the text's height on each side: compare the text's own height
+    const short = String(text || '').replace(/\s/g, '').length <= 3, tall = box.h / 1.36 > medH * 2.2;
+    if (!tall && !short) return false;
+    const bg = sampleBackground(data, W, H, box);
+    const { x0, y0, x1, y1 } = clampBox(box, W, H);
+    let n = 0, far = 0, fx0 = Infinity, fy0 = Infinity, fx1 = -1, fy1 = -1;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      n++;
+      if (dist(px(data, W, x, y), bg.color) <= 60) continue;
+      far++; if (x < fx0) fx0 = x; if (x > fx1) fx1 = x; if (y < fy0) fy0 = y; if (y > fy1) fy1 = y;
+    }
+    if (!n) return false;
+    if (tall) return far / n > 0.45 || (short && minConf < 75 && bg.share < 0.95);
+    // a swatch is one solid block inside the box: its ink fills its own outline, which text never does, and it stops
+    // short of the box's edges (a bar running out of the box, with a value at its end, does not)
+    const solid = far / Math.max(1, (fx1 - fx0 + 1) * (fy1 - fy0 + 1)), inside = fx0 > x0 && fy0 > y0 && fx1 < x1 - 1 && fy1 < y1 - 1;
+    return far / n > 0.3 && solid > 0.85 && inside;
   }
 
   // source: canvas or image of the original. patches: [{x,y,w,h,synthetic,...}] in source pixels.
@@ -194,12 +271,36 @@
     const ctx = out.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(source, 0, 0);
     const data = ctx.getImageData(0, 0, W, H).data;     // the original pixels: every patch samples from these
-    const styled = patches.map(p => Object.assign({}, p, { style: styleFor(data, W, H, p) }));
+    // a patch marked keep (a chart shape read as text) is left exactly as it is
+    const styled = patches.map(p => Object.assign({}, p, { style: styleFor(data, W, H, p, p.kind === 'number') }));
+    // Slanted labels (names along an axis at 45°) are mostly found by the text detector, not read: such a region gets a
+    // made-up label of about its length, drawn along its slant (opts.slantText(chars, patch)), and the few fragments the
+    // reader did pick out inside it are cleared without text of their own.
+    if (opts && opts.slantText) {
+      // diagonal only (20-70°): a column of axis ticks also runs vertically, and is not one label
+      const diag = a => Math.abs(a) > 0.35 && Math.abs(a) < 1.22;
+      // and only thin strokes on a plain background: a coastline or a map border also runs at a slant
+      const thin = p => {
+        if (p.style.bg.share < 0.6) return false;
+        const { x0, y0, x1, y1 } = clampBox(p, W, H);
+        let n = 0, far = 0;
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { n++; if (dist(px(data, W, x, y), p.style.bg.color) > 60) far++; }
+        return n > 0 && far / n < 0.3;
+      };
+      const slanted = styled.filter(p => p.kind === 'unread' && p.original !== '(table column)' && !p.keep && p.style.slant && diag(p.style.slant.angle) && thin(p));
+      slanted.forEach(p => { p.synthetic = opts.slantText(Math.max(2, Math.round(p.style.slant.length / (p.style.size * 0.55))), p); });
+      styled.forEach(p => {
+        if (p.kind === 'unread' || !p.synthetic) return;
+        const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+        if (slanted.some(s => cx > s.x && cx < s.x + s.w && cy > s.y && cy < s.y + s.h)) p.synthetic = '';
+      });
+    }
+    const work = styled.filter(p => !p.keep);
     // clear all first, so no new text is wiped by a neighbour; every clear reads the original pixels
     const img = ctx.getImageData(0, 0, W, H);
-    styled.forEach(p => inpaintRegion(data, img.data, W, H, p));
+    work.forEach(p => inpaintRegion(data, img.data, W, H, p, 40, p.style));
     ctx.putImageData(img, 0, 0);
-    styled.forEach(p => drawText(ctx, p, p.synthetic, p.style));
+    work.forEach(p => drawText(ctx, p, p.synthetic, p.style));
     return { canvas: out, patches: styled };
   }
 
@@ -264,7 +365,7 @@
     return { frame, layer, tip, outline(on) { frame.classList.toggle('ip-outline', !!on); } };
   }
 
-  const api = { RING, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
+  const api = { RING, looksLikeShape, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.VSInpaint = api;
 })(typeof window !== 'undefined' ? window : globalThis);

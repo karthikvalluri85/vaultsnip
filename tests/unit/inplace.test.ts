@@ -115,3 +115,43 @@ describe('surgical clear (inpaintRegion)', () => {
     expect(at(20, 20)).toEqual([74, 120, 170]);
   });
 });
+
+describe('shapes read as text, and slanted labels', () => {
+  it('leaves a legend swatch read as "BM" alone, but not a word', () => {
+    // a 12px filled square in a padded 18px box, and thin "text" strokes in a box of the same size
+    const d = image(80, 40, [255, 255, 255], [{ x: 13, y: 13, w: 12, h: 12, c: [58, 110, 220] }, { x: 53, y: 14, w: 1, h: 10, c: [40, 40, 40] }, { x: 57, y: 14, w: 1, h: 10, c: [40, 40, 40] }]);
+    expect(P.looksLikeShape(d, 80, 40, { x: 10, y: 10, w: 18, h: 18 }, 14, 57, 'BM')).toBe(true);
+    expect(P.looksLikeShape(d, 80, 40, { x: 50, y: 10, w: 18, h: 18 }, 14, 57, 'BM')).toBe(false);
+  });
+  it('never leaves a confident reading as it is, even on a coloured bar', () => {
+    const bar = image(60, 40, [58, 110, 220], [{ x: 20, y: 14, w: 2, h: 12, c: [255, 255, 255] }]);
+    expect(P.looksLikeShape(bar, 60, 40, { x: 10, y: 8, w: 30, h: 24 }, 10, 92, '350')).toBe(false);
+  });
+  it('leaves a tall, unsure digit on a chart alone, but not a large KPI value on a plain tile', () => {
+    const bars = image(120, 120, [255, 255, 255], [{ x: 20, y: 10, w: 30, h: 100, c: [58, 110, 220] }, { x: 60, y: 40, w: 30, h: 70, c: [58, 110, 220] }]);
+    expect(P.looksLikeShape(bars, 120, 120, { x: 15, y: 30, w: 80, h: 60 }, 14, 40, '2')).toBe(true);
+    const tile = image(120, 80, [246, 247, 249], [{ x: 30, y: 20, w: 6, h: 40, c: [30, 30, 30] }, { x: 50, y: 20, w: 20, h: 6, c: [30, 30, 30] }]);
+    expect(P.looksLikeShape(tile, 120, 80, { x: 20, y: 12, w: 70, h: 56 }, 14, 95, '7')).toBe(false);
+  });
+  it('finds the slant of a diagonal label', () => {
+    const W = 80, H = 80, d = image(W, H, [255, 255, 255]);
+    for (let i = 10; i < 60; i++) for (let t = 0; t < 3; t++) d.set([30, 30, 30, 255], ((i + t) * W + i) * 4);   // a 45° stroke
+    const ink = P.sampleInk(d, W, H, { x: 5, y: 5, w: 65, h: 65 }, [255, 255, 255]);
+    expect(ink.slant).not.toBeNull();
+    expect(Math.abs(ink.slant.angle - Math.PI / 4)).toBeLessThan(0.1);
+  });
+});
+
+describe('on-device values that fit their box', () => {
+  it('replaces a short fragment with a word of its length, not a full made-up name', () => {
+    const toks = Y.tokens([{ x: 0, y: 0, w: 20, h: 12, type: 'Name in context', text: 'Ms.', on: true }], []);
+    const v = Y.local(toks, {}, 3).get('t1').synthetic;
+    expect(v.length).toBeLessThanOrEqual(6);
+  });
+  it('makes an email about as long as the one it replaces, at a reserved domain', () => {
+    const toks = Y.tokens([{ x: 0, y: 0, w: 90, h: 12, type: 'Email', text: 'effertz@example', on: true }], []);
+    const v = Y.local(toks, {}, 3).get('t1').synthetic;
+    expect(v).toMatch(/^[a-z]+@example\.(com|org|net)$/);
+    expect(Math.abs(v.length - 15)).toBeLessThanOrEqual(1);
+  });
+});
