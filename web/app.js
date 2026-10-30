@@ -689,10 +689,10 @@ customer service staff agent team people everyone nobody someone something nothi
       const partSum = vals.slice(1).reduce((s, x) => s + x.v, 0);
       if (Math.abs(vals[0].v - partSum) / Math.max(1, partSum) > 0.06) return;
       // Already faked parts sum; force total to match
-      const partsEntry = vals.slice(1).map(x => x.m);
+      const partMasks = vals.slice(1).map(x => x.m);
       const totalM = vals[0].m;
-      if (partsEntry.some(m => out.has(m))) return; // already normalised by pct pass
-      const fakeParts = partsEntry.map(m => parseFloat((fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), undefined) || '0').replace(/[^0-9.]/g, '')) || val(m));
+      if (partMasks.some(m => out.has(m))) return; // already normalised by pct pass
+      const fakeParts = partMasks.map(m => parseFloat((fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), undefined) || '0').replace(/[^0-9.]/g, '')) || val(m));
       const fakeTotal = fakeParts.reduce((s, v) => s + v, 0);
       out.set(totalM, totalM.text.replace(/\d[\d,]*(?:\.\d+)?/, String(Math.round(fakeTotal))));
     });
