@@ -977,9 +977,37 @@ customer service staff agent team people everyone nobody someone something nothi
     // spots the user looked at and chose to show (a mask they switched off, or a finding marked not sensitive)
     const shown = S.masks.filter(m => !m.on && m.userOff);
     const labels = countLabels(all);
+    // Chart marks read as text. A short re-reading with no digit ("|", "=", "»", "R", "a") where the original screenshot has
+    // neither a word the first reader found nor a patch the text detector found is a gridline, a legend swatch or a bar
+    // edge: on the generated set such findings were false alarms every time. Only when the detector ran. A reading with a
+    // digit always counts, however short: a number both readers missed can surface here as a lone "4" (a real "10.7%"
+    // did), and numbers are the text most often left exposed.
+    const regs = S.unread.on && S.unread.state === 'ready' && S.unread.regions ? S.unread.regions : null;
+    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3);
+    // A re-reading of a word the first reader found at the same spot and judged safe ("Revenu" for "Revenue", "oup" for
+    // "Group") is the same label read differently, not something the masks missed. A different reading there
+    // ("Acme" where "Group" was read) is still a finding.
+    const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Close spelling of the same word: a part of it ("Revenu", "venue") or at most two letters off, and never a short
+    // fragment ("an" inside "Channel" is not a re-reading of it; it was a covered number read as letters).
+    const near = (a, b) => {
+      if (!a || !b || Math.min(a.length, b.length) < 4) return false;
+      if (b.includes(a) || a.includes(b)) return Math.min(a.length, b.length) >= 0.6 * Math.max(a.length, b.length);
+      if (Math.abs(a.length - b.length) > 2) return false;
+      const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+      for (let i = 1; i <= a.length; i++) { let prev = d[0]; d[0] = i; for (let k = 1; k <= b.length; k++) { const t = d[k]; d[k] = Math.min(d[k] + 1, d[k - 1] + 1, prev + (a[i - 1] === b[k - 1] ? 0 : 1)); prev = t; } }
+      return d[b.length] <= 2;
+    };
+    const safeSeen = S.words.filter(v => !classify(v.text) && !S.masks.some(m => m.on && overlap(m, v) > 0.5));
+    // the same spot, too: the two boxes overlap and are of a similar size, so a reading inside a long safe label is not let go
+    const similar = (a, b) => { const r = (a.w * a.h) / Math.max(1, b.w * b.h); return r > 0.5 && r < 2; };
+    const rereadsSafe = w => !/\d/.test(w.text) && safeSeen.some(v => overlap(v, w) > 0.5 && similar(v, w) && near(norm(w.text), norm(v.text)));
     const flags = [];
+    let marks = 0;
     all.forEach(w => {
       if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
+      if (noText(w) && !/\d/.test(w.text) && w.text.replace(/\s/g, '').length <= 3) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'no text', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
+      if (rereadsSafe(w)) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'reread', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
       const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
       if (shown.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
@@ -995,7 +1023,7 @@ customer service staff agent team people everyone nobody someone something nothi
       if (flags.some(f => overlap(f, w) > 0.3)) return;
       flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false });
     });
-    S.flags = flags;
+    S.flags = flags; S.chartMarks = marks;
     updateGate();
     detectFingerprint();
     setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
