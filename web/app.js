@@ -18,6 +18,7 @@
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     sessionAllow: new Set(),
+    blurs: [], tool: 'mask',   // areas the user chose to blur (charts whose shape is confidential), and what a drag draws
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
     ctx: { on: true, lines: null, scores: null, state: 'idle' },  // on-device name check (lib/vs-context.js, ml/)
@@ -57,6 +58,19 @@ pricing price prices model models seat seats discount discounts scenario scenari
 sprint sprints story stories points velocity burndown committed completed carry over bug bugs task tasks spike done blocked progress todo epic epics
 experiment experiments variant variants control treatment lift interval significant significance confidence
 median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second sec secs ms
+sold buy buys bought purchase purchases purchased booked billed paid unpaid received returned refund refunds refunded cancelled canceled
+delivered fulfilled backorder backorders pts pt bps basis above below under over within outside prev excl incl excluding including include exclude
+existing repeat renewal renewals renewed upsell upsells expansion contraction downgrade downgrades upgrade upgrades
+achieved achievement goal goals benchmark benchmarks baseline estimate estimates estimated projected projection projections forecasted
+increase increased increases decrease decreased decreases up down flat improved improvement improvements decline declined declines
+rank ranking ranked best worst highest lowest leading lagging key main major minor primary secondary overall combined consolidated adjusted
+reported normalized normalised constant service services solution solutions offering offerings package packages subscription subscriptions
+plans license licenses licence licences contract contracts agreement agreements quote quotes proposal proposals call calls chat chats
+meeting meetings demo demos event events campaign campaigns spent each staff staffing capacity utilisation utilization occupancy availability
+downtime efficiency productivity output throughput yield defects defect scrap claims claim premium premiums policy policies coverage payout
+payouts patients patient admissions discharges beds readmissions encounters students enrollment enrolment courses breakdown split mix
+contribution composition generated printed is are was were be been has have had can not this that these those our your their its we they
+which what when where how why than then also just about across into out off per year-to-date month-to-date quarter-to-date
 `).split(/\s+/).filter(Boolean));
 
   const TYPES = {
@@ -148,17 +162,40 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   }
 
   /* ---------------- OCR (local, Tesseract in WASM) ---------------- */
-  let workerP = null;
-  function worker() {
-    if (!workerP) {
-      workerP = Tesseract.createWorker('eng', 1, {
-        workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
-        workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
-        logger: m => { heartbeat(m); if (m.status && typeof m.progress === 'number') showProgress(m.status, m.progress); }
-      }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
-        .catch(e => { workerP = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
+  // Several readers work at once. The passes over one image are independent, so on a machine with cores and memory to
+  // spare they run side by side instead of one after another; their results are merged in the same order as before, so
+  // what is read does not change, only how long it takes. Each reader has its own settings and its own watchdog, and a
+  // pass prepares its (large) scaled copy of the image only once a reader is free for it.
+  const POOL = (() => {
+    const cores = navigator.hardwareConcurrency || 2, mem = navigator.deviceMemory || 4;
+    // measured: two readers on a 2-core machine read the same words about a quarter faster than one
+    return Math.max(1, Math.min(3, cores, mem < 4 ? 1 : mem < 8 ? 2 : 3));
+  })();
+  const slots = [], waiting = [];
+  function startReader(slot) {
+    slot.p = Tesseract.createWorker('eng', 1, {
+      workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
+      workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
+      logger: m => beat(slot, m)
+    }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
+      .catch(e => { slot.p = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
+    return slot.p;
+  }
+  async function acquire() {
+    const size = (S.test && S.test.pool) || POOL;
+    for (;;) {
+      let slot = slots.slice(0, size).find(sl => !sl.busy);
+      if (!slot && slots.length < size) { slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null }; slots.push(slot); }
+      if (slot) { slot.busy = true; return slot; }
+      await new Promise(r => waiting.push(r));
     }
-    return workerP;
+  }
+  function release(slot) { slot.busy = false; slot.prog = 0; slot.job = null; const next = waiting.shift(); if (next) next(); }
+  // only progress that moves counts as a heartbeat
+  function beat(slot, m) {
+    const at = m.status + ':' + m.progress;
+    if (at !== slot.at) { slot.at = at; slot.beat = Date.now(); }
+    if (m.status && typeof m.progress === 'number') { if (/recognizing/i.test(m.status)) slot.prog = m.progress; showProgress(m.status); }
   }
   // One progress figure for a whole job: every reading pass, and for a new screenshot the check that follows. Each pass
   // counts by how much image it reads (scale squared), and the figure never goes back, so it climbs to 100% once
@@ -167,9 +204,11 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   const CHECK_SCALES = [2, 1.5, 3, 3, 3, 2];
   const weightOf = scales => scales.reduce((a, k) => a + k * k, 0);
   let job = null;
-  function showProgress(status, p) {
+  function showProgress(status) {
     if (!job || !/recognizing/i.test(status)) { if (!/recognizing/i.test(status)) setStatus(humanStatus(status), true); return; }
-    const pct = Math.min(99, Math.floor(((job.done + p * job.cur) / job.total) * 100));
+    // passes run side by side: the figure counts the finished ones and each running one by how far it has got
+    const running = slots.reduce((a, sl) => a + (sl.busy && sl.job === job ? (sl.prog || 0) * (sl.weight || 0) : 0), 0);
+    const pct = Math.min(99, Math.floor(((job.done + running) / job.total) * 100));
     job.shown = Math.max(job.shown, pct);
     setStatus(`${job.label} ${job.shown}%`, true);
   }
@@ -213,63 +252,56 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     }
     x.putImageData(im, 0, 0);
   }
-  // One reader, one pass at a time: a pass changes the reader's settings ("block" mode), so two callers must not interleave.
-  let ocrQueue = Promise.resolve();
-  function ocr(src, scale, kind) {
-    const run = ocrQueue.then(() => ocrPass(src, scale, kind));
-    ocrQueue = run.catch(() => {});
-    return run;
-  }
-  // Watchdog: the reader reports its progress all the time it works. On a busy machine it can occasionally get stuck,
+  // Watchdog: a reader reports its progress all the time it works. On a busy machine it can occasionally get stuck,
   // which used to leave the progress figure frozen for good: sometimes silent, sometimes repeating the same figure.
   // When its progress has not moved for STALL_MS, or one pass has run longer than PASS_MAX_MS (a pass normally takes
   // seconds), the stuck reader is ended and the pass runs once more with a fresh one; a second stall is reported.
   const STALL_MS = 30000, PASS_MAX_MS = 120000;
-  let lastBeat = 0, lastProgress = '';
-  function heartbeat(m) {
-    const at = m.status + ':' + m.progress;   // only progress that moves counts
-    if (at !== lastProgress) { lastProgress = at; lastBeat = Date.now(); }
-  }
   class ReaderStalled extends Error {}
-  function watched(promise) {
-    const start = lastBeat = Date.now();
-    lastProgress = '';
+  function watched(promise, slot) {
+    const start = slot.beat = Date.now();
+    slot.at = '';
     let timer;
     const still = S.test && S.test.stallMs || STALL_MS, most = S.test && S.test.passMaxMs || PASS_MAX_MS;
     const stalled = new Promise((_, reject) => {
-      timer = setInterval(() => { const now = Date.now(); if (now - lastBeat > still || now - start > most) reject(new ReaderStalled('reader stalled')); }, 500);
+      timer = setInterval(() => { const now = Date.now(); if (now - slot.beat > still || now - start > most) reject(new ReaderStalled('reader stalled')); }, 500);
     });
     return Promise.race([promise, stalled]).finally(() => clearInterval(timer));
   }
-  async function recognize(canvas, kind) {
+  // make: prepares the image for this pass, once a reader is free; weight: how much it counts in the progress figure
+  async function recognize(make, kind, weight) {
     for (let attempt = 0; ; attempt++) {
-      const w = await worker();
-      if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
+      const slot = await acquire();
+      slot.weight = weight || 1; slot.prog = 0; slot.job = job;
       try {
+        const w = await (slot.p || startReader(slot));
+        if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
+        const canvas = make();
         // tests can make the next readings hang, to prove the watchdog recovers
         // (silent, or repeating the same progress figure for a while)
-        const spin = () => { const t = setInterval(() => heartbeat({ status: 'recognizing text', progress: 0.06 }), 200); setTimeout(() => clearInterval(t), 10000); };
+        const spin = () => { const t = setInterval(() => beat(slot, { status: 'recognizing text', progress: 0.06 }), 200); setTimeout(() => clearInterval(t), 10000); };
         const run = S.test && S.test.stalls > 0 ? (S.test.stalls--, new Promise(() => {}))
           : S.test && S.test.spins > 0 ? (S.test.spins--, spin(), new Promise(() => {}))
           : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
         run.catch(() => {});   // an abandoned reading may still fail once its reader is ended
-        return (await watched(run)).data;
+        return (await watched(run, slot)).data;
       } catch (e) {
         if (!(e instanceof ReaderStalled)) throw e;
         console.warn('The on-device reader stopped responding; restarting it.');
-        workerP = null;
-        w.terminate().catch(() => {});
+        const stuck = slot.p; slot.p = null;
+        if (stuck) stuck.then(w => w.terminate()).catch(() => {});
         if (attempt >= 1) throw new Error('it stopped responding twice. Please try again; closing other tabs can help.');
         continue;
       } finally {
-        if (kind === 'block' && workerP) await (await workerP).setParameters({ tessedit_pageseg_mode: '11' }).catch(() => {});
+        if (kind === 'block' && slot.p) await (await slot.p).setParameters({ tessedit_pageseg_mode: '11' }).catch(() => {});
+        release(slot);
       }
     }
   }
   async function ocrPass(src, scale, kind) {
     kind = kind === true ? 'inverted' : (kind || 'normal');
     const invert = kind === 'inverted';
-    const data = await recognize(prep(src, scale, kind), kind);
+    const data = await recognize(() => prep(src, scale, kind), kind, scale * scale);
     const out = [];
     (data.tsv || '').split('\n').forEach(line => {
       const c = line.split('\t');
@@ -284,17 +316,16 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   async function readAll(src, passes, label) {
     let all = [];
     const mine = !job;
-    if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, cur: 0, shown: 0 };
+    if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, shown: 0 };
     const j = job;   // this run's own figure, even if a newer screenshot starts another
     j.label = label || 'Reading text on this device…';
     try {
-    for (const [scale, kind, own] of passes) {
-      j.cur = scale * scale;
-      const got = await ocr(own || src, scale, kind);
-      j.done += j.cur; j.cur = 0;
-      // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
-      all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
-    }
+      // all passes at once (as many as there are readers); merged in pass order, exactly as when they ran one by one
+      const results = await Promise.all(passes.map(([scale, kind, own]) => ocrPass(own || src, scale, kind).then(got => { j.done += scale * scale; return got; })));
+      results.forEach(got => {
+        // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
+        all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
+      });
     } finally { if (mine && job === j) job = null; }
     return plausible(all);
   }
@@ -492,14 +523,18 @@ customer service staff agent team people everyone nobody someone something nothi
   // Without a fill colour, numbers are replaced with invented values of the same size (when "fake numbers" is on) and
   // every other mask stays a grey box. An image with invented numbers gets a footer strip that says so; opts.tag: false
   // leaves it out (the review view says it in the page; the layout builder must not read it as content).
+  // A box lies under a blurred area when its centre does: it is blurred with the chart, so it is not drawn on its own.
+  const underBlur = m => S.blurs.some(b => m.x + m.w / 2 > b.x && m.x + m.w / 2 < b.x + b.w && m.y + m.h / 2 > b.y && m.y + m.h / 2 < b.y + b.h);
+  function blurAreas(x, scale) { S.blurs.forEach(b => VSInpaint.blurRegion(x, { x: b.x * scale, y: b.y * scale, w: b.w * scale, h: b.h * scale })); }
   function maskedCanvas(scale, fill, opts) {
     scale = scale || 1;
-    const on = S.masks.filter(m => m.on);
+    const on = S.masks.filter(m => m.on && !underBlur(m));
     const fakes = !fill && S.fakeNumbers && on.some(isNumberMask), strip = fakes && !(opts && opts.tag === false) ? footerHeight(scale) : 0;
     const c = document.createElement('canvas');
     c.width = Math.round(S.img.width * scale); c.height = Math.round(S.img.height * scale) + strip;
     const x = c.getContext('2d');
     x.drawImage(S.img, 0, 0, c.width, c.height - strip);
+    blurAreas(x, scale);
     if (!fakes) {
       x.fillStyle = fill || '#787c82';
       on.forEach(m => x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale));
@@ -532,6 +567,8 @@ customer service staff agent team people everyone nobody someone something nothi
   const isNumberMask = m => m.type === 'Number or money' || (m.type === 'Added after check' && /\d/.test(m.text || ''));
   function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  // two significant figures: 64,947 → 65,000, 0.0734 → 0.073
+  const roundTo2 = x => { if (!x) return x; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 1); return Math.round(x / p) * p; };
   const randomFactor = r => (r() < 0.5 ? 0.55 + r() * 0.3 : 1.18 + r() * 0.62);
   // exact: the value to show (an axis tick rebuilt on an even scale); otherwise the real value is scaled at random
   function fakeValue(text, seed, exact, depth = 0) {
@@ -541,6 +578,22 @@ customer service staff agent team people everyone nobody someone something nothi
       const d = 1 + Math.floor(r() * 28), mon = /\d/.test(date[3]) ? String(1 + Math.floor(r() * 12)).padStart(date[3].length, '0') : date[3];
       const out = `${String(d).padStart(date[1].length, '0')}${date[2]}${mon}${date[2]}${date[4]}`;
       return out === text && depth < 8 ? fakeValue(text, seed + 1, undefined, depth + 1) : out;
+    }
+    // several ticks the reader joined into one box ("0 20 40 … 540") become one even scale, not unrelated numbers
+    const ticks = text.trim().split(/\s+/), joined = ticks.join(' ');
+    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t))) {
+      const vals = ticks.map(t => parseFloat(t.replace(/,/g, ''))), st = vals[1] - vals[0];
+      if (st && vals.every((v, i) => Math.abs(v - vals[0] - i * st) <= Math.abs(st) * 0.01)) {
+        const dec = Math.max(...ticks.map(t => (t.split('.')[1] || '').length)), comma = ticks.some(t => t.includes(','));
+        const fmt = v => { const [a, b] = v.toFixed(dec).split('.'); return (comma ? a.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : a) + (b ? '.' + b : ''); };
+        for (let k = 0; k < 40; k++) {
+          const f = randomFactor(r), s2 = roundTo2(st * f), a = vals[0] === 0 ? 0 : roundTo2(vals[0] * f);
+          const next = vals.map((_, i) => a + i * s2);
+          if (next.some(v => v < 0)) continue;
+          const out = next.map(fmt).join(' ');
+          if (out !== joined && Math.abs(out.length - joined.length) <= Math.max(2, joined.length * 0.08)) return out;
+        }
+      }
     }
     // the exact value (an axis tick) belongs to the text's main number, the longest run of digits
     const runs = text.match(/\d[\d,]*(?:\.\d+)?/g) || [], longest = runs.reduce((a, b) => (b.length > a.length ? b : a), '');
@@ -629,19 +682,27 @@ customer service staff agent team people everyone nobody someone something nothi
         for (let k = 0; k < 24; k++) {
           // a new start and a new step, at the labels' precision (so the steps stay exactly even); counted in steps, so a
           // missing tick leaves its gap, and anchored on the axis's 0 when it has one, which stays exactly 0
-          const f = randomFactor(r), qs = q(perStep * f) || Math.sign(perStep) * unit, z = vals.indexOf(0);
-          const next = idx.map(k => (z >= 0 ? (k - idx[z]) * qs : q(vals[0] * f) + k * qs)).map(q), idx_ = idx;
+          // the step a round number (two significant figures, as real axes are), except in the last tries
+          const f = randomFactor(r), z = vals.indexOf(0), nice = x => (k < 16 ? roundTo2(x) : x);
+          const qs = q(nice(perStep * f)) || Math.sign(perStep) * unit;
+          // an axis that runs down to 0 is anchored there even when the reader missed the 0 itself
+          // (a small scale such as 8, 7, 6 has no other even scale through 0 of the same digits: then it floats free)
+          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = (z >= 0 || k < 12) && Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
+          const start = q(nice(vals[0] * f));
+          const next = idx.map(k => (kz != null ? (k - kz) * qs : start + k * qs)).map(q), idx_ = idx;
           if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && digits(v) === digits(vals[i]) && v !== vals[i]))) {
             g.forEach((m, i) => out.set(m, next[i]));
             // a tick at a missing step (kept out by its odd size: the reader joined a stray letter to it) takes the same
             // scale when its value is the one that step should have
-            const a0 = along(g[0]), unitGap = Math.min(...g.slice(1).map((m, i) => along(m) - along(g[i]))), unitVal = (vals[1] - vals[0]) / Math.round((along(g[1]) - a0) / unitGap);
+            // one step's length averaged over the whole axis, so one tick read off-centre does not skew it
+            const a0 = along(g[0]), last = idx_[idx_.length - 1], unitGap = (along(g[g.length - 1]) - a0) / last, unitVal = perStep;
             nums.filter(m => !out.has(m) && Number.isFinite(val(m)) && Math.abs(key(m) - key(g[0])) < Math.max(6, g[0].h)).forEach(m => {
               const k = (along(m) - a0) / unitGap, idx = Math.round(k);
-              if (idx < 0 || Math.abs(k - idx) > 0.3 || along(m) > along(g[g.length - 1])) return;
+              // inside the axis, or a step or two past its end (the 0 at the foot, read with its tick mark)
+              if (idx < 0 || Math.abs(k - idx) > 0.3 || idx > last + 2) return;
               const want = vals[0] + idx * unitVal;
-              const v = q(z >= 0 ? (idx - idx_[z]) * qs : q(vals[0] * f) + idx * qs);
-              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m))) out.set(m, v);
+              const v = q(kz != null ? (idx - kz) * qs : start + idx * qs);
+              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m)) && (v === 0) === (val(m) === 0)) out.set(m, v);
             });
             break;
           }
@@ -977,9 +1038,37 @@ customer service staff agent team people everyone nobody someone something nothi
     // spots the user looked at and chose to show (a mask they switched off, or a finding marked not sensitive)
     const shown = S.masks.filter(m => !m.on && m.userOff);
     const labels = countLabels(all);
+    // Chart marks read as text. A short re-reading with no digit ("|", "=", "»", "R", "a") where the original screenshot has
+    // neither a word the first reader found nor a patch the text detector found is a gridline, a legend swatch or a bar
+    // edge: on the generated set such findings were false alarms every time. Only when the detector ran. A reading with a
+    // digit always counts, however short: a number both readers missed can surface here as a lone "4" (a real "10.7%"
+    // did), and numbers are the text most often left exposed.
+    const regs = S.unread.on && S.unread.state === 'ready' && S.unread.regions ? S.unread.regions : null;
+    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3);
+    // A re-reading of a word the first reader found at the same spot and judged safe ("Revenu" for "Revenue", "oup" for
+    // "Group") is the same label read differently, not something the masks missed. A different reading there
+    // ("Acme" where "Group" was read) is still a finding.
+    const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Close spelling of the same word: a part of it ("Revenu", "venue") or at most two letters off, and never a short
+    // fragment ("an" inside "Channel" is not a re-reading of it; it was a covered number read as letters).
+    const near = (a, b) => {
+      if (!a || !b || Math.min(a.length, b.length) < 4) return false;
+      if (b.includes(a) || a.includes(b)) return Math.min(a.length, b.length) >= 0.6 * Math.max(a.length, b.length);
+      if (Math.abs(a.length - b.length) > 2) return false;
+      const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+      for (let i = 1; i <= a.length; i++) { let prev = d[0]; d[0] = i; for (let k = 1; k <= b.length; k++) { const t = d[k]; d[k] = Math.min(d[k] + 1, d[k - 1] + 1, prev + (a[i - 1] === b[k - 1] ? 0 : 1)); prev = t; } }
+      return d[b.length] <= 2;
+    };
+    const safeSeen = S.words.filter(v => !classify(v.text) && !S.masks.some(m => m.on && overlap(m, v) > 0.5));
+    // the same spot, too: the two boxes overlap and are of a similar size, so a reading inside a long safe label is not let go
+    const similar = (a, b) => { const r = (a.w * a.h) / Math.max(1, b.w * b.h); return r > 0.5 && r < 2; };
+    const rereadsSafe = w => !/\d/.test(w.text) && safeSeen.some(v => overlap(v, w) > 0.5 && similar(v, w) && near(norm(w.text), norm(v.text)));
     const flags = [];
+    let marks = 0;
     all.forEach(w => {
       if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
+      if (noText(w) && !/\d/.test(w.text) && w.text.replace(/\s/g, '').length <= 3) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'no text', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
+      if (rereadsSafe(w)) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'reread', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
       const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
       if (shown.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
@@ -995,7 +1084,7 @@ customer service staff agent team people everyone nobody someone something nothi
       if (flags.some(f => overlap(f, w) > 0.3)) return;
       flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false });
     });
-    S.flags = flags;
+    S.flags = flags; S.chartMarks = marks;
     updateGate();
     detectFingerprint();
     setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
@@ -1115,6 +1204,9 @@ customer service staff agent team people everyone nobody someone something nothi
     if (S.view === 'mask') { x.drawImage(maskedCanvas(1, null, { tag: false }), 0, 0); return; }
     x.drawImage(S.img, 0, 0);
     const lw = Math.max(2, S.img.width / 600);
+    // blurred areas look blurred here too, outlined so they can be clicked away again
+    blurAreas(x, 1);
+    S.blurs.forEach(b => { x.lineWidth = lw; x.strokeStyle = '#0d6b5d'; x.setLineDash([8, 5]); x.strokeRect(b.x, b.y, b.w, b.h); x.setLineDash([]); });
     S.masks.forEach(m => {
       const col = TYPES[m.type] || '#14181e';
       x.lineWidth = lw; x.strokeStyle = col; x.setLineDash(m.on ? [] : [6, 4]);
@@ -1125,12 +1217,13 @@ customer service staff agent team people everyone nobody someone something nothi
     x.setLineDash([4, 3]);
     S.flags.filter(f => !f.resolved).forEach(f => { x.lineWidth = lw * 1.5; x.strokeStyle = f.severity === 'block' ? '#b03c38' : '#a55d00'; x.strokeRect(f.x, f.y, f.w, f.h); });
     x.setLineDash([]);
-    if (drag && drag.moved) { x.lineWidth = lw; x.strokeStyle = '#14181e'; x.setLineDash([6, 4]); x.strokeRect(drag.x0, drag.y0, drag.x1 - drag.x0, drag.y1 - drag.y0); x.setLineDash([]); }
+    if (drag && drag.moved) { x.lineWidth = lw; x.strokeStyle = S.tool === 'blur' ? '#0d6b5d' : '#14181e'; x.setLineDash([6, 4]); x.strokeRect(drag.x0, drag.y0, drag.x1 - drag.x0, drag.y1 - drag.y0); x.setLineDash([]); }
   }
   function renderCounts() {
     const counts = {};
     S.masks.filter(m => m.on).forEach(m => counts[m.type] = (counts[m.type] || 0) + 1);
-    $('types').innerHTML = Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${label(t)}</span><b>${counts[t]}</b></div>`).join('') || '<div class="hint">Nothing hidden yet.</div>';
+    const blurred = S.blurs.length ? `<div><span class="sw" style="background:#0d6b5d"></span><span>Charts blurred by you</span><b>${S.blurs.length}</b></div>` : '';
+    $('types').innerHTML = (Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${label(t)}</span><b>${counts[t]}</b></div>`).join('') + blurred) || '<div class="hint">Nothing hidden yet.</div>';
     renderSummary();
   }
   // Summary for the reviewer: how much is hidden, how much stays readable, how many decisions are theirs, and what to do next
@@ -1221,7 +1314,13 @@ customer service staff agent team people everyone nobody someone something nothi
     const d = drag; drag = null;
     if (d.moved) {
       const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
-      if (w > 4 && h > 4) S.masks.push({ x, y, w, h, type: 'Added by you', text: '(drawn box)', on: true, src: 'manual' });
+      if (S.tool === 'blur') { if (w > 8 && h > 8) S.blurs.push({ x, y, w, h }); }
+      else if (w > 4 && h > 4) S.masks.push({ x, y, w, h, type: 'Added by you', text: '(drawn box)', on: true, src: 'manual' });
+    } else if (S.tool === 'blur') {
+      // a click on a blurred area removes it
+      const i = S.blurs.findIndex(b => d.x0 >= b.x && d.x0 <= b.x + b.w && d.y0 >= b.y && d.y0 <= b.y + b.h);
+      if (i < 0) { draw(); return; }
+      S.blurs.splice(i, 1);
     } else {
       const hits = S.masks.filter(m => d.x0 >= m.x && d.x0 <= m.x + m.w && d.y0 >= m.y && d.y0 <= m.y + m.h);
       if (!hits.length) { draw(); return; }
@@ -1264,7 +1363,7 @@ customer service staff agent team people everyone nobody someone something nothi
   let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
@@ -1305,6 +1404,14 @@ customer service staff agent team people everyone nobody someone something nothi
     rc.style.cursor = v === 'orig' ? 'crosshair' : 'default';
     draw();
   }
+  function setTool(t) {
+    S.tool = t;
+    $('t-mask').setAttribute('aria-pressed', String(t === 'mask'));
+    $('t-blur').setAttribute('aria-pressed', String(t === 'blur'));
+    if (S.view !== 'orig') setView('orig');   // boxes are drawn on the original view
+  }
+  $('t-mask').onclick = () => setTool('mask');
+  $('t-blur').onclick = () => setTool('blur');
   $('v-orig').onclick = () => setView('orig');
   $('v-mask').onclick = () => setView('mask');
   $('v-zoom').onclick = () => { const on = $('review-wrap').classList.toggle('zoom'); $('v-zoom').setAttribute('aria-pressed', String(on)); };
@@ -1666,6 +1773,7 @@ customer service staff agent team people everyone nobody someone something nothi
       ['Pre-flight check', S.gate === 'pass' ? 'Passed. The masked image was read again six independent ways on this device; nothing readable is left outside the masks.'
         + (flags.length ? ` ${plural(flags.length, 'finding was', 'findings were')} resolved: ${[masked ? masked + ' masked' : '', keptByYou ? keptByYou + ' kept as not sensitive' : ''].filter(Boolean).join(', ')}.` : '') : 'Not passed'],
       ['Hidden', `${plural(t.hidden, 'word or number', 'words and numbers')} in ${plural(on.length, 'box', 'boxes')}: ` + Object.keys(TYPES).filter(k => counts[k]).map(k => `${label(k)} ${counts[k]}`).join(' · ')],
+      ['Blurred', S.blurs.length ? `${S.blurs.length} ${S.blurs.length === 1 ? 'area' : 'areas'} blurred by you, so the chart shapes in them cannot be read` : 'Nothing blurred: chart shapes are the real ones'],
       ['Numbers', !on.some(isNumberMask) ? 'None hidden' : S.fakeNumbers ? 'Replaced with invented values of the same size; the image says so below it' : 'Covered with grey boxes'],
       ['Kept readable', plural(t.kept, 'safe report word', 'safe report words') + (S.keepComments ? ', and the wording of customer comments (names, companies, emails and numbers in them masked)' : '')],
       ['Your decisions', String(t.yours)],
@@ -1708,7 +1816,7 @@ customer service staff agent team people everyone nobody someone something nothi
   S.fid = null;           // { canvas, patches }
   const seededRandom = seed => seeded(seed);
   function buildInPlace() {
-    const toks = VSSynth.tokens(S.masks.filter(m => m.on), S.words);
+    const toks = VSSynth.tokens(S.masks.filter(m => m.on && !underBlur(m)), S.words);
     const values = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
     // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
     const full = S.img.full || S.img, k = full.width / S.img.width;
@@ -1724,13 +1832,15 @@ customer service staff agent team people everyone nobody someone something nothi
       const minConf = inside.length ? Math.min(...inside.map(w => w.conf == null ? 100 : w.conf)) : 0;
       if (VSInpaint.looksLikeShape(im, S.img.width, S.img.height, m, medH, minConf, m.text)) Object.assign(p, { keep: true, synthetic: '' });
     });
-    const r = seededRandom(S.seed), res = VSInpaint.patch(full, map, { slantText: n => VSSynth.word(n > 9 ? 'Aaaaa ' + 'A' + 'a'.repeat(n - 7) : 'A' + 'a'.repeat(n - 1), r) });
+    const blurs = S.blurs.map(b => ({ x: b.x * k, y: b.y * k, w: b.w * k, h: b.h * k }));
+    const r = seededRandom(S.seed), res = VSInpaint.patch(full, map, { blurs, slantText: n => VSSynth.word(n > 9 ? 'Aaaaa ' + 'A' + 'a'.repeat(n - 7) : 'A' + 'a'.repeat(n - 1), r) });
     S.fid = { canvas: res.canvas, patches: res.patches };
     showInPlace();
   }
   const KIND_NAMES = { number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Text that could not be read (a made-up label, or cleared)' };
   // What a hotspot tells: the synthetic value and why it is there. Never the hidden text.
   function describePatch(p) {
+    if (p.kind === 'blur') return ['Blurred by you', 'This area was blurred on purpose, so the shape of its chart cannot be read.', 'Made on this device'];
     if (p.keep) return ['Left as it was', 'The reader took this part of a chart for text; it is not text, so it was not changed.'];
     const lines = [p.synthetic ? p.synthetic : 'Cleared', KIND_NAMES[p.kind] || 'Replaced text'];
     if (p.context) lines.push('Beside: ' + p.context);
@@ -1739,12 +1849,12 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   function showInPlace() {
     show('s-replica');
-    const f = S.fid, kept = f.patches.filter(p => p.keep).length;
+    const f = S.fid, kept = f.patches.filter(p => p.keep).length, nBlur = f.patches.filter(p => p.kind === 'blur').length;
     VSInpaint.mount($('replica'), f.canvas, f.patches, { label: 'The screenshot with every sensitive text replaced by synthetic text', describe: describePatch });
     $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
-    const n = f.patches.length - kept;
+    const n = f.patches.length - kept - nBlur;
     $('fid-summary').textContent = `${n} ${n === 1 ? 'box' : 'boxes'} replaced in place` +
-      ' on this device' +
+      ' on this device' + (nBlur ? `, ${nBlur} ${nBlur === 1 ? 'chart' : 'charts'} blurred` : '') +
       (kept ? `; ${kept} chart ${kept === 1 ? 'shape' : 'shapes'} the reader took for text left as ${kept === 1 ? 'it was' : 'they were'}` : '') +
       '. Everything else is the original picture. Hover or tab to a replaced value to see what it stands for.';
     $('export-note').textContent = '';
@@ -1808,5 +1918,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

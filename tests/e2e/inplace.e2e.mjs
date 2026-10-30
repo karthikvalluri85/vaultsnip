@@ -78,6 +78,10 @@ try {
   check(v8 > 0 && Math.abs((v8 - v6) - (v6 - v4)) <= 2 && Math.abs((v4 - v2) - (v2 - v0)) <= 2 && v0 === 0 && stray === undefined && v8 !== 800000,
     `an axis keeps one even scale, its zero and a tick with a stray digit beside it (${axis.v.join(', ')})`);
   check(axis.zero === '0-', 'an axis zero stays 0');
+  // ticks the reader joined into one box stay one even scale starting at 0
+  const joined = await page.evaluate(() => window.__DSC.test.fakeValue('0 20 40 60 80 100 120 140 160 180 200', 11).split(' ').map(Number));
+  const step = joined[1] - joined[0];
+  check(joined.length === 11 && joined[0] === 0 && step > 0 && step !== 20 && joined.every((v, i) => v === i * step), `joined axis ticks stay one even scale (${joined.join(' ')})`);
 
   console.log('Overlay');
   const spots = await page.evaluate(() => document.querySelectorAll('#replica .ip-spot').length);
@@ -105,6 +109,23 @@ try {
   check(tip.shown && tip.text.includes(tip.p.synthetic) && /made on this device/.test(tip.text), `hovering a replaced value explains it ("${tip.text.slice(0, 60)}…")`);
   check(!tip.text.includes(tip.p.original), 'the tooltip never shows the hidden text');
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });
+
+  console.log('Blurred chart');
+  // an area the user blurs is the one other place the replica may differ from the original
+  {
+    await page.evaluate(() => { const S = window.__DSC; S.blurs = [{ x: 40, y: 340, w: 720, h: 270 }]; S.test.buildInPlace(false); });
+    const cb = await compare();
+    const inBlur = await page.evaluate(() => {
+      const S = window.__DSC, b = S.blurs[0], p = S.fid.patches.find(q => q.kind === 'blur');
+      const d = S.fid.canvas.getContext('2d').getImageData(b.x, b.y, b.w, b.h).data; let lo = 765, hi = 0;
+      for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      return { patch: !!p, range: hi - lo, under: S.fid.patches.filter(q => q.kind !== 'blur' && q.x + q.w / 2 > b.x && q.x + q.w / 2 < b.x + b.w && q.y + q.h / 2 > b.y && q.y + q.h / 2 < b.y + b.h).length };
+    });
+    check(cb.outside === 0, `with a chart blurred, every pixel outside the replaced boxes and the blurred area is the original's (${cb.outside} differ)`);
+    check(inBlur.patch && inBlur.range < 120, `the blurred area keeps no readable shape (light-to-dark range ${inBlur.range})`);
+    check(inBlur.under === 0, 'no synthetic text is drawn over a blurred area');
+    await page.evaluate(() => { window.__DSC.blurs = []; window.__DSC.test.buildInPlace(false); });
+  }
 
   console.log('Download');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btn-dl-replica')]);

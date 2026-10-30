@@ -350,7 +350,8 @@ try {
     const spun = await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 60000, polling: 500 }).then(() => true, () => false);
     check(spun && warnings.some(w => /stopped responding; restarting/.test(w)), 'a reader stuck repeating the same progress figure is restarted too');
     await page.goto(base);
-    await page.evaluate(() => { window.__DSC.test.stalls = 2; window.__DSC.test.stallMs = 2000; });
+    // one reader, so the two stalls hit the same pass (side-by-side passes would each stall once and recover)
+    await page.evaluate(() => { window.__DSC.test.pool = 1; window.__DSC.test.stalls = 2; window.__DSC.test.stallMs = 2000; });
     await page.setInputFiles('#file', { name: 'stall-twice.png', mimeType: 'image/png', buffer: small });
     const told = await page.waitForFunction(() => /could not finish: it stopped responding twice/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 60000, polling: 500 }).then(() => true, () => false);
     check(told, 'a reader that stops answering twice gives a clear message instead of a frozen progress figure');
@@ -449,6 +450,30 @@ try {
     check(fp.logo.some(t => /logo/.test(t)), 'a coloured logo left in a top corner raises the warning');
     check(fp.header.some(t => /brand colours/.test(t)), 'a header in a strong brand colour raises the warning');
     check(await page.locator('#shape-note').count() === 1, 'the review screen says chart shapes are not hidden');
+  }
+
+  console.log('Blur a chart');
+  {
+    await page.goto(base);
+    await page.click('#btn-try'); await page.locator('#samples .sample button').nth(0).click();
+    await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 180000, polling: 1000 });
+    await page.click('#t-blur');
+    const r = await page.evaluate(() => { const c = document.getElementById('review-canvas'), b = c.getBoundingClientRect(); return { l: b.left, t: b.top, sx: b.width / c.width, sy: b.height / c.height }; });
+    const at = (x, y) => [r.l + x * r.sx, r.t + y * r.sy];
+    const [ax, ay] = at(40, 340), [bx, by] = at(760, 610);
+    await page.mouse.move(ax, ay); await page.mouse.down(); await page.mouse.move(bx, by, { steps: 8 }); await page.mouse.up();
+    const blur = await page.evaluate(() => {
+      const S = window.__DSC, b = S.blurs[0]; if (!b) return null;
+      const spread = c => { const d = c.getContext('2d').getImageData(Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h)).data; let lo = 765, hi = 0; for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; lo = Math.min(lo, v); hi = Math.max(hi, v); } return hi - lo; };
+      return { n: S.blurs.length, before: spread(S.img), after: spread(S.test.maskedCanvas(1)), gate: S.gate };
+    });
+    check(blur && blur.n === 1 && blur.gate === 'dirty', 'dragging with "Blur a chart" adds a blurred area and asks for the check again');
+    check(blur && blur.after < blur.before * 0.25, `the masked image shows the area blurred: its light-to-dark range falls from ${blur && blur.before} to ${blur && blur.after}`);
+    const receipt = await page.evaluate(async () => (await window.__DSC.test.receiptFacts()).rows.find(x => x[0] === 'Blurred')[1]);
+    check(/1 area blurred/.test(receipt), 'the receipt says how many areas were blurred');
+    const [cx, cy] = at(400, 470);
+    await page.mouse.click(cx, cy);
+    check(await page.evaluate(() => window.__DSC.blurs.length) === 0, 'clicking a blurred area with "Blur a chart" removes it');
   }
 
   console.log('Start screen');

@@ -138,3 +138,31 @@ describe('on-device values that fit their box', () => {
     expect(Math.abs(v.length - 15)).toBeLessThanOrEqual(1);
   });
 });
+
+describe('natural replica text', () => {
+  it('replaces unknown words with real words of the same length, never syllable strings', () => {
+    const w = Y.word('Brennholt Klinikum', () => 0.42);
+    expect(w).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
+    w.toLowerCase().split(' ').forEach((part: string) => expect(Y.POOL).toContain(part));
+  });
+  it('reads a column header above a cell and a label before it on the same line', () => {
+    const vis = [{ text: 'Account', x: 400, y: 10, w: 60, h: 14 }, { text: 'Manager', x: 465, y: 10, w: 60, h: 14 },
+      { text: 'Prepared', x: 10, y: 300, w: 60, h: 12 }, { text: 'by', x: 75, y: 300, w: 14, h: 12 }];
+    expect(Y.labelFor({ x: 400, y: 80, w: 100, h: 16 }, vis)).toBe('Account Manager');
+    expect(Y.roleOf('Account Manager')).toBe('person');
+    expect(Y.labelFor({ x: 95, y: 300, w: 120, h: 12 }, vis)).toBe('Prepared by');
+    expect(Y.roleOf('Prepared by')).toBe('person');
+  });
+  it('takes the dimension after "by" in a chart title: "Leads by Region" labels its bars with places', () => {
+    expect(Y.roleOf('Leads By Region')).toBe('city');
+    expect(Y.roleOf('Clicks by city')).toBe('city');
+    expect(Y.roleOf('Revenue by Account Manager')).toBe('person');
+  });
+  it('sets boxes in one row or column in one size', () => {
+    const st = (size: number) => ({ size, weight: 400 });
+    const list = [{ x: 10, y: 10, w: 80, h: 16, synthetic: 'a', style: st(13) }, { x: 10, y: 30, w: 90, h: 16, synthetic: 'b', style: st(17) },
+      { x: 10, y: 50, w: 70, h: 17, synthetic: 'c', style: st(14) }];
+    P.harmonise(list);
+    expect(new Set(list.map(p => p.style.size)).size).toBe(1);
+  });
+});

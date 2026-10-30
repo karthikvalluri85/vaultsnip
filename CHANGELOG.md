@@ -2,7 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.10.0] - 2026-10-31
+
+The replica reads like the real dashboard, any chart can be blurred, the check raises fewer false alarms, reading is faster, and the measured leak figure is published.
+
+### Added
+- **The measured leak figure, published** on the start screen, in the README and in ACCURACY.md: on 20 generated dashboards, 0.72% of the area of sensitive text was still readable after masking and the check, so look over the masked image before you share it.
+- **Blur a chart.** On the review screen, choose *Blur a chart* and drag over any chart whose shape is itself confidential. The area becomes a soft wash of its own colours (averaged down to a few cells, then most of the way to its average colour), in the masked image, the check, the replica and the receipt, so bar lengths, trends and proportions cannot be read. Click a blurred area to remove it. Text under it is blurred with it, not replaced. The replica test checks that nothing outside the replaced boxes and blurred areas changes.
+
+### Changed
+- **Replicas read like real dashboards.** Hidden text that is neither a number nor a name used to become a made-up string of syllables ("Wynr", "Belnekalob Tontanma"). It now becomes a plain English word of the same length and capitalisation, or, where the column header or the label before it says what it is ("Account Manager", "Prepared by", "Customer"), a made-up person, organisation or place from the on-device name lists, chosen to fit its box. Dates keep their format with a made-up date. Organisation names take the style of the page's industry, and bank and fund names appear only on pages about finance.
+- **Replaced text matches its neighbours.** Its size is read from the letters it replaces (capitals and tails such as g and y take up different shares of a font's height), then evened out across each table column or row; a shorter name lines up with its column instead of drifting to the middle of the old width; and the text sits on the original's baseline.
+- **Axis numbers stay a believable scale.** Replaced ticks step by a round number (65,000, not 64,947) and run down to 0 even when the 0 was read apart from the rest; ticks the reader joined into one box ("0 20 40 … 540") become one even scale instead of unrelated numbers; and a replaced value is kept inside its box, so it no longer loses its first digit at the box edge.
+- **More report words stay readable**, such as *sold*, *pts*, *bps*, *booked*, *renewals*, *increase* and *including*, instead of being masked and replaced (about 150 words added to the safe list, in the app and the extension's chart blur alike).
+- **Fewer false alarms from the check.** A short re-reading with no digit where neither the first reader nor the text detector saw any text (a gridline, a legend swatch or a bar edge read as "|", "=" or "R") is no longer a finding, nor is a re-reading of a safe label at the same spot ("Revenu" for "Revenue"). Readings with a digit always count, however short: a number both readers missed can surface as a lone digit. On the 20-image test set, findings fell from 62 to 58 with exactly the same sensitive text left readable (35 of 1,852 words, 0.72% of their area). A looser version cut findings to 21 but let one more word through, so it was not shipped: most remaining false alarms are lone digits read from chart shapes, and a lone digit can also be part of a real number.
+- **Faster reading on machines with cores to spare.** The reading and check passes over one image run on up to three on-device readers side by side (fewer on machines with little memory or few cores), and their results are merged in the same order as before, so what is read does not change. On a 2-core test machine two readers gave exactly the same words in about a quarter less time (58.5 s → 45.1 s and 42.4 s → 33.0 s on two test images); machines with 4 or more cores and 8 GB use three. On the 20-image test set the median time from dropping an image in to the end of the check fell from 72 s to 47 s on that machine.
 
 ## [0.9.0] - 2026-10-30
 
