@@ -10,26 +10,28 @@
 **Try it now:** https://vaultsnip.pages.dev (no sign-up; the sample dashboards need no key)  
 Also on Hugging Face: https://huggingface.co/spaces/karthikvalluri/vaultsnip · Chrome and Edge store listings are in review.
 
-VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), masks sensitive text **on your device**, and builds a watermarked, interactive replica that runs on **generated data**. Nothing is stored.
+VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
-        → you approve the exact payload → Claude or OpenAI returns a layout spec (your key)
-                                          or VaultSnip reads it on your device (no key, beta)
-        → synthetic replica (3 privacy modes) → one self-contained HTML export
+        → you approve the exact payload → synthetic text for each hidden box:
+              written on your device (no key, nothing sent)
+              or by Claude or OpenAI (your key; it gets the masked image and each box's kind and pattern, never the hidden text)
+        → in-place replica: hidden text wiped from the background around it and redrawn in the same place, size and colour
+        → hover a replaced value to see what it stands for → download or copy the PNG
 ```
 
 ## See it in action
 
 https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
-*Snip → mask on your device → re-scan gate → approve the exact payload → interactive replica on synthetic data (click a country and every number changes).*
+*This recording shows the earlier, chart-rebuilding replica (before 0.9); the steps up to the payload are unchanged. A new recording of the in-place replica is to follow.*
 
-## Features (v0.8.0)
+## Features
 
 | Area | Status |
 |---|---|
-| Samples first on screen 1 (no key needed) | ✅ 4 samples; the first runs the full redaction demo, the last is a paginated report |
+| Sample on screen 1 (no key needed) | ✅ runs the full demo on a fictional dashboard: OCR, masking, check, in-place replica |
 | Upload, paste (on any screen, or with the Paste button), extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
 | Mask by default, allowlist to keep | ✅ client names, IDs, emails and unlisted text are masked; numbers are replaced with invented values of the same size (or masked, if you prefer) |
@@ -38,34 +40,23 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Unread-text check (AI) | ✅ two small PP-OCRv5 models (5 MB and 7 MB) find every patch of text and read it again line by line, and mask any the reader missed or could not vouch for; only adds masks; can be switched off |
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain** |
 | Review: click to toggle, drag to add masks | ✅ |
-| Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in; replicas quote only words that were readable in the approved image |
-| Exact-payload preview before anything is sent | ✅ |
-| Bring your own key: **Claude (Anthropic) or OpenAI**, direct browser call | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
-| Replica: KPI, bar, column (clustered, stacked, 100% stacked), line, area, combo, pie, donut, treemap, funnel, waterfall, scatter, bubble, heatmap, gauge, box plot, histogram, Sankey, Gantt/timeline, table, with reference lines | ✅ Apache ECharts 6; see the **Supported charts** page in the app |
-| **Build on this device (beta)** | ✅ no key, nothing sent: panels, chart types (maps, combo, waterfall, gauge, funnel, Gantt and heatmap charts included), how series sit and reference lines, shapes, titles and tables read from the masked image in a Web Worker; checks each chart against the masked image; says how sure it is, and below 90% offers "Fix it here", "Use my AI key" or "Keep this result" |
-| **Paginated reports** (SSRS, Crystal, BusinessObjects) | ✅ matrix / cross-tab with grouped headers, subtotals and grand totals; grouped tables with subtotals; report parameters; in every export and share link |
-| Maps: filled, bubble, density and flow | ✅ world, Europe and 14 countries; names, ISO/postal codes and groups (Nordics, DACH, EMEA…) match |
-| Cross-filtering | ✅ chips, chart clicks, map regions and table rows change every number |
-| Privacy modes: Shape-preserving, Structure-only, Generic | ✅ |
-| **Realistic names** | ✅ made-up people, companies, emails, IDs and places that fit each column and each row's country (Faker); organisations named in the dashboard's industry style (a hospital as "… Health System", a payer as "… Health Plan"); seeded, switchable, never in Generic mode; emails only at example.com/.net/.org |
-| Watermark + synthetic banner + `synthetic-data` meta | ✅ cannot be turned off |
-| Export: one offline HTML file | ✅ no network calls; carries only what its mode shows |
-| **Export for Figma (SVG)** | ✅ one layered SVG: editable text, vector charts, watermark drawn in; opens in Figma, Penpot, Illustrator |
-| **Export React code: editable TypeScript** | ✅ typed `.tsx` project, one component per card in the page's order and widths; values, filters, search and CSV stay live via `DSCReplica.model()`; no AI, no network |
-| **Export React code** | ✅ zip with a live React component running the replica engine: values, charts, filters and CSV generated at runtime from its spec and `seed` prop |
+| Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in |
+| Exact-payload preview before anything is sent | ✅ the masked image and, under *Show exactly what is sent*, the full list of box descriptions that goes with it |
+| **In-place replica** | ✅ the original screenshot, pixel for pixel, with each hidden text wiped from its surrounding background (only the text's own pixels; bar edges and borders through a box survive) and synthetic text drawn back in the same place, size, colour, weight and alignment. Any visual works, because none is redrawn: decomposition trees, custom maps, proprietary widgets |
+| **Hover explanations** | ✅ an invisible layer over the picture, aligned to its pixels at every size: hover or tab to a replaced value to see its kind, the labels beside it and where it came from; never the hidden text |
+| Synthetic text **on this device** (no key) | ✅ numbers of the same size (axis ticks on an even new scale), made-up people, companies and IDs (Faker), emails only at example.com/.net/.org |
+| Synthetic text **by Claude or OpenAI** (your key, direct browser call) | ✅ the AI acts only as a data generator: it gets the masked image and each box's kind, position, nearby visible labels and a number's pattern ("$99.9M") or a text's length; never the hidden text. Answers that break the format or repeat hidden text are replaced on the device |
+| Bring your own key | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
+| **Download / Copy image** of the replica | ✅ PNG with a strip below the picture saying its text is synthetic |
 | **Mask-only download** (no key) | ✅ masked PNG for forums, bug reports and slides, or **Copy masked image** to paste it anywhere |
 | **Safe-to-share receipt** | ✅ PNG or PDF beside the masked image: what was hidden (counts and kinds, never the text), the check, made on this device, and the image's SHA-256 |
-| **Copy image** of the replica | ✅ a sharp picture with generated values only, for chats, tickets and slides |
-| **Share links** | ✅ the replica lives in the link itself; the sharer picks Shape, Structure or Generic and the receiver cannot unlock more |
-| **Synthetic data download** | ✅ tidy CSV of every generated data point, for Excel, Power BI, Tableau, Looker Studio |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
 | In-app feedback with a private route for masking misses | ✅ |
-| Pixel-measured shapes | ✅ in "Build on this device": bar lengths, line heights, slice shares and dot positions measured from the masked image |
 | PDF/PPTX input | ⏳ planned |
 
 ## Privacy
 
-No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. The only thing that ever leaves the device is the masked image you approved, sent straight to the AI provider you chose (Anthropic or OpenAI) with your own key, and only if you choose that over building the replica on your device. The browser stores only the OCR model (an app asset) and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
+No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. Built on your device, nothing leaves it. Only if you choose an AI to write the synthetic text do the masked image you approved and a list of box descriptions (shown in full before you send; never the hidden text) go straight to Anthropic or OpenAI with your own key. The replica keeps your charts' real shapes; only text is replaced. The browser stores only the app's model files and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
 
 ## Feedback and support
 
@@ -109,11 +100,13 @@ Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: 
 ```
 web/              the app (static, no build step), published as-is
   index.html      screens and styles
-  app.js          pipeline: OCR, masking, gate, review, AI call, export
+  app.js          pipeline: OCR, masking, gate, review, payload preview, replica screen
+  inpaint.js      in-place replica: background sampling, pixel clearing, text redraw, hover layer
+  synth.js        synthetic text: box descriptions sent to the AI, its prompt, answer checks, on-device values
   llm.js          AI providers (Claude, OpenAI): the only code that calls an AI service
-  replica.js      replica engine, also inlined into every export
+  replica.js …    the earlier chart-rebuilding replica; no longer loaded by the app, to be removed
   feedback.js     in-app feedback and error reporting
-  samples.js      bundled fictional samples
+  samples.js      bundled fictional sample
   maps/           map outlines (Natural Earth, simplified)
   lib/ lang/      tesseract.js + OCR model, echarts, vs-context.js (on-device AI client)
   ml/ models/     on-device AI: Web Worker + ONNX runtime (npm run build:ml), PII and text-region models (npm run fetch:model)
@@ -125,7 +118,7 @@ build.sh          builds dist/web, dist/extension, dist/hf-space and zips
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md). In short: no real data anywhere, no new data flows, and `npm run check` plus `npm run e2e` must pass. Changes are listed in [CHANGELOG.md](CHANGELOG.md). How accuracy is measured, today's figures and the plan for raising them are in [ACCURACY.md](ACCURACY.md).
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md). In short: no real data anywhere, no new data flows, and `npm run check`, `npm run test:unit`, `npm run e2e` and `npm run test:inplace` must pass. Changes are listed in [CHANGELOG.md](CHANGELOG.md). How accuracy is measured, today's figures and the plan for raising them are in [ACCURACY.md](ACCURACY.md).
 
 ## License
 

@@ -5,7 +5,7 @@
 ## How was it tested?
 
 - [ ] `npm run check` passes
-- [ ] `npm run e2e` passes (or explain why not)
+- [ ] `npm run e2e` and `npm run test:inplace` pass (or explain why not)
 - [ ] Tried it in the browser with the bundled samples
 
 ## Privacy checklist
