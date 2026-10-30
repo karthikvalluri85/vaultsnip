@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- **The replica is now the original screenshot, changed in place.** VaultSnip no longer redraws a dashboard with charts and a grid, which invented panels, dropped visuals it could not draw (decomposition trees, custom maps) and mistyped others. Each hidden box is wiped pixel by pixel from the background around it (`web/inpaint.js`): only the text's own pixels are rewritten, so a bar edge or cell border running through a box survives. Synthetic text is then drawn back in the same place, with the size, colour, weight and alignment read from the original. Every pixel outside the replaced boxes is the original's, which `tests/e2e/inplace.e2e.mjs` checks pixel by pixel. A layer of hotspots over the picture, mapped to its pixels at every size, explains each replaced value on hover or keyboard focus, never showing the hidden text.
+- **The AI is now a contextual data generator** (`web/synth.js`). It no longer reads a layout. It receives only each hidden box's kind, its character pattern ("$99.9A"), its position and the visible labels beside it, never the hidden text, and returns one replacement per box, keeping totals, rates and percentages coherent. An answer that changes the shape (currency, unit, decimals), is too long or repeats the hidden text is replaced by a value made on the device; axis ticks always use the on-device even scale. *Build on this device* makes every replacement locally, with no key.
+
+### Removed
+- The chart-rebuilding replica from the app: ECharts, the layout spec prompt, the on-device layout builder, privacy modes, share links, CSV, HTML, Figma and React exports, and the chart catalogue link. The source files stay in the repository for now, unused by the app, until they are deleted in a follow-up.
+
+### Fixed
+- **A small whole number could keep its real value** in the masked image: "1" scaled by 0.55-1.8 rounds back to 1. A whole number that rounds back to itself is no longer accepted as a change.
+
 ### Added
 - **Fidelity, the measure a replica is judged by.** `tools/layout-bench/fidelity.mjs` scores `right ÷ max(visuals in the original, panels produced)` over the real dashboards and counts **every** panel the builder makes, including ones drawn over a toolbar or a filter bar, which the older figures hid. A page scores 100% only when every visual is found, each is typed right and nothing else is drawn. The rule is written into `CLAUDE.md` and no change ships that lowers it.
 

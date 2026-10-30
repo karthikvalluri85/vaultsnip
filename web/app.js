@@ -1,6 +1,7 @@
 /* VaultSnip: app pipeline.
    capture -> local OCR -> mask everything except an allowlist -> independent re-scan gate
-   -> human approval of the exact payload -> layout spec from Claude or OpenAI (your key) -> synthetic replica -> export.
+   -> human approval of the exact payload -> in-place replica: the original picture with every sensitive text replaced by
+   synthetic text (written by Claude or OpenAI with your key, or on this device) -> export.
    Nothing is persisted except, optionally, your API key (only if you tick "remember"). */
 (function () {
   'use strict';
@@ -15,7 +16,7 @@
     flags: [],            // verification findings
     gate: 'pending',      // pending | dirty | pass | review | blocked
     sample: null,         // sample object when running a sample
-    spec: null, mode: 'shape', seed: 4127,
+    fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     provider: 'anthropic', key: null, model: 'claude-sonnet-5-5',
     sessionAllow: new Set(),
@@ -489,14 +490,6 @@ customer service staff agent team people everyone nobody someone something nothi
       return '[…]';
     }).join(' ').replace(/(\[…\][^\s\p{L}\p{N}]*\s*){2,}/gu, '[…] ').replace(/\s+([.,!?;:])/g, '$1').trim();
   }
-  function scrubVerbatims(spec) {
-    (spec.rows || []).forEach(r => (r.visuals || []).forEach(v => (v.type === 'table' && Array.isArray(v.columns) ? v.columns : []).forEach(c => {
-      if (!/^(verbatim|quote|comment)s?$/i.test(String(c.kind || ''))) return;
-      if (!S.keepComments || !Array.isArray(c.values)) { delete c.values; return; }
-      c.values = c.values.slice(0, 25).map(scrubQuote);
-    })));
-    return spec;
-  }
 
   /* ---------------- masks ---------------- */
   function buildMasks(words) {
@@ -629,8 +622,9 @@ customer service staff agent team people everyone nobody someone something nothi
       if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
       else if (pct && v >= 100) n = String(90 + Math.floor(r() * 10)) + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // 100% becomes a high percentage
       else {
-        // the real value scaled, kept to the same number of digits (a percentage stays at or under 100)
-        const fit = x => { const s = Math.round(x).toString(); return x > 0 && s.length === plain.length && (!pct || x <= 100) && x <= cap; };
+        // the real value scaled, kept to the same number of digits (a percentage stays at or under 100); a whole number
+        // that would round back to itself (1 × 1.3) is not a change
+        const fit = x => { const s = Math.round(x).toString(); return x > 0 && s.length === plain.length && (!pct || x <= 100) && x <= cap && (dec || Math.round(x) !== v); };
         let f = randomFactor(r), nv = exact != null && first ? exact : v * f;
         first = false;
         if (!fit(nv)) nv = v * (f > 1 ? 0.55 + r() * 0.3 : 1.18 + r() * 0.62);
@@ -1196,7 +1190,7 @@ customer service staff agent team people everyone nobody someone something nothi
   let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.spec = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
@@ -1288,7 +1282,7 @@ customer service staff agent team people everyone nobody someone something nothi
     window.DSC_SAMPLES.forEach((s, i) => {
       const d = document.createElement('div');
       d.className = 'sample';
-      d.innerHTML = `<span class="tag">${s.image ? 'Full redaction demo' : 'Replica only'}</span><h3></h3><p></p><button class="btn ${i === 0 ? 'primary' : ''}" type="button">${s.image ? 'Run the demo' : 'Open replica'}</button>`;
+      d.innerHTML = `<span class="tag">Full demo</span><h3></h3><p></p><button class="btn ${i === 0 ? 'primary' : ''}" type="button">Run the demo</button>`;
       d.querySelector('h3').textContent = s.name; d.querySelector('p').textContent = s.blurb;
       d.querySelector('button').onclick = () => openSample(s);
       box.appendChild(d);
@@ -1297,12 +1291,8 @@ customer service staff agent team people everyone nobody someone something nothi
   };
   async function openSample(s) {
     S.sample = s;
-    if (s.image) {
-      $('client-names').value = s.clientNames || '';
-      await startReview(await loadImage(s.image));
-    } else {
-      S.spec = s.spec; S.seed = 4127; fresh(); showReplica();
-    }
+    $('client-names').value = s.clientNames || '';
+    await startReview(await loadImage(s.image));
   }
   const drop = $('drop'), file = $('file');
   drop.onclick = () => file.click();
@@ -1356,7 +1346,6 @@ customer service staff agent team people everyone nobody someone something nothi
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
   // Base name for files made from the replica. Generic mode never puts the original title in a file name.
-  const replicaBase = () => (S.mode === 'generic' ? '' : slug((S.spec && S.spec.title || '').replace(/\[client\]/ig, ''))) || 'dashboard';
 
   /* ---------------- payload preview: download it, or send it ---------------- */
   $('btn-send').onclick = () => {
@@ -1364,10 +1353,10 @@ customer service staff agent team people everyone nobody someone something nothi
     const url = c.toDataURL('image/png');
     S.payload = url;
     $('payload-img').src = url;
-    $('pf-contents').textContent = 'The masked image above and fixed instructions. No original image, no OCR text.' + (S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)) ? ' Numbers are replaced with invented values of the same size; labels stay masked.' : '') + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
+    $('pf-contents').textContent = 'The masked image above, fixed instructions, and for each hidden box only its kind, its character pattern (digits as 9, letters as A or a), its position and the visible labels beside it. No original image, never the hidden text.' + (S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)) ? ' Numbers are replaced with invented values of the same size; labels stay masked.' : '') + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
     $('pf-size').textContent = Math.round(url.length * 0.75 / 1024) + ' KB';
     const isSample = !!S.sample;
-    $('pf-dest').textContent = isSample ? 'Nothing is sent: this sample uses a bundled spec' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'Only if you click Send: the AI provider you choose below, with your key');
+    $('pf-dest').textContent = isSample ? 'Nothing is sent: the sample is built on this device' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'Only if you click Send: the AI provider you choose below, with your key');
     $('keybox').hidden = isSample || !!S.key;
     kpSend.fill();
     $('send-err').hidden = true;
@@ -1447,500 +1436,104 @@ customer service staff agent team people everyone nobody someone something nothi
   $('btn-confirm').onclick = async () => {
     const err = $('send-err'); err.hidden = true; err.className = 'err';
     if (!$('pf-ok').checked) return;
-    if (S.sample) { $('dlg-send').close(); S.spec = S.sample.spec; S.seed = 4127; fresh(); showReplica(); return; }
+    // the bundled sample needs no key: its replacements are made on this device
+    if (S.sample) { $('dlg-send').close(); S.seed = 4127; return buildInPlace(false); }
     if (!S.key) {
       const v = kpSend.read();
-      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key to build a replica, or click "Build on this device (beta)" or "Download masked image" (no key needed, nothing sent).'; err.hidden = false; return; }
+      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key for AI-written replacements, or click "Build on this device" (no key needed, nothing sent).'; err.hidden = false; return; }
       applyKey(v);
       $('pf-dest').textContent = VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key';
     }
-    $('btn-confirm').disabled = true; $('btn-confirm').textContent = 'Asking ' + providerName() + ' for the layout…';
+    $('btn-confirm').disabled = true; $('btn-confirm').textContent = 'Asking ' + providerName() + ' for replacements…';
     try {
-      S.spec = scrubVerbatims(await askModel(S.payload));
       S.seed = 1000 + Math.floor(Math.random() * 9000);
+      await buildInPlace(true);
       $('dlg-send').close();
-      fresh(); showReplica();
     } catch (e) {
       err.textContent = e.message || String(e); err.hidden = false;
       // a rejected key is forgotten everywhere, including a copy remembered on this device
       if (e.status === 401) { S.key = null; remember(false); $('keybox').hidden = false; kpSend.fill(); }
       if (window.VSFeedback) { VSFeedback.note(e, providerName() + ' request (' + S.model + ')'); err.insertAdjacentHTML('beforeend', ' <button type="button" class="linkbtn" data-feedback="bug">Report this</button>'); }
-      $('btn-confirm').disabled = false; $('btn-confirm').textContent = 'Try again';
-    }
-  };
-
-  const SYSTEM = `You convert a screenshot of a dashboard or report into a JSON layout spec for a synthetic replica.
-Grey boxes cover redacted text. Never guess, reconstruct or mention redacted content. Never output a real value (the only text you copy is visible labels and visible comment wording, as described below).
-Rules:
-- Output JSON only, no prose, matching this shape:
-{"title":string,"subtitle":string,"theme":{"primary":"#hex","secondary":"#hex"},
- "filters":[{"label":string,"members":[string]}],
- "parameters":[{"label":string,"value":string}] (report prompts or parameter boxes above a paginated report, e.g. "Store identifier?" with a value box; value only when it is visible and not covered, else ""),
- "rows":[{"height":"s"|"m"|"l","visuals":[VISUAL]}]}
-VISUAL fields: "id", "type", "span" (1-12 grid columns; a row's spans sum to 12), "title",
- "measure":{"name":string,"format":"currency"|"number"|"percent"|"integer"|"ratio"|"duration","currency":"$"|"€"|"£"|"₹"|"","unit":string (optional suffix such as "min", "h", "days", "pts", "ms"),"outOf":number (ratio only: the scale maximum, e.g. 5 for "4.5 / 5"),"scaleHint":number (optional: a plausible typical magnitude for this kind of measure, e.g. 40 for days, 900 for headcount; never copy a visible value),"higherIsBetter":bool (false when a rise is bad: error, crash, ANR, bounce, churn, cost, response time, backlog)},
- "dimension":{"name":string,"members":[string]}, "series":[{"name":string,"shape":[0-100 per member],"kind":"bar"|"line","measure":{…} (only on a combo series that uses its own axis, e.g. a % line over $ bars)}],
- "horizontal":bool, "stacked":bool, "stackedPercent":bool, "valueLabels":bool, "sparkline":bool, "refLines":[{"name":string,"shape":0-100}].
- kpi: "shapeValue":0-100 for percentages (where the value sits on 0-100). Use format "ratio" with "outOf" for scores like "4.52 / 5", "duration" with a unit for times like "38 min", "integer" with unit "pts" for points.
-Types: ${VSCatalog.TYPES.join(', ')}.
- Orientation: "column" = vertical bars rising from the x-axis (categories along the bottom). "bar" = horizontal bars (categories down the left side) and must have "horizontal":true. Never send "column" with "horizontal":true.
- Stacking: "stacked":true only when segments sit on top of each other in one bar. Bars side by side for each category are grouped: "stacked":false. Include one entry in "series" for every legend item. "stackedPercent":true (with "stacked":true) when every stack reaches the same height, a 100% stacked chart.
- Reference lines: a straight target, average or threshold line drawn across a bar, column, line or area chart goes in "refLines", one entry each, with "shape" on the same scale as the series shapes (100 = the largest single series value; above 100 when the line sits higher, e.g. over stacked totals) and "name" from its visible label ("Target", "Average"), else "Target". Never as a series.
- heatmap: "rows":{"name","members"},"columns":{"name","members"},"matrix":[[0-100 or null]] with null for an empty cell (for example the blank triangle of a cohort table).
- boxplot: "boxes":[[min,q1,median,q3,max] each 0-100, one per member] measured from the drawing.
- Several small gauges or KPI tiles in a group: one visual each. Commentary, bullet lists or notes: type "text" with "content" holding only words that are visible and not covered.
- scatter/bubble: "xMeasure","yMeasure","points":[[x0-100,y0-100,size0-100]].
- gauge: "shapeValue":0-100 (needle or arc position), plus "min" and "max" when the scale is not 0-100 (for example -100 and 100 for NPS). waterfall: series shape signed -100..100, last member is the total (0).
- sankey: "nodes":[string],"links":[{"source":index,"target":index,"shape":0-100}].
- gantt (also roadmaps and timelines): "tasks":[{"name":string,"start":0-100,"end":0-100}] in top-to-bottom order, positions measured along the time axis; "timeLabels":[string] for the visible time-axis labels, left to right.
- map: "basemap":"world"|"europe"|"usa"|"canada"|"mexico"|"brazil"|"uk"|"france"|"germany"|"italy"|"spain"|"india"|"china"|"japan"|"australia"|"south-africa" (the closest outline to what is shown),
-  "mapKind":"filled"|"bubble"|"density"|"flow". filled: "dimension":{"name","members":[regions that are shaded]} with series shape = relative colour intensity.
-  bubble/density: "points":[{"name":string,"lat":number,"lon":number,"shape":0-100}] for each marker or hotspot, placed by where it sits on the map (if its label is masked, name it "Location N").
-  flow: "points" for the endpoints plus "flows":[{"from":name,"to":name,"shape":0-100}].
-  Recognise shaded regions from the geography itself and use their standard English names (country, state or province), even when labels are masked; region names are not sensitive.
- table: "columns":[{"name":string,"kind":"text"|"org"|"person"|"id"|"category"|"date"|"number"|"currency"|"percent"|"verbatim","members":[string],"scaleHint":number (optional, a plausible typical value for that column, e.g. 4.5 for a 5-point rating, 50 for a price per seat)}],"rowCount":int,"sorted":bool. Put the column that labels each row first, as kind "category" with its members in row order.
- Customer comments (verbatims, quotes, reviews, free-text feedback), whether in a table or a list with a name line above each: make a table with one row per comment and a column of kind "verbatim" holding "values":[string], the readable wording of each comment in order, copied word for word. Write […] wherever a grey box covers words inside a comment; never fill them in. If a comment is entirely covered, use an empty string. Give the commenter and company columns kinds "person" and "org", and any score badge kind "number".
- Any number column in a table may add "shape":[0-100 per row]: the relative size from a visible in-cell bar, or from a badge colour when the number is covered (green = high, amber = middle, red = low). Omit it when there is no visual cue.
- Grouped report tables (SSRS, Crystal Reports, BusinessObjects): add "groupBy":[column name] for columns whose value is shown once per group and blank below (outermost first), "subtotals":true when each group ends with a Total row, "grandTotal":true when a Total row closes the table.
- pivot (matrix, cross-tab: rows AND columns are dimension values): "rowDims":[{"name":string,"members":[string]}] outermost first (1-2 levels), "colDims":[{"name":string,"members":[string]}] outermost first (0-2 levels), "measures":[{"name":string,"format":…,"currency":…}] (the value names repeated under each column, e.g. Sales and Quantity), "subtotals":bool, "grandTotal":bool, "totalColumn":bool. Use pivot rather than table whenever column headers are dimension values (products, months, store numbers) instead of field names.
- placeholder: "originalType":string for anything else.
-- Titles and labels: copy only text that is visible and not covered. If part of a title is covered, write [Client] for it. If axis or legend labels are covered, use "Item 1", "Item 2"…
-- Shapes: estimate each mark's relative size from the visible geometry, largest = 100. For lines use relative height within the plot. Do not read numbers.
-- Keep the visual order and approximate widths of the original. Use at most 20 visuals.`;
-
-  // Sends only the approved, masked image to the provider the user chose (see llm.js).
-  async function askModel(dataUrl, retryNote) {
-    const text = await VSLLM.ask({ provider: S.provider, key: S.key, model: S.model, system: SYSTEM, prompt: retryNote || 'Return the JSON spec for this masked screenshot.', imageDataUrl: dataUrl });
-    const spec = parseSpec(text);
-    if (!spec) {
-      if (retryNote) throw new Error(providerName() + ' returned a layout that could not be read. Try again, or pick a stronger model.');
-      return askModel(dataUrl, 'Your previous answer was not valid JSON in the required shape. Return only the JSON object.');
-    }
-    return spec;
-  }
-  // A row's spans must sum to 12, or the grid wraps its last visual or leaves a gap. The model often sends 11 or 13 (25
-  // of 60 answers on the generated benchmark, tools/ai-bench): spans are scaled to 12, keeping their proportions.
-  function fitSpans(vs) {
-    if (!vs.length || vs.length > 12) return;
-    const raw = vs.map(v => Math.max(1, Number(v.span) || 6)), total = raw.reduce((a, b) => a + b, 0);
-    if (total === 12) return;
-    const spans = raw.map(x => Math.max(1, Math.round(x * 12 / total)));
-    for (let d = 12 - spans.reduce((a, b) => a + b, 0); d !== 0; d += d > 0 ? -1 : 1) {
-      const i = d > 0 ? spans.indexOf(Math.max(...spans)) : spans.findIndex(x => x === Math.max(...spans) && x > 1);
-      spans[i] += d > 0 ? 1 : -1;
-    }
-    vs.forEach((v, i) => { v.span = spans[i]; });
-  }
-  function parseSpec(text) {
-    try {
-      const s = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-      const o = JSON.parse(s);
-      if (!o || !Array.isArray(o.rows) || !o.rows.length) return null;
-      o.rows.forEach(r => { r.visuals = (r.visuals || []).filter(v => v && v.type); fitSpans(r.visuals); });
-      return o;
-    } catch (e) { return null; }
-  }
-
-  /* ---------------- Phase 4(b): close-ups of the visuals the local build is unsure of ---------------- */
-  // Each is cut from the masked image the user approved (no other pixels), sent with the same instructions, and its
-  // answer replaces that one visual: the layout and every other visual stay as built here. At most CLOSEUP_MAX per page;
-  // a visual whose close-up fails keeps its local reading.
-  const CLOSEUP_BELOW = 0.6, CLOSEUP_MAX = 6;
-  const CLOSEUP_PROMPT = 'This image is one visual cut from a masked dashboard. Return the JSON spec of a dashboard with exactly one row holding exactly one VISUAL that reproduces it, following the same rules.';
-  // Phase 4(c): each charted visual of the replica compared on the device with its panel in the masked image
-  // (web/selfcheck.js), in the background. On the generated benchmark the comparison and the builder's own confidence,
-  // averaged, rank the visuals built wrong below those built right better than the confidence alone, so the average
-  // picks the close-ups; the "Check" marks stay on the confidence alone, which raises no false ones.
-  function selfCheck(L) {
-    if (!window.VSSelfCheck || !L) return;
-    setTimeout(async () => {
-      try {
-        const words = layoutInput().words;
-        const root = $('replica');
-        // charts grow in when they are drawn: compare the finished picture, not the first frame of the animation
-        await Promise.all((root._charts || []).map(c => new Promise(res => { c.on('finished', res); setTimeout(res, 3000); })));
-        if (S.local !== L) return;
-        const sims = await VSSelfCheck.compare(root, maskedCanvas(1, '#787c82'), L.boxes || {}, words);
-        if (S.local === L) L.similar = sims;
-      } catch (e) { /* no comparison: the confidence stands alone */ }
-    }, 0);
-  }
-  /** Each visual's score for choosing close-ups: its confidence, averaged with the self-check where there is one. */
-  function closeupScores(L) {
-    const sim = (L && L.similar) || {};
-    return Object.fromEntries(Object.entries((L && L.byVid) || {}).map(([vid, c]) => [vid, sim[vid] == null ? c : (c + sim[vid]) / 2]));
-  }
-  function uncertainVisuals(spec, byVid, boxes) {
-    return spec.rows.flatMap(row => row.visuals).filter(v => boxes[v.id] && (byVid[v.id] ?? 1) < CLOSEUP_BELOW)
-      .sort((a, b) => (byVid[a.id] ?? 1) - (byVid[b.id] ?? 1)).slice(0, CLOSEUP_MAX);
-  }
-  async function refineSpec(spec, byVid, boxes, approved) {
-    const out = JSON.parse(JSON.stringify(spec)), asked = [], fixed = [];
-    for (const v of uncertainVisuals(out, byVid, boxes)) {
-      const b = boxes[v.id], m = Math.round(Math.max(b[2] - b[0], b[3] - b[1]) * 0.04);
-      const x0 = Math.max(0, b[0] - m), y0 = Math.max(0, b[1] - m), x1 = Math.min(approved.width, b[2] + m), y1 = Math.min(approved.height, b[3] + m);
-      const c = document.createElement('canvas'); c.width = x1 - x0; c.height = y1 - y0;
-      c.getContext('2d').drawImage(approved, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
-      asked.push(v.id);
-      try {
-        const answer = await askModel(c.toDataURL('image/png'), CLOSEUP_PROMPT);
-        const got = answer.rows.flatMap(row => row.visuals || [])[0];
-        if (!got || !got.type) continue;
-        const row = out.rows.find(rw => rw.visuals.includes(v));
-        row.visuals[row.visuals.indexOf(v)] = Object.assign({}, got, { id: v.id, span: v.span });
-        fixed.push(v.id);
-      } catch (e) { /* this visual keeps its local reading */ }
-    }
-    return { spec: out, asked, fixed };
-  }
-  async function refineLocal() {
-    if (!S.local || !S.spec) return;
-    if (!S.key) { $('btn-key').onclick(); return; }
-    const b = $('btn-local-refine'), n = uncertainVisuals(S.spec, closeupScores(S.local), S.local.boxes || {}).length;
-    b.disabled = true; b.textContent = 'Asking ' + providerName() + ' about ' + n + ' visual' + (n === 1 ? '' : 's') + '…';
-    try {
-      const res = await refineSpec(S.spec, closeupScores(S.local), S.local.boxes || {}, maskedCanvas(1));
-      S.spec = scrubVerbatims(res.spec);
-      res.fixed.forEach(id => { S.local.byVid[id] = 0.9; });
-      S.local.refined = (S.local.refined || 0) + res.fixed.length;
-      redrawLocal(); renderLocalBanner(); if (S.local.fixing) renderFixList();
-    } finally { b.disabled = false; renderLocalBanner(); }
-  }
-
-  /* ---------------- on-device layout builder (Phase 2, beta) ---------------- */
-  // Builds the replica spec from the masked image on this device: no key, no network. It sees what the AI would see:
-  // the masked image, the words that stay readable, and masked words and mask boxes as positions without text.
-  function layoutInput() {
-    // the builder reads solid boxes (as the check does): it was built on them, and invented digits would look like stray text
-    const c = maskedCanvas(1, '#787c82'), im = c.getContext('2d').getImageData(0, 0, c.width, c.height);
-    const on = S.masks.filter(m => m.on);
-    const inMask = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
-    const words = S.words.filter(w => !w.ghost).map(w => { const kept = !inMask(w); return { text: kept ? w.text : '', x: w.x, y: w.y, w: w.w, h: w.h, kept }; });
-    return { image: { data: im.data, width: im.width, height: im.height, channels: 4 }, words, masks: on.map(m => ({ x: m.x, y: m.y, w: m.w, h: m.h })) };
-  }
-  // In a Web Worker so the page stays responsive; on the main thread if workers are unavailable.
-  function buildLocally(input) {
-    const here = () => VSLayout.buildSpec(input);
-    let w = null;
-    try { w = new Worker(new URL('layout-worker.js', location.href)); } catch (e) { w = null; }
-    if (!w) return Promise.resolve().then(here);
-    return new Promise((resolve, reject) => {
-      const done = () => { clearTimeout(timer); w.terminate(); };
-      const timer = setTimeout(() => { done(); reject(new Error('Reading the layout took too long. Try a smaller crop, or use your own AI key.')); }, 90000);
-      w.onmessage = e => { done(); if (e.data && e.data.ok) resolve(e.data.result); else reject(new Error((e.data && e.data.error) || 'The on-device builder failed.')); };
-      w.onerror = e => { done(); if (e && e.preventDefault) e.preventDefault(); try { resolve(here()); } catch (err) { reject(err); } };
-      w.postMessage(Object.assign({ id: 1 }, input));
-    });
-  }
-  $('btn-local').onclick = async () => {
-    const err = $('send-err'); err.hidden = true; err.className = 'err';
-    if (!$('pf-ok').checked || !S.img) return;
-    const b = $('btn-local'); b.disabled = true; b.textContent = 'Reading the layout on this device…';
-    try {
-      const r = await buildLocally(layoutInput());
-      if (!r || !r.spec || !r.spec.rows || !r.spec.rows.length) throw new Error('No visuals were found in this image. Crop closer to the dashboard, or use your own AI key.');
-      S.spec = r.spec; S.seed = 1000 + Math.floor(Math.random() * 9000);
-      $('dlg-send').close();
-      fresh();
-      S.local = { visuals: r.spec.rows.reduce((n, row) => n + row.visuals.length, 0), coverage: r.coverage, ms: r.ms, confidence: r.confidence,
-        byVid: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.confidence])),
-        boxes: Object.fromEntries((r.panels || []).filter(p => p.vid).map(p => [p.vid, p.box])), kept: false };
-      showReplica();
-      selfCheck(S.local);
-    } catch (e) {
-      err.textContent = 'The on-device builder could not read this image: ' + (e && e.message || e); err.hidden = false;
-      if (window.VSFeedback) VSFeedback.note(e, 'On-device layout builder');
     } finally {
-      b.textContent = 'Build on this device (beta)'; b.disabled = !$('pf-ok').checked;
+      $('btn-confirm').disabled = !$('pf-ok').checked; $('btn-confirm').textContent = 'Send and build replica';
     }
   };
-  // the fallback: the same review and payload preview, then the user's own provider
-  $('btn-local-key').onclick = () => { if (S.img) $('btn-send').onclick(); };
-
-  /* ---------------- Phase 3: how sure the local build is, and the three choices ---------------- */
-  // The estimate is approximate (on the benchmark it lands within about 15 points of the truth, and it errs low), so
-  // it is shown as a band with a rough number. Below the line, the user chooses: fix it here, use their own key, or
-  // keep the result. Nothing is decided for them.
-  const LINE = (window.VSLayout && VSLayout.CONFIDENCE_THRESHOLD) || 0.9;
-  function localBand(c) {
-    return c >= LINE ? { cls: 'band-high', text: 'Looks complete.' } : c >= 0.6 ? { cls: 'band-mid', text: 'Check it before sharing.' } : { cls: 'band-low', text: 'A draft: check it carefully.' };
-  }
-  function renderLocalBanner() {
-    const L = S.local;
-    $('local-banner').hidden = !L || S.shared;
-    if (!L) { $('fix-panel').hidden = true; return; }
-    const band = localBand(L.confidence || 0), pct = Math.round((L.confidence || 0) * 100);
-    $('local-band').textContent = band.text; $('local-band').className = band.cls;
-    $('local-stats').textContent = `${L.visuals} visual${L.visuals === 1 ? '' : 's'} found, estimated match about ${pct}%${L.coverage < 0.85 ? ', and some content may have been missed' : ''}.`;
-    // below the line: three choices; once the user keeps the result, only the key fallback stays available
-    const below = (L.confidence || 0) < LINE;
-    $('btn-local-fix').hidden = !below && !L.fixing; $('btn-local-keep').hidden = !below || L.kept;
-    $('btn-local-key').textContent = below ? 'Use my AI key' : 'Use my AI key for a precise layout';
-    // the cheaper fallback: only the visuals it is unsure of, as close-ups of the approved image
-    const unsure = uncertainVisuals(S.spec || { rows: [] }, closeupScores(L), L.boxes || {}).length;
-    $('btn-local-refine').hidden = !below || !unsure;
-    $('btn-local-refine').textContent = 'Check ' + unsure + ' uncertain visual' + (unsure === 1 ? '' : 's') + ' with my AI key';
-    if (L.refined) $('local-stats').textContent += ' ' + providerName() + ' rechecked ' + L.refined + ' visual' + (L.refined === 1 ? '' : 's') + '.';
-    if (L.kept) $('local-stats').textContent += ' You kept this result.';
-  }
-  $('btn-local-refine').onclick = () => { refineLocal(); };
-  $('btn-local-keep').onclick = () => { if (!S.local) return; S.local.kept = true; $('fix-panel').hidden = true; renderLocalBanner(); };
-  $('btn-local-fix').onclick = () => { if (!S.local) return; S.local.fixing = true; renderFixList(); $('fix-panel').hidden = false; $('fix-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
-  $('btn-fix-done').onclick = () => { $('fix-panel').hidden = true; if (S.local) S.local.fixing = false; renderLocalBanner(); };
-
-  // "Fix it here": every visual with its type, title and how sure the builder was; changes redraw the replica
-  // (the types offered, and their names, from the chart catalogue: web/catalog.js)
-  const FIX_TYPES = VSCatalog.fixTypes();
-  const DEFAULT_MEMBERS = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
-  // a visual changed to another type keeps what still applies and gets sensible defaults for the rest
-  function convertVisual(v, type) {
-    const keep = { id: v.id, span: v.span, title: v.title || '' };
-    const measure = v.measure || (v.measures && v.measures[0]) || { name: v.title || 'Value', format: 'number' };
-    const dimension = v.dimension || (v.rowDims && v.rowDims[0]) || { name: 'Category', members: DEFAULT_MEMBERS };
-    const series = Array.isArray(v.series) && v.series.length ? v.series : [{ name: measure.name, shape: dimension.members.map((_, i) => Math.max(10, 100 - i * 18)) }];
-    // (between charts with an axis, stacking and reference lines carry over)
-    const axisChart = t => ['column', 'bar', 'line', 'area', 'combo'].includes(t);
-    const carry = axisChart(type) && axisChart(v.type) ? { ...(v.stacked ? { stacked: true } : {}), ...(v.stackedPercent ? { stackedPercent: true } : {}), ...(Array.isArray(v.refLines) && v.refLines.length ? { refLines: v.refLines } : {}) } : {};
-    if (['column', 'bar', 'line', 'area', 'pie', 'donut', 'treemap', 'funnel'].includes(type)) return Object.assign(keep, { type, measure, dimension, series, ...(type === 'bar' ? { horizontal: true } : {}), ...carry });
-    if (type === 'gauge') return Object.assign(keep, { type, measure, shapeValue: typeof v.shapeValue === 'number' ? v.shapeValue : 60, min: 0, max: 100 });
-    // (a timeline's tasks and a heatmap's rows and columns come from the visual's own members: the context names them)
-    if (type === 'gantt') return Object.assign(keep, { type, tasks: Array.isArray(v.tasks) && v.tasks.length ? v.tasks : dimension.members.map((m, i) => ({ name: m, start: i * 15, end: i * 15 + 25 })), timeLabels: v.timeLabels || [] });
-    if (type === 'heatmap') return Object.assign(keep, { type, measure, rows: v.rows || { name: dimension.name, members: dimension.members }, columns: v.columns || { name: 'Period', members: ['Q1', 'Q2', 'Q3', 'Q4'] }, matrix: v.matrix || dimension.members.map((_, i) => [0, 1, 2, 3].map((k) => (i * 17 + k * 29) % 100)) });
-    if (type === 'kpi') return Object.assign(keep, { type, title: '', measure: { ...measure, name: measure.name || v.title || 'KPI' }, sparkline: false });
-    if (type === 'scatter') return Object.assign(keep, { type, xMeasure: { name: 'X', format: 'number' }, yMeasure: { name: measure.name || 'Y', format: measure.format || 'number' }, points: Array.from({ length: 16 }, (_, i) => [5 + ((i * 37) % 90), 5 + ((i * 53) % 90), 50]) });
-    if (type === 'table') return Object.assign(keep, { type, rowCount: v.rowCount || 6, columns: Array.isArray(v.columns) && v.columns.length ? v.columns : [{ name: dimension.name, kind: 'category', members: dimension.members }, { name: measure.name, kind: measure.format === 'currency' ? 'currency' : 'number', ...(measure.currency ? { currency: measure.currency } : {}) }] });
-    if (type === 'pivot') return Object.assign(keep, { type, rowDims: v.rowDims || [dimension], colDims: v.colDims || [{ name: 'Period', members: ['Q1', 'Q2', 'Q3', 'Q4'] }], measures: v.measures || [measure], subtotals: false, grandTotal: true });
-    if (type === 'text') return Object.assign(keep, { type, content: v.content || '' });
-    return Object.assign(keep, { type: 'placeholder', originalType: v.originalType || 'visual' });
-  }
-  function redrawLocal() { DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); }
-  function renderFixList() {
-    const box = $('fix-list'); box.innerHTML = '';
-    const conf = (S.local && S.local.byVid) || {};
-    S.spec.rows.forEach((row, ri) => row.visuals.forEach((v, vi) => {
-      const sure = conf[v.id] == null ? 1 : conf[v.id];
-      const d = document.createElement('div'); d.className = 'fixrow'; d.dataset.vid = v.id;
-      d.innerHTML = `<span class="conf ${sure < 0.5 ? 'check' : 'ok'}" title="How sure the builder was: about ${Math.round(sure * 100)}%">${sure < 0.5 ? 'Check' : 'OK'}</span><input type="text" aria-label="Title"><select aria-label="Visual type"></select><button type="button">Remove</button>`;
-      const title = d.querySelector('input'), sel = d.querySelector('select');
-      const isKpi = v.type === 'kpi';
-      title.value = isKpi ? ((v.measure && v.measure.name) || '') : (v.title || ''); title.placeholder = isKpi ? 'KPI label' : 'Title';
-      FIX_TYPES.forEach(([t, l]) => { const o = document.createElement('option'); o.value = t; o.textContent = l; sel.appendChild(o); });
-      sel.value = FIX_TYPES.some(([t]) => t === v.type) ? v.type : 'placeholder';
-      title.onchange = () => { if (v.type === 'kpi') v.measure = { ...(v.measure || {}), name: title.value }; else v.title = title.value; redrawLocal(); };
-      sel.onchange = () => { row.visuals[vi] = convertVisual(v, sel.value); if (S.local) S.local.byVid[v.id] = 1; redrawLocal(); renderFixList(); };
-      // charts with series: how the bars sit (side by side, stacked, 100% stacked) and a reference line
-      if (['column', 'bar', 'combo', 'area', 'line'].includes(v.type)) {
-        const o = document.createElement('div'); o.className = 'fixopts';
-        const multi = Array.isArray(v.series) && v.series.length > 1;
-        o.innerHTML = (multi && v.type !== 'line' ? `<label>${v.type === 'area' ? 'Areas' : 'Bars'} <select aria-label="How the series sit"><option value="side">${v.type === 'area' ? 'Overlapping' : 'Side by side'}</option><option value="stacked">Stacked</option><option value="percent">100% stacked</option></select></label>` : '')
-          + '<label><input type="checkbox"> Reference line</label><label class="refat">at <input type="number" min="0" max="400" step="5" aria-label="Reference line, as a percentage of the largest value">% of the largest value</label>';
-        const how = o.querySelector('select'), ref = o.querySelector('input[type=checkbox]'), at = o.querySelector('input[type=number]'), atBox = o.querySelector('.refat');
-        if (how) {
-          how.value = v.stackedPercent ? 'percent' : v.stacked ? 'stacked' : 'side';
-          how.onchange = () => { v.stacked = how.value !== 'side'; if (how.value === 'percent') v.stackedPercent = true; else delete v.stackedPercent; redrawLocal(); renderFixList(); };
-        }
-        const refs = Array.isArray(v.refLines) ? v.refLines : [];
-        ref.checked = refs.length > 0; ref.disabled = !!v.stackedPercent; atBox.hidden = !refs.length;
-        at.value = refs.length ? Math.round(+refs[0].shape || 0) : 80;
-        ref.onchange = () => { if (ref.checked) v.refLines = [{ name: (refs[0] && refs[0].name) || 'Target', shape: +at.value || 80 }]; else delete v.refLines; redrawLocal(); renderFixList(); };
-        at.onchange = () => { if (v.refLines && v.refLines[0]) { v.refLines[0].shape = Math.max(0, Math.min(400, +at.value || 0)); redrawLocal(); } };
-        d.appendChild(o);
-      }
-      d.querySelector('button').onclick = () => {
-        row.visuals.splice(vi, 1);
-        if (!row.visuals.length) S.spec.rows.splice(ri, 1);
-        else { const total = row.visuals.reduce((a, x) => a + (x.span || 1), 0); row.visuals.forEach(x => { x.span = Math.max(1, Math.round((x.span || 1) * 12 / total)); }); }
-        if (S.local) S.local.visuals = S.spec.rows.reduce((n, r) => n + r.visuals.length, 0);
-        redrawLocal(); renderFixList(); renderLocalBanner();
-      };
-      box.appendChild(d);
-    }));
-  }
-
-  /* ---------------- Screen 3 ---------------- */
-  const MODE_HELP = {
-    shape: 'Keeps the layout, labels, rankings and trends of the original. Every value is generated and rescaled. Use for internal reviews.',
-    structure: 'Keeps the layout and labels. Values and trends are random. Use when sharing with vendors or prospects.',
-    generic: 'Keeps only the layout. Titles, labels and metric names are replaced too. Use for public demos.'
+  $('btn-local').onclick = () => {
+    if (!$('pf-ok').checked) return;
+    $('dlg-send').close(); S.seed = 1000 + Math.floor(Math.random() * 9000); buildInPlace(false);
   };
-  // A replica built here starts unrestricted; one opened from a share link keeps the sharer's privacy level.
-  S.minMode = 'shape'; S.shared = false;
-  function fresh() { S.minMode = 'shape'; S.shared = false; S.local = null; if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname + location.search); }
-  const rankOf = m => VSShare.rank(m);
-  function showReplica() {
-    if (rankOf(S.mode) < rankOf(S.minMode)) S.mode = S.minMode;
-    show('s-replica');
-    $('shared-banner').hidden = !S.shared;
-    renderLocalBanner();
-    $('modehelp').textContent = MODE_HELP[S.mode] + (S.shared && S.minMode !== 'shape' ? ' This link was shared as ' + MODE_NAMES[S.minMode] + ', so less private modes are not available.' : '');
-    document.querySelectorAll('#modes button').forEach(b => {
-      b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode));
-      b.disabled = rankOf(b.dataset.mode) < rankOf(S.minMode);
+
+  /* ---------------- Screen 3: the in-place replica ---------------- */
+  // The original screenshot is the picture. Each active mask is wiped with the background sampled around it and synthetic
+  // text is drawn back in its place (web/inpaint.js); nothing else of the original is redrawn, so every visual stays
+  // exactly as it was. The text comes from the context synthesizer (web/synth.js): from the AI provider when the user
+  // sends (only each box's kind, character pattern and the visible labels beside it; never the hidden text), else made
+  // here. A layer of hotspots over the picture explains each replaced box.
+  S.fid = null;           // { canvas, patches, ai: provider name or '' }
+  async function buildInPlace(useAi) {
+    const toks = VSSynth.tokens(S.masks.filter(m => m.on), S.words);
+    const fallback = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
+    let answer = null;
+    if (useAi) {
+      const req = VSSynth.request(toks, S.img);
+      if (req.tokens.length) answer = await askSynth(req);
+    }
+    const res = VSInpaint.patch(S.img, VSSynth.combine(toks, answer, fallback));
+    S.fid = { canvas: res.canvas, patches: res.patches, ai: useAi ? providerName() : '' };
+    showInPlace();
+  }
+  async function askSynth(req, retry) {
+    const text = await VSLLM.ask({
+      provider: S.provider, key: S.key, model: S.model, system: VSSynth.SYSTEM, imageDataUrl: S.payload,
+      prompt: (retry ? 'Your previous answer was not valid JSON in the required shape. Return only the JSON object.\n' : '') + JSON.stringify(req)
     });
-    $('opt-real').checked = S.realistic; $('opt-real').disabled = S.mode === 'generic';
-    DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, resetSelection: true });
+    const map = VSSynth.parse(text);
+    if (map) return map;
+    if (retry) throw new Error(providerName() + ' returned replacements that could not be read. Try again, pick a stronger model, or build on this device.');
+    return askSynth(req, true);
+  }
+  const KIND_NAMES = { number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Unread text (cleared)' };
+  // What a hotspot tells: the synthetic value and why it is there. Never the hidden text.
+  function describePatch(p) {
+    const lines = [p.synthetic ? p.synthetic : 'Cleared', KIND_NAMES[p.kind] || 'Replaced text'];
+    if (p.context) lines.push('Beside: ' + p.context);
+    if (p.note) lines.push(p.note);
+    lines.push(p.source === 'ai' ? 'Synthetic, written by ' + S.fid.ai : 'Synthetic, made on this device');
+    return lines;
+  }
+  function showInPlace() {
+    show('s-replica');
+    const f = S.fid, ai = f.patches.filter(p => p.source === 'ai').length;
+    VSInpaint.mount($('replica'), f.canvas, f.patches, { label: 'The screenshot with every sensitive text replaced by synthetic text', describe: describePatch });
+    $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
+    $('fid-summary').textContent = `${f.patches.length} ${f.patches.length === 1 ? 'box' : 'boxes'} replaced in place` +
+      (f.ai ? `, ${ai} written by ${f.ai} and ${f.patches.length - ai} on this device` : ', all on this device') +
+      '. Everything else is the original picture. Hover or tab to a replaced value to see what it stands for.';
     $('export-note').textContent = '';
   }
-  const MODE_NAMES = { shape: 'Shape-preserving', structure: 'Structure-only', generic: 'Generic' };
-  $('modes').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; S.mode = b.dataset.mode; showReplica(); };
-  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
-  // Feature 6: realistic synthetic names (web/lib/vs-faker.js); Generic mode always uses neutral placeholders
-  S.realistic = true;
-  $('opt-real').onchange = () => { S.realistic = $('opt-real').checked; DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
-  function startOver() { reviewSeq++; S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; fresh(); show('s-drop'); }
+  $('opt-outline').onchange = () => $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
+  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); buildInPlace(false); };
+  function startOver() { reviewSeq++; S.img = null; S.fid = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; show('s-drop'); }
   $('btn-restart').onclick = startOver;
-  $('btn-own').onclick = startOver;
-
-  /* ---------------- synthetic data download ---------------- */
-  $('btn-csv').onclick = () => {
-    const csv = DSCReplica.toCsv($('replica'));
-    saveFile(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }), replicaBase() + '-synthetic-data.csv');
-    $('export-note').textContent = 'Downloaded. One row per data point, exactly the generated values on screen (filters included). Opens in Excel, Power BI, Tableau, Looker Studio and Sheets.';
-  };
-
-  /* ---------------- share links ---------------- */
-  const shareLevel = () => (document.querySelector('input[name=share-level]:checked') || {}).value || S.mode;
-  async function buildShare() {
-    $('share-note').textContent = 'Packing the link…'; $('share-url').value = '';
-    try {
-      const url = await VSShare.link(S.spec, { level: shareLevel(), mode: S.mode, seed: S.seed });
-      $('share-url').value = url;
-      $('share-note').textContent = `${(url.length / 1024).toFixed(1)} KB link.` + (url.length > 8000 ? ' Some chat apps cut very long links; a Structure-only or Generic link is shorter.' : '');
-    } catch (e) { $('share-note').textContent = 'This browser could not make a link: ' + (e.message || e); }
+  // The replica as a picture, with a strip below it (hiding nothing) that says the text is synthetic.
+  function replicaImage() {
+    const src = S.fid.canvas, strip = footerHeight(1), c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height + strip;
+    const x = c.getContext('2d'); x.drawImage(src, 0, 0);
+    x.fillStyle = '#20262e'; x.fillRect(0, src.height, c.width, strip);
+    const fs = Math.round(strip * 0.42); x.textBaseline = 'middle'; x.textAlign = 'left';
+    x.font = `600 ${fs}px system-ui, -apple-system, "Segoe UI", sans-serif`; x.fillStyle = '#ffffff';
+    const lead = 'Synthetic data';
+    x.fillText(lead, fs, src.height + strip / 2);
+    x.font = `400 ${fs}px system-ui, -apple-system, "Segoe UI", sans-serif`; x.fillStyle = '#c9d1da';
+    x.fillText('  ·  values, names and labels in this image are made up, never the real ones  ·  VaultSnip', fs + x.measureText(lead).width, src.height + strip / 2);
+    return c;
   }
-  $('btn-share').onclick = () => {
-    document.querySelectorAll('input[name=share-level]').forEach(r => { r.disabled = rankOf(r.value) < rankOf(S.minMode); r.checked = r.value === (rankOf(S.mode) < rankOf(S.minMode) ? S.minMode : S.mode); });
-    $('share-lock').hidden = S.minMode === 'shape';
-    $('share-lock').textContent = 'This replica was opened from a ' + MODE_NAMES[S.minMode] + ' link, so a link made from it cannot keep more.';
-    $('dlg-share').showModal(); buildShare();
-  };
-  document.querySelectorAll('input[name=share-level]').forEach(r => r.addEventListener('change', buildShare));
-  $('share-copy').onclick = async () => {
-    const v = $('share-url').value; if (!v) return;
-    try { await navigator.clipboard.writeText(v); $('share-note').textContent = 'Link copied.'; }
-    catch (e) { $('share-url').select(); $('share-note').textContent = 'Copy did not work here; the link is selected, press Ctrl+C / ⌘C.'; }
-  };
-  async function openShared() {
-    const code = VSShare.fromHash(location.hash);
-    if (!code) return;
-    try {
-      const r = await VSShare.unpack(code);
-      S.sample = null; S.img = null; S.local = null; S.spec = r.spec; S.seed = r.seed; S.mode = r.mode; S.minMode = r.level; S.shared = true;
-      showReplica();
-    } catch (e) {
-      show('s-drop'); dropError('This share link could not be opened. ' + (e && e.message && !/JSON|atob|decompress|Invalid/i.test(e.message) ? e.message : 'It may have been cut off when it was copied.'));
-    }
-  }
-  if (!isExt) { openShared(); window.addEventListener('hashchange', openShared); }
-
-  // The engine, ECharts and the map outlines a self-contained export needs, read from the app's own files.
-  async function exportLibs() {
-    const mapNames = DSCReplica.mapsUsed(S.spec);
-    // the realistic-names injector (Feature 6) goes in only when the export uses it
-    const useFaker = S.mode !== 'generic' && S.realistic;
-    const [echartsSrc, replicaSrc, fakerSrc, ...mapSrcs] = await Promise.all([fetch('lib/echarts.min.js').then(r => r.text()), fetch('replica.js').then(r => r.text()), useFaker ? fetch('lib/vs-faker.js').then(r => r.text()) : '']
-      .concat(mapNames.map(n => fetch('maps/' + n + '.json').then(r => { if (!r.ok) throw new Error('map ' + n); return r.text(); }))));
-    const maps = {}; mapNames.forEach((n, i) => { maps[n] = mapSrcs[i]; });
-    return { echarts: echartsSrc, replica: replicaSrc, faker: fakerSrc, maps };
-  }
-
-  $('btn-export').onclick = async () => {
-    try {
-      // the file carries only what its mode shows: no original labels in Generic, no shapes in Structure-only
-      const html = DSCReplica.exportHtml(VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic }, await exportLibs());
-      saveFile(new Blob([html], { type: 'text/html' }), replicaBase() + '-replica-synthetic.html');
-      $('export-note').textContent = 'Exported. The file works offline and contains only generated values.';
-    } catch (e) {
-      $('export-note').textContent = 'Export needs the app to be served over http(s), not opened as a local file.';
-      if (window.VSFeedback) VSFeedback.problem(e, 'Export');
-    }
-  };
-
-  /* ---------------- design export: SVG for Figma, React component ---------------- */
-  // The SVG is drawn from a copy of the replica rendered off-screen from the spec for the current mode, so the file carries
-  // exactly what that mode shows (the on-screen replica keeps original labels in hidden attributes for filtering).
-  async function designCopy() {
-    const live = $('replica');
-    const off = document.createElement('div');
-    off.setAttribute('aria-hidden', 'true');
-    off.style.cssText = `position:fixed;left:-30000px;top:0;width:${Math.max(960, Math.round(live.getBoundingClientRect().width))}px`;
-    document.body.appendChild(off);
-    if (S.mode !== 'generic' && live._state) off._state = { filters: JSON.parse(JSON.stringify(live._state.filters || {})) };
-    DSCReplica.render(off, VSShare.forLevel(S.spec, S.mode), { mode: S.mode, seed: S.seed, realistic: S.realistic });
-    // charts animate in; wait until each has drawn its final frame
-    await Promise.all((off._charts || []).map(c => new Promise(res => { c.on('finished', res); setTimeout(res, 3000); })));
-    return { el: off, done() { (off._charts || []).forEach(c => c.dispose()); if (off._ro) off._ro.disconnect(); off.remove(); } };
-  }
-  const designTitle = () => (S.mode === 'generic' ? 'Dashboard' : String((S.spec && S.spec.title) || '').replace(/\[client\]/ig, '').replace(/^[\s|·:–-]+|[\s|·:–-]+$/g, '') || 'Dashboard');
-  $('btn-figma').onclick = async () => {
-    $('btn-figma').disabled = true;
-    let copy = null;
-    try {
-      copy = await designCopy();
-      saveFile(new Blob([VSDesign.toSvg(copy.el, { title: designTitle() })], { type: 'image/svg+xml' }), replicaBase() + '-replica-synthetic.svg');
-      $('export-note').textContent = 'Exported an SVG. In Figma, drag it onto the canvas (or File → Place image): titles and labels stay editable text and charts stay vectors. Only generated values are included.';
-    } catch (e) {
-      $('export-note').textContent = 'This export did not work: ' + (e && e.message || e);
-      if (window.VSFeedback) VSFeedback.problem(e, 'Export SVG');
-    } finally {
-      if (copy) copy.done();
-      $('btn-figma').disabled = false;
-    }
-  };
-  // A picture of the replica for chats, tickets and slides: the Figma SVG (this mode's copy, generated values only) drawn
-  // at twice its size. Copied where the browser can; downloaded where it cannot.
-  async function replicaPng() {
-    const copy = await designCopy();
-    try {
-      const url = URL.createObjectURL(new Blob([VSDesign.toSvg(copy.el, { title: designTitle() })], { type: 'image/svg+xml' }));
-      try {
-        const im = new Image(); im.src = url; await im.decode();
-        const k = Math.min(2, 4000 / im.naturalWidth), c = document.createElement('canvas');
-        c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
-        return await pngOf(c);
-      } finally { URL.revokeObjectURL(url); }
-    } finally { copy.done(); }
-  }
+  const replicaName = () => (S.sample ? 'sample' : (S.fileBase || 'screenshot')) + '-replica-synthetic.png';
+  $('btn-dl-replica').onclick = async () => { saveFile(await pngOf(replicaImage()), replicaName()); $('export-note').textContent = 'Downloaded. The picture is the original with every sensitive text replaced; a strip below says so.'; };
   $('btn-copy-replica').onclick = async () => {
-    const b = $('btn-copy-replica'); b.disabled = true;
-    const png = replicaPng();
-    try {
-      await copyPng(png);
-      $('export-note').textContent = 'Copied a picture of the replica, with generated values only. Paste it into a chat, a ticket or a slide.';
-    } catch (e) {
-      try { saveFile(await png, replicaBase() + '-replica-synthetic.png'); $('export-note').textContent = 'This browser cannot copy images, so the picture was downloaded instead.'; }
-      catch (e2) { $('export-note').textContent = 'The picture could not be made: ' + (e2 && e2.message || e2); }
-    } finally { b.disabled = false; }
-  };
-  // The React package runs the replica engine itself, so values, sizes, labels, filters and the CSV download stay live.
-  $('btn-react').onclick = () => $('dlg-react').showModal();
-  $('react-go').onclick = async () => {
-    const format = (document.querySelector('input[name=react-format]:checked') || {}).value || 'tsx';
-    $('dlg-react').close();
-    $('btn-react').disabled = true;
-    let copy = null;
-    try {
-      const libs = await exportLibs();
-      const common = { spec: VSShare.forLevel(S.spec, S.mode), mode: S.mode, seed: S.seed, realistic: S.realistic, title: designTitle(), replica: libs.replica, faker: libs.faker, maps: libs.maps };
-      if (format === 'tsx') {
-        // Feature 8: the page structure is read from a replica rendered for this privacy level; the values stay live
-        copy = await designCopy();
-        const pkg = VSReact.tsxPackage(Object.assign({ root: copy.el }, common));
-        saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '-tsx.zip');
-        $('export-note').textContent = `Exported ${pkg.name}-tsx.zip, an editable TypeScript React project: one typed component per card, with values, charts, filters, search and CSV generated at runtime. Unzip it into a project and run "npm install react react-dom echarts"; the README inside explains the rest.`;
-      } else {
-        const pkg = VSDesign.reactPackage(common);
-        saveFile(new Blob([pkg.zip], { type: 'application/zip' }), pkg.name + '.zip');
-        $('export-note').textContent = `Exported ${pkg.name}.zip, a live React component: values, charts, filters and the CSV download are generated at runtime from its spec and seed. Unzip it into a project and run "npm install react echarts"; the README inside explains the rest.`;
-      }
-    } catch (e) {
-      $('export-note').textContent = 'Export needs the app to be served over http(s), not opened as a local file.';
-      if (window.VSFeedback) VSFeedback.problem(e, 'Export React');
-    } finally {
-      if (copy) copy.done();
-      $('btn-react').disabled = false;
-    }
+    try { await copyPng(pngOf(replicaImage())); $('export-note').textContent = 'Copied. Paste it into a chat, a ticket or a slide.'; }
+    catch (e) { saveFile(await pngOf(replicaImage()), replicaName()); $('export-note').textContent = 'This browser cannot copy images, so the picture was downloaded instead.'; }
   };
 
   /* ---------------- key dialog ---------------- */
@@ -1972,5 +1565,5 @@ Types: ${VSCatalog.TYPES.join(', ')}.
 
   // expose for tests
   window.__DSC = S;
-  S.test = { system: SYSTEM, hideUncertain, receiptFacts, replicaPng, refineSpec, uncertainVisuals, closeupScores, askModel, scrubVerbatims, parseSpec, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, detectRegions, unreadMasks };
 })();

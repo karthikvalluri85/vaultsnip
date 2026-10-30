@@ -146,6 +146,16 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 .levels label:has(input:disabled){opacity:.5;cursor:not-allowed}
 .levels b{display:block;font-size:14px}.levels span{font-size:12.5px;color:var(--muted)}
 .linkbox{font-family:var(--mono);font-size:12px;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken);color:var(--ink)}
+  /* in-place replica: the patched original, with a hotspot layer mapped to its pixels */
+  .ip-stage { width: 100%; }
+  .ip-frame { position: relative; width: 100%; margin: 0 auto; }
+  .ip-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  .ip-layer { position: absolute; inset: 0; }
+  .ip-spot { position: absolute; margin: 0; padding: 0; border: 0; background: transparent; cursor: help; border-radius: 2px; }
+  .ip-spot:hover, .ip-spot:focus-visible, .ip-spot.is-active, .ip-outline .ip-spot { outline: 2px solid rgba(67, 184, 165, .9); outline-offset: 1px; }
+  .ip-spot.is-active { background: rgba(67, 184, 165, .12); }
+  .ip-tip { position: absolute; z-index: 5; max-width: 320px; padding: 8px 10px; border-radius: 6px; background: #20262e; color: #e9edf2; font-size: 13px; line-height: 1.4; box-shadow: 0 4px 16px rgba(0,0,0,.25); pointer-events: none; }
+  .ip-tip strong { display: block; font-size: 14px; color: #fff; margin-bottom: 2px; }
 </style>
 </head>
 <body>
@@ -154,7 +164,6 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
   <span class="pill hide-sm">Runs in your browser · nothing stored</span>
   <span class="sp"></span>
   <button type="button" class="linkbtn" data-feedback="bug" style="font-size:13px;margin-right:6px">Feedback</button>
-  <a href="charts.html" style="font-size:13px;margin-right:6px">Supported charts</a>
   <a href="privacy.html" style="font-size:13px;margin-right:6px">Privacy</a>
   <button class="btn" id="btn-key" type="button">AI key</button>
 </header>
@@ -165,14 +174,14 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
     <div class="hero">
       <div>
         <h1>Turn sensitive report snips into client-safe replicas</h1>
-        <p class="lede">Sensitive text is masked on your device before anything is sent. The replica runs on generated data, keeps the layout and the shape of the original, and carries a watermark.</p>
+        <p class="lede">Sensitive text is masked on your device before anything is sent. The replica is your original screenshot, pixel for pixel, with every sensitive text replaced in place by synthetic text: every chart, map and visual stays exactly as it was.</p>
         <div class="ctas">
-          <button class="btn primary big" id="btn-try" type="button">Try with sample dashboards</button>
+          <button class="btn primary big" id="btn-try" type="button">Try with a sample dashboard</button>
         </div>
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
-          <div><b>You approve what leaves.</b> Only the masked image goes to the AI you choose (Claude or OpenAI), after you see it.</div>
-          <div><b>Mask without a key.</b> Download the masked screenshot for a forum post, a bug report or a slide. A key is needed only to build a replica of your own image.</div>
+          <div><b>You approve what leaves.</b> Nothing leaves unless you choose an AI (Claude or OpenAI) to write the synthetic text; then only the masked image and each hidden box's pattern go, after you see them.</div>
+          <div><b>Mask without a key.</b> Download the masked screenshot for a forum post, a bug report or a slide. The in-place replica can be built on this device too; a key only lets an AI write the synthetic text.</div>
         </div>
       </div>
       <div>
@@ -271,45 +280,15 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 
   <!-- Screen 3 -->
   <section id="s-replica" hidden>
-    <div class="banner" id="shared-banner" hidden>
-      <span><b>Shared replica.</b> Every value is generated; the person who shared it chose what the link keeps.</span>
-      <button class="btn primary" id="btn-own" type="button">Make one from your own screenshot</button>
-    </div>
-    <div class="banner local" id="local-banner" hidden>
-      <div class="lb-text">
-        <span><b>Built on this device (beta).</b> Read from the masked image here; nothing was sent.</span>
-        <span class="lb-score"><b id="local-band"></b> <span id="local-stats"></span></span>
-      </div>
-      <div class="lb-actions" id="local-actions">
-        <button class="btn" id="btn-local-fix" type="button">Fix it here</button>
-        <button class="btn" id="btn-local-refine" type="button" hidden>Check uncertain visuals with my AI key</button>
-        <button class="btn" id="btn-local-key" type="button">Use my AI key for a precise layout</button>
-        <button class="btn" id="btn-local-keep" type="button">Keep this result</button>
-      </div>
-    </div>
-    <div class="panel fixer" id="fix-panel" hidden>
-      <div class="fixer-head"><h3>Fix the layout</h3><button class="btn" id="btn-fix-done" type="button">Done</button></div>
-      <p class="hint">Change what a visual is, rename it, or remove it. Visuals marked <b>Check</b> are the ones the builder was least sure about. The replica updates as you go; values are still generated.</p>
-      <div class="fixlist" id="fix-list"></div>
-    </div>
     <div class="toolbar">
-      <div class="seg" role="group" aria-label="Privacy mode" id="modes">
-        <button type="button" data-mode="shape" aria-pressed="true">Shape-preserving</button>
-        <button type="button" data-mode="structure" aria-pressed="false">Structure-only</button>
-        <button type="button" data-mode="generic" aria-pressed="false">Generic</button>
-      </div>
-      <button class="btn" id="btn-regen" type="button">Regenerate data</button>
-      <label class="check" title="Fill names, companies, emails, IDs and covered labels with realistic made-up values that suit each column. Off shows neutral placeholders such as Person 3."><input type="checkbox" id="opt-real" checked> Realistic names</label>
+      <button class="btn" id="btn-regen" type="button" title="New synthetic values, made on this device">Regenerate values</button>
+      <label class="check" title="Outlines every box whose text was replaced"><input type="checkbox" id="opt-outline"> Show replaced boxes</label>
       <span class="sp" style="flex:1"></span>
       <button class="btn" id="btn-restart" type="button">Start over</button>
-      <button class="btn" id="btn-csv" type="button">Download data (CSV)</button>
-      <button class="btn" id="btn-copy-replica" type="button" title="Copies a picture of the replica (generated values only) to paste into Teams, Slack, a ticket or a slide">Copy image</button>
-      <button class="btn" id="btn-share" type="button">Share link</button>
-      <button class="btn" id="btn-figma" type="button" title="Layered SVG with editable text and vector charts, for Figma, Penpot or Illustrator">Export for Figma (SVG)</button>
-      <button class="btn" id="btn-react" type="button" title="A live React component (zip): values, charts, filters and CSV are generated at runtime">Export React code</button>
-      <button class="btn primary" id="btn-export" type="button">Export HTML</button>
+      <button class="btn" id="btn-copy-replica" type="button" title="Copies the replica picture to paste into Teams, Slack, a ticket or a slide">Copy image</button>
+      <button class="btn primary" id="btn-dl-replica" type="button">Download image (PNG)</button>
     </div>
-    <p class="modehelp" id="modehelp"></p>
+    <p class="modehelp" id="fid-summary"></p>
     <div id="replica"></div>
     <p class="note" id="export-note"></p>
   </section>
@@ -341,45 +320,13 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <button class="btn" value="cancel" type="submit">Cancel</button>
       <button class="btn" id="btn-copy-masked" type="button" title="Copies the masked image to paste into Teams, Slack, a ticket or a slide">Copy masked image</button>
       <button class="btn" id="btn-dl-masked" type="button">Download masked image</button>
-      <button class="btn" id="btn-local" type="button" title="Reads the layout, chart types and shapes from the masked image on this device. No key, nothing is sent.">Build on this device (beta)</button>
+      <button class="btn" id="btn-local" type="button" title="Replaces every hidden text with synthetic text made on this device, in the original picture. No key, nothing is sent.">Build on this device</button>
       <button class="btn primary" id="btn-confirm" type="button">Send and build replica</button>
     </div>
   </form>
 </dialog>
 
-<dialog id="dlg-share" aria-labelledby="share-title">
-  <form method="dialog" class="dlg">
-    <h2 id="share-title">Share a link to this replica</h2>
-    <p class="note">The replica is packed into the link itself. Nothing is uploaded and VaultSnip stores nothing; anyone with the link can open it. A link never contains the screenshot or any real value.</p>
-    <div class="levels" role="radiogroup" aria-label="What the link keeps">
-      <label><input type="radio" name="share-level" value="shape"><div><b>Shape-preserving</b><span>Titles, labels and the ups and downs of each chart.</span></div></label>
-      <label><input type="radio" name="share-level" value="structure"><div><b>Structure-only</b><span>Titles and labels. Chart shapes are removed, so trends and rankings are random.</span></div></label>
-      <label><input type="radio" name="share-level" value="generic"><div><b>Generic</b><span>Layout and chart types only. All text is replaced too.</span></div></label>
-    </div>
-    <p class="note" id="share-lock" hidden></p>
-    <input class="linkbox" id="share-url" readonly aria-label="Share link">
-    <p class="note" id="share-note" role="status" aria-live="polite"></p>
-    <div class="row" style="justify-content:flex-end">
-      <button class="btn" value="cancel" type="submit">Close</button>
-      <button class="btn primary" id="share-copy" type="button">Copy link</button>
-    </div>
-  </form>
-</dialog>
 
-<dialog id="dlg-react" aria-labelledby="react-title">
-  <form method="dialog" class="dlg">
-    <h2 id="react-title">Export React code</h2>
-    <p class="note">Made on this device, no AI and no network. Values, charts, filters, search and the CSV download stay live: they are generated when the component runs, from the replica's spec and seed, at the current privacy level.</p>
-    <div class="levels" role="radiogroup" aria-label="React export format">
-      <label><input type="radio" name="react-format" value="tsx" checked><div><b>Editable TypeScript project (.tsx)</b><span>One typed component per card (KPI, chart, table…) in the page's order and widths, plus a hook and types. Edit the JSX like any React code.</span></div></label>
-      <label><input type="radio" name="react-format" value="jsx"><div><b>One-file component (.jsx)</b><span>Drop-in component that renders the whole replica. Least code to maintain.</span></div></label>
-    </div>
-    <div class="row" style="justify-content:flex-end">
-      <button class="btn" value="cancel" type="submit">Cancel</button>
-      <button class="btn primary" id="react-go" type="button">Export</button>
-    </div>
-  </form>
-</dialog>
 
 <dialog id="dlg-key">
   <form method="dialog" class="dlg">
@@ -398,16 +345,10 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="config.js"></script>
 <script src="lib/tesseract.min.js"></script>
 <script src="lib/vs-context.js"></script>
-<script src="lib/echarts.min.js"></script>
 <script src="lib/vs-faker.js"></script>
-<script src="replica.js"></script>
-<script src="selfcheck.js"></script>
-<script src="catalog.js"></script>
-<script src="lib/vs-design.js"></script>
-<script src="lib/vs-react.js"></script>
-<script src="lib/vs-layout.js"></script>
+<script src="synth.js"></script>
+<script src="inpaint.js"></script>
 <script src="samples.js"></script>
-<script src="share.js"></script>
 <script src="receipt.js"></script>
 <script src="app.js"></script>
 </body>

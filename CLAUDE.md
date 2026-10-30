@@ -27,20 +27,18 @@ Only after that check passes:
 ## 3. The replica must match the original
 
 This is the product. A replica that does not look like the screenshot it came from is a failure, however well the
-masking worked. The rule:
+masking worked. The replica **is** the original screenshot, changed in place (`web/inpaint.js`):
 
-> **Every visual of the original, in its place, of its kind, with its title, and nothing else.**
+> **Every pixel of the original, except the text that was hidden, which is replaced in its place by synthetic text.**
 
-- Nothing invented. A panel VaultSnip draws that is not a visual in the original (a toolbar, a filter bar, a page
-  header read as a card) is the worst kind of error: the user sees it immediately.
-- Nothing dropped. A KPI row of six tiles is six visuals, not one.
-- The right kind. A map is not a treemap; an area chart is not a map.
-- Measured by `node tools/layout-bench/fidelity.mjs`, which scores
-  `right / max(visuals in the original, panels produced)` on the real dashboards, counting **every** panel the builder
-  produces. The target is 100%.
-- No change ships that lowers fidelity. `tools/bench-gate.mjs` enforces it; run it before opening a PR.
-- `ignore` regions in `truth.json` are for scoring *found visuals* only. Fidelity never uses them: a panel over
-  application chrome is an invention and is counted as one.
+- Nothing is redrawn. No chart library, grid or generated layout recreates the dashboard body; charts, maps, gridlines,
+  legends and proprietary visuals keep their original pixels.
+- Only the text's own pixels inside a hidden box change; a bar edge or border running through the box survives.
+- Synthetic text matches the original's place, size, colour, weight and alignment, and keeps the dashboard's numbers
+  coherent (`web/synth.js`). The AI, when used, receives each box's kind, character pattern, position and visible
+  neighbouring labels, never the hidden text.
+- Measured by `node tests/e2e/inplace.e2e.mjs`: zero changed pixels outside the replaced boxes, no grey redaction blocks,
+  hotspots aligned with their pixels. No change ships that breaks it.
 
 ## 4. Free and open, for good
 
