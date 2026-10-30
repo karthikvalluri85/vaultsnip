@@ -78,6 +78,10 @@ try {
   check(v8 > 0 && Math.abs((v8 - v6) - (v6 - v4)) <= 2 && Math.abs((v4 - v2) - (v2 - v0)) <= 2 && v0 === 0 && stray === undefined && v8 !== 800000,
     `an axis keeps one even scale, its zero and a tick with a stray digit beside it (${axis.v.join(', ')})`);
   check(axis.zero === '0-', 'an axis zero stays 0');
+  // ticks the reader joined into one box stay one even scale starting at 0
+  const joined = await page.evaluate(() => window.__DSC.test.fakeValue('0 20 40 60 80 100 120 140 160 180 200', 11).split(' ').map(Number));
+  const step = joined[1] - joined[0];
+  check(joined.length === 11 && joined[0] === 0 && step > 0 && step !== 20 && joined.every((v, i) => v === i * step), `joined axis ticks stay one even scale (${joined.join(' ')})`);
 
   console.log('Overlay');
   const spots = await page.evaluate(() => document.querySelectorAll('#replica .ip-spot').length);

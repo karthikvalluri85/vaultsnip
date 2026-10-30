@@ -168,7 +168,8 @@ which what when where how why than then also just about across into out off per 
   // pass prepares its (large) scaled copy of the image only once a reader is free for it.
   const POOL = (() => {
     const cores = navigator.hardwareConcurrency || 2, mem = navigator.deviceMemory || 4;
-    return Math.max(1, Math.min(3, cores - 1, mem < 4 ? 1 : mem < 8 ? 2 : 3));
+    // measured: two readers on a 2-core machine read the same words about a quarter faster than one
+    return Math.max(1, Math.min(3, cores, mem < 4 ? 1 : mem < 8 ? 2 : 3));
   })();
   const slots = [], waiting = [];
   function startReader(slot) {
@@ -566,6 +567,8 @@ customer service staff agent team people everyone nobody someone something nothi
   const isNumberMask = m => m.type === 'Number or money' || (m.type === 'Added after check' && /\d/.test(m.text || ''));
   function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  // two significant figures: 64,947 → 65,000, 0.0734 → 0.073
+  const roundTo2 = x => { if (!x) return x; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 1); return Math.round(x / p) * p; };
   const randomFactor = r => (r() < 0.5 ? 0.55 + r() * 0.3 : 1.18 + r() * 0.62);
   // exact: the value to show (an axis tick rebuilt on an even scale); otherwise the real value is scaled at random
   function fakeValue(text, seed, exact, depth = 0) {
@@ -575,6 +578,22 @@ customer service staff agent team people everyone nobody someone something nothi
       const d = 1 + Math.floor(r() * 28), mon = /\d/.test(date[3]) ? String(1 + Math.floor(r() * 12)).padStart(date[3].length, '0') : date[3];
       const out = `${String(d).padStart(date[1].length, '0')}${date[2]}${mon}${date[2]}${date[4]}`;
       return out === text && depth < 8 ? fakeValue(text, seed + 1, undefined, depth + 1) : out;
+    }
+    // several ticks the reader joined into one box ("0 20 40 … 540") become one even scale, not unrelated numbers
+    const ticks = text.trim().split(/\s+/), joined = ticks.join(' ');
+    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t))) {
+      const vals = ticks.map(t => parseFloat(t.replace(/,/g, ''))), st = vals[1] - vals[0];
+      if (st && vals.every((v, i) => Math.abs(v - vals[0] - i * st) <= Math.abs(st) * 0.01)) {
+        const dec = Math.max(...ticks.map(t => (t.split('.')[1] || '').length)), comma = ticks.some(t => t.includes(','));
+        const fmt = v => { const [a, b] = v.toFixed(dec).split('.'); return (comma ? a.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : a) + (b ? '.' + b : ''); };
+        for (let k = 0; k < 40; k++) {
+          const f = randomFactor(r), s2 = roundTo2(st * f), a = vals[0] === 0 ? 0 : roundTo2(vals[0] * f);
+          const next = vals.map((_, i) => a + i * s2);
+          if (next.some(v => v < 0)) continue;
+          const out = next.map(fmt).join(' ');
+          if (out !== joined && Math.abs(out.length - joined.length) <= Math.max(2, joined.length * 0.08)) return out;
+        }
+      }
     }
     // the exact value (an axis tick) belongs to the text's main number, the longest run of digits
     const runs = text.match(/\d[\d,]*(?:\.\d+)?/g) || [], longest = runs.reduce((a, b) => (b.length > a.length ? b : a), '');
@@ -663,19 +682,26 @@ customer service staff agent team people everyone nobody someone something nothi
         for (let k = 0; k < 24; k++) {
           // a new start and a new step, at the labels' precision (so the steps stay exactly even); counted in steps, so a
           // missing tick leaves its gap, and anchored on the axis's 0 when it has one, which stays exactly 0
-          const f = randomFactor(r), qs = q(perStep * f) || Math.sign(perStep) * unit, z = vals.indexOf(0);
-          const next = idx.map(k => (z >= 0 ? (k - idx[z]) * qs : q(vals[0] * f) + k * qs)).map(q), idx_ = idx;
+          // the step a round number (two significant figures, as real axes are), except in the last tries
+          const f = randomFactor(r), z = vals.indexOf(0), nice = x => (k < 16 ? roundTo2(x) : x);
+          const qs = q(nice(perStep * f)) || Math.sign(perStep) * unit;
+          // an axis that runs down to 0 is anchored there even when the reader missed the 0 itself
+          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
+          const start = q(nice(vals[0] * f));
+          const next = idx.map(k => (kz != null ? (k - kz) * qs : start + k * qs)).map(q), idx_ = idx;
           if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && digits(v) === digits(vals[i]) && v !== vals[i]))) {
             g.forEach((m, i) => out.set(m, next[i]));
             // a tick at a missing step (kept out by its odd size: the reader joined a stray letter to it) takes the same
             // scale when its value is the one that step should have
-            const a0 = along(g[0]), unitGap = Math.min(...g.slice(1).map((m, i) => along(m) - along(g[i]))), unitVal = (vals[1] - vals[0]) / Math.round((along(g[1]) - a0) / unitGap);
+            // one step's length averaged over the whole axis, so one tick read off-centre does not skew it
+            const a0 = along(g[0]), last = idx_[idx_.length - 1], unitGap = (along(g[g.length - 1]) - a0) / last, unitVal = perStep;
             nums.filter(m => !out.has(m) && Number.isFinite(val(m)) && Math.abs(key(m) - key(g[0])) < Math.max(6, g[0].h)).forEach(m => {
               const k = (along(m) - a0) / unitGap, idx = Math.round(k);
-              if (idx < 0 || Math.abs(k - idx) > 0.3 || along(m) > along(g[g.length - 1])) return;
+              // inside the axis, or a step or two past its end (the 0 at the foot, read with its tick mark)
+              if (idx < 0 || Math.abs(k - idx) > 0.3 || idx > last + 2) return;
               const want = vals[0] + idx * unitVal;
-              const v = q(z >= 0 ? (idx - idx_[z]) * qs : q(vals[0] * f) + idx * qs);
-              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m))) out.set(m, v);
+              const v = q(kz != null ? (idx - kz) * qs : start + idx * qs);
+              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m)) && (v === 0) === (val(m) === 0)) out.set(m, v);
             });
             break;
           }

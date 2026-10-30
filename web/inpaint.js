@@ -241,6 +241,11 @@
     if (st.align === 'left') { ctx.textAlign = 'left'; x = st.inkBox ? st.inkBox.x : box.x + 1; }
     else if (st.align === 'right') { ctx.textAlign = 'right'; x = st.inkBox ? st.inkBox.x + st.inkBox.w : box.x + box.w - 1; }
     else { ctx.textAlign = 'center'; x = st.inkBox ? st.inkBox.x + st.inkBox.w / 2 : box.x + box.w / 2; }
+    // anchored on the original's ink, but never so far over that the box's edge cuts a letter off ("49,524" for "649,524")
+    const wide = ctx.measureText(text).width * hk, lo = box.x + 1, hi = box.x + box.w - 1;
+    if (ctx.textAlign === 'left') x = Math.max(lo, Math.min(x, hi - wide));
+    else if (ctx.textAlign === 'right') x = Math.min(hi, Math.max(x, lo + wide));
+    else x = Math.max(lo + wide / 2, Math.min(x, hi - wide / 2));
     // narrowed about the anchor, so left, right and centred text keep their edge
     ctx.translate(x, 0); ctx.scale(hk, 1);
     // on the original's baseline when it is known, so a name with tails sits on the same line as its neighbours
