@@ -686,7 +686,8 @@ customer service staff agent team people everyone nobody someone something nothi
           const f = randomFactor(r), z = vals.indexOf(0), nice = x => (k < 16 ? roundTo2(x) : x);
           const qs = q(nice(perStep * f)) || Math.sign(perStep) * unit;
           // an axis that runs down to 0 is anchored there even when the reader missed the 0 itself
-          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
+          // (a small scale such as 8, 7, 6 has no other even scale through 0 of the same digits: then it floats free)
+          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = (z >= 0 || k < 12) && Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
           const start = q(nice(vals[0] * f));
           const next = idx.map(k => (kz != null ? (k - kz) * qs : start + k * qs)).map(q), idx_ = idx;
           if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && digits(v) === digits(vals[i]) && v !== vals[i]))) {
