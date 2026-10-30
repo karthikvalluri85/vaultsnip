@@ -263,6 +263,31 @@
 
   // source: canvas or image of the original. patches: [{x,y,w,h,synthetic,...}] in source pixels.
   // Returns the patched canvas (same size as the source) and the patches with the style each one used.
+  // Blur a region the user chose (a chart whose shape is itself confidential): its pixels are averaged down to a few
+  // cells and spread back over the region, so bar lengths, line trends and slice sizes can no longer be read, while the
+  // page keeps its colours and layout. Works on whatever the canvas holds there.
+  function blurRegion(ctx, box, doc) {
+    const W = ctx.canvas.width, H = ctx.canvas.height;
+    const x0 = Math.max(0, Math.floor(box.x)), y0 = Math.max(0, Math.floor(box.y));
+    const w = Math.min(W, Math.ceil(box.x + box.w)) - x0, h = Math.min(H, Math.ceil(box.y + box.h)) - y0;
+    if (w < 2 || h < 2) return;
+    const D = doc || global.document;
+    const tw = Math.max(2, Math.min(5, Math.round(w / 64))), th = Math.max(2, Math.min(4, Math.round(h / 64)));
+    const t = D.createElement('canvas'); t.width = tw; t.height = th;
+    const tx = t.getContext('2d', { willReadFrequently: true }); tx.imageSmoothingEnabled = true; tx.imageSmoothingQuality = 'high';
+    tx.drawImage(ctx.canvas, x0, y0, w, h, 0, 0, tw, th);
+    // the region's average colour, laid over the few cells: what is left of the chart is a soft wash of its colours,
+    // without the light and dark that would still show which side held the tall bars
+    const d = tx.getImageData(0, 0, tw, th).data, avg = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) { avg[0] += d[i]; avg[1] += d[i + 1]; avg[2] += d[i + 2]; }
+    const n = d.length / 4;
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(t, 0, 0, tw, th, x0, y0, w, h);
+    ctx.globalAlpha = 0.7; ctx.fillStyle = `rgb(${Math.round(avg[0] / n)},${Math.round(avg[1] / n)},${Math.round(avg[2] / n)})`;
+    ctx.fillRect(x0, y0, w, h);
+    ctx.restore();
+  }
+
   function patch(source, patches, opts) {
     const W = source.width, H = source.height;
     const doc = (opts && opts.document) || global.document;
@@ -301,7 +326,9 @@
     work.forEach(p => inpaintRegion(data, img.data, W, H, p, 40, p.style));
     ctx.putImageData(img, 0, 0);
     work.forEach(p => drawText(ctx, p, p.synthetic, p.style));
-    return { canvas: out, patches: styled };
+    // areas the user chose to blur, last, over everything in them; each is a box of the replica like the others
+    const blurs = (opts && opts.blurs || []).map(b => { blurRegion(ctx, b, doc); return Object.assign({ kind: 'blur', synthetic: '', keep: false }, b); });
+    return { canvas: out, patches: styled.concat(blurs) };
   }
 
   /* ---------- Tier 3: the interactive layer ---------- */
@@ -365,7 +392,7 @@
     return { frame, layer, tip, outline(on) { frame.classList.toggle('ip-outline', !!on); } };
   }
 
-  const api = { RING, looksLikeShape, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
+  const api = { blurRegion, RING, looksLikeShape, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.VSInpaint = api;
 })(typeof window !== 'undefined' ? window : globalThis);

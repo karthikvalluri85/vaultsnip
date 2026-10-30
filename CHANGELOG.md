@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Blur a chart.** On the review screen, choose *Blur a chart* and drag over any chart whose shape is itself confidential. The area becomes a soft wash of its own colours (averaged down to a few cells, then most of the way to its average colour), in the masked image, the check, the replica and the receipt, so bar lengths, trends and proportions cannot be read. Click a blurred area to remove it. Text under it is blurred with it, not replaced. The replica test checks that nothing outside the replaced boxes and blurred areas changes.
+
 ## [0.9.0] - 2026-10-30
 
 The replica is now your own screenshot changed in place, made entirely on your device: no AI service, no key, nothing sent.

@@ -18,6 +18,7 @@
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     sessionAllow: new Set(),
+    blurs: [], tool: 'mask',   // areas the user chose to blur (charts whose shape is confidential), and what a drag draws
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
     ctx: { on: true, lines: null, scores: null, state: 'idle' },  // on-device name check (lib/vs-context.js, ml/)
@@ -492,14 +493,18 @@ customer service staff agent team people everyone nobody someone something nothi
   // Without a fill colour, numbers are replaced with invented values of the same size (when "fake numbers" is on) and
   // every other mask stays a grey box. An image with invented numbers gets a footer strip that says so; opts.tag: false
   // leaves it out (the review view says it in the page; the layout builder must not read it as content).
+  // A box lies under a blurred area when its centre does: it is blurred with the chart, so it is not drawn on its own.
+  const underBlur = m => S.blurs.some(b => m.x + m.w / 2 > b.x && m.x + m.w / 2 < b.x + b.w && m.y + m.h / 2 > b.y && m.y + m.h / 2 < b.y + b.h);
+  function blurAreas(x, scale) { S.blurs.forEach(b => VSInpaint.blurRegion(x, { x: b.x * scale, y: b.y * scale, w: b.w * scale, h: b.h * scale })); }
   function maskedCanvas(scale, fill, opts) {
     scale = scale || 1;
-    const on = S.masks.filter(m => m.on);
+    const on = S.masks.filter(m => m.on && !underBlur(m));
     const fakes = !fill && S.fakeNumbers && on.some(isNumberMask), strip = fakes && !(opts && opts.tag === false) ? footerHeight(scale) : 0;
     const c = document.createElement('canvas');
     c.width = Math.round(S.img.width * scale); c.height = Math.round(S.img.height * scale) + strip;
     const x = c.getContext('2d');
     x.drawImage(S.img, 0, 0, c.width, c.height - strip);
+    blurAreas(x, scale);
     if (!fakes) {
       x.fillStyle = fill || '#787c82';
       on.forEach(m => x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale));
@@ -1115,6 +1120,9 @@ customer service staff agent team people everyone nobody someone something nothi
     if (S.view === 'mask') { x.drawImage(maskedCanvas(1, null, { tag: false }), 0, 0); return; }
     x.drawImage(S.img, 0, 0);
     const lw = Math.max(2, S.img.width / 600);
+    // blurred areas look blurred here too, outlined so they can be clicked away again
+    blurAreas(x, 1);
+    S.blurs.forEach(b => { x.lineWidth = lw; x.strokeStyle = '#0d6b5d'; x.setLineDash([8, 5]); x.strokeRect(b.x, b.y, b.w, b.h); x.setLineDash([]); });
     S.masks.forEach(m => {
       const col = TYPES[m.type] || '#14181e';
       x.lineWidth = lw; x.strokeStyle = col; x.setLineDash(m.on ? [] : [6, 4]);
@@ -1125,12 +1133,13 @@ customer service staff agent team people everyone nobody someone something nothi
     x.setLineDash([4, 3]);
     S.flags.filter(f => !f.resolved).forEach(f => { x.lineWidth = lw * 1.5; x.strokeStyle = f.severity === 'block' ? '#b03c38' : '#a55d00'; x.strokeRect(f.x, f.y, f.w, f.h); });
     x.setLineDash([]);
-    if (drag && drag.moved) { x.lineWidth = lw; x.strokeStyle = '#14181e'; x.setLineDash([6, 4]); x.strokeRect(drag.x0, drag.y0, drag.x1 - drag.x0, drag.y1 - drag.y0); x.setLineDash([]); }
+    if (drag && drag.moved) { x.lineWidth = lw; x.strokeStyle = S.tool === 'blur' ? '#0d6b5d' : '#14181e'; x.setLineDash([6, 4]); x.strokeRect(drag.x0, drag.y0, drag.x1 - drag.x0, drag.y1 - drag.y0); x.setLineDash([]); }
   }
   function renderCounts() {
     const counts = {};
     S.masks.filter(m => m.on).forEach(m => counts[m.type] = (counts[m.type] || 0) + 1);
-    $('types').innerHTML = Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${label(t)}</span><b>${counts[t]}</b></div>`).join('') || '<div class="hint">Nothing hidden yet.</div>';
+    const blurred = S.blurs.length ? `<div><span class="sw" style="background:#0d6b5d"></span><span>Charts blurred by you</span><b>${S.blurs.length}</b></div>` : '';
+    $('types').innerHTML = (Object.keys(TYPES).filter(t => counts[t]).map(t => `<div><span class="sw" style="background:${TYPES[t]}"></span><span>${label(t)}</span><b>${counts[t]}</b></div>`).join('') + blurred) || '<div class="hint">Nothing hidden yet.</div>';
     renderSummary();
   }
   // Summary for the reviewer: how much is hidden, how much stays readable, how many decisions are theirs, and what to do next
@@ -1221,7 +1230,13 @@ customer service staff agent team people everyone nobody someone something nothi
     const d = drag; drag = null;
     if (d.moved) {
       const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
-      if (w > 4 && h > 4) S.masks.push({ x, y, w, h, type: 'Added by you', text: '(drawn box)', on: true, src: 'manual' });
+      if (S.tool === 'blur') { if (w > 8 && h > 8) S.blurs.push({ x, y, w, h }); }
+      else if (w > 4 && h > 4) S.masks.push({ x, y, w, h, type: 'Added by you', text: '(drawn box)', on: true, src: 'manual' });
+    } else if (S.tool === 'blur') {
+      // a click on a blurred area removes it
+      const i = S.blurs.findIndex(b => d.x0 >= b.x && d.x0 <= b.x + b.w && d.y0 >= b.y && d.y0 <= b.y + b.h);
+      if (i < 0) { draw(); return; }
+      S.blurs.splice(i, 1);
     } else {
       const hits = S.masks.filter(m => d.x0 >= m.x && d.x0 <= m.x + m.w && d.y0 >= m.y && d.y0 <= m.y + m.h);
       if (!hits.length) { draw(); return; }
@@ -1264,7 +1279,7 @@ customer service staff agent team people everyone nobody someone something nothi
   let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
@@ -1305,6 +1320,14 @@ customer service staff agent team people everyone nobody someone something nothi
     rc.style.cursor = v === 'orig' ? 'crosshair' : 'default';
     draw();
   }
+  function setTool(t) {
+    S.tool = t;
+    $('t-mask').setAttribute('aria-pressed', String(t === 'mask'));
+    $('t-blur').setAttribute('aria-pressed', String(t === 'blur'));
+    if (S.view !== 'orig') setView('orig');   // boxes are drawn on the original view
+  }
+  $('t-mask').onclick = () => setTool('mask');
+  $('t-blur').onclick = () => setTool('blur');
   $('v-orig').onclick = () => setView('orig');
   $('v-mask').onclick = () => setView('mask');
   $('v-zoom').onclick = () => { const on = $('review-wrap').classList.toggle('zoom'); $('v-zoom').setAttribute('aria-pressed', String(on)); };
@@ -1666,6 +1689,7 @@ customer service staff agent team people everyone nobody someone something nothi
       ['Pre-flight check', S.gate === 'pass' ? 'Passed. The masked image was read again six independent ways on this device; nothing readable is left outside the masks.'
         + (flags.length ? ` ${plural(flags.length, 'finding was', 'findings were')} resolved: ${[masked ? masked + ' masked' : '', keptByYou ? keptByYou + ' kept as not sensitive' : ''].filter(Boolean).join(', ')}.` : '') : 'Not passed'],
       ['Hidden', `${plural(t.hidden, 'word or number', 'words and numbers')} in ${plural(on.length, 'box', 'boxes')}: ` + Object.keys(TYPES).filter(k => counts[k]).map(k => `${label(k)} ${counts[k]}`).join(' · ')],
+      ['Blurred', S.blurs.length ? `${S.blurs.length} ${S.blurs.length === 1 ? 'area' : 'areas'} blurred by you, so the chart shapes in them cannot be read` : 'Nothing blurred: chart shapes are the real ones'],
       ['Numbers', !on.some(isNumberMask) ? 'None hidden' : S.fakeNumbers ? 'Replaced with invented values of the same size; the image says so below it' : 'Covered with grey boxes'],
       ['Kept readable', plural(t.kept, 'safe report word', 'safe report words') + (S.keepComments ? ', and the wording of customer comments (names, companies, emails and numbers in them masked)' : '')],
       ['Your decisions', String(t.yours)],
@@ -1708,7 +1732,7 @@ customer service staff agent team people everyone nobody someone something nothi
   S.fid = null;           // { canvas, patches }
   const seededRandom = seed => seeded(seed);
   function buildInPlace() {
-    const toks = VSSynth.tokens(S.masks.filter(m => m.on), S.words);
+    const toks = VSSynth.tokens(S.masks.filter(m => m.on && !underBlur(m)), S.words);
     const values = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
     // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
     const full = S.img.full || S.img, k = full.width / S.img.width;
@@ -1724,13 +1748,15 @@ customer service staff agent team people everyone nobody someone something nothi
       const minConf = inside.length ? Math.min(...inside.map(w => w.conf == null ? 100 : w.conf)) : 0;
       if (VSInpaint.looksLikeShape(im, S.img.width, S.img.height, m, medH, minConf, m.text)) Object.assign(p, { keep: true, synthetic: '' });
     });
-    const r = seededRandom(S.seed), res = VSInpaint.patch(full, map, { slantText: n => VSSynth.word(n > 9 ? 'Aaaaa ' + 'A' + 'a'.repeat(n - 7) : 'A' + 'a'.repeat(n - 1), r) });
+    const blurs = S.blurs.map(b => ({ x: b.x * k, y: b.y * k, w: b.w * k, h: b.h * k }));
+    const r = seededRandom(S.seed), res = VSInpaint.patch(full, map, { blurs, slantText: n => VSSynth.word(n > 9 ? 'Aaaaa ' + 'A' + 'a'.repeat(n - 7) : 'A' + 'a'.repeat(n - 1), r) });
     S.fid = { canvas: res.canvas, patches: res.patches };
     showInPlace();
   }
   const KIND_NAMES = { number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Text that could not be read (a made-up label, or cleared)' };
   // What a hotspot tells: the synthetic value and why it is there. Never the hidden text.
   function describePatch(p) {
+    if (p.kind === 'blur') return ['Blurred by you', 'This area was blurred on purpose, so the shape of its chart cannot be read.', 'Made on this device'];
     if (p.keep) return ['Left as it was', 'The reader took this part of a chart for text; it is not text, so it was not changed.'];
     const lines = [p.synthetic ? p.synthetic : 'Cleared', KIND_NAMES[p.kind] || 'Replaced text'];
     if (p.context) lines.push('Beside: ' + p.context);
@@ -1739,12 +1765,12 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   function showInPlace() {
     show('s-replica');
-    const f = S.fid, kept = f.patches.filter(p => p.keep).length;
+    const f = S.fid, kept = f.patches.filter(p => p.keep).length, nBlur = f.patches.filter(p => p.kind === 'blur').length;
     VSInpaint.mount($('replica'), f.canvas, f.patches, { label: 'The screenshot with every sensitive text replaced by synthetic text', describe: describePatch });
     $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
-    const n = f.patches.length - kept;
+    const n = f.patches.length - kept - nBlur;
     $('fid-summary').textContent = `${n} ${n === 1 ? 'box' : 'boxes'} replaced in place` +
-      ' on this device' +
+      ' on this device' + (nBlur ? `, ${nBlur} ${nBlur === 1 ? 'chart' : 'charts'} blurred` : '') +
       (kept ? `; ${kept} chart ${kept === 1 ? 'shape' : 'shapes'} the reader took for text left as ${kept === 1 ? 'it was' : 'they were'}` : '') +
       '. Everything else is the original picture. Hover or tab to a replaced value to see what it stands for.';
     $('export-note').textContent = '';

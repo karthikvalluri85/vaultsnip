@@ -12,7 +12,7 @@ Also on Hugging Face: https://huggingface.co/spaces/karthikvalluri/vaultsnip · 
 
 VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, sends nothing anywhere, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
 
-**What it does not hide:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, drag a box over that chart.
+**What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, choose **Blur a chart** and drag over it.
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
@@ -40,6 +40,7 @@ capture → local OCR → mask everything except an allowlist → independent re
 | Unread-text check (AI) | ✅ two small PP-OCRv5 models (5 MB and 7 MB) find every patch of text and read it again line by line, and mask any the reader missed or could not vouch for; only adds masks; can be switched off |
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain** |
 | Review: click to toggle, drag to add masks | ✅ |
+| **Blur a chart** | ✅ drag over any chart whose shape is confidential: it becomes a soft wash of its own colours in the masked image and the replica, so bar lengths, trends and proportions cannot be read; click it to undo; the receipt counts blurred areas |
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in |
 | Preview of the masked image before you save, copy or build | ✅ |
 | **In-place replica** | ✅ the original screenshot, pixel for pixel, with each hidden text wiped from its surrounding background (only the text's own pixels; bar edges and borders through a box survive) and synthetic text drawn back in the same place, size, colour, weight and alignment. Any visual works, because none is redrawn: decomposition trees, custom maps, proprietary widgets |
