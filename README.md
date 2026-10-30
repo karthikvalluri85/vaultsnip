@@ -23,9 +23,9 @@ capture → local OCR → mask everything except an allowlist → independent re
 
 ## See it in action
 
-<a href="docs/media/vaultsnip-demo.mp4"><img src="docs/media/vaultsnip-demo.webp" alt="VaultSnip 0.9 on the fictional Kestrelmoor sample dashboard: names, IDs and numbers are masked on the device, the six-pass check passes, and the replica shows the same dashboard with synthetic text in place" width="900"></a>
+<a href=".github/media/vaultsnip-demo.mp4"><img src=".github/media/vaultsnip-demo.webp" alt="VaultSnip 0.9 on the fictional Kestrelmoor sample dashboard: names, IDs and numbers are masked on the device, the six-pass check passes, and the replica shows the same dashboard with synthetic text in place" width="900"></a>
 
-*VaultSnip 0.9 on the bundled fictional sample, sped up 2.5×. [Watch the full-speed recording (MP4, 87 s)](docs/media/vaultsnip-demo.mp4).*
+*VaultSnip 0.9 on the bundled fictional sample, sped up 2.5×. [Watch the full-speed recording (MP4, 87 s)](.github/media/vaultsnip-demo.mp4).*
 
 ## Features
 
@@ -114,7 +114,7 @@ extension/        manifest.json; background.js, canvas-ocr.js, offscreen.*, wasm
 src/              TypeScript sources: name check, chart blur (background/, content/), made-up names (replica/)
 tools/            check.mjs, e2e.mjs, build scripts, synth-bench/ (masking benchmark), inplace-bench/ (replica benchmark)
 build.sh          builds dist/web, dist/extension, dist/hf-space and zips
-docs/media/       the README's demo recording (not shipped in the app or the extension)
+.github/media/    the README's demo recording (not shipped in the app or the extension)
 ```
 
 ## Contributing
