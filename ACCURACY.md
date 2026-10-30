@@ -2,6 +2,31 @@
 
 > **History.** Most of this page measures the earlier chart-rebuilding replica and its AI-key path, both retired in 0.9: the replica is now the original screenshot changed in place, built only on the device, and nothing is sent to any AI service. The masking figures still apply. The in-place replica is measured by `npm run bench:inplace`.
 
+## Where it stands in 0.10
+
+Measured on 31 October 2026 on two generated sets where every word's position and kind is known. Everything is invented
+(Faker people and companies, `example.com` emails), so the sets can be published and the figures reproduced by anyone.
+
+**Masking** (20 dashboards, `node tools/synth-bench/gen.mjs --count 20 --seed 3`, then `node tools/synth-bench/run.mjs`):
+
+| Figure | 0.9.0 | 0.10.0 |
+|---|---|---|
+| Sensitive text still readable after masking and the check (**leaked area**) | 0.72% of its area | **0.72%** of its area |
+| Sensitive words at least partly readable | 35 of 1,852 (1.9%, 95% interval 1.4 to 2.6%) | 35 of 1,852 (1.9%) |
+| Of which: numbers, person names, product names, organisations | 23, 6, 4, 2 | 23, 6, 4, 2 |
+| Safe words masked anyway (over-masking) | 68 of 771 (8.8%) | 68 of 771 (8.8%) |
+| Check findings / of which real leftovers | 62 / 2 | **57** / 2 |
+
+The leaked area is the figure to watch: it is never 0 today, which is why the review screen asks you to look over the
+masked image before sharing, and why "Hide everything uncertain" exists. Most remaining false alarms from the check are
+lone digits read from chart shapes. A rule that dropped them cut findings to 21 but let one more real word through, so it
+was not shipped.
+
+**Replica** (30 dashboards, seed 7, `npm run bench:inplace`, after "Hide everything uncertain"): 20 of 2,680 sensitive
+words left readable (0.7%), and zero changed pixels outside the replaced boxes on every image. REPLICA_LINE
+
+SPEED_SECTION
+
 VaultSnip earns trust in two ways: it never lets sensitive text through, and the replica looks and behaves like the
 dashboard in the screenshot. This page defines how both are measured, records the current figures, and sets out the
 phases for raising them. Every figure here is reproducible with `npm run bench` (see [CONTRIBUTING](CONTRIBUTING.md)).

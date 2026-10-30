@@ -14,6 +14,8 @@ VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF re
 
 **What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, choose **Blur a chart** and drag over it.
 
+**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.72% of the area of sensitive text was still readable** after masking and the pre-flight check: 35 of 1,852 sensitive words were at least partly readable (23 numbers, 6 person names, 4 product names, 2 organisations). That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-010).
+
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
         → you look over the masked image → synthetic text for each hidden box, made on your device
