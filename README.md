@@ -48,11 +48,15 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | **Safe-to-share receipt** | ✅ PNG or PDF beside the masked image: what was hidden (counts and kinds, never the text), the check, made on this device, and the image's SHA-256 |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
 | In-app feedback with a private route for masking misses | ✅ |
-| PDF/PPTX input | ⏳ planned |
+| **PDF input** | ✅ drop or pick a PDF; multi-page PDFs ask which page; PDF.js loads on demand |
+| **Batch masking** | ✅ queue multiple screenshots or PDF pages, process with one policy, download as ZIP |
+| **Per-client allowlist profiles** | ✅ save and reload named redaction policies (stored in your browser only) |
 
 ## Privacy
 
-No backend, no database, no accounts, no analytics, and no AI service: nothing leaves your device. Images, OCR text and results live in the tab's memory, and the page's security policy only lets it contact its own site. The replica keeps your charts' real shapes; only text is replaced. The browser stores only the app's model files. See [PRIVACY.md](PRIVACY.md).
+Nothing leaves your device. OCR, masking, the six-pass safety gate, and the in-place replica all run in your browser tab. No backend, no database, no accounts, no analytics, and no AI service. Images, OCR text and results live in the tab's memory only. The browser stores only the app's model files (and your saved policies, if you choose to save them). See [PRIVACY.md](PRIVACY.md).
+
+Enterprise and self-hosting: [ENTERPRISE.md](ENTERPRISE.md).
 
 ## Feedback and support
 
