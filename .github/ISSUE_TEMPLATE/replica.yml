@@ -63,5 +63,5 @@ body:
     attributes:
       label: Privacy check
       options:
-        - label: Any image I attach is fictional or public, and this report contains no client data or API keys.
+        - label: Any image I attach is fictional or public, and this report contains no client data.
           required: true

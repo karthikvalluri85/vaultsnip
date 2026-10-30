@@ -1,9 +1,7 @@
-/* VaultSnip: context synthesizer.
-   Decides what synthetic text goes back into each masked box of the in-place replica (web/inpaint.js).
-   The AI provider, when the user sends to one, is a contextual data generator only: it gets each box's kind, position,
-   the visible, unmasked labels near it and either a number's pattern ("$99.9M") or, for other text, only its length;
-   never the hidden text. It returns a replacement per box. The hidden text stays on the device; the replacement map pairs it with the answer here.
-   Without a provider, or for any answer that fails the checks, values are made on the device.
+/* VaultSnip: synthetic text for the in-place replica (web/inpaint.js).
+   Decides what goes back into each masked box, on this device: numbers of the same size (axis ticks on an even new
+   scale), made-up people, companies and IDs, emails at reserved example domains, and made-up words of the same length and
+   capitalisation for anything else. The hidden text never leaves the device; nothing is sent anywhere.
    Works in a page (window.VSSynth) and in Node for the unit tests (module.exports). */
 (function (global) {
   'use strict';
@@ -19,17 +17,6 @@
     if (m.type === 'Number or money' || (hasDigit(m.text) && /^[^A-Za-z]*\d[\d,.\s]*[^A-Za-z]{0,3}[A-Za-z%°]{0,4}$/.test(m.text.trim()))) return 'number';
     return KIND[m.type] || 'text';
   }
-  // Digits become 9, letters A or a; everything else (currency, %, separators) stays.
-  const shapeOf = s => String(s || '').replace(/\d/g, '9').replace(/[A-Z]/g, 'A').replace(/[a-z]/g, 'a').replace(/[^\x00-\x7F]/g, c => (/\p{L}/u.test(c) ? (c === c.toUpperCase() ? 'A' : 'a') : c));
-  // A number's pattern for the provider: digits become 9; a short unit right after the digits (K, M, bn, %, min, h)
-  // stays, so the answer can keep it; any other letter becomes A or a.
-  const numberShape = s => {
-    const unit = /(\d\s?)([A-Za-z]{1,4})(\W*)$/.exec(String(s || ''));
-    const head = unit ? String(s).slice(0, unit.index + unit[1].length) : String(s || '');
-    return shapeOf(head) + (unit ? unit[2] + shapeOf(unit[3]) : '');
-  };
-  // The skeleton a number must keep: digit runs (with their separators) collapsed to one #.
-  const skeleton = s => String(s || '').trim().replace(/\d[\d,]*(?:\.\d+)?/g, '#').replace(/\s+/g, ' ');
 
   // Visible words near a box: same line to the left or right, then the line(s) above. Words under any active mask are not
   // visible, so they are never used.
@@ -54,64 +41,10 @@
     const visible = (words || []).filter(w => w.text && !covered(w));
     return masks.map((m, i) => ({
       id: 't' + (i + 1), mask: m, original: m.text || '', kind: kindOf(m),
-      shape: m.text && m.text !== '(table column)' ? (kindOf(m) === 'number' ? numberShape(m.text) : shapeOf(m.text)) : '',
       bbox: [Math.round(m.x), Math.round(m.y), Math.round(m.w), Math.round(m.h)],
       context: contextFor(m, visible)
     }));
   }
-  // What may leave the device, per box: its id, kind, position, the visible words beside it, and either a number's
-  // pattern ("$99.9M") or, for a name or any other text, only how many characters fit. Never the hidden text, and
-  // nothing for a box whose text was not read.
-  function request(toks, size) {
-    return {
-      image: { width: size.width, height: size.height },
-      tokens: toks.filter(t => t.kind !== 'unread').map(t => Object.assign({ id: t.id, kind: t.kind },
-        t.kind === 'number' ? { shape: t.shape } : { chars: t.original.length }, { bbox: t.bbox, context: t.context }))
-    };
-  }
-
-  const SYSTEM = `You are a contextual data generator for VaultSnip. A dashboard screenshot has had its sensitive text hidden; you write the synthetic text that will be drawn back into each hidden box, in place, so the dashboard reads as a believable, internally consistent example.
-You are not a frontend developer: never describe layout, charts or code.
-Input: JSON {"image":{"width","height"},"tokens":[{"id","kind","shape","bbox":[x,y,w,h],"context"}]}.
-- kind: number (a value, amount, percentage, count, date or time), client (the customer's own name), person, email, id (an identifier or code), text (any other word or label).
-- shape (numbers only): the hidden value's characters with every digit as 9; currency signs, %, separators, spaces and a short unit suffix (K, M, B, min, h) are as in the original; any other letter is A or a.
-- chars (everything else): how many characters the hidden text had, so the replacement fits the box.
-You are never given the hidden text.
-- context: visible labels next to or above the box (for example a KPI title or a column header).
-An image of the masked dashboard may be attached: hidden boxes show as covered areas. Use it only to understand what each box is.
-Rules:
-- Output JSON only: {"replacements":[{"id":string,"synthetic":string,"note":string}]}, one entry per input token, same ids.
-- Numbers match the shape: same currency sign, unit suffix, decimal places and separators, and the same number of digits before the decimal point. Other text has about "chars" characters, so it fits the box.
-- Keep the numbers mathematically coherent: a total equals the sum of its parts; a margin or rate equals its numerator over its denominator; percentages of one whole add to 100 or less; values that share a column or an axis stay in a sensible order and scale; a change (+/-) agrees with the values it compares; dates stay valid.
-- Names, companies and emails are fictitious: emails only at example.com, example.org or example.net. Never use a real company's or person's name.
-- For text, choose a plausible label for its context with about the same length and capitalisation.
-- note: at most 12 words saying what the value represents and any invariant it satisfies (e.g. "Q3 revenue; = sum of regions").`;
-
-  function parse(text) {
-    try {
-      const o = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
-      const list = Array.isArray(o) ? o : o && Array.isArray(o.replacements) ? o.replacements : null;
-      if (!list) return null;
-      const map = new Map();
-      list.forEach(r => { if (r && typeof r.id === 'string' && typeof r.synthetic === 'string') map.set(r.id, { synthetic: r.synthetic.trim(), note: typeof r.note === 'string' ? r.note.slice(0, 160) : '' }); });
-      return map;
-    } catch (e) { return null; }
-  }
-
-  // An answer is used only when it could not be the hidden text and fits the box's shape.
-  function acceptable(t, s) {
-    if (!s || s.length > Math.max(4, Math.round(t.original.length * 1.6) + 2)) return false;
-    const low = s.toLowerCase(), orig = t.original.toLowerCase().trim();
-    if (orig && (low === orig || (orig.length > 3 && low.includes(orig)))) return false;
-    if (t.kind === 'number') {
-      if (skeleton(s) !== skeleton(t.original)) return false;
-      const v = parseFloat((s.match(/\d[\d,]*(?:\.\d+)?/) || ['0'])[0].replace(/,/g, ''));
-      if (/%/.test(s) && v > 100 && !(parseFloat(t.original.replace(/,/g, '').replace(/[^\d.]/g, '')) > 100)) return false;
-    }
-    if (t.kind === 'email' && !/@example\.(com|org|net)$/i.test(s)) return false;
-    return true;
-  }
-
   /* ---------- on-device values ---------- */
   const SYL = ['ka', 'ver', 'lo', 'mi', 'ra', 'den', 'sol', 'tra', 'ne', 'qu', 'vel', 'ori', 'tan', 'bel', 'cor', 'wyn', 'ash', 'mar', 'ton', 'lis'];
   function word(text, r) {
@@ -157,26 +90,23 @@ Rules:
       else s = word(t.original, r);
       // a made-up name far longer than the text it replaces would not fit its box: a word of the same length instead
       if (t.kind !== 'number' && t.kind !== 'email' && s.length > t.original.length * 1.4 + 2) s = word(t.original, r);
-      out.set(t.id, { synthetic: s, note: '', axis: axes.has(t.mask) });
+      out.set(t.id, { synthetic: s });
     });
     return out;
   }
 
-  // The replacement map: [{original, synthetic, bbox, kind, context, note, source}]. Axis ticks always use the
-  // on-device even scale, so an axis can never come out of order whatever the answer was.
-  function combine(toks, answer, fallback) {
+  // The replacement map, kept on this device: [{original, synthetic, bbox, kind, context}].
+  function combine(toks, values) {
     return toks.map(t => {
-      const a = answer && answer.get(t.id), f = fallback.get(t.id);
-      const ai = a && !(f && f.axis) && t.kind !== 'unread' && acceptable(t, a.synthetic);
-      const use = ai ? a : f || { synthetic: '', note: '' };
+      const v = values.get(t.id) || { synthetic: '' };
       return {
-        id: t.id, original: t.original, synthetic: use.synthetic, note: use.note || '', kind: t.kind, context: t.context,
-        bbox: t.bbox, x: t.mask.x, y: t.mask.y, w: t.mask.w, h: t.mask.h, source: ai ? 'ai' : 'device'
+        id: t.id, original: t.original, synthetic: v.synthetic, kind: t.kind, context: t.context,
+        bbox: t.bbox, x: t.mask.x, y: t.mask.y, w: t.mask.w, h: t.mask.h
       };
     });
   }
 
-  const api = { SYSTEM, kindOf, shapeOf, skeleton, contextFor, tokens, request, parse, acceptable, local, combine, word };
+  const api = { kindOf, contextFor, tokens, local, combine, word };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.VSSynth = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Removed
+- **The AI key, and every call to an AI service.** The in-place replica is built entirely on the device, so VaultSnip no longer has an *AI key* setting, a send-to-Claude/OpenAI step, `web/llm.js`, or permission to reach `api.anthropic.com` or `api.openai.com`: the page's security policy now lets it contact only its own site. Nothing leaves the device, and nothing about a key is stored. The preview dialog's main button is now **Build replica**.
+
 ### Fixed (in-place replica, from a 50-dashboard test run)
 - **Large screenshots came out smaller.** A screenshot over about 4.8 megapixels (full-page captures) is shrunk for the reader; the replica was drawn on that copy. It is now drawn on the full-size picture, with the boxes scaled up.
 - **Chart shapes read as text were overwritten.** The reader sometimes takes a bar, a map region or a legend's colour swatch for a "2", "4 8" or "BM"; the replica erased part of the chart there and drew a large stray number. Such boxes are now recognised (much taller than the page's text and mostly ink, or short, unsure and on a busy background, or a short reading that fills its box) and left exactly as they were.

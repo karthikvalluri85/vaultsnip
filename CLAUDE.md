@@ -35,8 +35,7 @@ masking worked. The replica **is** the original screenshot, changed in place (`w
   legends and proprietary visuals keep their original pixels.
 - Only the text's own pixels inside a hidden box change; a bar edge or border running through the box survives.
 - Synthetic text matches the original's place, size, colour, weight and alignment, and keeps the dashboard's numbers
-  coherent (`web/synth.js`). The AI, when used, receives each box's kind, character pattern, position and visible
-  neighbouring labels, never the hidden text.
+  coherent (`web/synth.js`), all made on the device: nothing is sent anywhere.
 - Measured by `node tests/e2e/inplace.e2e.mjs`: zero changed pixels outside the replaced boxes, no grey redaction blocks,
   hotspots aligned with their pixels. No change ships that breaks it.
 

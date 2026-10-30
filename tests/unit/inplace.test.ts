@@ -51,7 +51,7 @@ describe('in-place inpainting (web/inpaint.js)', () => {
   });
 });
 
-describe('context synthesizer (web/synth.js)', () => {
+describe('synthetic text (web/synth.js)', () => {
   const masks = [
     { x: 100, y: 40, w: 80, h: 24, type: 'Number or money', text: '$14.2M', on: true },
     { x: 100, y: 80, w: 90, h: 20, type: 'Client name', text: 'Kestrelmoor', on: true },
@@ -63,33 +63,16 @@ describe('context synthesizer (web/synth.js)', () => {
     { text: 'Customer:', x: 20, y: 82, w: 70, h: 14 }
   ];
   const toks = Y.tokens(masks, words);
-  it('describes each box by kind, shape and visible labels, and never sends the hidden text', () => {
+  it('describes each box by kind and the visible labels beside it', () => {
     expect(toks.map((t: { kind: string }) => t.kind)).toEqual(['number', 'client', 'unread']);
-    expect(toks[0].shape).toBe('$99.9M');
     expect(toks[0].context).toContain('Revenue');
+    expect(toks[0].context).not.toContain('14.2');                     // a word under a mask is never context
     expect(toks[1].context).toContain('Customer:');
-    const sent = JSON.stringify(Y.request(toks, { width: 400, height: 120 }));
-    expect(sent).not.toContain('14.2');
-    expect(sent).not.toContain('Kestrelmoor');
-    const req = Y.request(toks, { width: 400, height: 120 });
-    expect(req.tokens).toHaveLength(2);                                   // unread boxes are only cleared
-    expect(req.tokens[1]).toEqual({ id: 't2', kind: 'client', chars: 11, bbox: [100, 80, 90, 20], context: toks[1].context });
-    expect(Object.keys(req.tokens[0]).sort()).toEqual(['bbox', 'context', 'id', 'kind', 'shape']);
   });
-  it('accepts an answer only when it keeps the shape and differs from the hidden text', () => {
-    const t = toks[0];
-    expect(Y.acceptable(t, '$18.7M')).toBe(true);
-    expect(Y.acceptable(t, '$14.2M')).toBe(false);          // the real value
-    expect(Y.acceptable(t, '€18.7M')).toBe(false);          // another currency
-    expect(Y.acceptable(t, '18.7%')).toBe(false);
-    expect(Y.acceptable({ ...toks[1], kind: 'email', original: 'a@b.co' }, 'x@gmail.com')).toBe(false);
-  });
-  it('builds the replacement map: AI answers where valid, device values otherwise, originals kept on the device', () => {
-    const answer = Y.parse('```json\n{"replacements":[{"id":"t1","synthetic":"$18.7M","note":"Net revenue"},{"id":"t2","synthetic":"Kestrelmoor Ltd"}]}\n```');
-    const fallback = Y.local(toks, { fakeValue: () => '$11.9M', axisFactors: () => new Map() }, 7);
-    const map = Y.combine(toks, answer, fallback);
-    expect(map[0]).toMatchObject({ original: '$14.2M', synthetic: '$18.7M', bbox: [100, 40, 80, 24], source: 'ai' });
-    expect(map[1].source).toBe('device');                    // contained the real name
+  it('builds the replacement map on the device: originals stay with their boxes, unread boxes are only cleared', () => {
+    const values = Y.local(toks, { fakeValue: () => '$11.9M', axisFactors: () => new Map() }, 7);
+    const map = Y.combine(toks, values);
+    expect(map[0]).toMatchObject({ original: '$14.2M', synthetic: '$11.9M', bbox: [100, 40, 80, 24] });
     expect(map[1].synthetic.toLowerCase()).not.toContain('kestrelmoor');
     expect(map[2]).toMatchObject({ synthetic: '', kind: 'unread' });
   });

@@ -1,8 +1,7 @@
 /* VaultSnip: app pipeline.
    capture -> local OCR -> mask everything except an allowlist -> independent re-scan gate
-   -> human approval of the exact payload -> in-place replica: the original picture with every sensitive text replaced by
-   synthetic text (written by Claude or OpenAI with your key, or on this device) -> export.
-   Nothing is persisted except, optionally, your API key (only if you tick "remember"). */
+   -> human approval -> in-place replica: the original picture with every sensitive text replaced by synthetic text
+   made on this device -> export. Nothing is sent anywhere and nothing is persisted. */
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -18,7 +17,6 @@
     sample: null,         // sample object when running a sample
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
-    provider: 'anthropic', key: null, model: 'claude-sonnet-5-5',
     sessionAllow: new Set(),
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
@@ -27,73 +25,6 @@
     // minConf: how sure the reader must be of a kept word for it to account for its region
     unread: { on: true, regions: null, state: 'idle', limit: 1536, minConf: 60, reader: true }
   };
-  try {
-    const k = localStorage.getItem('dsc-key'), m = localStorage.getItem('dsc-model'), p = localStorage.getItem('dsc-provider');
-    if (k) { S.key = k; S.provider = (p && VSLLM.PROVIDERS[p]) ? p : (VSLLM.detect(k) || 'anthropic'); S.model = m || VSLLM.PROVIDERS[S.provider].defaultModel; }
-  } catch (e) { /* storage unavailable */ }
-  const providerName = () => VSLLM.PROVIDERS[S.provider].short;
-  function remember(on) {
-    try {
-      if (on && S.key) { localStorage.setItem('dsc-key', S.key); localStorage.setItem('dsc-model', S.model); localStorage.setItem('dsc-provider', S.provider); }
-      else if (!on) ['dsc-key', 'dsc-model', 'dsc-provider'].forEach(k => localStorage.removeItem(k));
-    } catch (e) { /* storage unavailable */ }
-  }
-
-  /* ---------------- AI key panel (shared by the send dialog and the key dialog) ---------------- */
-  function keyPanel(host, id) {
-    const P = VSLLM.PROVIDERS;
-    host.className = 'kp';
-    host.innerHTML = `
-      <label class="f" for="${id}-p">AI provider<select id="${id}-p">${Object.keys(P).map(k => `<option value="${k}">${P[k].name}</option>`).join('')}</select></label>
-      <label class="f" for="${id}-k">API key<input type="password" id="${id}-k" autocomplete="off" spellcheck="false"></label>
-      <div class="kp-row"><label class="f" for="${id}-m">Model<input type="text" id="${id}-m" list="${id}-ml" autocomplete="off" spellcheck="false"><datalist id="${id}-ml"></datalist></label>
-        <button class="btn" type="button" id="${id}-c">Check key</button></div>
-      <p class="note" id="${id}-s" role="status" aria-live="polite"></p>
-      <p class="note" id="${id}-h"></p>
-      <label class="note"><input type="checkbox" id="${id}-r"> Remember the key on this device</label>`;
-    const el = n => document.getElementById(id + '-' + n);
-    const show = () => {
-      const p = P[el('p').value];
-      el('k').placeholder = p.keyHint;
-      el('h').innerHTML = `The key goes only to <b>${p.host}</b>. No key yet? <a href="${p.keyUrl}" target="_blank" rel="noopener">Create one</a> (about 2 minutes).`;
-    };
-    let typedModel = false;
-    el('m').addEventListener('input', () => { typedModel = true; });
-    el('p').addEventListener('change', () => { el('m').value = P[el('p').value].defaultModel; el('ml').innerHTML = ''; el('s').textContent = ''; typedModel = false; show(); });
-    el('k').addEventListener('input', () => {
-      const d = VSLLM.detect(el('k').value);
-      if (d && d !== el('p').value) { el('p').value = d; if (!typedModel) el('m').value = P[d].defaultModel; el('ml').innerHTML = ''; show(); el('s').textContent = 'This looks like ' + P[d].name + ' key.'; }
-    });
-    async function check() {
-      const key = el('k').value.trim(), prov = el('p').value;
-      if (!key) { el('s').textContent = 'Paste a key first.'; return false; }
-      el('s').textContent = 'Checking the key with ' + P[prov].host + '…'; el('c').disabled = true;
-      try {
-        const r = await VSLLM.models(prov, key);
-        el('ml').innerHTML = r.ids.map(i => `<option value="${i}"></option>`).join('');
-        if (!r.ids.includes(el('m').value.trim())) el('m').value = r.suggested;
-        el('s').innerHTML = `<span class="ok">✓ Key works.</span> ${r.ids.length} models available; using <b>${el('m').value}</b>.`;
-        return true;
-      } catch (e) { el('s').textContent = e.message; return false; }
-      finally { el('c').disabled = false; }
-    }
-    el('c').onclick = check;
-    return {
-      fill() {
-        el('p').value = S.provider; el('k').value = S.key || ''; el('m').value = S.model; el('s').textContent = ''; typedModel = false; show();
-        try { el('r').checked = !!localStorage.getItem('dsc-key'); } catch (e) { el('r').checked = false; }
-      },
-      read() {
-        const key = el('k').value.trim();
-        return { provider: el('p').value, key: key || null, model: el('m').value.trim() || P[el('p').value].defaultModel, remember: el('r').checked };
-      },
-      check
-    };
-  }
-  const kpSend = keyPanel($('kp-send'), 'kps'), kpDlg = keyPanel($('kp-dlg'), 'kpd');
-  // From the key dialog, unticking "remember" also forgets a previously remembered key.
-  function applyKey(v, fromDialog) { S.provider = v.provider; S.key = v.key; S.model = v.model; if (v.remember) remember(true); else if (fromDialog) remember(false); }
-
   /* ---------------- allowlist: everything else is masked ---------------- */
   const ALLOW = new Set((`
 a an and or of the to in on at by for from with per vs versus via all any each other others total totals subtotal grand
@@ -1044,7 +975,7 @@ customer service staff agent team people everyone nobody someone something nothi
       running: ['pending', 'Checking…', 'Re-reading the masked image on this device.'],
       dirty: ['pending', 'Masks changed', 'Re-run the check before sending.'],
       policy: ['pending', 'Policy changed', 'Click "Re-apply policy" so the new names and words take effect. The check then runs again.'],
-      pass: ['pass', 'Pass', S.flags.length ? 'Every finding is resolved. You can preview what is sent.' : 'Nothing readable is left outside the masks.'],
+      pass: ['pass', 'Pass', S.flags.length ? 'Every finding is resolved. You can preview the masked image.' : 'Nothing readable is left outside the masks.'],
       review: ['review', 'Review needed', 'Unlisted words are still readable. Mask them or mark them safe.'],
       blocked: ['blocked', 'Blocked', 'Numbers or IDs are still readable. Mask each one, or keep it if it is not sensitive.']
     }[S.gate];
@@ -1403,38 +1334,28 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   // Base name for files made from the replica. Generic mode never puts the original title in a file name.
 
-  /* ---------------- payload preview: download it, or send it ---------------- */
+  /* ---------------- preview: the masked image, to save, copy or build the replica from ---------------- */
   $('btn-send').onclick = () => {
     const c = maskedCanvas(1);
     const url = c.toDataURL('image/png');
     S.payload = url;
     $('payload-img').src = url;
-    $('pf-contents').textContent = 'The masked image above, fixed instructions, and for each hidden box only its kind, its character pattern (digits as 9) or, for other text, its length, its position and the visible labels beside it (see below). No original image, never the hidden text.' + (S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)) ? ' Numbers are replaced with invented values of the same size; labels stay masked.' : '') + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
-    // the boxes' descriptions are fixed here, shown in full, and sent exactly as shown
-    S.sendToks = VSSynth.tokens(S.masks.filter(m => m.on), S.words);
-    S.sendReq = VSSynth.request(S.sendToks, S.img);
-    $('pf-req-json').textContent = JSON.stringify(S.sendReq, null, 1);
+    $('pf-contents').textContent = 'The masked image above.' + (S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)) ? ' Numbers are replaced with invented values of the same size; labels stay masked.' : '') + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
     $('pf-size').textContent = Math.round(url.length * 0.75 / 1024) + ' KB';
-    const isSample = !!S.sample;
-    $('pf-dest').textContent = isSample ? 'Nothing is sent: the sample is built on this device' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'Only if you click Send: the AI provider you choose below, with your key');
-    $('keybox').hidden = isSample || !!S.key;
-    $('pf-req').hidden = isSample; $('pf-req').open = false;
-    kpSend.fill();
     $('send-err').hidden = true;
     // the user confirms they looked: the reader cannot promise it caught everything
     $('pf-ok').checked = false;
     AFTER_LOOK.forEach(id => { $(id).disabled = true; });
-    $('btn-confirm').textContent = isSample ? 'Build replica' : 'Send and build replica';
     $('dlg-send').showModal();
   };
-  const AFTER_LOOK = ['btn-confirm', 'btn-dl-masked', 'btn-local', 'btn-copy-masked', 'btn-receipt-png', 'btn-receipt-pdf'];
+  const AFTER_LOOK = ['btn-confirm', 'btn-dl-masked', 'btn-copy-masked', 'btn-receipt-png', 'btn-receipt-pdf'];
   $('pf-ok').onchange = () => AFTER_LOOK.forEach(id => { $(id).disabled = !$('pf-ok').checked; });
   // The masked image exactly as it is saved, copied and described by the receipt: the same pixels, so the same bytes.
   function maskedImage() { const c = maskedCanvas(1); if ($('pf-credit').checked) creditTag(c); return c; }
   const pngOf = c => new Promise(r => c.toBlob(r, 'image/png'));
   const maskedName = () => (S.sample ? 'sample' : (S.fileBase || 'screenshot')) + '-masked.png';
   const dlgNote = t => { const err = $('send-err'); err.hidden = false; err.className = 'note'; err.textContent = t; };
-  // Mask-only: the masked image as a PNG, no key and no network. Optionally tagged so others can find the tool.
+  // Mask-only: the masked image as a PNG, no network. Optionally tagged so others can find the tool.
   $('btn-dl-masked').onclick = async () => {
     if (!$('pf-ok').checked) return;
     saveFile(await pngOf(maskedImage()), maskedName());
@@ -1494,53 +1415,27 @@ customer service staff agent team people everyone nobody someone something nothi
     x.fillStyle = 'rgba(20,24,30,.82)'; x.fillRect(c.width - w - 6, c.height - h - 6, w, h);
     x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.fillText(text, c.width - w - 6 + fs / 2, c.height - 6 - h / 2);
   }
-  $('btn-confirm').onclick = async () => {
-    const err = $('send-err'); err.hidden = true; err.className = 'err';
+  // The replica is built here, on this device: nothing is sent.
+  $('btn-confirm').onclick = () => {
     if (!$('pf-ok').checked) return;
-    // the bundled sample needs no key: its replacements are made on this device
-    if (S.sample) { $('dlg-send').close(); S.seed = 4127; return buildInPlace(false); }
-    if (!S.key) {
-      const v = kpSend.read();
-      if (!v.key) { err.textContent = 'Add your Claude or OpenAI API key for AI-written replacements, or click "Build on this device" (no key needed, nothing sent).'; err.hidden = false; return; }
-      applyKey(v);
-      $('pf-dest').textContent = VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key';
-    }
-    $('btn-confirm').disabled = true; $('btn-confirm').textContent = 'Asking ' + providerName() + ' for replacements…';
-    try {
-      S.seed = 1000 + Math.floor(Math.random() * 9000);
-      await buildInPlace(true);
-      $('dlg-send').close();
-    } catch (e) {
-      err.textContent = e.message || String(e); err.hidden = false;
-      // a rejected key is forgotten everywhere, including a copy remembered on this device
-      if (e.status === 401) { S.key = null; remember(false); $('keybox').hidden = false; kpSend.fill(); }
-      if (window.VSFeedback) { VSFeedback.note(e, providerName() + ' request (' + S.model + ')'); err.insertAdjacentHTML('beforeend', ' <button type="button" class="linkbtn" data-feedback="bug">Report this</button>'); }
-    } finally {
-      $('btn-confirm').disabled = !$('pf-ok').checked; $('btn-confirm').textContent = 'Send and build replica';
-    }
-  };
-  $('btn-local').onclick = () => {
-    if (!$('pf-ok').checked) return;
-    $('dlg-send').close(); S.seed = 1000 + Math.floor(Math.random() * 9000); buildInPlace(false);
+    $('dlg-send').close();
+    S.seed = S.sample ? 4127 : 1000 + Math.floor(Math.random() * 9000);
+    buildInPlace();
   };
 
   /* ---------------- Screen 3: the in-place replica ---------------- */
   // The original screenshot is the picture. Each active mask is wiped with the background sampled around it and synthetic
   // text is drawn back in its place (web/inpaint.js); nothing else of the original is redrawn, so every visual stays
-  // exactly as it was. The text comes from the context synthesizer (web/synth.js): from the AI provider when the user
-  // sends (only each box's kind, character pattern and the visible labels beside it; never the hidden text), else made
-  // here. A layer of hotspots over the picture explains each replaced box.
-  S.fid = null;           // { canvas, patches, ai: provider name or '' }
+  // exactly as it was. The text is made on this device (web/synth.js). A layer of hotspots over the picture explains each
+  // replaced box.
+  S.fid = null;           // { canvas, patches }
   const seededRandom = seed => seeded(seed);
-  async function buildInPlace(useAi) {
-    // with the AI: the boxes as shown in the send dialog; the request is the one the user saw there
-    const toks = useAi && S.sendToks ? S.sendToks : VSSynth.tokens(S.masks.filter(m => m.on), S.words);
-    const fallback = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
-    let answer = null;
-    if (useAi && S.sendReq.tokens.length) answer = await askSynth(S.sendReq);
+  function buildInPlace() {
+    const toks = VSSynth.tokens(S.masks.filter(m => m.on), S.words);
+    const values = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
     // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
     const full = S.img.full || S.img, k = full.width / S.img.width;
-    const map = VSSynth.combine(toks, answer, fallback).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k }));
+    const map = VSSynth.combine(toks, values).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k }));
     // chart shapes the reader took for text stay as they are (judged on the reading copy, where the words were measured)
     const im = S.img.getContext('2d').getImageData(0, 0, S.img.width, S.img.height).data;
     const hs = S.words.map(w => w.h).sort((a, b) => a - b), medH = hs[Math.floor(hs.length / 2)] || 12;
@@ -1553,18 +1448,8 @@ customer service staff agent team people everyone nobody someone something nothi
       if (VSInpaint.looksLikeShape(im, S.img.width, S.img.height, m, medH, minConf, m.text)) Object.assign(p, { keep: true, synthetic: '' });
     });
     const r = seededRandom(S.seed), res = VSInpaint.patch(full, map, { slantText: n => VSSynth.word(n > 9 ? 'Aaaaa ' + 'A' + 'a'.repeat(n - 7) : 'A' + 'a'.repeat(n - 1), r) });
-    S.fid = { canvas: res.canvas, patches: res.patches, ai: useAi ? providerName() : '' };
+    S.fid = { canvas: res.canvas, patches: res.patches };
     showInPlace();
-  }
-  async function askSynth(req, retry) {
-    const text = await VSLLM.ask({
-      provider: S.provider, key: S.key, model: S.model, system: VSSynth.SYSTEM, imageDataUrl: S.payload,
-      prompt: (retry ? 'Your previous answer was not valid JSON in the required shape. Return only the JSON object.\n' : '') + JSON.stringify(req)
-    });
-    const map = VSSynth.parse(text);
-    if (map) return map;
-    if (retry) throw new Error(providerName() + ' returned replacements that could not be read. Try again, pick a stronger model, or build on this device.');
-    return askSynth(req, true);
   }
   const KIND_NAMES = { number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Text that could not be read (a made-up label, or cleared)' };
   // What a hotspot tells: the synthetic value and why it is there. Never the hidden text.
@@ -1572,24 +1457,23 @@ customer service staff agent team people everyone nobody someone something nothi
     if (p.keep) return ['Left as it was', 'The reader took this part of a chart for text; it is not text, so it was not changed.'];
     const lines = [p.synthetic ? p.synthetic : 'Cleared', KIND_NAMES[p.kind] || 'Replaced text'];
     if (p.context) lines.push('Beside: ' + p.context);
-    if (p.note) lines.push(p.note);
-    lines.push(p.source === 'ai' ? 'Synthetic, written by ' + S.fid.ai : 'Synthetic, made on this device');
+    lines.push('Synthetic, made on this device');
     return lines;
   }
   function showInPlace() {
     show('s-replica');
-    const f = S.fid, ai = f.patches.filter(p => p.source === 'ai' && !p.keep).length, kept = f.patches.filter(p => p.keep).length;
+    const f = S.fid, kept = f.patches.filter(p => p.keep).length;
     VSInpaint.mount($('replica'), f.canvas, f.patches, { label: 'The screenshot with every sensitive text replaced by synthetic text', describe: describePatch });
     $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
     const n = f.patches.length - kept;
     $('fid-summary').textContent = `${n} ${n === 1 ? 'box' : 'boxes'} replaced in place` +
-      (f.ai ? `, ${ai} written by ${f.ai} and ${n - ai} on this device` : ', all on this device') +
+      ' on this device' +
       (kept ? `; ${kept} chart ${kept === 1 ? 'shape' : 'shapes'} the reader took for text left as ${kept === 1 ? 'it was' : 'they were'}` : '') +
       '. Everything else is the original picture. Hover or tab to a replaced value to see what it stands for.';
     $('export-note').textContent = '';
   }
   $('opt-outline').onchange = () => $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
-  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); buildInPlace(false); };
+  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); buildInPlace(); };
   function startOver() { reviewSeq++; S.img = null; S.fid = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; show('s-drop'); }
   $('btn-restart').onclick = startOver;
   // The replica as a picture, with a strip below it (hiding nothing) that says the text is synthetic.
@@ -1622,11 +1506,6 @@ customer service staff agent team people everyone nobody someone something nothi
     const words = S.words.filter(w => !w.ghost).map(w => { const kept = !inMask(w); return { text: kept ? w.text : '', x: w.x, y: w.y, w: w.w, h: w.h, kept }; });
     return { image: { data: im.data, width: im.width, height: im.height, channels: 4 }, words, masks: on.map(m => ({ x: m.x, y: m.y, w: m.w, h: m.h })) };
   }
-
-  /* ---------------- key dialog ---------------- */
-  $('btn-key').onclick = () => { kpDlg.fill(); $('dlg-key').showModal(); };
-  $('key-save').onclick = () => applyKey(kpDlg.read(), true);
-  $('key-clear').onclick = () => { S.key = null; remember(false); kpDlg.fill(); $('dlg-key').close(); };
 
   /* ---------------- extension snip + crop ---------------- */
   const cc = $('crop-canvas'); let cropImg = null, sel = null;

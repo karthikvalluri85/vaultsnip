@@ -1,5 +1,7 @@
 # Accuracy: what we measure, where we stand, and the plan
 
+> **History.** Most of this page measures the earlier chart-rebuilding replica and its AI-key path, both retired in 0.9: the replica is now the original screenshot changed in place, built only on the device, and nothing is sent to any AI service. The masking figures still apply. The in-place replica is measured by `npm run bench:inplace`.
+
 VaultSnip earns trust in two ways: it never lets sensitive text through, and the replica looks and behaves like the
 dashboard in the screenshot. This page defines how both are measured, records the current figures, and sets out the
 phases for raising them. Every figure here is reproducible with `npm run bench` (see [CONTRIBUTING](CONTRIBUTING.md)).
