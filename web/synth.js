@@ -1,8 +1,8 @@
 /* VaultSnip: context synthesizer.
    Decides what synthetic text goes back into each masked box of the in-place replica (web/inpaint.js).
-   The AI provider, when the user sends to one, is a contextual data generator only: it gets each box's kind, its
-   character shape ("$99.9M", "Aaaaa Aaaa") and the visible, unmasked labels near it, never the hidden text, and returns
-   a replacement per box. The hidden text stays on the device; the replacement map pairs it with the answer here.
+   The AI provider, when the user sends to one, is a contextual data generator only: it gets each box's kind, position,
+   the visible, unmasked labels near it and either a number's pattern ("$99.9M") or, for other text, only its length;
+   never the hidden text. It returns a replacement per box. The hidden text stays on the device; the replacement map pairs it with the answer here.
    Without a provider, or for any answer that fails the checks, values are made on the device.
    Works in a page (window.VSSynth) and in Node for the unit tests (module.exports). */
 (function (global) {
@@ -19,8 +19,15 @@
     if (m.type === 'Number or money' || (hasDigit(m.text) && /^[^A-Za-z]*\d[\d,.\s]*[^A-Za-z]{0,3}[A-Za-z%°]{0,4}$/.test(m.text.trim()))) return 'number';
     return KIND[m.type] || 'text';
   }
-  // Digits become 9, letters A or a; everything else (currency, %, separators, units' case) stays.
+  // Digits become 9, letters A or a; everything else (currency, %, separators) stays.
   const shapeOf = s => String(s || '').replace(/\d/g, '9').replace(/[A-Z]/g, 'A').replace(/[a-z]/g, 'a').replace(/[^\x00-\x7F]/g, c => (/\p{L}/u.test(c) ? (c === c.toUpperCase() ? 'A' : 'a') : c));
+  // A number's pattern for the provider: digits become 9; a short unit right after the digits (K, M, bn, %, min, h)
+  // stays, so the answer can keep it; any other letter becomes A or a.
+  const numberShape = s => {
+    const unit = /(\d\s?)([A-Za-z]{1,4})(\W*)$/.exec(String(s || ''));
+    const head = unit ? String(s).slice(0, unit.index + unit[1].length) : String(s || '');
+    return shapeOf(head) + (unit ? unit[2] + shapeOf(unit[3]) : '');
+  };
   // The skeleton a number must keep: digit runs (with their separators) collapsed to one #.
   const skeleton = s => String(s || '').trim().replace(/\d[\d,]*(?:\.\d+)?/g, '#').replace(/\s+/g, ' ');
 
@@ -47,15 +54,19 @@
     const visible = (words || []).filter(w => w.text && !covered(w));
     return masks.map((m, i) => ({
       id: 't' + (i + 1), mask: m, original: m.text || '', kind: kindOf(m),
-      shape: m.text && m.text !== '(table column)' ? shapeOf(m.text) : '',
+      shape: m.text && m.text !== '(table column)' ? (kindOf(m) === 'number' ? numberShape(m.text) : shapeOf(m.text)) : '',
       bbox: [Math.round(m.x), Math.round(m.y), Math.round(m.w), Math.round(m.h)],
       context: contextFor(m, visible)
     }));
   }
+  // What may leave the device, per box: its id, kind, position, the visible words beside it, and either a number's
+  // pattern ("$99.9M") or, for a name or any other text, only how many characters fit. Never the hidden text, and
+  // nothing for a box whose text was not read.
   function request(toks, size) {
     return {
       image: { width: size.width, height: size.height },
-      tokens: toks.filter(t => t.kind !== 'unread').map(t => ({ id: t.id, kind: t.kind, shape: t.shape, bbox: t.bbox, context: t.context }))
+      tokens: toks.filter(t => t.kind !== 'unread').map(t => Object.assign({ id: t.id, kind: t.kind },
+        t.kind === 'number' ? { shape: t.shape } : { chars: t.original.length }, { bbox: t.bbox, context: t.context }))
     };
   }
 
@@ -63,12 +74,14 @@
 You are not a frontend developer: never describe layout, charts or code.
 Input: JSON {"image":{"width","height"},"tokens":[{"id","kind","shape","bbox":[x,y,w,h],"context"}]}.
 - kind: number (a value, amount, percentage, count, date or time), client (the customer's own name), person, email, id (an identifier or code), text (any other word or label).
-- shape: the hidden text's characters with every digit as 9, upper-case letter as A, lower-case as a; symbols, currency signs, %, separators and spaces are as in the original. You are never given the hidden text.
+- shape (numbers only): the hidden value's characters with every digit as 9; currency signs, %, separators, spaces and a short unit suffix (K, M, B, min, h) are as in the original; any other letter is A or a.
+- chars (everything else): how many characters the hidden text had, so the replacement fits the box.
+You are never given the hidden text.
 - context: visible labels next to or above the box (for example a KPI title or a column header).
 An image of the masked dashboard may be attached: hidden boxes show as covered areas. Use it only to understand what each box is.
 Rules:
 - Output JSON only: {"replacements":[{"id":string,"synthetic":string,"note":string}]}, one entry per input token, same ids.
-- Match the shape: same currency sign, unit suffix (K, M, B, %, h, min…), decimal places and separators, and about the same number of characters (it must fit the box). For numbers keep the same number of digits before the decimal point.
+- Numbers match the shape: same currency sign, unit suffix, decimal places and separators, and the same number of digits before the decimal point. Other text has about "chars" characters, so it fits the box.
 - Keep the numbers mathematically coherent: a total equals the sum of its parts; a margin or rate equals its numerator over its denominator; percentages of one whole add to 100 or less; values that share a column or an axis stay in a sensible order and scale; a change (+/-) agrees with the values it compares; dates stay valid.
 - Names, companies and emails are fictitious: emails only at example.com, example.org or example.net. Never use a real company's or person's name.
 - For text, choose a plausible label for its context with about the same length and capitalisation.

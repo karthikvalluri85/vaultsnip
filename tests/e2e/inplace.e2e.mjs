@@ -110,10 +110,21 @@ try {
   await page.evaluate(() => { const S = window.__DSC; S.sample = null; S.key = 'sk-ant-TESTKEY000000000000'; S.provider = 'anthropic'; document.getElementById('btn-send').onclick(); document.getElementById('pf-ok').click(); });
   await page.click('#btn-confirm');
   await page.waitForFunction(() => !document.getElementById('dlg-send').open && window.__DSC.fid && window.__DSC.fid.ai);
-  const sent = JSON.stringify(seen.body || {});
-  const originals = await page.evaluate(() => window.__DSC.fid.patches.map(p => p.original).filter(o => o && o.length > 3 && o !== '(table column)'));
-  const leaked = originals.filter(o => sent.includes(JSON.stringify(o).slice(1, -1)) && !/^[A-Za-z]+$/.test(o));
-  check(!!seen.body && leaked.length === 0, `the request carries no hidden text (${originals.length} checked${leaked.length ? '; leaked: ' + leaked.slice(0, 3).join(', ') : ''})`);
+  // what is sent beside the image is exactly what the send dialog showed
+  const text = seen.body ? seen.body.messages[0].content.find(c => c.type === 'text').text : '';
+  const shown = await page.evaluate(() => document.getElementById('pf-req-json').textContent);
+  check(!!seen.body && JSON.stringify(JSON.parse(text)) === JSON.stringify(JSON.parse(shown)), 'the request is exactly the JSON shown in the send dialog');
+  check(!!seen.body && seen.body.messages.length === 1 && seen.body.messages[0].content.length === 2, 'only the approved image and that JSON are sent');
+  // no hidden text in it: an original may appear only where the same words are visible in the approved image
+  const leak = await page.evaluate(sentText => {
+    const S = window.__DSC, on = S.masks.filter(m => m.on);
+    const covered = w => on.some(m => w.x + w.w / 2 > m.x && w.x + w.w / 2 < m.x + m.w && w.y + w.h / 2 > m.y && w.y + w.h / 2 < m.y + m.h);
+    const visible = S.words.filter(w => !covered(w)).map(w => w.text).join(' ');
+    const originals = on.map(m => (m.text || '').trim()).filter(o => o.length >= 3 && o !== '(table column)');
+    return { n: originals.length, leaked: originals.filter(o => sentText.includes(o) && !visible.includes(o)) };
+  }, text);
+  check(!!seen.body && leak.n > 20 && leak.leaked.length === 0, `the request carries no hidden text (${leak.n} hidden texts checked${leak.leaked.length ? '; leaked: ' + leak.leaked.slice(0, 3).join(', ') : ''})`);
+  check(!!seen.body && JSON.parse(text).tokens.every(t => t.kind === 'number' ? !('chars' in t) && /^[^A-Za-z]*9[\s\S]*$/.test(t.shape) : !('shape' in t) && Number.isInteger(t.chars)), 'names and labels go as a length only; numbers as a pattern of 9s');
   check(!!seen.body && /contextual data generator/i.test(seen.body.system), 'the provider is asked as a contextual data generator');
   const ai = await page.evaluate(() => window.__DSC.fid.patches.filter(p => p.source === 'ai').length);
   check(ai > 5, `AI answers that fit the shape are used (${ai})`);

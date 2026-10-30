@@ -65,13 +65,16 @@ describe('context synthesizer (web/synth.js)', () => {
   const toks = Y.tokens(masks, words);
   it('describes each box by kind, shape and visible labels, and never sends the hidden text', () => {
     expect(toks.map((t: { kind: string }) => t.kind)).toEqual(['number', 'client', 'unread']);
-    expect(toks[0].shape).toBe('$99.9A');
+    expect(toks[0].shape).toBe('$99.9M');
     expect(toks[0].context).toContain('Revenue');
     expect(toks[1].context).toContain('Customer:');
     const sent = JSON.stringify(Y.request(toks, { width: 400, height: 120 }));
     expect(sent).not.toContain('14.2');
     expect(sent).not.toContain('Kestrelmoor');
-    expect(Y.request(toks, { width: 400, height: 120 }).tokens).toHaveLength(2);   // unread boxes are only cleared
+    const req = Y.request(toks, { width: 400, height: 120 });
+    expect(req.tokens).toHaveLength(2);                                   // unread boxes are only cleared
+    expect(req.tokens[1]).toEqual({ id: 't2', kind: 'client', chars: 11, bbox: [100, 80, 90, 20], context: toks[1].context });
+    expect(Object.keys(req.tokens[0]).sort()).toEqual(['bbox', 'context', 'id', 'kind', 'shape']);
   });
   it('accepts an answer only when it keeps the shape and differs from the hidden text', () => {
     const t = toks[0];

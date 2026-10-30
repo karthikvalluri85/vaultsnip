@@ -1353,11 +1353,16 @@ customer service staff agent team people everyone nobody someone something nothi
     const url = c.toDataURL('image/png');
     S.payload = url;
     $('payload-img').src = url;
-    $('pf-contents').textContent = 'The masked image above, fixed instructions, and for each hidden box only its kind, its character pattern (digits as 9, letters as A or a), its position and the visible labels beside it. No original image, never the hidden text.' + (S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)) ? ' Numbers are replaced with invented values of the same size; labels stay masked.' : '') + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
+    $('pf-contents').textContent = 'The masked image above, fixed instructions, and for each hidden box only its kind, its character pattern (digits as 9) or, for other text, its length, its position and the visible labels beside it (see below). No original image, never the hidden text.' + (S.fakeNumbers && S.masks.some(m => m.on && isNumberMask(m)) ? ' Numbers are replaced with invented values of the same size; labels stay masked.' : '') + (S.keepComments ? ' Customer comments are readable, with names, companies, emails and numbers in them masked.' : '');
+    // the boxes' descriptions are fixed here, shown in full, and sent exactly as shown
+    S.sendToks = VSSynth.tokens(S.masks.filter(m => m.on), S.words);
+    S.sendReq = VSSynth.request(S.sendToks, S.img);
+    $('pf-req-json').textContent = JSON.stringify(S.sendReq, null, 1);
     $('pf-size').textContent = Math.round(url.length * 0.75 / 1024) + ' KB';
     const isSample = !!S.sample;
     $('pf-dest').textContent = isSample ? 'Nothing is sent: the sample is built on this device' : (S.key ? VSLLM.PROVIDERS[S.provider].host + ' (' + S.model + '), using your key' : 'Only if you click Send: the AI provider you choose below, with your key');
     $('keybox').hidden = isSample || !!S.key;
+    $('pf-req').hidden = isSample; $('pf-req').open = false;
     kpSend.fill();
     $('send-err').hidden = true;
     // the user confirms they looked: the reader cannot promise it caught everything
@@ -1471,13 +1476,11 @@ customer service staff agent team people everyone nobody someone something nothi
   // here. A layer of hotspots over the picture explains each replaced box.
   S.fid = null;           // { canvas, patches, ai: provider name or '' }
   async function buildInPlace(useAi) {
-    const toks = VSSynth.tokens(S.masks.filter(m => m.on), S.words);
+    // with the AI: the boxes as shown in the send dialog; the request is the one the user saw there
+    const toks = useAi && S.sendToks ? S.sendToks : VSSynth.tokens(S.masks.filter(m => m.on), S.words);
     const fallback = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
     let answer = null;
-    if (useAi) {
-      const req = VSSynth.request(toks, S.img);
-      if (req.tokens.length) answer = await askSynth(req);
-    }
+    if (useAi && S.sendReq.tokens.length) answer = await askSynth(S.sendReq);
     const res = VSInpaint.patch(S.img, VSSynth.combine(toks, answer, fallback));
     S.fid = { canvas: res.canvas, patches: res.patches, ai: useAi ? providerName() : '' };
     showInPlace();

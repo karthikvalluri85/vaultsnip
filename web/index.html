@@ -147,6 +147,8 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 .levels b{display:block;font-size:14px}.levels span{font-size:12.5px;color:var(--muted)}
 .linkbox{font-family:var(--mono);font-size:12px;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken);color:var(--ink)}
   /* in-place replica: the patched original, with a hotspot layer mapped to its pixels */
+  .pf-req { margin: 8px 0; font-size: 13px; }
+  .pf-req pre { max-height: 220px; overflow: auto; background: var(--bg, #f6f7f9); padding: 8px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
   .ip-stage { width: 100%; }
   .ip-frame { position: relative; width: 100%; margin: 0 auto; }
   .ip-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -303,6 +305,11 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <dt>Contents</dt><dd id="pf-contents">The masked image above and fixed instructions. No original image, no OCR text.</dd>
       <dt>Size</dt><dd id="pf-size"></dd>
     </dl>
+    <details class="pf-req" id="pf-req">
+      <summary>Show exactly what is sent with the image</summary>
+      <p class="hint">One entry per hidden box: its kind, position and the visible words beside it, plus a number's pattern (digits as 9) or another text's length. The hidden text is not in it.</p>
+      <pre id="pf-req-json"></pre>
+    </details>
     <p class="note" id="pf-warn"><b>Look over the image before sending.</b> The on-device reader can miss very small numbers beside bars or inside coloured badges, and cannot read slanted or vertical labels (for example rotated axis labels). Close this, then drag a box over anything still readable.</p>
     <label class="check"><input type="checkbox" id="pf-ok"> I have looked over the masked image and nothing sensitive is readable.</label>
     <div class="receipt" id="receipt-row">
