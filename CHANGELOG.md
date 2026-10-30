@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Blur a chart.** On the review screen, choose *Blur a chart* and drag over any chart whose shape is itself confidential. The area becomes a soft wash of its own colours (averaged down to a few cells, then most of the way to its average colour), in the masked image, the check, the replica and the receipt, so bar lengths, trends and proportions cannot be read. Click a blurred area to remove it. Text under it is blurred with it, not replaced. The replica test checks that nothing outside the replaced boxes and blurred areas changes.
+
 ### Changed
 - **Replicas read like real dashboards.** Hidden text that is neither a number nor a name used to become a made-up string of syllables ("Wynr", "Belnekalob Tontanma"). It now becomes a plain English word of the same length and capitalisation, or, where the column header or the label before it says what it is ("Account Manager", "Prepared by", "Customer"), a made-up person, organisation or place from the on-device name lists, chosen to fit its box. Dates keep their format with a made-up date. Organisation names take the style of the page's industry, and bank and fund names appear only on pages about finance.
 - **Replaced text matches its neighbours.** Its size is read from the letters it replaces (capitals and tails such as g and y take up different shares of a font's height), then evened out across each table column or row; a shorter name lines up with its column instead of drifting to the middle of the old width; and the text sits on the original's baseline.

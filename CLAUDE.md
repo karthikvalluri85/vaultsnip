@@ -29,14 +29,17 @@ Only after that check passes:
 This is the product. A replica that does not look like the screenshot it came from is a failure, however well the
 masking worked. The replica **is** the original screenshot, changed in place (`web/inpaint.js`):
 
-> **Every pixel of the original, except the text that was hidden, which is replaced in its place by synthetic text.**
+> **Every pixel of the original, except the text that was hidden, which is replaced in its place by synthetic text,
+> and any area the user chose to blur.**
 
 - Nothing is redrawn. No chart library, grid or generated layout recreates the dashboard body; charts, maps, gridlines,
   legends and proprietary visuals keep their original pixels.
 - Only the text's own pixels inside a hidden box change; a bar edge or border running through the box survives.
 - Synthetic text matches the original's place, size, colour, weight and alignment, and keeps the dashboard's numbers
   coherent (`web/synth.js`), all made on the device: nothing is sent anywhere.
-- Measured by `node tests/e2e/inplace.e2e.mjs`: zero changed pixels outside the replaced boxes, no grey redaction blocks,
+- An area the user blurs ("Blur a chart") is the only other change: it is blurred over everything in it, and no synthetic
+  text is drawn there.
+- Measured by `node tests/e2e/inplace.e2e.mjs`: zero changed pixels outside the replaced boxes and blurred areas, no grey redaction blocks,
   hotspots aligned with their pixels. No change ships that breaks it.
 
 ## 4. Free and open, for good
