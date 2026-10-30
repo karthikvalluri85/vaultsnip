@@ -42,31 +42,123 @@
     return masks.map((m, i) => ({
       id: 't' + (i + 1), mask: m, original: m.text || '', kind: kindOf(m),
       bbox: [Math.round(m.x), Math.round(m.y), Math.round(m.w), Math.round(m.h)],
-      context: contextFor(m, visible)
+      context: contextFor(m, visible), visible
     }));
   }
   /* ---------- on-device values ---------- */
-  const SYL = ['ka', 'ver', 'lo', 'mi', 'ra', 'den', 'sol', 'tra', 'ne', 'qu', 'vel', 'ori', 'tan', 'bel', 'cor', 'wyn', 'ash', 'mar', 'ton', 'lis'];
+  // Real, neutral English words by length, for hidden text that is neither a name nor a number. A made-up word built
+  // from syllables ("Wynr", "Belnekalob") gives a replica away at a glance; a plain word of the same length does not.
+  // None is a brand, a person or a place.
+  const POOL = (`
+ox ivy elm oak ash bay fig sun sky sea dew
+amber birch cedar coral delta ember flint grove haven ivory jasper lumen maple noble ocean pearl quartz raven slate terra umber
+vista willow aspen basil cliff drift fable glade harbor indigo juniper kestrel lagoon meadow nectar orchid prairie quill ridge
+summit timber upland valley walnut yarrow zephyr bramble canyon dune estuary fern garnet heather inlet jade kelp linden marsh
+north south east west alpha bravo crest field stone brook river cove pine moss frost light bright clear swift steady even
+signal anchor beacon compass harvest lantern meridian horizon keystone mosaic pinnacle quarry rapids sterling tundra uplift
+vertex wayfare atlas cobalt dawn falcon granite hollow island jetty kindle lattice marble nimbus opal pillar rover sable
+tidal velvet wharf yonder zenith arbor blossom cascade daybreak evergreen foothill gateway highland ironwood junction
+lakeside moonlight northwind orchard parkway riverside seaside sunrise thistle waterfall woodland
+plain open fair calm warm cool fresh solid level prime core main front point range scope frame
+standard balanced regional seasonal general premium classic central coastal national western eastern northern southern
+`).split(/\s+/).filter(Boolean);
+  const BYLEN = {};
+  POOL.forEach(w => { (BYLEN[w.length] = BYLEN[w.length] || []).push(w); });
+  // a pool word of n letters (or the nearest length there is); long runs are joined from two words
+  function poolWord(n, r, not) {
+    for (const d of [0, 1, -1, 2, -2]) {
+      const list = (BYLEN[n + d] || []).filter(w => w !== not);
+      if (list.length) return list[Math.floor(r() * list.length)];
+    }
+    if (n > 13) { const a = Math.ceil(n / 2); return poolWord(a, r, not) + poolWord(n - a, r, not); }
+    return (BYLEN[2] || ['ox'])[0];
+  }
   function word(text, r) {
-    // a made-up word of the same length and capitalisation for each word of the original ("Acme Corp" → "Veltor Kami")
+    // a real word of the same length and capitalisation for each word of the original ("Acme Corp" → "Cove Tide")
     return String(text).split(/(\s+)/).map(part => {
       if (/^\s+$/.test(part) || !/[A-Za-z]/.test(part)) return part;
-      const n = part.replace(/[^A-Za-z]/g, '').length;
-      let w = '';
-      while (w.length < n) w += SYL[Math.floor(r() * SYL.length)];
-      w = w.slice(0, Math.max(2, n));
+      const letters = part.replace(/[^A-Za-z]/g, ''), n = letters.length;
+      let w = poolWord(Math.max(2, n), r, letters.toLowerCase());
       if (part === part.toUpperCase() && n > 1) w = w.toUpperCase();
       else if (/^[A-Z]/.test(part)) w = w[0].toUpperCase() + w.slice(1);
       return part.replace(/[A-Za-z]+(?:[A-Za-z'’-]*[A-Za-z])?/, w);
     }).join('');
   }
+  // A date keeps its format with a made-up date near it ("30-Sep-2026" → "14-Aug-2026", "2026-09-30" → "2026-08-14").
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const DATE = [
+    /^(\d{1,2})([-\s/.])([A-Za-z]{3,9})\2((?:19|20)\d{2})([.,]?)$/,            // 30-Sep-2026, 30 Sep 2026
+    /^([A-Za-z]{3,9})\s(\d{1,2}),?\s((?:19|20)\d{2})([.,]?)$/,                  // Sep 30, 2026
+    /^((?:19|20)\d{2})([-/.])(\d{1,2})\2(\d{1,2})([.,]?)$/,                     // 2026-09-30
+    /^(\d{1,2})([-/.])(\d{1,2})\2((?:19|20)?\d{2})([.,]?)$/,                   // 30/09/2026
+  ];
+  function fakeDate(text, r) {
+    const t = String(text).trim(), pad = (n, w) => String(n).padStart(w, '0');
+    const day = () => 1 + Math.floor(r() * 28), mon = k => (k + 1 + Math.floor(r() * 10)) % 12;
+    let m;
+    if ((m = DATE[0].exec(t))) {
+      const i = MON.findIndex(x => m[3].toLowerCase().startsWith(x.toLowerCase())); if (i < 0) return null;
+      const name = MON[mon(i)], upper = m[3] === m[3].toUpperCase();
+      return pad(day(), m[1].length) + m[2] + (upper ? name.toUpperCase() : name) + m[2] + m[4] + m[5];
+    }
+    if ((m = DATE[1].exec(t))) {
+      const i = MON.findIndex(x => m[1].toLowerCase().startsWith(x.toLowerCase())); if (i < 0) return null;
+      return MON[mon(i)] + ' ' + day() + (t.includes(',') ? ', ' : ' ') + m[3] + m[4];
+    }
+    if ((m = DATE[2].exec(t))) return m[1] + m[2] + pad(1 + Math.floor(r() * 12), m[3].length) + m[2] + pad(day(), m[4].length) + m[5];
+    if ((m = DATE[3].exec(t))) return pad(day(), m[1].length) + m[2] + pad(1 + Math.floor(r() * 12), m[3].length) + m[2] + m[4] + m[5];
+    return null;
+  }
+  // Where a hidden box sits decides what replaces it: the label just before it on the same line ("Prepared by", "Owner:"),
+  // or the header of its table column (the nearest line above, over the same columns, that names a kind of value).
+  const PERSON_CUE = /\b(manager|owner|rep|agent|assignee|contact|employee|author|reviewer|analyst|engineer|seller|buyer|approver|recruiter|lead|prepared by|by|advisor|consultant|director|physician|doctor|nurse|user name|full name)\b/i;
+  function roleOf(label) {
+    const l = String(label || '').toLowerCase();
+    if (!l) return null;
+    if (PERSON_CUE.test(l)) return 'person';
+    const f = global.VSFaker;
+    return f && f.columnRole ? f.columnRole(l, 'text') : null;
+  }
+  function labelFor(m, visible) {
+    const cy = m.y + m.h / 2;
+    // same line, just to the left (within a few letter widths)
+    const left = visible.filter(w => Math.abs(w.y + w.h / 2 - cy) < Math.max(m.h, w.h) * 0.6 && w.x + w.w <= m.x + 2 && m.x - (w.x + w.w) < m.h * 6)
+      .sort((a, b) => b.x - a.x).slice(0, 3).reverse().map(w => w.text).join(' ');
+    if (roleOf(left)) return left;
+    // the column header: lines above that overlap the box's columns, nearest first
+    const above = visible.filter(w => w.y + w.h <= m.y + 2 && m.y - w.y < m.h * 24 && w.x < m.x + m.w + m.h && w.x + w.w > m.x - m.h);
+    const lines = new Map();
+    above.forEach(w => { const k = Math.round((w.y + w.h / 2) / Math.max(4, m.h * 0.6)); (lines.get(k) || lines.set(k, []).get(k)).push(w); });
+    const ordered = [...lines.entries()].sort((a, b) => b[0] - a[0]).map(([, ws]) => ws.sort((a, b) => a.x - b.x).map(w => w.text).join(' '));
+    return ordered.find(t => roleOf(t)) || left || '';
+  }
+  const titleWords = s => String(s).trim().split(/\s+/).filter(w => /^[A-Z][A-Za-z'’.-]*$/.test(w));
+  // Several draws, keeping the one closest to the original's length, so a made-up name fits its box without squeezing.
+  function fitted(make, original, key) {
+    const L = original.length;
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < 8; i++) {
+      const v = make(i ? key + '#' + i : key);
+      if (!v || v.toLowerCase() === original.toLowerCase()) continue;
+      const d = Math.abs(v.length - L) + (v.length > L * 1.3 + 2 ? 50 : 0);
+      if (d < bestD) { best = v; bestD = d; }
+      if (d <= Math.max(1, L * 0.1)) break;
+    }
+    // still far too long: drop trailing words while it is longer than its box allows
+    if (best && best.length > L * 1.4 + 2) {
+      const parts = best.split(' ');
+      while (parts.length > 1 && parts.join(' ').length > L * 1.3 + 2) parts.pop();
+      best = parts.join(' ');
+    }
+    return best && best.length <= L * 1.4 + 2 ? best : null;
+  }
   // an address of about the same length as the hidden one (which the reader may have cut short), at a reserved domain
   function email(text, r) {
     const domain = ['example.com', 'example.org', 'example.net'][Math.floor(r() * 3)];
     const n = Math.max(3, String(text).length - domain.length - 1);
-    let local = '';
-    while (local.length < n) local += SYL[Math.floor(r() * SYL.length)];
-    return local.slice(0, n) + '@' + domain;
+    let local = poolWord(Math.min(n, 9), r);
+    while (local.length < n) local += '.' + poolWord(Math.min(9, Math.max(2, n - local.length - 1)), r);
+    return local.slice(0, n).replace(/\.$/, 'x') + '@' + domain;
   }
   function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -74,22 +166,37 @@
   // helpers: { fakeValue(text, seed, exact), axisFactors(masks) } from the app, so numbers here match the masked image
   function local(toks, helpers, seed) {
     seed = seed >>> 0;
-    const faker = global.VSFaker && global.VSFaker.create ? global.VSFaker.create({ seed }) : null;
+    // the dashboard's own visible words set the style of made-up organisations (a hospital list gets hospital names)
+    const seen = toks.length && toks[0].visible ? toks[0].visible.map(w => w.text) : [];
+    let faker = global.VSFaker && global.VSFaker.create ? global.VSFaker.create({ seed, spec: seen }) : null;
+    // revenue and margin appear on every sales page: bank and fund names only for pages that are about finance
+    if (faker && faker.industry === 'finance' && !/\b(portfolio|aum|loans?|deposits?|funds?|trading|credit|interest|assets?|equity|yield|nav|bank|banking)\b/i.test(seen.join(' ')))
+      faker = global.VSFaker.create({ seed, spec: seen, industry: 'general' });
     const nums = toks.filter(t => t.kind === 'number').map(t => t.mask);
     const axes = helpers && helpers.axisFactors ? helpers.axisFactors(nums) : new Map();
     const out = new Map();
     toks.forEach(t => {
       const key = t.id + '|' + t.original, r = seeded(hash(key) ^ seed);
+      const label = t.kind === 'number' || t.kind === 'unread' || t.kind === 'email' ? '' : labelFor(t.mask, t.visible || []);
+      const role = roleOf(label);
       let s = '';
       if (t.kind === 'unread') s = '';
       else if (t.kind === 'number') s = helpers && helpers.fakeValue ? helpers.fakeValue(t.original, hash(t.original + '|' + t.bbox[0] + '|' + t.bbox[1]) ^ seed, axes.get(t.mask)) : t.original.replace(/\d/g, () => String(Math.floor(r() * 10)));
-      else if (faker && t.kind === 'person') s = faker.person(key);
-      else if (faker && t.kind === 'client') s = faker.company(key);
       else if (t.kind === 'email') s = email(t.original, r);
-      else if (faker && t.kind === 'id') s = faker.id(t.context || 'ID', key);
-      else s = word(t.original, r);
-      // a made-up name far longer than the text it replaces would not fit its box: a word of the same length instead
-      if (t.kind !== 'number' && t.kind !== 'email' && s.length > t.original.length * 1.4 + 2) s = word(t.original, r);
+      else if ((s = fakeDate(t.original, r))) { /* a date of the same format */ }
+      else if (faker && t.kind === 'id') s = faker.id(label || t.context || 'ID', key);
+      else if (faker) {
+        // what the text is: its own kind first (a client, a person), then its label or column, then its shape
+        const words = titleWords(t.original), n = t.original.trim().split(/\s+/).length;
+        const want = t.kind === 'client' ? 'company' : t.kind === 'person' ? 'person'
+          : role && /^(person|company|city|country|state|product)$/.test(role) ? role
+          : words.length >= 2 && words.length === n ? 'company'
+          : words.length === 1 && n === 1 && t.original.length >= 4 ? 'city' : null;
+        if (want) s = fitted(k => faker.value(want, k, { columnName: label }), t.original, key) || '';
+        // a one-word name: a surname of about its length reads more naturally than a town where a town makes no sense
+        if (!s && want === 'city') s = fitted(k => faker.person(k).split(' ').pop(), t.original, key) || '';
+      }
+      if (!s && t.kind !== 'unread' && t.kind !== 'number') s = word(t.original, r);
       out.set(t.id, { synthetic: s });
     });
     return out;
@@ -106,7 +213,7 @@
     });
   }
 
-  const api = { kindOf, contextFor, tokens, local, combine, word };
+  const api = { kindOf, contextFor, tokens, local, combine, word, labelFor, roleOf, fakeDate, POOL };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.VSSynth = api;
 })(typeof window !== 'undefined' ? window : globalThis);

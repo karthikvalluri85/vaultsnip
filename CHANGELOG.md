@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- **Replicas read like real dashboards.** Hidden text that is neither a number nor a name used to become a made-up string of syllables ("Wynr", "Belnekalob Tontanma"). It now becomes a plain English word of the same length and capitalisation, or, where the column header or the label before it says what it is ("Account Manager", "Prepared by", "Customer"), a made-up person, organisation or place from the on-device name lists, chosen to fit its box. Dates keep their format with a made-up date. Organisation names take the style of the page's industry, and bank and fund names appear only on pages about finance.
+- **Replaced text matches its neighbours.** Its size is read from the letters it replaces (capitals and tails such as g and y take up different shares of a font's height), then evened out across each table column or row; a shorter name lines up with its column instead of drifting to the middle of the old width; and the text sits on the original's baseline.
+- **More report words stay readable**, such as *sold*, *pts*, *bps*, *booked*, *renewals*, *increase* and *including*, instead of being masked and replaced (about 150 words added to the safe list, in the app and the extension's chart blur alike).
+
 ## [0.9.0] - 2026-10-30
 
 The replica is now your own screenshot changed in place, made entirely on your device: no AI service, no key, nothing sent.

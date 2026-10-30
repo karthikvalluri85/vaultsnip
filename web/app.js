@@ -57,6 +57,19 @@ pricing price prices model models seat seats discount discounts scenario scenari
 sprint sprints story stories points velocity burndown committed completed carry over bug bugs task tasks spike done blocked progress todo epic epics
 experiment experiments variant variants control treatment lift interval significant significance confidence
 median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second sec secs ms
+sold buy buys bought purchase purchases purchased booked billed paid unpaid received returned refund refunds refunded cancelled canceled
+delivered fulfilled backorder backorders pts pt bps basis above below under over within outside prev excl incl excluding including include exclude
+existing repeat renewal renewals renewed upsell upsells expansion contraction downgrade downgrades upgrade upgrades
+achieved achievement goal goals benchmark benchmarks baseline estimate estimates estimated projected projection projections forecasted
+increase increased increases decrease decreased decreases up down flat improved improvement improvements decline declined declines
+rank ranking ranked best worst highest lowest leading lagging key main major minor primary secondary overall combined consolidated adjusted
+reported normalized normalised constant service services solution solutions offering offerings package packages subscription subscriptions
+plans license licenses licence licences contract contracts agreement agreements quote quotes proposal proposals call calls chat chats
+meeting meetings demo demos event events campaign campaigns spent each staff staffing capacity utilisation utilization occupancy availability
+downtime efficiency productivity output throughput yield defects defect scrap claims claim premium premiums policy policies coverage payout
+payouts patients patient admissions discharges beds readmissions encounters students enrollment enrolment courses breakdown split mix
+contribution composition generated printed is are was were be been has have had can not this that these those our your their its we they
+which what when where how why than then also just about across into out off per year-to-date month-to-date quarter-to-date
 `).split(/\s+/).filter(Boolean));
 
   const TYPES = {

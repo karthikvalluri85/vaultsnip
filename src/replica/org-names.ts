@@ -128,7 +128,7 @@ export interface Picker { pick<T>(list: readonly T[]): T; city(): string; last()
 export function orgName(p: Picker, entity: Entity, industry: Industry, fallback?: () => string): string {
   const templates = entity !== 'company' ? BY_ENTITY[entity] : BY_INDUSTRY[industry];
   for (let attempt = 0; attempt < 6; attempt++) {
-    const t = industry === 'general' && entity === 'company' && fallback && attempt % 2 === 0 ? null : p.pick(templates);
+    const t = industry === 'general' && entity === 'company' && fallback && attempt % 2 === 1 ? null : p.pick(templates);
     const name = t === null ? fallback!() : t.replace('{N}', p.pick(NATURE)).replace('{S}', p.pick(SAINTS)).replace('{C}', p.city()).replace('{L2}', p.last()).replace('{L}', p.last());
     if (!looksReal(name)) return name;
   }
