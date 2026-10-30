@@ -95,7 +95,6 @@ dialog::backdrop{background:rgb(0 0 0/.45)}
 .dlg img{width:100%;border:1px solid var(--line);border-radius:6px;max-height:42vh;object-fit:contain;background:#fff}
 .facts{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:13.5px}
 .facts dt{color:var(--muted)} .facts dd{margin:0}
-.keybox{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--sunken)}
 .err{color:var(--bad);font-size:13.5px}
 .kp select,.kp input[type=text],.kp input[type=password]{width:100%;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);margin-top:4px}
 .kp .kp-row{display:flex;gap:8px;align-items:flex-end}.kp .kp-row>label{flex:1}
@@ -147,8 +146,6 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 .levels b{display:block;font-size:14px}.levels span{font-size:12.5px;color:var(--muted)}
 .linkbox{font-family:var(--mono);font-size:12px;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken);color:var(--ink)}
   /* in-place replica: the patched original, with a hotspot layer mapped to its pixels */
-  .pf-req { margin: 8px 0; font-size: 13px; }
-  .pf-req pre { max-height: 220px; overflow: auto; background: var(--bg, #f6f7f9); padding: 8px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
   .ip-stage { width: 100%; }
   .ip-frame { position: relative; width: 100%; margin: 0 auto; }
   .ip-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -167,7 +164,6 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
   <span class="sp"></span>
   <button type="button" class="linkbtn" data-feedback="bug" style="font-size:13px;margin-right:6px">Feedback</button>
   <a href="privacy.html" style="font-size:13px;margin-right:6px">Privacy</a>
-  <button class="btn" id="btn-key" type="button">AI key</button>
 </header>
 
 <main class="wrap">
@@ -176,14 +172,14 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
     <div class="hero">
       <div>
         <h1>Turn sensitive report snips into client-safe replicas</h1>
-        <p class="lede">Sensitive text is masked on your device before anything is sent. The replica is your original screenshot, pixel for pixel, with every sensitive text replaced in place by synthetic text: every chart, map and visual stays exactly as it was.</p>
+        <p class="lede">Sensitive text is masked on your device, and nothing is sent anywhere. The replica is your original screenshot, pixel for pixel, with every sensitive text replaced in place by synthetic text: every chart, map and visual stays exactly as it was.</p>
         <div class="ctas">
           <button class="btn primary big" id="btn-try" type="button">Try with a sample dashboard</button>
         </div>
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
-          <div><b>You approve what leaves.</b> Nothing leaves unless you choose an AI (Claude or OpenAI) to write the synthetic text; then only the masked image and each hidden box's pattern go, after you see them.</div>
-          <div><b>Mask without a key.</b> Download the masked screenshot for a forum post, a bug report or a slide. The in-place replica can be built on this device too; a key only lets an AI write the synthetic text.</div>
+          <div><b>Nothing leaves your device.</b> Reading, masking, checking and the replica all run in this browser tab. No account, no key, no upload.</div>
+          <div><b>Mask or replicate.</b> Download the masked screenshot for a forum post, a bug report or a slide, or build the in-place replica with synthetic values.</div>
         </div>
       </div>
       <div>
@@ -215,12 +211,12 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         <div class="toolbar">
           <div class="viewtabs" role="group" aria-label="View">
             <button type="button" id="v-orig" aria-pressed="true">Original with boxes</button>
-            <button type="button" id="v-mask" aria-pressed="false">Masked (what is sent)</button>
+            <button type="button" id="v-mask" aria-pressed="false">Masked</button>
           </div>
           <button type="button" class="btn" id="v-zoom" aria-pressed="false">Zoom 2×</button>
           <span class="hint">Click a box to turn its mask on or off. Drag to add a mask.</span>
         </div>
-        <p class="fakenote" id="fake-note" role="note" hidden><b>Numbers here are made up</b>: same scale as the real ones, never the real values. Names and labels stay masked. This is the image that is sent or saved, with the same note below it.</p>
+        <p class="fakenote" id="fake-note" role="note" hidden><b>Numbers here are made up</b>: same scale as the real ones, never the real values. Names and labels stay masked. This is the image that is saved or copied, with the same note below it.</p>
         <div class="canvaswrap" id="review-wrap"><canvas id="review-canvas" role="img" aria-label="The screenshot with mask boxes. Use the list of masks beside it to turn masks on or off with the keyboard."></canvas></div>
       </div>
       <div>
@@ -299,27 +295,18 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <dialog id="dlg-send">
   <form method="dialog" class="dlg" id="send-form">
     <h2>The masked image</h2>
-    <img id="payload-img" alt="The masked image that will be sent">
+    <img id="payload-img" alt="The masked image">
     <dl class="facts">
-      <dt>Destination</dt><dd id="pf-dest">api.anthropic.com, using your key</dd>
-      <dt>Contents</dt><dd id="pf-contents">The masked image above and fixed instructions. No original image, no OCR text.</dd>
+      <dt>Sent to</dt><dd>Nowhere. Everything stays on this device.</dd>
+      <dt>Contents</dt><dd id="pf-contents">The masked image above.</dd>
       <dt>Size</dt><dd id="pf-size"></dd>
     </dl>
-    <details class="pf-req" id="pf-req">
-      <summary>Show exactly what is sent with the image</summary>
-      <p class="hint">One entry per hidden box: its kind, position and the visible words beside it, plus a number's pattern (digits as 9) or another text's length. The hidden text is not in it.</p>
-      <pre id="pf-req-json"></pre>
-    </details>
-    <p class="note" id="pf-warn"><b>Look over the image before sending.</b> The on-device reader can miss very small numbers beside bars or inside coloured badges, and cannot read slanted or vertical labels (for example rotated axis labels). Close this, then drag a box over anything still readable.</p>
+    <p class="note" id="pf-warn"><b>Look over the image before you save, copy or share it.</b> The on-device reader can miss very small numbers beside bars or inside coloured badges, and cannot read slanted or vertical labels (for example rotated axis labels). Close this, then drag a box over anything still readable.</p>
     <label class="check"><input type="checkbox" id="pf-ok"> I have looked over the masked image and nothing sensitive is readable.</label>
     <div class="receipt" id="receipt-row">
       <span class="note"><b>Safe-to-share receipt</b>: what was hidden (counts and kinds, never the text), that the check passed and that it was made on this device, with the image's SHA-256.</span>
       <button class="btn" id="btn-receipt-png" type="button" disabled>Receipt (PNG)</button>
       <button class="btn" id="btn-receipt-pdf" type="button" disabled>Receipt (PDF)</button>
-    </div>
-    <div class="keybox" id="keybox" hidden>
-      <strong>Add your AI key</strong>
-      <div id="kp-send"></div>
     </div>
     <p class="err" id="send-err" hidden></p>
     <div class="row" style="justify-content:flex-end">
@@ -327,28 +314,15 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <button class="btn" value="cancel" type="submit">Cancel</button>
       <button class="btn" id="btn-copy-masked" type="button" title="Copies the masked image to paste into Teams, Slack, a ticket or a slide">Copy masked image</button>
       <button class="btn" id="btn-dl-masked" type="button">Download masked image</button>
-      <button class="btn" id="btn-local" type="button" title="Replaces every hidden text with synthetic text made on this device, in the original picture. No key, nothing is sent.">Build on this device</button>
-      <button class="btn primary" id="btn-confirm" type="button">Send and build replica</button>
+      <button class="btn primary" id="btn-confirm" type="button" title="Replaces every hidden text with synthetic text made on this device, in the original picture. Nothing is sent.">Build replica</button>
     </div>
   </form>
 </dialog>
 
 
 
-<dialog id="dlg-key">
-  <form method="dialog" class="dlg">
-    <h2>AI key</h2>
-    <p class="note">Used only when you send your own images for a precise layout; "Build on this device" needs no key. Bring your own key from Anthropic (Claude) or OpenAI. It is held in this tab's memory unless you choose to remember it on this device.</p>
-    <div id="kp-dlg"></div>
-    <div class="row" style="justify-content:flex-end">
-      <button class="btn" id="key-clear" type="button">Forget key</button>
-      <button class="btn primary" id="key-save" type="submit" value="save">Save</button>
-    </div>
-  </form>
-</dialog>
 
 <script src="feedback.js"></script>
-<script src="llm.js"></script>
 <script src="config.js"></script>
 <script src="lib/tesseract.min.js"></script>
 <script src="lib/vs-context.js"></script>

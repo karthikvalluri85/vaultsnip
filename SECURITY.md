@@ -4,10 +4,10 @@ VaultSnip's core promise is that sensitive text never leaves the user's device u
 
 ## What counts as a security issue
 
-- Sensitive text (names, numbers, IDs, emails) left readable in the image that is sent, or in an exported replica
+- Sensitive text (names, numbers, IDs, emails) left readable in the masked image or in the replica
 - The pre-flight check passing when readable text is still present
 - Any network request that sends data the user did not approve, or that stores user data
-- An API key exposed beyond the user's own browser and the AI provider it belongs to
+- Any network request that carries a screenshot, the masked image, text read from it, or data about the user
 - Code injection through a crafted screenshot, spec or exported file
 
 ## How to report

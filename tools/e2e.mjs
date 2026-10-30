@@ -31,15 +31,15 @@ await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { o
 const pageErrors = []; page.on('pageerror', e => pageErrors.push(e.message));
 // anything the site's Content-Security-Policy blocks is a bug: the app must work entirely within it
 const cspBlocked = []; page.on('console', m => { if (/Content Security Policy|Refused to (load|connect|execute|create|apply)/i.test(m.text())) cspBlocked.push(m.text().slice(0, 200)); });
-// Zero-network promise, checked over the whole run: the app only talks to its own site, plus the AI provider the user picked.
+// Zero-network promise, checked over the whole run: the app only talks to its own site.
 const offsite = []; page.on('request', r => { const u = r.url(); if (!u.startsWith(base) && !/^(data|blob|about):/.test(u)) offsite.push(u); });
 const wait = ms => page.waitForTimeout(ms);
 
 try {
   const first = await page.goto(base);
   const csp = first.headers()['content-security-policy'] || '';
-  check(/connect-src 'self' data: blob: https:\/\/api\.anthropic\.com https:\/\/api\.openai\.com;/.test(csp) && /script-src 'self' 'wasm-unsafe-eval';/.test(csp),
-    'the page is served with its Content-Security-Policy: scripts from this site only; it can reach only this site and the two AI providers');
+  check(/connect-src 'self' data: blob:;/.test(csp) && /script-src 'self' 'wasm-unsafe-eval';/.test(csp),
+    'the page is served with its Content-Security-Policy: scripts from this site only, and it can reach only this site');
   await page.goto(base);
   console.log('Feedback');
   await page.locator('header [data-feedback]').click();
@@ -246,7 +246,7 @@ try {
 
   console.log('Mask-only download');
   await page.evaluate(() => document.getElementById('btn-send').onclick());
-  check(await page.locator('#btn-dl-masked').isDisabled() && await page.locator('#btn-confirm').isDisabled(), 'nothing can be downloaded or sent before "I have looked over the masked image" is ticked');
+  check(await page.locator('#btn-dl-masked').isDisabled() && await page.locator('#btn-confirm').isDisabled(), 'nothing can be downloaded or built before "I have looked over the masked image" is ticked');
   await page.check('#pf-ok');
   const [dlM] = await Promise.all([page.waitForEvent('download'), page.click('#btn-dl-masked')]).catch(async e => {
     // say why, if the file never comes (an error while painting the image, say)
@@ -322,57 +322,15 @@ try {
   await page.waitForFunction(() => window.__DSC.img && window.__DSC.img.width === 500, null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => window.__DSC.img && window.__DSC.img.width === 500 && !document.getElementById('s-review').hidden), '"Paste a screenshot" on the start screen reads the clipboard after a click');
 
-  console.log('AI providers (mocked Claude and OpenAI endpoints)');
-  const spec = JSON.stringify({ replacements: [] });   // an empty answer: every box falls back to an on-device value
-  const seen = {};
-  await page.route('https://api.openai.com/v1/models', r => r.fulfill({ json: { data: [{ id: 'gpt-4o' }, { id: 'gpt-6-astra' }, { id: 'gpt-6-luna' }, { id: 'text-embedding-3-large' }, { id: 'gpt-image-2' }] } }));
-  await page.route('https://api.openai.com/v1/chat/completions', r => { seen.openai = { headers: r.request().headers(), body: r.request().postDataJSON() }; return r.fulfill({ json: { choices: [{ finish_reason: 'stop', message: { content: spec } }] } }); });
-  await page.route('https://api.anthropic.com/v1/models?limit=100', r => r.fulfill({ json: { data: [{ id: 'claude-haiku-4-5' }, { id: 'claude-sonnet-5-5' }, { id: 'claude-opus-5-5' }] } }));
-  await page.route('https://api.anthropic.com/v1/messages', r => { seen.anthropic = { headers: r.request().headers(), body: r.request().postDataJSON() }; return r.fulfill({ json: { stop_reason: 'end_turn', content: [{ type: 'text', text: spec }] } }); });
-  // at least one hidden number, so there is something to ask the provider about
-  const openSend = () => page.evaluate(() => { const S = window.__DSC; if (!S.masks.some(m => m.on && /\d/.test(m.text || ''))) S.masks.push({ x: 10, y: 10, w: 60, h: 20, type: 'Number or money', text: '$4.2M', on: true, src: 'auto' }); S.sample = null; document.getElementById('btn-send').onclick(); document.getElementById('pf-ok').click(); });
-
-  // OpenAI, entered in the send dialog
-  await openSend();
-  check(await page.locator('#keybox').isVisible(), 'without a key, the send dialog asks for one');
-  await page.fill('#kps-k', 'sk-proj-TESTKEY000000000000');
-  check(await page.inputValue('#kps-p') === 'openai', 'an OpenAI key switches the provider to OpenAI');
-  await page.click('#kps-c'); await page.waitForFunction(() => /Key works/.test(document.getElementById('kps-s').textContent));
-  check(await page.inputValue('#kps-m') === 'gpt-6-astra', 'Check key lists models and picks the recommended one');
-  const offered = await page.evaluate(() => [...document.querySelectorAll('#kps-ml option')].map(o => o.value));
-  check(offered.includes('gpt-6-astra') && !offered.some(v => /embedding|image/.test(v)), `non-chat models are filtered out (${offered.join(', ')})`);
-  await page.click('#btn-confirm');
-  await page.waitForFunction(() => !document.getElementById('s-replica').hidden && document.querySelector('#replica canvas.ip-canvas'));
-  const payload = await page.evaluate(() => window.__DSC.payload);
-  const ob = seen.openai && seen.openai.body;
-  check(!!ob && seen.openai.headers.authorization === 'Bearer sk-proj-TESTKEY000000000000' && !seen.openai.headers['x-api-key'], 'OpenAI receives the key as a Bearer token only');
-  check(!!ob && ob.model === 'gpt-6-astra' && ob.response_format.type === 'json_object' && ob.messages[1].content.find(c => c.type === 'image_url').image_url.url === payload, 'OpenAI receives exactly the approved masked image');
-  check(!!ob && ob.messages.length === 2 && ob.messages[1].content.length === 2, 'nothing else is sent to OpenAI');
-  check(!(await page.evaluate(() => { try { return localStorage.getItem('dsc-key'); } catch (e) { return null; } })), 'the key is not stored unless "remember" is ticked');
-
-  // Claude, entered in the header key dialog
-  await page.click('#btn-key');
-  await page.fill('#kpd-k', 'sk-ant-TESTKEY000000000000');
-  check(await page.inputValue('#kpd-p') === 'anthropic', 'a Claude key switches the provider to Claude');
-  await page.click('#kpd-c'); await page.waitForFunction(() => /Key works/.test(document.getElementById('kpd-s').textContent));
-  check(await page.inputValue('#kpd-m') === 'claude-sonnet-5-5', 'Claude model picked from the key\'s list');
-  await page.click('#key-save');
-  await openSend(); await page.click('#btn-confirm');
-  await page.waitForFunction(() => document.getElementById('dlg-send') && !document.getElementById('dlg-send').open);
-  const ab = seen.anthropic && seen.anthropic.body;
-  check(!!ab && seen.anthropic.headers['x-api-key'] === 'sk-ant-TESTKEY000000000000' && !seen.anthropic.headers.authorization, 'Claude receives the key in its own header only');
-  check(!!ab && ab.messages[0].content.find(c => c.type === 'image').source.data === payload.split(',')[1], 'Claude receives exactly the approved masked image');
-
-  // A rejected key
-  await page.unroute('https://api.openai.com/v1/chat/completions');
-  await page.route('https://api.openai.com/v1/chat/completions', r => r.fulfill({ status: 401, json: { error: { message: 'Incorrect API key provided' } } }));
-  await page.evaluate(() => { const S = window.__DSC; S.provider = 'openai'; S.key = 'sk-proj-BAD000000000000000'; S.model = 'gpt-6-astra'; localStorage.setItem('dsc-key', S.key); });
-  await openSend(); await page.click('#btn-confirm');
-  await page.waitForFunction(() => !document.getElementById('send-err').hidden);
-  check(/OpenAI rejected the key/.test(await page.locator('#send-err').textContent()) && await page.locator('#keybox').isVisible(), 'a rejected key shows a clear message and asks again');
-  check(!(await page.evaluate(() => localStorage.getItem('dsc-key'))), 'a rejected key is also forgotten on this device');
-  check(!/BAD000/.test(await page.evaluate(() => VSFeedback.context().error)), 'the rejected key never appears in a feedback report');
-  await page.keyboard.press('Escape');
+  console.log('No AI service, no key');
+  {
+    // the app has no key setting, no AI code, and its policy would block a call to an AI service even if one were made
+    const gone = await page.evaluate(() => ({ llm: typeof window.VSLLM, key: !!document.getElementById('btn-key'), stored: (() => { try { return Object.keys(localStorage).filter(k => /key|model|provider/i.test(k)); } catch (e) { return []; } })() }));
+    check(gone.llm === 'undefined' && !gone.key && gone.stored.length === 0, 'there is no AI key setting and no AI code, and nothing about a key is stored');
+    const blocked = await page.evaluate(async () => { try { await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', body: '{}' }); return false; } catch (e) { return true; } });
+    check(blocked, 'the Content-Security-Policy blocks a request to an AI service');
+    cspBlocked.length = 0;   // the blocked request above is the point of the check, not a bug
+  }
 
   console.log('Reader watchdog');
   // the reader can stop answering on a busy machine: the app must restart it, and say so if it happens twice
@@ -429,8 +387,8 @@ try {
 
   check(pageErrors.length === 0, 'no uncaught page errors' + (pageErrors.length ? ': ' + pageErrors.join(' | ') : ''));
   check(cspBlocked.length === 0, 'the app runs within its Content-Security-Policy (nothing blocked)' + (cspBlocked.length ? ': ' + cspBlocked.slice(0, 3).join(' | ') : ''));
-  const unexpected = offsite.filter(u => !/^https:\/\/api\.(anthropic|openai)\.com\//.test(u));
-  check(unexpected.length === 0, `across the whole run the app requested nothing outside its own site, except the AI provider in the key tests${unexpected.length ? ': ' + [...new Set(unexpected)].slice(0, 5).join(', ') : ''}`);
+  const unexpected = offsite.filter(u => !/^https:\/\/api\.anthropic\.com\/v1\/messages$/.test(u));   // only the blocked attempt above
+  check(unexpected.length === 0, `across the whole run the app requested nothing outside its own site, ${unexpected.length ? ': ' + [...new Set(unexpected)].slice(0, 5).join(', ') : ''}`);
 } catch (e) {
   failures++; console.log('  ✗ ' + e.message);
 } finally {

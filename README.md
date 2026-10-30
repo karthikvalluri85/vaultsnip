@@ -7,16 +7,14 @@
 
 **Turn sensitive report snips into client-safe replicas.**
 
-**Try it now:** https://vaultsnip.pages.dev (no sign-up; the sample dashboards need no key)  
+**Try it now:** https://vaultsnip.pages.dev (no sign-up, no key, nothing uploaded)  
 Also on Hugging Face: https://huggingface.co/spaces/karthikvalluri/vaultsnip · Chrome and Edge store listings are in review.
 
-VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
+VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, sends nothing anywhere,, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
-        → you approve the exact payload → synthetic text for each hidden box:
-              written on your device (no key, nothing sent)
-              or by Claude or OpenAI (your key; it gets the masked image and each box's kind and pattern, never the hidden text)
+        → you look over the masked image → synthetic text for each hidden box, made on your device
         → in-place replica: hidden text wiped from the background around it and redrawn in the same place, size and colour
         → hover a replaced value to see what it stands for → download or copy the PNG
 ```
@@ -31,7 +29,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 | Area | Status |
 |---|---|
-| Sample on screen 1 (no key needed) | ✅ runs the full demo on a fictional dashboard: OCR, masking, check, in-place replica |
+| Sample on screen 1 | ✅ runs the full demo on a fictional dashboard: OCR, masking, check, in-place replica |
 | Upload, paste (on any screen, or with the Paste button), extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
 | Mask by default, allowlist to keep | ✅ client names, IDs, emails and unlisted text are masked; numbers are replaced with invented values of the same size (or masked, if you prefer) |
@@ -41,14 +39,12 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain** |
 | Review: click to toggle, drag to add masks | ✅ |
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in |
-| Exact-payload preview before anything is sent | ✅ the masked image and, under *Show exactly what is sent*, the full list of box descriptions that goes with it |
+| Preview of the masked image before you save, copy or build | ✅ |
 | **In-place replica** | ✅ the original screenshot, pixel for pixel, with each hidden text wiped from its surrounding background (only the text's own pixels; bar edges and borders through a box survive) and synthetic text drawn back in the same place, size, colour, weight and alignment. Any visual works, because none is redrawn: decomposition trees, custom maps, proprietary widgets |
 | **Hover explanations** | ✅ an invisible layer over the picture, aligned to its pixels at every size: hover or tab to a replaced value to see its kind, the labels beside it and where it came from; never the hidden text |
-| Synthetic text **on this device** (no key) | ✅ numbers of the same size (axis ticks on an even new scale), made-up people, companies and IDs (Faker), emails only at example.com/.net/.org |
-| Synthetic text **by Claude or OpenAI** (your key, direct browser call) | ✅ the AI acts only as a data generator: it gets the masked image and each box's kind, position, nearby visible labels and a number's pattern ("$99.9M") or a text's length; never the hidden text. Answers that break the format or repeat hidden text are replaced on the device |
-| Bring your own key | ✅ key type detected automatically; "Check key" lists the models your key can use; held in memory unless you tick "remember" |
+| Synthetic text **made on this device** | ✅ numbers of the same size (axis ticks on an even new scale), made-up people, companies and IDs (Faker), emails only at example.com/.net/.org |
 | **Download / Copy image** of the replica | ✅ PNG with a strip below the picture saying its text is synthetic |
-| **Mask-only download** (no key) | ✅ masked PNG for forums, bug reports and slides, or **Copy masked image** to paste it anywhere |
+| **Mask-only download** | ✅ masked PNG for forums, bug reports and slides, or **Copy masked image** to paste it anywhere |
 | **Safe-to-share receipt** | ✅ PNG or PDF beside the masked image: what was hidden (counts and kinds, never the text), the check, made on this device, and the image's SHA-256 |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
 | In-app feedback with a private route for masking misses | ✅ |
@@ -56,7 +52,7 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 ## Privacy
 
-No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. Built on your device, nothing leaves it. Only if you choose an AI to write the synthetic text do the masked image you approved and a list of box descriptions (shown in full before you send; never the hidden text) go straight to Anthropic or OpenAI with your own key. The replica keeps your charts' real shapes; only text is replaced. The browser stores only the app's model files and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
+No backend, no database, no accounts, no analytics, and no AI service: nothing leaves your device. Images, OCR text and results live in the tab's memory, and the page's security policy only lets it contact its own site. The replica keeps your charts' real shapes; only text is replaced. The browser stores only the app's model files. See [PRIVACY.md](PRIVACY.md).
 
 ## Feedback and support
 
@@ -102,8 +98,7 @@ web/              the app (static, no build step), published as-is
   index.html      screens and styles
   app.js          pipeline: OCR, masking, gate, review, payload preview, replica screen
   inpaint.js      in-place replica: background sampling, pixel clearing, text redraw, hover layer
-  synth.js        synthetic text: box descriptions sent to the AI, its prompt, answer checks, on-device values
-  llm.js          AI providers (Claude, OpenAI): the only code that calls an AI service
+  synth.js        synthetic text for each hidden box, made on the device
   replica.js …    the earlier chart-rebuilding replica; no longer loaded by the app, to be removed
   feedback.js     in-app feedback and error reporting
   samples.js      bundled fictional sample

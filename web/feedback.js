@@ -55,13 +55,13 @@
     const S = global.__DSC || {};
     return {
       version: VERSION, channel: channel(), browser: browser(), step: step(),
-      ai: S.key ? (S.provider === 'openai' ? 'OpenAI' : 'Claude') + ' · ' + (S.model || '') : '', mode: S.mode || '', source: S.sample ? 'Bundled sample: ' + S.sample.name : (S.spec || S.img ? 'Own screenshot' : ''),
+      mode: S.mode || '', source: S.sample ? 'Bundled sample: ' + S.sample.name : (S.spec || S.img ? 'Own screenshot' : ''),
       visuals: visuals(), error: scrub(lastError)
     };
   }
   function diagnostics(c) {
     return [`VaultSnip ${c.version} · ${c.channel} · ${c.browser}`, `Step: ${c.step}${c.mode ? ' · mode: ' + c.mode : ''}${c.source ? ' · ' + c.source : ''}`,
-      c.ai ? 'AI: ' + c.ai : '', c.visuals ? 'Visual types: ' + c.visuals : '', c.error ? 'Last error: ' + c.error : ''].filter(Boolean).join('\n');
+      c.visuals ? 'Visual types: ' + c.visuals : '', c.error ? 'Last error: ' + c.error : ''].filter(Boolean).join('\n');
   }
 
   /* ---------- dialog ---------- */
@@ -139,7 +139,6 @@
     q.set('what', String(text || '').trim()); q.set('version', c.version); q.set('channel', c.channel); q.set('browser', c.browser);
     q.set('step', [c.step, c.mode && 'mode: ' + c.mode, c.source].filter(Boolean).join(' · '));
     if (c.visuals) q.set('visuals', c.visuals);
-    if (c.ai) q.set('step', q.get('step') + ' · AI: ' + c.ai);
     if (c.error) q.set('error', c.error);
     return REPO + '/issues/new?' + q.toString();
   }

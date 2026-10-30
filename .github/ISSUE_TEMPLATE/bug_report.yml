@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report this.
-        **Never attach a real screenshot, client names, figures or API keys.** If sensitive text was left unmasked, do not use this form: [report it privately](https://github.com/karthikvalluri85/vaultsnip/security/advisories/new) instead.
+        **Never attach a real screenshot, client names or figures.** If sensitive text was left unmasked, do not use this form: [report it privately](https://github.com/karthikvalluri85/vaultsnip/security/advisories/new) instead.
   - type: textarea
     id: what
     attributes:
@@ -66,5 +66,5 @@ body:
     attributes:
       label: Privacy check
       options:
-        - label: This report contains no client data, real figures, personal data or API keys.
+        - label: This report contains no client data, real figures, or personal data.
           required: true

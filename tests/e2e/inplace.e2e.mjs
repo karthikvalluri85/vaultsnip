@@ -1,5 +1,5 @@
 // End-to-end test of the in-place replica: serves web/, runs the bundled sample in headless Chromium, builds the replica on
-// the device and with a mocked AI provider, and checks that it is the original picture except inside the replaced boxes.
+// the device, and checks that it is the original picture except inside the replaced boxes, and that nothing is sent.
 // Usage: node tests/e2e/inplace.e2e.mjs   (set PW_CHROMIUM to use a preinstalled browser; SHOT=path saves a screenshot)
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -23,6 +23,7 @@ const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); 
 const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const pageErrors = []; page.on('pageerror', e => pageErrors.push(e.message));
+const offsite = []; page.on('request', r => { const u = r.url(); if (!u.startsWith(base) && !/^(data|blob|about):/.test(u)) offsite.push(u); });
 const cspBlocked = []; page.on('console', m => { if (/Content Security Policy|Refused to (load|connect|execute|create|apply)/i.test(m.text())) cspBlocked.push(m.text().slice(0, 200)); });
 
 // Compares the replica with the original, pixel by pixel: every pixel outside the replaced boxes must be unchanged.
@@ -51,9 +52,9 @@ try {
   await page.waitForFunction(() => { const g = document.querySelector('.gate'); return g && /Blocked|Review|Pass/.test(g.textContent) && !/Checking/.test(g.textContent); }, null, { timeout: 180000 });
   await page.evaluate(() => { const T = window.__DSC.test; T.hideUncertain(); });
   await page.evaluate(() => document.getElementById('btn-send').onclick());
-  check(await page.locator('#btn-local').isDisabled(), 'nothing is built before "I have looked over the masked image" is ticked');
+  check(await page.locator('#btn-confirm').isDisabled(), 'nothing is built before "I have looked over the masked image" is ticked');
   await page.check('#pf-ok');
-  await page.click('#btn-local');
+  await page.click('#btn-confirm');
   await page.waitForFunction(() => !document.getElementById('s-replica').hidden && document.querySelector('#replica canvas.ip-canvas'));
   const c1 = await compare();
   check(c1.size, 'the replica is the size of the original');
@@ -109,38 +110,9 @@ try {
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btn-dl-replica')]);
   check(dl.suggestedFilename() === 'sample-replica-synthetic.png', `the replica downloads as a PNG (${dl.suggestedFilename()})`);
 
-  console.log('AI-written replacements (mocked Claude)');
-  const seen = {};
-  await page.route('https://api.anthropic.com/v1/messages', r => {
-    const body = r.request().postDataJSON(); seen.body = body;
-    const req = JSON.parse(body.messages[0].content.find(c => c.type === 'text').text);
-    // a well-behaved answer: the same shape with other digits; a name for everything else
-    const replacements = req.tokens.map(t => ({ id: t.id, synthetic: t.kind === 'number' ? t.shape.replace(/9/g, '4') : 'Northwind', note: 'mock' }));
-    return r.fulfill({ json: { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ replacements }) }] } });
-  });
-  await page.evaluate(() => { const S = window.__DSC; S.sample = null; S.key = 'sk-ant-TESTKEY000000000000'; S.provider = 'anthropic'; document.getElementById('btn-send').onclick(); document.getElementById('pf-ok').click(); });
-  await page.click('#btn-confirm');
-  await page.waitForFunction(() => !document.getElementById('dlg-send').open && window.__DSC.fid && window.__DSC.fid.ai);
-  // what is sent beside the image is exactly what the send dialog showed
-  const text = seen.body ? seen.body.messages[0].content.find(c => c.type === 'text').text : '';
-  const shown = await page.evaluate(() => document.getElementById('pf-req-json').textContent);
-  check(!!seen.body && JSON.stringify(JSON.parse(text)) === JSON.stringify(JSON.parse(shown)), 'the request is exactly the JSON shown in the send dialog');
-  check(!!seen.body && seen.body.messages.length === 1 && seen.body.messages[0].content.length === 2, 'only the approved image and that JSON are sent');
-  // no hidden text in it: an original may appear only where the same words are visible in the approved image
-  const leak = await page.evaluate(sentText => {
-    const S = window.__DSC, on = S.masks.filter(m => m.on);
-    const covered = w => on.some(m => w.x + w.w / 2 > m.x && w.x + w.w / 2 < m.x + m.w && w.y + w.h / 2 > m.y && w.y + w.h / 2 < m.y + m.h);
-    const visible = S.words.filter(w => !covered(w)).map(w => w.text).join(' ');
-    const originals = on.map(m => (m.text || '').trim()).filter(o => o.length >= 3 && o !== '(table column)');
-    return { n: originals.length, leaked: originals.filter(o => sentText.includes(o) && !visible.includes(o)) };
-  }, text);
-  check(!!seen.body && leak.n > 20 && leak.leaked.length === 0, `the request carries no hidden text (${leak.n} hidden texts checked${leak.leaked.length ? '; leaked: ' + leak.leaked.slice(0, 3).join(', ') : ''})`);
-  check(!!seen.body && JSON.parse(text).tokens.every(t => t.kind === 'number' ? !('chars' in t) && /^[^A-Za-z]*9[\s\S]*$/.test(t.shape) : !('shape' in t) && Number.isInteger(t.chars)), 'names and labels go as a length only; numbers as a pattern of 9s');
-  check(!!seen.body && /contextual data generator/i.test(seen.body.system), 'the provider is asked as a contextual data generator');
-  const ai = await page.evaluate(() => window.__DSC.fid.patches.filter(p => p.source === 'ai').length);
-  check(ai > 5, `AI answers that fit the shape are used (${ai})`);
-  const c2 = await compare();
-  check(c2.outside === 0, 'with AI text too, nothing outside the replaced boxes changes');
+  console.log('Nothing leaves the device');
+  check(offsite.length === 0, `no request went anywhere but this page's own site${offsite.length ? ': ' + offsite.slice(0, 3).join(', ') : ''}`);
+  check(await page.evaluate(() => typeof window.VSLLM === 'undefined' && !document.getElementById('btn-key')), 'there is no AI key setting and no AI code');
 
   check(pageErrors.length === 0, `no page errors${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);
   check(cspBlocked.length === 0, `nothing blocked by the Content-Security-Policy${cspBlocked.length ? ': ' + cspBlocked.join(' | ') : ''}`);
