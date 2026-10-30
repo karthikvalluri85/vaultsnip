@@ -34,21 +34,20 @@ npm run e2e               # browser end-to-end test (first run: npx playwright i
 
 CI runs these on every pull request, plus the extension and on-device name-check suites, and checks that every committed bundle matches its source (see *Built files* below).
 
-A change to reading, masking or the on-device layout builder should also show its effect on the accuracy benchmark:
+A change to reading or masking should also show its effect on the masking benchmark, and a change to the replica on the
+in-place benchmark:
 
 ```bash
-npm run bench             # downloads the public benchmark images to .bench/ (not committed), reads each one with the
-                          # app's own review step, then scores the on-device build against tools/layout-bench/truth.json
-npm run bench:layout -- --json result.json   # scores again without re-reading
 npm run bench:synth       # draws 60 fictional dashboards (seeded, nothing downloaded) and scores masking on them
 node tools/synth-bench/run.mjs --reuse --json synth.json   # scores again without re-reading
-node tools/synth-bench/layout.mjs --json layout.json   # the on-device layout builder on the same dashboards
 npm run bench:gate -- synth.json tools/synth-bench/baseline.json   # fails if a figure got worse than its baseline
+npm run bench:inplace     # 50 fictional dashboards through the app: pixels changed outside boxes, leftover text,
+                          # shrunk replacements, sensitive words left readable
+npm run test:inplace      # the in-place replica's end-to-end checks
 ```
 
-CI runs the masking benchmark on 8 generated dashboards for every pull request and both full benchmarks nightly. A
-change that improves a figure raises its baseline file in the same pull request. `node tools/synth-bench/overlay.mjs
-.bench/synth/<id>.truth.json` draws one dashboard's truth, masks and findings over it, to see what a figure means.
+CI runs the masking benchmark on 8 generated dashboards for every pull request and on 60 nightly. A change that improves
+a figure raises its baseline file in the same pull request.
 
 [ACCURACY.md](ACCURACY.md) defines what each figure means, records the baseline and sets out the plan for raising it.
 
@@ -57,20 +56,19 @@ change that improves a figure raises its baseline file in the same pull request.
 | Path | What it is |
 |---|---|
 | `web/` | The app, published as-is to Cloudflare Pages |
-| `web/app.js` | Pipeline: OCR, masking, gate, review, AI call, export |
-| `web/replica.js` | Replica engine (also embedded in every export) |
+| `web/app.js` | Pipeline: OCR, masking, gate, review, preview, replica screen |
+| `web/inpaint.js` | In-place replica: background sampling, pixel clearing, text redraw, hover layer |
+| `web/synth.js` | Synthetic text for each hidden box, made on the device |
 | `web/feedback.js` | In-app feedback and error reporting |
-| `web/maps/` | Map outlines, rebuilt by `tools/maps/build_maps.py` |
 | `src/` | TypeScript sources, built into the committed bundles listed under *Built files* |
 | `tests/` | Unit tests (`tests/unit`, Vitest) and extra end-to-end suites (`tests/e2e`) |
 | `extension/` | Chrome/Edge (MV3) wrapper |
 | `build.sh` | Builds the extension, web and Hugging Face packages into `dist/` |
-| `tools/` | Checks, end-to-end test, build scripts, map builder |
+| `tools/` | Checks, end-to-end test, build scripts, benchmarks (`synth-bench`, `inplace-bench`) and the map builder for the generated test dashboards |
 
 ## Style
 
 - Plain modern JavaScript in `web/`, TypeScript in `src/`, no frameworks; 2-space indent (see `.editorconfig`).
-- Keep files self-contained: `replica.js` must work inside an offline exported file.
 - Commit messages: short imperative summary line, e.g. `Maps: match UK and United Kingdom`.
 
 ## Built files
@@ -80,9 +78,6 @@ The app has no build step, so code from `src/` ships as committed bundles. After
 | Source | Script | Committed output |
 |---|---|---|
 | `src/replica` | `npm run build:faker` | `web/lib/vs-faker.js` |
-| `src/export` | `npm run build:design` | `web/lib/vs-design.js` |
-| `src/exporters` | `npm run build:react` | `web/lib/vs-react.js` |
-| `src/layout` | `npm run build:layout` | `web/lib/vs-layout.js` |
 | `src/background`, `src/content`, `src/shared` | `npm run build:ext` | `extension/*.js`, `extension/offscreen.html` |
 | `src/background`, `src/content/context-classifier.ts` | `npm run build:ml` | `web/ml`, `web/lib/vs-context.js` |
 | `PRIVACY.md` | `npm run build:privacy` | `web/privacy.html` |
@@ -91,7 +86,7 @@ The app has no build step, so code from `src/` ships as committed bundles. After
 
 ## Upgrading vendored libraries
 
-`web/lib` holds copies of tesseract.js and Apache ECharts, so the app needs no build step. To upgrade one, update `package.json`, run `npm install`, copy the new files into `web/lib`, and run `npm run e2e`. Dependabot is told not to propose these upgrades for that reason.
+`web/lib` holds a copy of tesseract.js, so the app needs no build step. To upgrade one, update `package.json`, run `npm install`, copy the new files into `web/lib`, and run `npm run e2e`. Dependabot is told not to propose these upgrades for that reason.
 
 ## Releasing (maintainer)
 

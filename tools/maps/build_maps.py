@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Builds web/maps/*.json (simplified region outlines for map visuals) from Natural Earth.
+"""Builds tools/synth-bench/maps/*.json (simplified region outlines, used to draw the map panels of the generated test
+dashboards) from Natural Earth.
 
 Natural Earth is public domain (https://www.naturalearthdata.com).
 Needs: python3, node + npx (installs mapshaper on first run), internet access to GitHub.
@@ -14,7 +15,7 @@ The collection carries "vs": {"title", "groups": {group: [region names]}, "moves
 import json, os, re, subprocess, sys, tempfile, unicodedata, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUT = os.path.join(ROOT, 'web', 'maps')
+OUT = os.path.join(ROOT, 'tools', 'synth-bench', 'maps')
 CACHE = os.path.join(tempfile.gettempdir(), 'vaultsnip-ne')
 NE = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/'
 # The world outline uses Natural Earth's India point of view, matching official Indian boundaries.
@@ -186,19 +187,8 @@ def adm1_aliases(p):
 COUNTRIES = [
     # file, title, ISO3, dissolve field (None = keep admin-1), simplification
     ('usa', 'United States (states)', 'USA', None, '3%'),
-    ('canada', 'Canada (provinces)', 'CAN', None, '1.5%'),
-    ('mexico', 'Mexico (states)', 'MEX', None, '5%'),
     ('brazil', 'Brazil (states)', 'BRA', None, '4%'),
-    ('uk', 'United Kingdom (regions)', 'GBR', 'ukreg', '6%'),
-    ('france', 'France (regions)', 'FRA', 'region', '6%'),
-    ('germany', 'Germany (states)', 'DEU', None, '8%'),
-    ('italy', 'Italy (regions)', 'ITA', 'region', '6%'),
-    ('spain', 'Spain (autonomous communities)', 'ESP', 'region', '6%'),
     ('india', 'India (states and union territories)', 'IND', None, '6%'),
-    ('china', 'China (provinces)', 'CHN', None, '3%'),
-    ('japan', 'Japan (prefectures)', 'JPN', None, '6%'),
-    ('australia', 'Australia (states and territories)', 'AUS', None, '3%'),
-    ('south-africa', 'South Africa (provinces)', 'ZAF', None, '6%'),
 ]
 REGION_EXTRA = {
     'germany': {'Nordrhein-Westfalen': ['nrw'], 'Baden-Württemberg': ['bawu'], 'Brandenburg': ['bb'], 'Mecklenburg-Vorpommern': ['mecklenburg western pomerania']},

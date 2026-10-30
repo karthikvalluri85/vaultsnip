@@ -43,7 +43,7 @@ jobs:
       # web/lib holds built copies of src/ (the app has no build step); a change to src/ must ship its rebuilt bundle
       - name: Committed web/lib bundles match src/
         run: |
-          for s in build:faker build:design build:react build:layout; do npm run --if-present "$s"; done
+          npm run build:faker
           git diff --exit-code -- web/lib
 
   e2e:

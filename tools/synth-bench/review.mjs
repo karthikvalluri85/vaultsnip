@@ -7,7 +7,9 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
-import { ROOT } from './items.mjs';
+import { fileURLToPath } from 'node:url';
+
+export const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.gz': 'application/gzip', '.wasm': 'application/wasm', '.css': 'text/css' };
 
