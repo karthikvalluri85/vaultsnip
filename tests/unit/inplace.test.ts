@@ -151,6 +151,12 @@ describe('natural replica text', () => {
     expect(Y.labelFor({ x: 400, y: 80, w: 100, h: 16 }, vis)).toBe('Account Manager');
     expect(Y.roleOf('Account Manager')).toBe('person');
     expect(Y.labelFor({ x: 95, y: 300, w: 120, h: 12 }, vis)).toBe('Prepared by');
+    expect(Y.roleOf('Prepared by')).toBe('person');
+  });
+  it('takes the dimension after "by" in a chart title: "Leads by Region" labels its bars with places', () => {
+    expect(Y.roleOf('Leads By Region')).toBe('city');
+    expect(Y.roleOf('Clicks by city')).toBe('city');
+    expect(Y.roleOf('Revenue by Account Manager')).toBe('person');
   });
   it('sets boxes in one row or column in one size', () => {
     const st = (size: number) => ({ size, weight: 400 });
