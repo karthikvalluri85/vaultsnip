@@ -1516,7 +1516,7 @@ customer service staff agent team people everyone nobody someone something nothi
   async function useFile(f) {
     dropError('');
     if (f.type === 'application/pdf') { S.sample = null; $('client-names').value = ''; S.fileBase = slug(String(f.name || '').replace(/\.[^.]+$/, '')) || 'screenshot'; await usePdf(f); return; }
-    if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(f.type)) { dropError('That file is not an image or PDF VaultSnip can read. Use a PNG, JPG, WebP or PDF.'); return; }
+    if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(f.type)) { dropError('That file is not an image VaultSnip can read. Use a PNG, JPG or WebP screenshot.'); return; }
     if (f.size > 10 * 1024 * 1024) { dropError('That image is over 10 MB. Crop it, or save it as JPG, and try again.'); return; }
     S.sample = null; $('client-names').value = '';
     S.fileBase = slug(String(f.name || '').replace(/\.[^.]+$/, '')) || 'screenshot';
