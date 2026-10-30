@@ -111,10 +111,18 @@ standard balanced regional seasonal general premium classic central coastal nati
   }
   // Where a hidden box sits decides what replaces it: the label just before it on the same line ("Prepared by", "Owner:"),
   // or the header of its table column (the nearest line above, over the same columns, that names a kind of value).
-  const PERSON_CUE = /\b(manager|owner|rep|agent|assignee|contact|employee|author|reviewer|analyst|engineer|seller|buyer|approver|recruiter|lead|prepared by|by|advisor|consultant|director|physician|doctor|nurse|user name|full name)\b/i;
+  const PERSON_CUE = /\b(manager|owner|rep|agent|assignee|contact|employee|author|reviewer|analyst|engineer|seller|buyer|approver|recruiter|lead|prepared by|owned by|created by|assigned to|advisor|consultant|director|physician|doctor|nurse|user name|full name)\b/i;
+  const PLACE_DIM = /^(regions?|territor(y|ies)|areas?|zones?|locations?|markets?|sites?|cit(y|ies)|towns?)$/;
   function roleOf(label) {
-    const l = String(label || '').toLowerCase();
+    const l = String(label || '').toLowerCase().trim();
     if (!l) return null;
+    // a chart titled "Leads by Region" labels its bars with regions: the words after "by" name the dimension
+    const by = /\b(prepared|owned|created|assigned|submitted|approved|reported|managed) by\b/.test(l) ? null : l.match(/\bby\s+([a-z][a-z ]*)$/);
+    if (by) {
+      const dim = by[1].trim();
+      if (PLACE_DIM.test(dim.split(' ').pop())) return 'city';
+      return roleOf(dim);
+    }
     if (PERSON_CUE.test(l)) return 'person';
     const f = global.VSFaker;
     return f && f.columnRole ? f.columnRole(l, 'text') : null;
@@ -135,22 +143,26 @@ standard balanced regional seasonal general premium classic central coastal nati
   const titleWords = s => String(s).trim().split(/\s+/).filter(w => /^[A-Z][A-Za-z'’.-]*$/.test(w));
   // Several draws, keeping the one closest to the original's length, so a made-up name fits its box without squeezing.
   function fitted(make, original, key) {
-    const L = original.length;
+    const L = original.length, max = L * 1.15 + 1;
+    // never reuse a word of the hidden text (a made-up name that shares the real surname is not made up)
+    const own = new Set(original.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3));
     let best = null, bestD = Infinity;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 16; i++) {
       const v = make(i ? key + '#' + i : key);
       if (!v || v.toLowerCase() === original.toLowerCase()) continue;
-      const d = Math.abs(v.length - L) + (v.length > L * 1.3 + 2 ? 50 : 0);
+      if (v.toLowerCase().split(/[^a-z]+/).some(w => own.has(w))) continue;
+      // longer than the original costs more than shorter: it would have to be squeezed into the box
+      const d = v.length > L ? 2 * (v.length - L) : L - v.length;
       if (d < bestD) { best = v; bestD = d; }
       if (d <= Math.max(1, L * 0.1)) break;
     }
-    // still far too long: drop trailing words while it is longer than its box allows
-    if (best && best.length > L * 1.4 + 2) {
+    // still too long: drop trailing words while it is longer than its box allows
+    if (best && best.length > max) {
       const parts = best.split(' ');
-      while (parts.length > 1 && parts.join(' ').length > L * 1.3 + 2) parts.pop();
+      while (parts.length > 1 && parts.join(' ').length > max) parts.pop();
       best = parts.join(' ');
     }
-    return best && best.length <= L * 1.4 + 2 ? best : null;
+    return best && best.length <= max ? best : null;
   }
   // an address of about the same length as the hidden one (which the reader may have cut short), at a reserved domain
   function email(text, r) {
@@ -188,7 +200,11 @@ standard balanced regional seasonal general premium classic central coastal nati
       else if (faker) {
         // what the text is: its own kind first (a client, a person), then its label or column, then its shape
         const words = titleWords(t.original), n = t.original.trim().split(/\s+/).length;
-        const want = t.kind === 'client' ? 'company' : t.kind === 'person' ? 'person'
+        // a fragment the reader cut short ("ww)", "RN") keeps its own shape: a full name would not fit its box
+        const want = t.original.replace(/[^A-Za-z]/g, '').length < 4 ? null
+          // a place column or axis outranks the reader's guess that a town name is a person's
+          : role && /^(city|country|state)$/.test(role) ? role
+          : t.kind === 'client' ? 'company' : t.kind === 'person' ? 'person'
           : role && /^(person|company|city|country|state|product)$/.test(role) ? role
           : words.length >= 2 && words.length === n ? 'company'
           : words.length === 1 && n === 1 && t.original.length >= 4 ? 'city' : null;
