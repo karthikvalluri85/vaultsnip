@@ -105,7 +105,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: bash build.sh --model-url https://vaultsnip.pages.dev/lang
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vaultsnip-packages
           path: dist/*.zip
@@ -129,7 +129,7 @@ jobs:
       - run: node tools/synth-bench/run.mjs --json synth-smoke.json
       - run: node tools/bench-gate.mjs synth-smoke.json tools/synth-bench/baseline-smoke.json
       - if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: accuracy-smoke
           path: synth-*.json
