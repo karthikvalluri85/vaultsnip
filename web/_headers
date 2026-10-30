@@ -1,6 +1,6 @@
 # Security headers for the web app (Cloudflare Pages reads this file; tools/e2e.mjs serves the same headers, so the
 # end-to-end test runs under this policy). The policy enforces VaultSnip's promise in the browser: code and data come
-# only from this site, and the only other servers the page can reach are the two AI providers a user can choose.
+# only from this site, and the page can reach no other server.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self' https://huggingface.co https://*.hf.space
   X-Content-Type-Options: nosniff

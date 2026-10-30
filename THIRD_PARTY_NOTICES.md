@@ -28,6 +28,10 @@ Unread-text check, in `web/ml/models.js`, `web/models/pp-ocrv5-det` and `web/mod
   character list unchanged. Its decoding in `src/background/text-reader.ts` follows PaddleOCR's CTC decoding and was
   written for VaultSnip; no PaddleOCR code is copied. `npm run fetch:model -- --check` verifies both files.
 
+PDF input, in `web/lib/pdfjs`:
+
+- [PDF.js](https://github.com/mozilla/pdf.js) 4.4.168 (`pdfjs-dist`, `pdf.min.mjs` and `pdf.worker.min.mjs` as `pdf.min.js` and `pdf.worker.min.js`, otherwise unchanged), Apache License 2.0, Copyright Mozilla Foundation. Its licence is in `web/lib/pdfjs/LICENSE`.
+
 Realistic synthetic names in the replica, bundled in `web/lib/vs-faker.js`:
 
 - [Faker](https://github.com/faker-js/faker) 10.6.0 (`@faker-js/faker`), MIT License, Copyright (c) 2022-present Faker. The library and a slim copy of its name, company, place and product lists for 15 locales (`src/replica/faker-locales.json`, made by `tools/build-faker.mjs`).

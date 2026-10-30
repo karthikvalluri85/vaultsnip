@@ -1002,34 +1002,44 @@ customer service staff agent team people everyone nobody someone something nothi
     draw();
   }
   // Warns when brand colours or an unmasked corner logo remain in the image after masking.
+  // Warns when the masked image may still identify the client by how it looks rather than by its text: a logo or
+  // picture in a top corner, or a header band in strong brand colours. Text (masked or kept) is left out of both
+  // measures, so ordinary coloured charts and KPI cards below the header do not raise it.
   function detectFingerprint() {
-    const warn = $('fingerprint-warn'); if (!warn || !S.img) return;
-    const W = S.img.width, H = S.img.height;
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(S.img, 0, 0);
-    const toHsv = (r, g, b) => { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; return { s: mx ? d / mx : 0, v: mx }; };
-    const step = Math.max(1, Math.round(W / 120)), items = [];
-    let saturated = 0, total = 0;
-    const d = ctx.getImageData(0, 0, W, H).data;
-    for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) {
-      const p = (y * W + x) * 4, { s, v } = toHsv(d[p], d[p + 1], d[p + 2]);
-      total++; if (s > 0.5 && v > 0.15 && v < 0.9) saturated++;
+    const warn = $('fingerprint-warn'); if (!warn || !S.img) return [];
+    const W = S.img.width, H = S.img.height, items = [];
+    const ctx = S.img.getContext ? S.img.getContext('2d', { willReadFrequently: true }) : null; if (!ctx) return [];
+    const boxes = (S.words || []).concat(S.masks.filter(m => m.on));
+    const inText = (x, y) => boxes.some(b => x >= b.x - 2 && x <= b.x + b.w + 2 && y >= b.y - 2 && y <= b.y + b.h + 2);
+    const sat = (r, g, b) => { const mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx ? (mx - mn) / mx : 0; };
+    // a region's background is its most common colour (quantised); a pixel far from it is "ink"
+    function scan(x0, y0, w, h) {
+      if (w < 8 || h < 8) return { ink: 0, saturated: 0 };
+      const d = ctx.getImageData(x0, y0, w, h).data, step = Math.max(1, Math.round(Math.sqrt(w * h / 6000)));
+      const hist = new Map();
+      for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) { const p = (y * w + x) * 4, k = (d[p] >> 4) << 8 | (d[p + 1] >> 4) << 4 | d[p + 2] >> 4; hist.set(k, (hist.get(k) || 0) + 1); }
+      const bg = [...hist.entries()].sort((a, b) => b[1] - a[1])[0][0], br = ((bg >> 8) & 15) * 16 + 8, bgG = ((bg >> 4) & 15) * 16 + 8, bb = (bg & 15) * 16 + 8;
+      let n = 0, ink = 0, saturated = 0;
+      for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
+        if (inText(x0 + x, y0 + y)) continue;
+        const p = (y * w + x) * 4; n++;
+        if (Math.abs(d[p] - br) + Math.abs(d[p + 1] - bgG) + Math.abs(d[p + 2] - bb) > 90) ink++;
+        if (sat(d[p], d[p + 1], d[p + 2]) > 0.5 && Math.max(d[p], d[p + 1], d[p + 2]) > 40) saturated++;
+      }
+      return { ink: n ? ink / n : 0, saturated: n ? saturated / n : 0, bgSaturated: sat(br, bgG, bb) > 0.45 };
     }
-    if (saturated / total > 0.12) items.push('brand colours visible');
-    // check top-left and top-right 120×80 corners for coloured (non-white/grey) patches not covered by masks
-    [[0, 0, 120, 80], [W - 120, 0, 120, 80]].forEach(([cx, cy, cw, ch]) => {
-      const cd = ctx.getImageData(Math.max(0, cx), cy, Math.min(cw, W - cx), ch).data;
-      let coloured = 0;
-      for (let p = 0; p < cd.length; p += 4) { const { s } = toHsv(cd[p], cd[p + 1], cd[p + 2]); if (s > 0.35) coloured++; }
-      const covered = S.masks.filter(m => m.on && m.x < cx + cw && m.x + m.w > cx && m.y < cy + ch && m.y + m.h > cy).length;
-      if (coloured / (cd.length / 4) > 0.04 && !covered) items.push('possible logo in corner');
-    });
+    const cw = Math.min(Math.round(W * 0.18), 260), ch = Math.min(Math.round(H * 0.12), 110);
+    const corners = [scan(0, 0, cw, ch), scan(W - cw, 0, cw, ch)];
+    if (corners.some(c => c.ink > 0.06 && c.ink < 0.85)) items.push('a logo or picture in a top corner');
+    const band = scan(0, 0, W, Math.min(Math.round(H * 0.1), 90));
+    if (band.bgSaturated || band.saturated > 0.35) items.push('a header in strong brand colours');
     warn.hidden = !items.length;
     if (items.length) {
-      $('fingerprint-detail').textContent = 'The masked image may still identify the client by visual appearance:';
+      $('fingerprint-detail').textContent = 'The masked image may still identify the client by how it looks. Drag a box over anything that gives it away:';
       const chips = $('fingerprint-items'); chips.innerHTML = '';
       items.forEach(t => { const s = document.createElement('span'); s.className = 'chip warn'; s.textContent = t; chips.appendChild(s); });
     }
+    return items;
   }
   // One click for the cautious answer: every finding the check left open is masked, numbers and unlisted words alike.
   // Nothing hidden is shown; each new box counts as your decision and can still be switched off.
@@ -1368,31 +1378,32 @@ customer service staff agent team people everyone nobody someone something nothi
     renderProfileSelect();
   }
 
-  /* ---------------- PDF input (PDF.js from CDN) ---------------- */
+  /* ---------------- PDF input (PDF.js, bundled in web/lib/pdfjs, loaded on demand) ---------------- */
+  // Served from this site like every other app file: the security policy allows no other script source, and the
+  // extension stores forbid code fetched from elsewhere. The PDF is read in the browser; nothing is sent.
   let _pdfJs = null;
   async function loadPdfJs() {
     if (_pdfJs) return _pdfJs;
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js';
-      s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js'; _pdfJs = window.pdfjsLib; resolve(_pdfJs); };
-      s.onerror = () => reject(new Error('Could not load PDF engine. Check your internet connection.'));
-      document.head.appendChild(s);
-    });
+    try {
+      const lib = await import(new URL('lib/pdfjs/pdf.min.js', document.baseURI).href);
+      lib.GlobalWorkerOptions.workerSrc = new URL('lib/pdfjs/pdf.worker.min.js', document.baseURI).href;
+      return (_pdfJs = lib);
+    } catch (e) { throw new Error('Could not load the PDF reader: ' + (e && e.message || e)); }
   }
+  const openPdf = async f => (await loadPdfJs()).getDocument({ data: new Uint8Array(await f.arrayBuffer()), isEvalSupported: false, disableFontFace: false }).promise;
   async function renderPdfPage(pdf, pageNum) {
     const page = await pdf.getPage(pageNum);
     const vp = page.getViewport({ scale: 2 });
-    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);   // PDF pages are transparent; OCR wants paper
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
     return c;
   }
   async function usePdf(f) {
     if (f.size > 50 * 1024 * 1024) { dropError('That PDF is over 50 MB. Try a smaller file.'); return; }
     setStatus('Loading PDF…', true); show('s-review');
     try {
-      const lib = await loadPdfJs();
-      const pdf = await lib.getDocument({ data: await f.arrayBuffer() }).promise;
+      const pdf = await openPdf(f);
       let pageNum = 1;
       if (pdf.numPages > 1) {
         const n = parseInt(prompt(`This PDF has ${pdf.numPages} pages. Which page to process? (1–${pdf.numPages})`, '1'), 10);
@@ -1400,17 +1411,24 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       await startReview(await renderPdfPage(pdf, pageNum));
     } catch (e) {
-      dropError(/Invalid PDF|Could not load/.test(e.message || '') ? (e.message || 'Could not read that PDF.') : 'Could not read that PDF: ' + (e.message || e));
+      show('s-drop');
+      dropError(/Could not load/.test(e.message || '') ? e.message : 'Could not read that PDF: ' + (e.message || e));
     }
   }
 
   /* ---------------- Batch mode: process multiple images / PDFs ---------------- */
-  let batchFiles = [];
+  // Every file goes through the same pipeline as a single screenshot: reading, masking, the on-device AI checks if on,
+  // and the six-pass check. Only a file whose check passes is included; the rest are held back for review one by one.
+  const BATCH_MAX_PAGES = 30;   // per PDF: a larger document is better split than masked unseen
+  let batchFiles = [], batchResults = [];
+  const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const BATCH_LABEL = { pending: 'waiting', processing: 'checking…', done: 'passed', held: 'held back', error: 'could not read' };
   function renderBatchQueue() {
     const sec = $('batch-queue'); if (!sec) return;
+    const busy = batchFiles.some(b => b.status === 'processing');
     if (!batchFiles.length) { sec.hidden = true; $('btn-batch-run').disabled = true; return; }
-    sec.hidden = false; $('btn-batch-run').disabled = false;
-    sec.innerHTML = batchFiles.map((item, i) => `<div class="batch-item bi-${item.status || 'pending'}"><span>${item.name}</span><span class="bi-st">${item.status || 'pending'}</span><button type="button" aria-label="Remove">✕</button></div>`).join('');
+    sec.hidden = false; $('btn-batch-run').disabled = busy;
+    sec.innerHTML = batchFiles.map(item => `<div class="batch-item bi-${item.status || 'pending'}"><span>${esc(item.name)}${item.note ? ` <small>${esc(item.note)}</small>` : ''}</span><span class="bi-st">${BATCH_LABEL[item.status] || esc(item.status)}</span>` + (busy ? '' : '<button type="button" aria-label="Remove">✕</button>') + '</div>').join('');
     sec.querySelectorAll('button').forEach((btn, i) => { btn.onclick = () => { batchFiles.splice(i, 1); renderBatchQueue(); }; });
   }
   if ($('batch-file')) {
@@ -1421,46 +1439,102 @@ customer service staff agent team people everyone nobody someone something nothi
     };
   }
   if ($('btn-batch')) $('btn-batch').onclick = () => $('dlg-batch').showModal();
+  // Expands a PDF into one entry per page (up to BATCH_MAX_PAGES), so no page is silently skipped.
+  async function batchPages(item) {
+    const base = slug(item.name.replace(/\.[^.]+$/, '')) || 'screenshot';
+    if (item.file.type !== 'application/pdf') {
+      const url = URL.createObjectURL(item.file);
+      try { return [{ base, canvas: await loadImage(url) }]; } finally { URL.revokeObjectURL(url); }
+    }
+    const pdf = await openPdf(item.file), n = Math.min(pdf.numPages, BATCH_MAX_PAGES), out = [];
+    if (pdf.numPages > BATCH_MAX_PAGES) item.note = `first ${BATCH_MAX_PAGES} of ${pdf.numPages} pages`;
+    else if (pdf.numPages > 1) item.note = `${pdf.numPages} pages`;
+    for (let i = 1; i <= n; i++) out.push({ base: pdf.numPages > 1 ? `${base}-p${i}` : base, canvas: await renderPdfPage(pdf, i), page: i });
+    return out;
+  }
   async function runBatch() {
     if (!batchFiles.length) return;
-    const savedImg = S.img, savedWords = S.words, savedMasks = S.masks;
-    const results = [];
-    $('batch-status').textContent = '';
-    for (let i = 0; i < batchFiles.length; i++) {
-      const item = batchFiles[i]; item.status = 'processing'; renderBatchQueue();
-      $('batch-status').textContent = `Processing ${i + 1} of ${batchFiles.length}: ${item.name}`;
-      try {
-        let imgCanvas;
-        if (item.file.type === 'application/pdf') {
-          const lib = await loadPdfJs();
-          const pdf = await lib.getDocument({ data: await item.file.arrayBuffer() }).promise;
-          imgCanvas = await renderPdfPage(pdf, 1);
-        } else {
-          const url = URL.createObjectURL(item.file); imgCanvas = await loadImage(url); URL.revokeObjectURL(url);
+    const autoHide = $('batch-hide') && $('batch-hide').checked, withReceipt = !$('batch-receipt') || $('batch-receipt').checked;
+    batchResults = [];
+    const held = [];
+    $('btn-batch-dl').hidden = true; $('btn-batch-clear').hidden = true;
+    S.batch = true;
+    try {
+      for (let i = 0; i < batchFiles.length; i++) {
+        const item = batchFiles[i]; item.status = 'processing'; item.note = ''; renderBatchQueue();
+        $('batch-status').textContent = `Processing ${i + 1} of ${batchFiles.length}: ${item.name}`;
+        let pages;
+        try { pages = await batchPages(item); } catch (e) { item.status = 'error'; item.note = String(e && e.message || e).slice(0, 80); renderBatchQueue(); continue; }
+        let passed = 0, heldHere = 0;
+        for (const pg of pages) {
+          if (pages.length > 1) $('batch-status').textContent = `Processing ${i + 1} of ${batchFiles.length}: ${item.name}, page ${pg.page} of ${pages.length}`;
+          S.sample = null; S.fileBase = pg.base;
+          await startReview(pg.canvas);
+          if (S.gate !== 'pass' && autoHide && (S.gate === 'review' || S.gate === 'blocked')) hideUncertain();
+          if (S.gate !== 'pass') { heldHere++; held.push({ name: pg.base, canvas: pg.canvas, gate: S.gate }); continue; }
+          const facts = await receiptFacts();
+          batchResults.push({ name: maskedName(), blob: facts.blob });
+          if (withReceipt) batchResults.push({ name: maskedName().replace(/\.png$/, '-receipt.png'), blob: await pngOf(VSReceipt.draw(facts, facts.image)) });
+          passed++;
         }
-        S.img = imgCanvas; S.words = []; S.masks = [];
-        await readAll(imgCanvas, READ_PASSES, '');
-        notMarks(S.img, S.words);
-        buildMasks(S.words);
-        const blob = await new Promise(res => maskedCanvas(1).toBlob(res, 'image/png'));
-        results.push({ name: item.name.replace(/\.[^.]+$/, '') + '-masked.png', blob });
-        item.status = 'done';
-      } catch (e) { item.status = 'error'; }
-      renderBatchQueue();
-    }
-    S.img = savedImg; S.words = savedWords; S.masks = savedMasks;
-    $('batch-status').textContent = `Done. ${results.filter(r => r.blob).length} of ${batchFiles.length} processed.`;
-    $('btn-batch-dl').hidden = false; $('btn-batch-dl').disabled = !results.some(r => r.blob);
+        item.status = heldHere && !passed ? 'held' : 'done';
+        if (heldHere && passed) item.note = (item.note ? item.note + ', ' : '') + `${heldHere} held back`;
+        renderBatchQueue();
+      }
+    } finally { S.batch = false; }
+    const images = batchResults.filter(r => !/-receipt\.png$/.test(r.name)).length;
+    $('batch-status').textContent = `Done. ${images} image${images === 1 ? '' : 's'} passed the check` + (held.length ? `; ${held.length} held back because the check did not pass. Open each one below to review it.` : '.');
+    renderHeld(held);
+    $('btn-batch-dl').hidden = !batchResults.length; $('btn-batch-dl').disabled = !batchResults.length;
     $('btn-batch-clear').hidden = false;
-    if ($('btn-batch-dl')) $('btn-batch-dl').onclick = async () => {
-      if (results.length === 1) { saveFile(results[0].blob, results[0].name); return; }
-      const { default: JSZip } = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
-      const zip = new JSZip();
-      results.forEach(r => { if (r.blob) zip.file(r.name, r.blob); });
-      saveFile(await zip.generateAsync({ type: 'blob' }), 'vaultsnip-batch.zip');
-    };
+  }
+  function renderHeld(held) {
+    const box = $('batch-held'); if (!box) return;
+    box.hidden = !held.length; box.innerHTML = '';
+    held.forEach(h => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn';
+      b.textContent = `Review ${h.name} (${h.gate === 'blocked' ? 'blocked' : h.gate === 'review' ? 'review needed' : 'not checked'})`;
+      b.onclick = () => { $('dlg-batch').close(); S.sample = null; S.fileBase = h.name; startReview(h.canvas); };
+      box.appendChild(b);
+    });
   }
   if ($('btn-batch-run')) $('btn-batch-run').onclick = runBatch;
+  if ($('btn-batch-dl')) $('btn-batch-dl').onclick = () => {
+    if (!batchResults.length) return;
+    if (batchResults.length === 1) { saveFile(batchResults[0].blob, batchResults[0].name); return; }
+    makeZip(batchResults).then(z => saveFile(z, 'vaultsnip-batch.zip'));
+  };
+  if ($('btn-batch-clear')) $('btn-batch-clear').onclick = () => {
+    batchFiles = []; batchResults = []; renderBatchQueue(); renderHeld([]);
+    $('batch-status').textContent = ''; $('btn-batch-dl').hidden = true; $('btn-batch-clear').hidden = true;
+  };
+  // A minimal ZIP writer (stored entries, no compression: PNGs are already compressed). Made here, nothing loaded.
+  const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  async function makeZip(entries) {
+    const enc = new TextEncoder(), parts = [], central = [];
+    const d = new Date(), dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const used = new Set(); let offset = 0;
+    for (const e of entries) {
+      let name = e.name, k = 2; while (used.has(name)) name = e.name.replace(/(\.[^.]+)$/, `-${k++}$1`); used.add(name);
+      const data = new Uint8Array(await e.blob.arrayBuffer()), nm = enc.encode(name), crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+      h.setUint16(10, dosTime, true); h.setUint16(12, dosDate, true); h.setUint32(14, crc, true);
+      h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, nm.length, true); h.setUint16(28, 0, true);
+      parts.push(new Uint8Array(h.buffer), nm, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+      c.setUint16(12, dosTime, true); c.setUint16(14, dosDate, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true);
+      c.setUint32(24, data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, offset, true);
+      central.push(new Uint8Array(c.buffer), nm);
+      offset += 30 + nm.length + data.length;
+    }
+    const cdSize = central.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+    end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+  }
 
   /* ---------------- Screen 1 ---------------- */
   $('btn-try').onclick = () => {
@@ -1596,7 +1670,8 @@ customer service staff agent team people everyone nobody someone something nothi
       ['Kept readable', plural(t.kept, 'safe report word', 'safe report words') + (S.keepComments ? ', and the wording of customer comments (names, companies, emails and numbers in them masked)' : '')],
       ['Your decisions', String(t.yours)],
       ['On-device AI', `Names among safe words: ${state(S.ctx.on ? S.ctx.state : 'off')}. Text the reader could not read: ${state(S.unread.on ? S.unread.state : 'off')}.`],
-      ['Reviewed', 'The person who made it confirmed they looked over the masked image and nothing sensitive is readable.'],
+      ['Reviewed', S.batch ? 'Made in batch mode: the check passed, but no person looked over this image before it was saved. Look it over before you share it.'
+        : 'The person who made it confirmed they looked over the masked image and nothing sensitive is readable.'],
     ];
     return { image, blob, sha, made, rows, passKey: 'Pre-flight check', file: maskedName(),
       subtitle: `Made with VaultSnip ${(window.VSFeedback && VSFeedback.VERSION) || ''}, free and open source. Goes with ${maskedName()}.`,
@@ -1733,5 +1808,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();
