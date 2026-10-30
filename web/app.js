@@ -643,7 +643,7 @@ customer service staff agent team people everyone nobody someone something nothi
       return grouped + (nd2 !== undefined ? '.' + nd2 : '');
     });
     // try again only when there is a number to change (a lone year stays as it is), and never endlessly
-    if (out === text && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run))) out = fakeValue(text, seed + 7, undefined, depth + 1);
+    if (out === text && exact !== 0 && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run))) out = fakeValue(text, seed + 7, undefined, depth + 1);
     return out;
   }
   // Numbers stacked as an axis (three or more in a column or a row, evenly spaced) share one factor, so the invented scale
@@ -713,9 +713,10 @@ customer service staff agent team people everyone nobody someone something nothi
         }
       });
     };
-    lines(m => m.x + m.w, m => m.y);       // y-axis ticks: one column, right-aligned
-    lines(m => m.x + m.w / 2, m => m.y);   // or centred
-    lines(m => m.y + m.h / 2, m => m.x);   // x-axis ticks: one row
+    // positions are measured at each label's middle: a tick read with a stray letter beside it has a taller box
+    lines(m => m.x + m.w, m => m.y + m.h / 2);       // y-axis ticks: one column, right-aligned
+    lines(m => m.x + m.w / 2, m => m.y + m.h / 2);   // or centred
+    lines(m => m.y + m.h / 2, m => m.x + m.w / 2);   // x-axis ticks: one row
     return out;
   }
   // Paints number masks with the background colour and an invented value in the same style; other masks stay grey. A
@@ -1541,7 +1542,8 @@ customer service staff agent team people everyone nobody someone something nothi
     const hs = S.words.map(w => w.h).sort((a, b) => a - b), medH = hs[Math.floor(hs.length / 2)] || 12;
     map.forEach((p, i) => {
       const m = toks[i].mask;
-      if (!m.text || m.text === '(table column)') return;
+      // text the detector found (but could not read) is text: never left as it is
+      if (!m.text || m.text === '(table column)' || m.type === 'Unread text') return;
       const inside = S.words.filter(w => w.x + w.w / 2 > m.x && w.x + w.w / 2 < m.x + m.w && w.y + w.h / 2 > m.y && w.y + w.h / 2 < m.y + m.h);
       const minConf = inside.length ? Math.min(...inside.map(w => w.conf == null ? 100 : w.conf)) : 0;
       if (VSInpaint.looksLikeShape(im, S.img.width, S.img.height, m, medH, minConf, m.text)) Object.assign(p, { keep: true, synthetic: '' });

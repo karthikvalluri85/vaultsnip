@@ -100,7 +100,7 @@
       const top = Math.max(...rows), keep = rows.map((c, i) => (c >= top * 0.2 ? i : -1)).filter(i => i >= 0);
       band = keep.length ? keep[keep.length - 1] - keep[0] + 1 : ink.h;
     }
-    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.38 ? 700 : cover > 0.3 ? 600 : 400, ink, slant, band };
+    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.48 ? 700 : cover > 0.42 ? 600 : 400, ink, slant, band };
   }
 
   // Font size from the box height (Tier 2 rule: 75% of the box); when the glyphs' own height is known it is used instead,
@@ -139,12 +139,20 @@
   // or just below the box at that column is background and stays (so a bar's top edge or a coloured cell border running
   // through the box survives); any other pixel is text, grown by one pixel for its anti-aliasing, and takes the colour of
   // the background beside it in its row, or else above or below it in its column. src: the original RGBA; dst: the RGBA written to.
-  function inpaintRegion(src, dst, W, H, box, tol = 40) {
+  // style (optional): the box's sampled background and ink. When the box is tight and a glyph touches its edge, the colour
+  // just above or below is the text's own; such a reference is replaced by the background, so the glyph is not taken
+  // for background and left behind.
+  function inpaintRegion(src, dst, W, H, box, tol = 40, style) {
     const { x0, y0, x1, y1 } = clampBox(box, W, H), w = x1 - x0, h = y1 - y0;
     if (w < 1 || h < 1) return;
     const ink = new Uint8Array(w * h);
     for (let x = x0; x < x1; x++) {
-      const top = px(src, W, x, Math.max(0, y0 - 1)), bot = px(src, W, x, Math.min(H - 1, y1));
+      let top = px(src, W, x, Math.max(0, y0 - 1)), bot = px(src, W, x, Math.min(H - 1, y1));
+      if (style) {
+        const inky = c => dist(c, style.ink) < dist(c, style.bg.color) && dist(c, style.bg.color) > tol;
+        if (inky(top)) top = style.bg.color;
+        if (inky(bot)) bot = style.bg.color;
+      }
       for (let y = y0; y < y1; y++) {
         const p = px(src, W, x, y);
         if (dist(p, top) > tol && dist(p, bot) > tol) ink[(y - y0) * w + (x - x0)] = 1;
@@ -232,14 +240,23 @@
   // medH: the median height of the words read on the page; minConf: the lowest confidence of the words in the box.
   // A short reading (a legend's colour swatch read as "BM") whose box is mostly ink is a shape at any size.
   function looksLikeShape(data, W, H, box, medH, minConf, text) {
+    // a confident reading is text, whatever is behind it: a value on a coloured bar or pie slice is never left as it is
+    if (minConf >= 80) return false;
     const short = String(text || '').replace(/\s/g, '').length <= 3, tall = box.h > medH * 2.2;
     if (!tall && !short) return false;
     const bg = sampleBackground(data, W, H, box);
     const { x0, y0, x1, y1 } = clampBox(box, W, H);
-    let n = 0, far = 0;
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { n++; if (dist(px(data, W, x, y), bg.color) > 60) far++; }
-    if (n && far / n > (tall ? 0.45 : 0.4)) return true;     // boxes are padded: text fills well under 0.35 of one
-    return tall && short && minConf < 75 && bg.share < 0.95;
+    let n = 0, far = 0, fx0 = Infinity, fy0 = Infinity, fx1 = -1, fy1 = -1;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      n++;
+      if (dist(px(data, W, x, y), bg.color) <= 60) continue;
+      far++; if (x < fx0) fx0 = x; if (x > fx1) fx1 = x; if (y < fy0) fy0 = y; if (y > fy1) fy1 = y;
+    }
+    if (!n) return false;
+    if (tall) return far / n > 0.45 || (short && minConf < 75 && bg.share < 0.95);
+    // a swatch is one solid block: its ink fills its own outline, which text (even on a coloured bar) never does
+    const solid = far / Math.max(1, (fx1 - fx0 + 1) * (fy1 - fy0 + 1));
+    return far / n > 0.3 && solid > 0.85;
   }
 
   // source: canvas or image of the original. patches: [{x,y,w,h,synthetic,...}] in source pixels.
@@ -260,7 +277,15 @@
     if (opts && opts.slantText) {
       // diagonal only (20-70°): a column of axis ticks also runs vertically, and is not one label
       const diag = a => Math.abs(a) > 0.35 && Math.abs(a) < 1.22;
-      const slanted = styled.filter(p => p.kind === 'unread' && p.original !== '(table column)' && !p.keep && p.style.slant && diag(p.style.slant.angle));
+      // and only thin strokes on a plain background: a coastline or a map border also runs at a slant
+      const thin = p => {
+        if (p.style.bg.share < 0.6) return false;
+        const { x0, y0, x1, y1 } = clampBox(p, W, H);
+        let n = 0, far = 0;
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { n++; if (dist(px(data, W, x, y), p.style.bg.color) > 60) far++; }
+        return n > 0 && far / n < 0.3;
+      };
+      const slanted = styled.filter(p => p.kind === 'unread' && p.original !== '(table column)' && !p.keep && p.style.slant && diag(p.style.slant.angle) && thin(p));
       slanted.forEach(p => { p.synthetic = opts.slantText(Math.max(2, Math.round(p.style.slant.length / (p.style.size * 0.55))), p); });
       styled.forEach(p => {
         if (p.kind === 'unread' || !p.synthetic) return;
@@ -271,7 +296,7 @@
     const work = styled.filter(p => !p.keep);
     // clear all first, so no new text is wiped by a neighbour; every clear reads the original pixels
     const img = ctx.getImageData(0, 0, W, H);
-    work.forEach(p => inpaintRegion(data, img.data, W, H, p));
+    work.forEach(p => inpaintRegion(data, img.data, W, H, p, 40, p.style));
     ctx.putImageData(img, 0, 0);
     work.forEach(p => drawText(ctx, p, p.synthetic, p.style));
     return { canvas: out, patches: styled };
