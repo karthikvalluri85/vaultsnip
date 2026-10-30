@@ -148,17 +148,39 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   }
 
   /* ---------------- OCR (local, Tesseract in WASM) ---------------- */
-  let workerP = null;
-  function worker() {
-    if (!workerP) {
-      workerP = Tesseract.createWorker('eng', 1, {
-        workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
-        workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
-        logger: m => { heartbeat(m); if (m.status && typeof m.progress === 'number') showProgress(m.status, m.progress); }
-      }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
-        .catch(e => { workerP = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
+  // Several readers work at once. The passes over one image are independent, so on a machine with cores and memory to
+  // spare they run side by side instead of one after another; their results are merged in the same order as before, so
+  // what is read does not change, only how long it takes. Each reader has its own settings and its own watchdog, and a
+  // pass prepares its (large) scaled copy of the image only once a reader is free for it.
+  const POOL = (() => {
+    const cores = navigator.hardwareConcurrency || 2, mem = navigator.deviceMemory || 4;
+    return Math.max(1, Math.min(3, cores - 1, mem < 4 ? 1 : mem < 8 ? 2 : 3));
+  })();
+  const slots = [], waiting = [];
+  function startReader(slot) {
+    slot.p = Tesseract.createWorker('eng', 1, {
+      workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
+      workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
+      logger: m => beat(slot, m)
+    }).then(async w => { await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' }); return w; })
+      .catch(e => { slot.p = null; throw e; });   // a failed start (e.g. the language file did not load) is retried next time
+    return slot.p;
+  }
+  async function acquire() {
+    const size = (S.test && S.test.pool) || POOL;
+    for (;;) {
+      let slot = slots.slice(0, size).find(sl => !sl.busy);
+      if (!slot && slots.length < size) { slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null }; slots.push(slot); }
+      if (slot) { slot.busy = true; return slot; }
+      await new Promise(r => waiting.push(r));
     }
-    return workerP;
+  }
+  function release(slot) { slot.busy = false; slot.prog = 0; slot.job = null; const next = waiting.shift(); if (next) next(); }
+  // only progress that moves counts as a heartbeat
+  function beat(slot, m) {
+    const at = m.status + ':' + m.progress;
+    if (at !== slot.at) { slot.at = at; slot.beat = Date.now(); }
+    if (m.status && typeof m.progress === 'number') { if (/recognizing/i.test(m.status)) slot.prog = m.progress; showProgress(m.status); }
   }
   // One progress figure for a whole job: every reading pass, and for a new screenshot the check that follows. Each pass
   // counts by how much image it reads (scale squared), and the figure never goes back, so it climbs to 100% once
@@ -167,9 +189,11 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   const CHECK_SCALES = [2, 1.5, 3, 3, 3, 2];
   const weightOf = scales => scales.reduce((a, k) => a + k * k, 0);
   let job = null;
-  function showProgress(status, p) {
+  function showProgress(status) {
     if (!job || !/recognizing/i.test(status)) { if (!/recognizing/i.test(status)) setStatus(humanStatus(status), true); return; }
-    const pct = Math.min(99, Math.floor(((job.done + p * job.cur) / job.total) * 100));
+    // passes run side by side: the figure counts the finished ones and each running one by how far it has got
+    const running = slots.reduce((a, sl) => a + (sl.busy && sl.job === job ? (sl.prog || 0) * (sl.weight || 0) : 0), 0);
+    const pct = Math.min(99, Math.floor(((job.done + running) / job.total) * 100));
     job.shown = Math.max(job.shown, pct);
     setStatus(`${job.label} ${job.shown}%`, true);
   }
@@ -213,63 +237,56 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
     }
     x.putImageData(im, 0, 0);
   }
-  // One reader, one pass at a time: a pass changes the reader's settings ("block" mode), so two callers must not interleave.
-  let ocrQueue = Promise.resolve();
-  function ocr(src, scale, kind) {
-    const run = ocrQueue.then(() => ocrPass(src, scale, kind));
-    ocrQueue = run.catch(() => {});
-    return run;
-  }
-  // Watchdog: the reader reports its progress all the time it works. On a busy machine it can occasionally get stuck,
+  // Watchdog: a reader reports its progress all the time it works. On a busy machine it can occasionally get stuck,
   // which used to leave the progress figure frozen for good: sometimes silent, sometimes repeating the same figure.
   // When its progress has not moved for STALL_MS, or one pass has run longer than PASS_MAX_MS (a pass normally takes
   // seconds), the stuck reader is ended and the pass runs once more with a fresh one; a second stall is reported.
   const STALL_MS = 30000, PASS_MAX_MS = 120000;
-  let lastBeat = 0, lastProgress = '';
-  function heartbeat(m) {
-    const at = m.status + ':' + m.progress;   // only progress that moves counts
-    if (at !== lastProgress) { lastProgress = at; lastBeat = Date.now(); }
-  }
   class ReaderStalled extends Error {}
-  function watched(promise) {
-    const start = lastBeat = Date.now();
-    lastProgress = '';
+  function watched(promise, slot) {
+    const start = slot.beat = Date.now();
+    slot.at = '';
     let timer;
     const still = S.test && S.test.stallMs || STALL_MS, most = S.test && S.test.passMaxMs || PASS_MAX_MS;
     const stalled = new Promise((_, reject) => {
-      timer = setInterval(() => { const now = Date.now(); if (now - lastBeat > still || now - start > most) reject(new ReaderStalled('reader stalled')); }, 500);
+      timer = setInterval(() => { const now = Date.now(); if (now - slot.beat > still || now - start > most) reject(new ReaderStalled('reader stalled')); }, 500);
     });
     return Promise.race([promise, stalled]).finally(() => clearInterval(timer));
   }
-  async function recognize(canvas, kind) {
+  // make: prepares the image for this pass, once a reader is free; weight: how much it counts in the progress figure
+  async function recognize(make, kind, weight) {
     for (let attempt = 0; ; attempt++) {
-      const w = await worker();
-      if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
+      const slot = await acquire();
+      slot.weight = weight || 1; slot.prog = 0; slot.job = job;
       try {
+        const w = await (slot.p || startReader(slot));
+        if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
+        const canvas = make();
         // tests can make the next readings hang, to prove the watchdog recovers
         // (silent, or repeating the same progress figure for a while)
-        const spin = () => { const t = setInterval(() => heartbeat({ status: 'recognizing text', progress: 0.06 }), 200); setTimeout(() => clearInterval(t), 10000); };
+        const spin = () => { const t = setInterval(() => beat(slot, { status: 'recognizing text', progress: 0.06 }), 200); setTimeout(() => clearInterval(t), 10000); };
         const run = S.test && S.test.stalls > 0 ? (S.test.stalls--, new Promise(() => {}))
           : S.test && S.test.spins > 0 ? (S.test.spins--, spin(), new Promise(() => {}))
           : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
         run.catch(() => {});   // an abandoned reading may still fail once its reader is ended
-        return (await watched(run)).data;
+        return (await watched(run, slot)).data;
       } catch (e) {
         if (!(e instanceof ReaderStalled)) throw e;
         console.warn('The on-device reader stopped responding; restarting it.');
-        workerP = null;
-        w.terminate().catch(() => {});
+        const stuck = slot.p; slot.p = null;
+        if (stuck) stuck.then(w => w.terminate()).catch(() => {});
         if (attempt >= 1) throw new Error('it stopped responding twice. Please try again; closing other tabs can help.');
         continue;
       } finally {
-        if (kind === 'block' && workerP) await (await workerP).setParameters({ tessedit_pageseg_mode: '11' }).catch(() => {});
+        if (kind === 'block' && slot.p) await (await slot.p).setParameters({ tessedit_pageseg_mode: '11' }).catch(() => {});
+        release(slot);
       }
     }
   }
   async function ocrPass(src, scale, kind) {
     kind = kind === true ? 'inverted' : (kind || 'normal');
     const invert = kind === 'inverted';
-    const data = await recognize(prep(src, scale, kind), kind);
+    const data = await recognize(() => prep(src, scale, kind), kind, scale * scale);
     const out = [];
     (data.tsv || '').split('\n').forEach(line => {
       const c = line.split('\t');
@@ -284,17 +301,16 @@ median p50 p75 p90 p95 percent percentage minutes minute min mins seconds second
   async function readAll(src, passes, label) {
     let all = [];
     const mine = !job;
-    if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, cur: 0, shown: 0 };
+    if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, shown: 0 };
     const j = job;   // this run's own figure, even if a newer screenshot starts another
     j.label = label || 'Reading text on this device…';
     try {
-    for (const [scale, kind, own] of passes) {
-      j.cur = scale * scale;
-      const got = await ocr(own || src, scale, kind);
-      j.done += j.cur; j.cur = 0;
-      // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
-      all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
-    }
+      // all passes at once (as many as there are readers); merged in pass order, exactly as when they ran one by one
+      const results = await Promise.all(passes.map(([scale, kind, own]) => ocrPass(own || src, scale, kind).then(got => { j.done += scale * scale; return got; })));
+      results.forEach(got => {
+        // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
+        all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
+      });
     } finally { if (mine && job === j) job = null; }
     return plausible(all);
   }
@@ -1808,5 +1824,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();
