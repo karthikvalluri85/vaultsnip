@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed (in-place replica, from a 50-dashboard test run)
 - **Large screenshots came out smaller.** A screenshot over about 4.8 megapixels (full-page captures) is shrunk for the reader; the replica was drawn on that copy. It is now drawn on the full-size picture, with the boxes scaled up.
 - **Chart shapes read as text were overwritten.** The reader sometimes takes a bar, a map region or a legend's colour swatch for a "2", "4 8" or "BM"; the replica erased part of the chart there and drew a large stray number. Such boxes are now recognised (much taller than the page's text and mostly ink, or short, unsure and on a busy background, or a short reading that fills its box) and left exactly as they were.
+- **A confident reading is never left as a shape**, nor is text the detector found: values on coloured bars and pie slices stay replaced. A legend swatch is recognised only as one solid block.
+- **Faint copies of old digits** showed through where a glyph touched the edge of its box (low-contrast text): the edge colour was the text's own and was taken for background.
+- **Bold** was over-detected on JPEG screenshots; made-up labels were drawn on map coastlines that run at a slant.
 - **Slanted axis labels** (names at 45° under a chart), which the reader mostly cannot read, get a made-up label of about the same length drawn along the same slant, instead of a few flat fragments.
 - **Axis ticks lost their even scale** when the reader joined a stray letter to one tick, read something beside the last one, or the axis ended at 0. Ticks now keep one even, rescaled axis, with 0 staying 0. This also applies to the masked image.
 - **Text that did not fit its box was shrunk.** Made-up names and emails now match the length of the text they replace, numbers ignore a comma's tail when their size is measured, and text a little too wide is narrowed before it is made smaller.
