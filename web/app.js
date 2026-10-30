@@ -689,14 +689,17 @@ customer service staff agent team people everyone nobody someone something nothi
         return null;
       };
       runs.map(axisIn).filter(Boolean).forEach(g => {
-        const vals = g.map(val);
-        // one factor that keeps every tick to its number of digits (else each would fall back to its own and break the scale)
-        // rebuilt as an even scale: a new start and a new step, at the labels' precision, every tick keeping its digits
+        const vals = g.map(val), gaps = g.slice(1).map((m, i) => along(m) - along(g[i])), unitGap0 = Math.min(...gaps);
+        const idx = [0]; gaps.forEach(d => idx.push(idx[idx.length - 1] + Math.round(d / unitGap0)));
+        const perStep = (vals[vals.length - 1] - vals[0]) / idx[idx.length - 1];
+        // one factor for the whole axis, tried until every tick keeps its number of digits
         const r = seeded(hash(g.map(m => m.text).join('|'))), digits = v => String(Math.floor(Math.abs(v))).length;
         const decs = Math.max(...g.map(m => ((main(m.text).match(/\.(\d+)/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
         for (let k = 0; k < 24; k++) {
-          // every tick scaled by one factor: still evenly stepped, and an axis's 0 stays exactly 0
-          const f = randomFactor(r), next = vals.map(v => q(v * f));
+          // a new start and a new step, at the labels' precision (so the steps stay exactly even); counted in steps, so a
+          // missing tick leaves its gap, and anchored on the axis's 0 when it has one, which stays exactly 0
+          const f = randomFactor(r), qs = q(perStep * f) || Math.sign(perStep) * unit, z = vals.indexOf(0);
+          const next = idx.map(k => (z >= 0 ? (k - idx[z]) * qs : q(vals[0] * f) + k * qs)).map(q), idx_ = idx;
           if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && digits(v) === digits(vals[i]) && v !== vals[i]))) {
             g.forEach((m, i) => out.set(m, next[i]));
             // a tick at a missing step (kept out by its odd size: the reader joined a stray letter to it) takes the same
@@ -706,7 +709,8 @@ customer service staff agent team people everyone nobody someone something nothi
               const k = (along(m) - a0) / unitGap, idx = Math.round(k);
               if (idx < 0 || Math.abs(k - idx) > 0.3 || along(m) > along(g[g.length - 1])) return;
               const want = vals[0] + idx * unitVal;
-              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(q(want * f)) === digits(val(m))) out.set(m, q(want * f));
+              const v = q(z >= 0 ? (idx - idx_[z]) * qs : q(vals[0] * f) + idx * qs);
+              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m))) out.set(m, v);
             });
             break;
           }
