@@ -1539,6 +1539,16 @@ customer service staff agent team people everyone nobody someone something nothi
     catch (e) { saveFile(await pngOf(replicaImage()), replicaName()); $('export-note').textContent = 'This browser cannot copy images, so the picture was downloaded instead.'; }
   };
 
+  // The masked image as the benchmarks read it (tools/layout-bench/review.mjs): solid boxes, the words that stay readable,
+  // and the active masks. Used by the masking benchmark only.
+  function layoutInput() {
+    const c = maskedCanvas(1, '#787c82'), im = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+    const on = S.masks.filter(m => m.on);
+    const inMask = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
+    const words = S.words.filter(w => !w.ghost).map(w => { const kept = !inMask(w); return { text: kept ? w.text : '', x: w.x, y: w.y, w: w.w, h: w.h, kept }; });
+    return { image: { data: im.data, width: im.width, height: im.height, channels: 4 }, words, masks: on.map(m => ({ x: m.x, y: m.y, w: m.w, h: m.h })) };
+  }
+
   /* ---------------- key dialog ---------------- */
   $('btn-key').onclick = () => { kpDlg.fill(); $('dlg-key').showModal(); };
   $('key-save').onclick = () => applyKey(kpDlg.read(), true);
@@ -1568,5 +1578,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, detectRegions, unreadMasks };
+  S.test = { hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

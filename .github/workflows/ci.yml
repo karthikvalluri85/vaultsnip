@@ -128,9 +128,6 @@ jobs:
       - run: node tools/synth-bench/gen.mjs --count 8
       - run: node tools/synth-bench/run.mjs --json synth-smoke.json
       - run: node tools/bench-gate.mjs synth-smoke.json tools/synth-bench/baseline-smoke.json
-      # the on-device layout builder on the same dashboards, from the reviews just made
-      - run: node tools/synth-bench/layout.mjs --json synth-layout-smoke.json
-      - run: node tools/bench-gate.mjs synth-layout-smoke.json tools/synth-bench/layout-baseline-smoke.json
       - if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

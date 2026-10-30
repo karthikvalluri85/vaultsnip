@@ -1,7 +1,7 @@
 name: Accuracy (nightly)
 
-# The full benchmarks, too slow for every pull request: 60 generated dashboards for masking, and the public real-world
-# set for the on-device layout build. Each fails if a figure drops below its committed baseline (tools/bench-gate.mjs).
+# The full masking benchmark, too slow for every pull request: 60 generated dashboards.
+# (The layout-builder benchmarks were retired with the chart-rebuilding replica.) Each fails if a figure drops below its committed baseline (tools/bench-gate.mjs).
 on:
   schedule:
     - cron: '17 3 * * *'
@@ -26,14 +26,6 @@ jobs:
       - run: node tools/synth-bench/gen.mjs --count 60
       - run: node tools/synth-bench/run.mjs --json synth-full.json
       - run: node tools/bench-gate.mjs synth-full.json tools/synth-bench/baseline.json
-      - run: node tools/synth-bench/layout.mjs --json synth-layout.json
-      - run: node tools/bench-gate.mjs synth-layout.json tools/synth-bench/layout-baseline.json
-      # resemblance: layout, shape, text and colour, and no generic labels in any rendered replica (tolerance 0)
-      - run: node tools/synth-bench/resemble.mjs --json synth-resemble.json
-      - run: node tools/bench-gate.mjs synth-resemble.json tools/synth-bench/resemble-baseline.json
-      # the on-device self-check: how well it and the confidence rank the visuals built wrong below those built right
-      - run: node tools/synth-bench/self-check.mjs --json synth-selfcheck.json
-      - run: node tools/bench-gate.mjs synth-selfcheck.json tools/synth-bench/selfcheck-baseline.json
       - if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -41,34 +33,3 @@ jobs:
           path: synth-*.json
           retention-days: 30
 
-  layout:
-    name: Layout (public dashboards)
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      # the annotated images, fetched from their public sources for this run only; they are not kept or published
-      - run: node tools/layout-bench/fetch.mjs
-      - run: node tools/layout-bench/ocr.mjs
-      - run: node tools/layout-bench/run.mjs --json layout.json
-      - run: node tools/bench-gate.mjs layout.json tools/layout-bench/baseline.json
-      # series layout and reference lines on generated single charts (drawn locally by Vega-Lite, nothing fetched)
-      - run: node tools/synth-bench/chart-variants.mjs --json variants.json
-      - run: node tools/bench-gate.mjs variants.json tools/synth-bench/variants-baseline.json
-      - run: node tools/synth-bench/chart-types.mjs --json types.json
-      - run: node tools/bench-gate.mjs types.json tools/synth-bench/types-baseline.json
-      - if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: accuracy-layout
-          path: |
-            layout.json
-            variants.json
-            types.json
-          retention-days: 30
