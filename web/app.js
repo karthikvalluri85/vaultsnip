@@ -683,6 +683,54 @@ customer service staff agent team people everyone nobody someone something nothi
     lines(m => m.y + m.h / 2, m => m.x);   // x-axis ticks: one row
     return out;
   }
+  // Detects sum-of-parts and percentage-group relationships among number masks so that totals and %s stay internally
+  // consistent after replacement. Returns a Map<mask, exact_value> like axisFactors.
+  function totalLinks(nums) {
+    const out = new Map();
+    const parseNum = text => { const m = text.match(/\d[\d,]*(?:\.\d+)?/); return m ? parseFloat(m[0].replace(/,/g, '')) : NaN; };
+    const isPct = m => /\d\s*%/.test(m.text);
+    const fakeNum = m => {
+      const r = seeded(hash(m.text + '|lnk|' + Math.round(m.x) + '|' + Math.round(m.y)));
+      const v = parseNum(m.text);
+      return Number.isFinite(v) ? v * randomFactor(r) : NaN;
+    };
+    // 1. Percentage groups: when a spatial cluster of % values sums to ~100, fake each one independently then normalise
+    //    the fake values so they sum to 100 — preventing pie/donut labels from reading e.g. "18 + 37 + 29 + 21 = 105 %".
+    const pctNums = nums.filter(m => isPct(m));
+    if (pctNums.length >= 2) {
+      const byBand = new Map();
+      pctNums.forEach(m => {
+        const band = Math.round(m.y / 40) + '|' + Math.round(m.x / 200);
+        if (!byBand.has(band)) byBand.set(band, []);
+        byBand.get(band).push(m);
+      });
+      byBand.forEach(group => {
+        const vals = group.map(m => parseNum(m.text));
+        if (group.length < 2 || !vals.every(Number.isFinite)) return;
+        if (Math.abs(vals.reduce((a, b) => a + b, 0) - 100) > 18) return;
+        const faked = group.map(fakeNum);
+        if (!faked.every(Number.isFinite)) return;
+        const fakeSum = faked.reduce((a, b) => a + b, 0);
+        group.forEach((m, i) => out.set(m, faked[i] / fakeSum * 100));
+      });
+    }
+    // 2. Sum-of-parts: if the largest number in a Y-band ≈ sum of its neighbours (±6%), set the fake total to
+    //    the sum of the faked parts so that "Q1 + Q2 + Q3 + Q4 = Full Year" still holds in the replica image.
+    const allNums = nums.filter(m => Number.isFinite(parseNum(m.text)));
+    const byY = new Map();
+    allNums.forEach(m => { const b = Math.round(m.y / 30); if (!byY.has(b)) byY.set(b, []); byY.get(b).push(m); });
+    byY.forEach(group => {
+      if (group.length < 3 || group.length > 8) return;
+      const sorted = [...group].sort((a, b) => parseNum(b.text) - parseNum(a.text));
+      const bv = parseNum(sorted[0].text), sv = sorted.slice(1).reduce((a, m) => a + parseNum(m.text), 0);
+      if (Math.abs(bv - sv) / Math.max(1, bv) > 0.06 || out.has(sorted[0])) return;
+      const fakedParts = sorted.slice(1).map(fakeNum);
+      if (!fakedParts.every(Number.isFinite)) return;
+      out.set(sorted[0], fakedParts.reduce((a, b) => a + b, 0));
+      sorted.slice(1).forEach((m, i) => { if (!out.has(m)) out.set(m, fakedParts[i]); });
+    });
+    return out;
+  }
   // Paints number masks with the background colour and an invented value in the same style; other masks stay grey. A
   // column-fill block (digits the reader skipped) gets the background colour, then its numbers on top.
   function paintFakes(x, masks, scale) {
@@ -699,14 +747,19 @@ customer service staff agent team people everyone nobody someone something nothi
       if (best < 60) ink = (bgC[0] + bgC[1] + bgC[2]) / 3 > 128 ? [40, 40, 40] : [235, 235, 235];
       return { bg: `rgb(${bgC.join(',')})`, ink: `rgb(${ink.join(',')})`, bold: dark / (w * h) > 0.22 };
     };
-    const nums = masks.filter(isNumberMask), blocks = masks.filter(m => m.text === '(table column)'), axes = axisFactors(nums.filter(m => m.text && m.text !== '(table column)'));
+    const nums = masks.filter(isNumberMask), blocks = masks.filter(m => m.text === '(table column)');
+    const plainNums = nums.filter(m => m.text && m.text !== '(table column)');
+    const axes = axisFactors(plainNums);
+    const totals = totalLinks(plainNums);
+    // axis exact values take priority over total-link values (an axis tick that is also a subtotal is an axis tick)
+    const exact = m => axes.has(m) ? axes.get(m) : totals.has(m) ? totals.get(m) : undefined;
     masks.forEach(m => {
       x.fillStyle = isNumberMask(m) || blocks.includes(m) ? colours(m).bg : '#787c82';
       x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale);
     });
     nums.forEach(m => {
       if (!m.text || m.text === '(table column)') return;
-      const c = colours(m), value = fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), axes.get(m));
+      const c = colours(m), value = fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), exact(m));
       const inner = (m.h / 1.36) * scale;                                               // masks are padded by ~18% on each side
       let size = Math.max(7, inner / 0.72);
       x.save(); x.beginPath(); x.rect(m.x * scale, m.y * scale, m.w * scale, m.h * scale); x.clip();
@@ -980,6 +1033,7 @@ customer service staff agent team people everyone nobody someone something nothi
     });
     S.flags = flags;
     updateGate();
+    detectFingerprint();
     setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
     draw();
   }
@@ -1044,6 +1098,52 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       fl.appendChild(d);
     });
+  }
+
+  // Scans the original image for non-text identifiers: high-saturation brand-colour regions and
+  // coloured logo-like patches in page corners that survive the mask pipeline.
+  function detectFingerprint() {
+    const warn = $('fingerprint-warn');
+    if (!S.img) { warn.hidden = true; return; }
+    const W = S.img.width, H = S.img.height;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(S.img, 0, 0);
+    const findings = [];
+    const step = Math.max(2, Math.floor(Math.min(W, H) / 80));
+    let highSat = 0, total = 0;
+    for (let y = 0; y < H; y += step) {
+      for (let x = 0; x < W; x += step) {
+        const d = cx.getImageData(x, y, 1, 1).data;
+        const r = d[0] / 255, g = d[1] / 255, b = d[2] / 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+        const s = mx === 0 ? 0 : (mx - mn) / mx;
+        if (s > 0.5 && l > 0.15 && l < 0.85) highSat++;
+        total++;
+      }
+    }
+    if (highSat / total > 0.12) findings.push('Brand-coloured regions (chart colours may identify the client)');
+    const ch = Math.floor(H * 0.12), cw = Math.floor(W * 0.18);
+    [{ lx: 0, ly: 0, label: 'top-left corner' }, { lx: W - cw, ly: 0, label: 'top-right corner' }].forEach(({ lx, ly, label }) => {
+      const covered = (S.masks || []).filter(m => m.on).some(m => {
+        const iw = Math.min(m.x + m.w, lx + cw) - Math.max(m.x, lx), ih = Math.min(m.y + m.h, ly + ch) - Math.max(m.y, ly);
+        return iw > 0 && ih > 0 && iw * ih / (cw * ch) > 0.3;
+      });
+      if (covered) return;
+      const d = cx.getImageData(lx, ly, cw, ch).data;
+      let colored = 0;
+      for (let i = 0; i < cw * ch; i++) {
+        const r = d[i*4]/255, g = d[i*4+1]/255, b = d[i*4+2]/255, mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+        if (mx === 0 ? 0 : (mx-mn)/mx > 0.35) colored++;
+      }
+      if (colored / (cw * ch) > 0.04) findings.push(`Possible logo in ${label}`);
+    });
+    if (findings.length) {
+      warn.hidden = false;
+      const items = $('fingerprint-items'); items.innerHTML = '';
+      findings.forEach(f => { const s = document.createElement('span'); s.className = 'badge'; s.textContent = f; items.appendChild(s); });
+    } else {
+      warn.hidden = true;
+    }
   }
 
   /* ---------------- review canvas ---------------- */
@@ -1280,6 +1380,163 @@ customer service staff agent team people everyone nobody someone something nothi
     S.gate = 'policy'; renderGate();
   }));
 
+  /* ---------------- Per-client allowlist profiles (localStorage) ---------------- */
+  const PROFILES_KEY = 'vaultsnip-profiles-v1';
+  const loadProfiles = () => { try { return JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}'); } catch { return {}; } };
+  const saveProfiles = p => { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(p)); } catch {} };
+  function renderProfileSelect() {
+    const sel = $('profile-select'), prev = sel.value;
+    const profiles = loadProfiles();
+    sel.innerHTML = '<option value="">— no saved profile —</option>';
+    Object.keys(profiles).sort().forEach(name => { const o = document.createElement('option'); o.value = o.textContent = name; sel.appendChild(o); });
+    if (profiles[prev]) sel.value = prev;
+    $('btn-del-profile').disabled = !sel.value;
+  }
+  $('profile-select').onchange = () => {
+    const name = $('profile-select').value;
+    $('btn-del-profile').disabled = !name;
+    if (!name) return;
+    const p = loadProfiles()[name]; if (!p) return;
+    $('client-names').value = p.clientNames || '';
+    $('extra-allow').value = p.allowWords || '';
+    if (S.img) { S.gate = 'policy'; renderGate(); }
+  };
+  $('btn-save-profile').onclick = () => {
+    const cn = $('client-names').value.trim(), al = $('extra-allow').value.trim();
+    if (!cn && !al) { alert('Enter client names or allowlist words to save as a profile.'); return; }
+    const def = (cn.split(',')[0] || '').trim() || 'Profile';
+    const name = prompt('Name for this profile:', def);
+    if (!name || !name.trim()) return;
+    const profiles = loadProfiles();
+    profiles[name.trim()] = { clientNames: cn, allowWords: al };
+    saveProfiles(profiles); renderProfileSelect();
+    $('profile-select').value = name.trim(); $('btn-del-profile').disabled = false;
+  };
+  $('btn-del-profile').onclick = () => {
+    const name = $('profile-select').value; if (!name) return;
+    if (!confirm(`Delete profile "${name}"?`)) return;
+    const profiles = loadProfiles(); delete profiles[name]; saveProfiles(profiles); renderProfileSelect();
+  };
+  renderProfileSelect();
+
+  /* ---------------- PDF input (PDF.js from CDN) ---------------- */
+  let _pdfJs = null;
+  async function loadPdfJs() {
+    if (_pdfJs) return _pdfJs;
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js';
+      s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js'; _pdfJs = window.pdfjsLib; resolve(_pdfJs); };
+      s.onerror = () => reject(new Error('Could not load PDF engine. Check your internet connection.'));
+      document.head.appendChild(s);
+    });
+  }
+  async function renderPdfPage(pdf, pageNum) {
+    const page = await pdf.getPage(pageNum);
+    const vp = page.getViewport({ scale: 2 });
+    const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    return cv;
+  }
+  async function usePdf(f) {
+    dropError('');
+    if (f.size > 50 * 1024 * 1024) { dropError('That PDF is over 50 MB. Try a smaller file.'); return; }
+    S.sample = null; S.fileBase = slug(String(f.name || '').replace(/\.[^.]+$/, '')) || 'document';
+    setStatus('Loading PDF…', true); show('s-review');
+    try {
+      const lib = await loadPdfJs();
+      const pdf = await lib.getDocument({ data: await f.arrayBuffer() }).promise;
+      let pageNum = 1;
+      if (pdf.numPages > 1) {
+        const n = parseInt(prompt(`This PDF has ${pdf.numPages} pages. Which page to process? (1–${pdf.numPages})`, '1'), 10);
+        pageNum = Number.isFinite(n) && n >= 1 && n <= pdf.numPages ? n : 1;
+      }
+      await startReview(await renderPdfPage(pdf, pageNum));
+    } catch (e) {
+      show('s-drop');
+      dropError(/Invalid PDF|Could not load/.test(e.message || '') ? (e.message || 'Could not read that PDF.') : 'Could not read that PDF: ' + (e.message || e));
+    }
+  }
+
+  /* ---------------- Batch mode: process multiple images / PDFs ---------------- */
+  let batchFiles = [];
+  function renderBatchQueue() {
+    const q = $('batch-queue'), sec = $('batch-queue-section');
+    if (!batchFiles.length) { sec.hidden = true; $('btn-batch-run').disabled = true; return; }
+    sec.hidden = false; q.innerHTML = ''; $('btn-batch-run').disabled = false;
+    batchFiles.forEach((item, i) => {
+      const d = document.createElement('div'); d.className = 'batch-item';
+      const cls = { pending: 'bi-pending', running: 'bi-running', done: 'bi-done', error: 'bi-error' }[item.status] || 'bi-pending';
+      d.innerHTML = `<span class="bi-name"></span><span class="bi-status ${cls}">${item.status}</span><button type="button" style="font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer" data-i="${i}">✕</button>`;
+      d.querySelector('.bi-name').textContent = item.name;
+      d.querySelector('button').onclick = () => { batchFiles.splice(i, 1); renderBatchQueue(); };
+      q.appendChild(d);
+    });
+    $('batch-status').textContent = '';
+  }
+  $('batch-file').onchange = () => {
+    Array.from($('batch-file').files).forEach(f => {
+      if (!batchFiles.some(b => b.name === f.name && b.size === f.size)) batchFiles.push({ file: f, name: f.name, size: f.size, status: 'pending' });
+    });
+    $('batch-file').value = '';
+    renderBatchQueue();
+  };
+  $('btn-batch-clear').onclick = () => { batchFiles = []; renderBatchQueue(); $('btn-batch-clear').hidden = true; $('btn-batch-dl').hidden = true; $('btn-batch-dl').disabled = true; };
+  $('btn-batch').onclick = () => $('dlg-batch').showModal();
+  async function runBatch() {
+    $('btn-batch-run').disabled = true; $('btn-batch-clear').hidden = false;
+    const results = [];
+    for (let i = 0; i < batchFiles.length; i++) {
+      const item = batchFiles[i];
+      if (item.status === 'done') continue;
+      item.status = 'running'; renderBatchQueue();
+      $('batch-status').textContent = `Processing ${i + 1} of ${batchFiles.length}: ${item.name}`;
+      try {
+        let imgCanvas;
+        if (item.file.type === 'application/pdf') {
+          const lib = await loadPdfJs();
+          const pdf = await lib.getDocument({ data: await item.file.arrayBuffer() }).promise;
+          imgCanvas = await renderPdfPage(pdf, 1);
+        } else {
+          const url = URL.createObjectURL(item.file);
+          imgCanvas = await loadImage(url); URL.revokeObjectURL(url);
+        }
+        // Run OCR + masking headlessly: save and restore S state so normal work is unaffected.
+        const savedImg = S.img, savedWords = S.words, savedMasks = S.masks;
+        const words = await readAll(imgCanvas, READ_PASSES, '');
+        S.img = imgCanvas; S.words = notMarks(imgCanvas, words); S.masks = buildMasks(S.words);
+        const masked = maskedCanvas(1);
+        S.img = savedImg; S.words = savedWords; S.masks = savedMasks;
+        const blob = await new Promise(res => masked.toBlob(res, 'image/png'));
+        results.push({ name: item.name.replace(/\.[^.]+$/, '') + '-masked.png', blob });
+        item.status = 'done'; item.blob = blob;
+      } catch (e) { item.status = 'error'; item.err = e.message || String(e); }
+      renderBatchQueue();
+    }
+    $('batch-status').textContent = `Done. ${results.length} of ${batchFiles.length} succeeded.`;
+    if (results.length) { item_results = results; $('btn-batch-dl').disabled = false; $('btn-batch-dl').hidden = false; }
+    $('btn-batch-run').disabled = batchFiles.every(f => f.status === 'done');
+  }
+  let item_results = [];
+  $('btn-batch-run').onclick = runBatch;
+  $('btn-batch-dl').onclick = async () => {
+    if (!item_results.length) return;
+    if (item_results.length === 1) { saveFile(item_results[0].blob, item_results[0].name); return; }
+    // Load JSZip dynamically for multi-file download
+    if (!window.JSZip) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    const zip = new JSZip();
+    item_results.forEach(r => zip.file(r.name, r.blob));
+    const blob = await zip.generateAsync({ type: 'blob' });
+    saveFile(blob, 'vaultsnip-batch-masked.zip');
+  };
+
   /* ---------------- Screen 1 ---------------- */
   $('btn-try').onclick = () => {
     const box = $('samples');
@@ -1337,7 +1594,8 @@ customer service staff agent team people everyone nobody someone something nothi
   function dropError(msg) { const e = $('drop-err'); e.textContent = msg || ''; e.hidden = !msg; }
   async function useFile(f) {
     dropError('');
-    if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(f.type)) { dropError('That file is not an image VaultSnip can read. Use a PNG, JPG or WebP screenshot.'); return; }
+    if (f.type === 'application/pdf') { await usePdf(f); return; }
+    if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(f.type)) { dropError('That file is not an image or PDF VaultSnip can read. Use a PNG, JPG, WebP or PDF.'); return; }
     if (f.size > 10 * 1024 * 1024) { dropError('That image is over 10 MB. Crop it, or save it as JPG, and try again.'); return; }
     S.sample = null; $('client-names').value = '';
     S.fileBase = slug(String(f.name || '').replace(/\.[^.]+$/, '')) || 'screenshot';
@@ -1778,15 +2036,23 @@ Types: ${VSCatalog.TYPES.join(', ')}.
       b.disabled = rankOf(b.dataset.mode) < rankOf(S.minMode);
     });
     $('opt-real').checked = S.realistic; $('opt-real').disabled = S.mode === 'generic';
-    DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, resetSelection: true });
+    // Shape warning + distort toggle: only relevant in shape-preserving mode
+    $('shape-warn').hidden = S.mode !== 'shape';
+    $('distort-label').hidden = S.mode !== 'shape';
+    $('opt-distort').checked = S.distort;
+    DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, distort: S.distort, resetSelection: true });
     $('export-note').textContent = '';
   }
   const MODE_NAMES = { shape: 'Shape-preserving', structure: 'Structure-only', generic: 'Generic' };
   $('modes').onclick = e => { const b = e.target.closest('button'); if (!b || b.disabled) return; S.mode = b.dataset.mode; showReplica(); };
-  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
+  $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, distort: S.distort }); };
   // Feature 6: realistic synthetic names (web/lib/vs-faker.js); Generic mode always uses neutral placeholders
-  S.realistic = true;
-  $('opt-real').onchange = () => { S.realistic = $('opt-real').checked; DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic }); };
+  S.realistic = true; S.distort = false;
+  $('opt-real').onchange = () => { S.realistic = $('opt-real').checked; DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, distort: S.distort }); };
+  $('opt-distort').onchange = () => { S.distort = $('opt-distort').checked; DSCReplica.render($('replica'), S.spec, { mode: S.mode, seed: S.seed, realistic: S.realistic, distort: S.distort }); };
+  // Shape-warning quick-switch buttons
+  $('sw-to-structure').onclick = () => { S.mode = 'structure'; showReplica(); };
+  $('sw-to-generic').onclick = () => { S.mode = 'generic'; showReplica(); };
   function startOver() { reviewSeq++; S.img = null; S.spec = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; fresh(); show('s-drop'); }
   $('btn-restart').onclick = startOver;
   $('btn-own').onclick = startOver;

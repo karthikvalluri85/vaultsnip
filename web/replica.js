@@ -51,7 +51,7 @@
 
   /* ---------- synthetic data ---------- */
   // Each measure gets a hidden scale unrelated to the source. Shapes (0..100) come from the spec.
-  let SCALES = {}, HINTS = {};
+  let SCALES = {}, HINTS = {}, DISTORT = false;
   const measureKey = m => m ? (String(m.name || '').toLowerCase() + '|' + (m.format || '')) : '';
   function scaleFor(measure, r) {
     const key = measureKey(measure);
@@ -74,6 +74,11 @@
   }
   function shapeArray(shape, n, mode, r, kind) {
     if (mode === 'shape' && Array.isArray(shape) && shape.length === n) {
+      if (DISTORT) {
+        // Distort mode: each value gets an independent random multiplier (0.35–1.85) so
+        // trends and rankings no longer reflect the original proportions.
+        return shape.map(v => Math.max(0.5, Number(v) || 0) * (0.35 + r() * 1.5));
+      }
       return shape.map(v => Math.max(0.5, Number(v) || 0) * (0.96 + r() * 0.08));
     }
     if (kind === 'trend') { let w = 50 + r() * 30; return Array.from({ length: n }, () => (w = Math.max(10, Math.min(100, w + (r() - 0.45) * 22)))); }
@@ -784,7 +789,7 @@
     const seed = opts.seed || 4127;
     const inj = mode !== 'generic' && opts.realistic !== false && global.VSFaker ? global.VSFaker.create({ seed, spec }) : null;
     const L = labelsFor(spec, mode, inj);
-    SCALES = {}; HINTS = {};
+    SCALES = {}; HINTS = {}; DISTORT = opts.distort === true;
     (spec.rows || []).forEach(row => (row.visuals || []).forEach(v => [v && v.measure, v && v.xMeasure, v && v.yMeasure].forEach(m => {
       const h = m ? num(m.scaleHint) : NaN; if (h > 0 && !HINTS[measureKey(m)]) HINTS[measureKey(m)] = h;
     })));
@@ -899,7 +904,7 @@
     root.className = 'rp';
     root.innerHTML = `
       <div class="rp-head"><h2>${esc(model.title)}</h2><span>${esc(model.subtitle)}</span></div>
-      <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}</span><span>Values are generated and are not real figures.</span>${activeNote}</div>
+      <div class="rp-ribbon"><b>SYNTHETIC DATA</b><span>${MODE_NAME[mode]} mode · seed ${seed}${DISTORT ? ' · shapes distorted' : ''}</span><span>Values are generated and are not real figures.</span><span>Percentages and totals are independently invented and may not sum correctly.</span>${activeNote}</div>
       ${parameters.length ? `<div class="rp-params">${parameters.map(q => `<span class="rp-param"><span class="lbl">${esc(q.label)}</span><span class="rp-pv">${esc(q.value)}</span></span>`).join('')}</div>` : ''}
       ${filterBar ? `<div class="rp-filters">${filterBar}</div>` : ''}
       <div class="rp-grid"></div>
@@ -1270,7 +1275,7 @@
 ${libs.faker ? `<script>${safe(libs.faker)}</script>` : ''}
 <script>${safe(libs.replica)}</script>
 ${Object.keys(libs.maps || {}).map(n => `<script>DSCReplica.addMap(${JSON.stringify(n)},${safe(libs.maps[n])});</script>`).join('\n')}
-<script>window.DSC_SPEC=${JSON.stringify(cleanSpec(spec)).replace(/</g, '\\u003c')};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed, realistic: opts.realistic !== false })});</script>
+<script>window.DSC_SPEC=${JSON.stringify(cleanSpec(spec)).replace(/</g, '\\u003c')};DSCReplica.render(document.getElementById('app'),window.DSC_SPEC,${JSON.stringify({ mode: opts.mode, seed: opts.seed, realistic: opts.realistic !== false, distort: opts.distort === true })});</script>
 </body></html>`;
   }
 

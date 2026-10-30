@@ -146,6 +146,28 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 .levels label:has(input:disabled){opacity:.5;cursor:not-allowed}
 .levels b{display:block;font-size:14px}.levels span{font-size:12.5px;color:var(--muted)}
 .linkbox{font-family:var(--mono);font-size:12px;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunken);color:var(--ink)}
+.shape-warn{margin:0 0 10px;padding:10px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);font-size:13.5px;line-height:1.45}
+.shape-warn b{color:var(--ink)}
+.shape-warn .linkbtn{background:none;border:none;padding:0;cursor:pointer;color:var(--accent);text-decoration:underline;font:inherit;font-size:inherit}
+.accuracy-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+@media (max-width:600px){.accuracy-strip{grid-template-columns:minmax(0,1fr)}}
+.ac-item{display:grid;gap:1px}
+.ac-num{font-size:21px;font-weight:700;color:var(--accent);line-height:1.15;font-variant-numeric:tabular-nums}
+.ac-label{font-size:12.5px;font-weight:600;color:var(--ink)}
+.ac-detail{font-size:11.5px;color:var(--muted)}
+.profile-row{display:flex;gap:8px;align-items:center;margin-top:8px;margin-bottom:2px}
+.profile-row select{flex:1;font:inherit;font-size:13.5px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);min-width:0}
+.batch-section{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.batch-queue{display:grid;gap:5px;margin-top:8px;max-height:220px;overflow:auto}
+.batch-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}
+.batch-item .bi-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bi-status{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.bi-pending{background:var(--sunken);color:var(--muted)}
+.bi-running{background:var(--accent-soft);color:var(--accent)}
+.bi-done{background:var(--good-soft);color:var(--good)}
+.bi-error{background:var(--bad-soft);color:var(--bad)}
+.fingerprint-warn{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--warn-soft);color:var(--ink);border:1px solid var(--warn);font-size:13px;line-height:1.5}
+.fingerprint-warn b{color:var(--warn)}
 </style>
 </head>
 <body>
@@ -156,6 +178,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
   <button type="button" class="linkbtn" data-feedback="bug" style="font-size:13px;margin-right:6px">Feedback</button>
   <a href="charts.html" style="font-size:13px;margin-right:6px">Supported charts</a>
   <a href="privacy.html" style="font-size:13px;margin-right:6px">Privacy</a>
+  <button class="btn" id="btn-batch" type="button" title="Process multiple screenshots or PDFs with the same policy">Batch</button>
   <button class="btn" id="btn-key" type="button">AI key</button>
 </header>
 
@@ -171,16 +194,33 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         </div>
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
-          <div><b>You approve what leaves.</b> Only the masked image goes to the AI you choose (Claude or OpenAI), after you see it.</div>
-          <div><b>Mask without a key.</b> Download the masked screenshot for a forum post, a bug report or a slide. A key is needed only to build a replica of your own image.</div>
+          <div><b>You approve what leaves.</b> Only the masked image — with invented numbers — goes to the AI you choose (Claude or OpenAI), after you see it. Or build on this device with no key.</div>
+          <div><b>Mask without a key.</b> Download the masked screenshot for a forum post, a bug report or a slide.</div>
+        </div>
+        <div class="accuracy-strip" aria-label="Measured accuracy">
+          <div class="ac-item">
+            <span class="ac-num">2.5%</span>
+            <span class="ac-label">Exposed after gate</span>
+            <span class="ac-detail">sensitive words still readable after the six-pass safety check</span>
+          </div>
+          <div class="ac-item">
+            <span class="ac-num">93.5%</span>
+            <span class="ac-label">Replica fidelity</span>
+            <span class="ac-detail">visuals correctly reproduced — measured on generated dashboards</span>
+          </div>
+          <div class="ac-item">
+            <span class="ac-num">39</span>
+            <span class="ac-label">Real dashboards tested</span>
+            <span class="ac-detail"><a href="https://github.com/karthikvalluri85/vaultsnip/blob/main/ACCURACY.md">full methodology →</a></span>
+          </div>
         </div>
       </div>
       <div>
         <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload or paste a screenshot">
-          <strong>Use your own screenshot</strong>
-          <p>Drop a PNG, JPG or WebP here, click to choose, or paste with Ctrl+V / ⌘V</p>
+          <strong>Use your own screenshot or PDF</strong>
+          <p>Drop a PNG, JPG, WebP or PDF here, click to choose, or paste with Ctrl+V / ⌘V</p>
           <p class="note">Any source: BI tools, Excel, PDF report pages, web analytics, SaaS apps</p>
-          <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,application/pdf" hidden>
         </div>
         <button class="btn" id="btn-paste" type="button">Paste a screenshot</button>
         <p class="err" id="drop-err" role="alert" hidden></p>
@@ -243,6 +283,10 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
           <h3>Pre-flight check</h3>
           <div class="gate pending" id="gate"><b>Not run yet</b><span>The check re-reads the masked image on this device.</span></div>
           <div class="flags" id="flags"></div>
+          <div class="fingerprint-warn" id="fingerprint-warn" hidden>
+            <b>Visual fingerprint risk:</b> <span id="fingerprint-detail">Potential logos or brand colours detected in the image. A viewer may be able to identify the client from layout or colour alone. Review the items below.</span>
+            <div class="chips" id="fingerprint-items" style="margin-top:6px"></div>
+          </div>
           <div class="row">
             <button class="btn" id="btn-recheck" type="button" disabled>Re-run check</button>
             <button class="btn primary" id="btn-send" type="button" disabled>Preview masked image</button>
@@ -250,7 +294,13 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         </div>
         <div class="panel">
           <h3>Redaction policy</h3>
-          <label class="f" for="client-names">Names to always mask <span>Client, company or product names, comma separated. Not saved.</span>
+          <label class="f">Client profile <span>Save and restore a client's names and allowlist in one click. Stored on this device only.</span></label>
+          <div class="profile-row">
+            <select id="profile-select" aria-label="Load a saved client profile"><option value="">— no saved profile —</option></select>
+            <button class="btn" id="btn-save-profile" type="button" title="Save the current names and allowlist as a named profile">Save</button>
+            <button class="btn" id="btn-del-profile" type="button" title="Delete the selected profile" disabled>Delete</button>
+          </div>
+          <label class="f" for="client-names">Names to always mask <span>Client, company or product names, comma separated.</span>
             <input type="text" id="client-names" placeholder="e.g. Acme, Project Falcon"></label>
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
             <input type="text" id="extra-allow" placeholder="e.g. Pipeline, Bookings"></label>
@@ -292,6 +342,11 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       <p class="hint">Change what a visual is, rename it, or remove it. Visuals marked <b>Check</b> are the ones the builder was least sure about. The replica updates as you go; values are still generated.</p>
       <div class="fixlist" id="fix-list"></div>
     </div>
+    <p class="shape-warn" id="shape-warn" role="note" hidden>
+      <b>Shape-preserving keeps real proportions.</b> Bar heights, line trends and category ratios reflect your original data's relative values. If the trend itself is sensitive, switch to
+      <button type="button" class="linkbtn" id="sw-to-structure">Structure-only</button> or
+      <button type="button" class="linkbtn" id="sw-to-generic">Generic</button> mode, or enable <b>Distort shapes</b> below.
+    </p>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="Privacy mode" id="modes">
         <button type="button" data-mode="shape" aria-pressed="true">Shape-preserving</button>
@@ -299,6 +354,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         <button type="button" data-mode="generic" aria-pressed="false">Generic</button>
       </div>
       <button class="btn" id="btn-regen" type="button">Regenerate data</button>
+      <label class="check" id="distort-label" title="Applies a random multiplier to each series so trends and rankings no longer match the original. Layout is preserved."><input type="checkbox" id="opt-distort"> Distort shapes</label>
       <label class="check" title="Fill names, companies, emails, IDs and covered labels with realistic made-up values that suit each column. Off shows neutral placeholders such as Person 3."><input type="checkbox" id="opt-real" checked> Realistic names</label>
       <span class="sp" style="flex:1"></span>
       <button class="btn" id="btn-restart" type="button">Start over</button>
@@ -389,6 +445,28 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
     <div class="row" style="justify-content:flex-end">
       <button class="btn" id="key-clear" type="button">Forget key</button>
       <button class="btn primary" id="key-save" type="submit" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-batch" aria-labelledby="batch-title">
+  <form method="dialog" class="dlg" style="max-height:90vh;overflow:auto">
+    <h2 id="batch-title">Batch processing</h2>
+    <p class="note">Process multiple screenshots or PDF pages with the same redaction policy and privacy settings. Each file is masked and a replica is exported. Files never leave this tab.</p>
+    <div>
+      <label class="f">Files to process <span>PNG, JPG, WebP or PDF. PDFs are split into pages.</span></label>
+      <input type="file" id="batch-file" multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,application/pdf" style="margin-top:6px">
+    </div>
+    <div class="batch-section" id="batch-queue-section" hidden>
+      <strong>Queue</strong>
+      <div class="batch-queue" id="batch-queue"></div>
+    </div>
+    <p class="note" id="batch-status" role="status" aria-live="polite"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" value="cancel" type="submit" id="btn-batch-close">Close</button>
+      <button class="btn" id="btn-batch-clear" type="button" hidden>Clear queue</button>
+      <button class="btn primary" id="btn-batch-run" type="button" disabled>Process all</button>
+      <button class="btn" id="btn-batch-dl" type="button" disabled hidden>Download all (ZIP)</button>
     </div>
   </form>
 </dialog>

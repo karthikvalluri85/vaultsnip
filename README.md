@@ -65,7 +65,13 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 
 ## Privacy
 
-No backend, no database, no accounts, no analytics. Images, OCR text and results live in the tab's memory. The only thing that ever leaves the device is the masked image you approved, sent straight to the AI provider you chose (Anthropic or OpenAI) with your own key, and only if you choose that over building the replica on your device. The browser stores only the OCR model (an app asset) and, if you choose, your key. See [PRIVACY.md](PRIVACY.md).
+**Local-first:** OCR, masking, and the six-pass safety gate all run on your device. No backend, no database, no accounts, no analytics. Images, OCR text, and results live in the tab's memory only.
+
+**AI-key path (optional):** Only the masked image you approved — with invented numbers replacing all real values — is sent directly to Anthropic or OpenAI with your own key. Nothing passes through a VaultSnip server. Prefer no network calls? Build the replica on your device instead; nothing is ever sent.
+
+> **What shape-preserving mode does and does not protect:** Numbers are replaced with invented values of the same scale. Bar heights, line trends, and ratios between categories reflect your real data's proportions. If the trend itself is sensitive, use Structure-only or Generic mode, or enable **Distort shapes** in the privacy settings.
+
+The browser stores only the OCR model (an app asset) and, if you choose, your API key. See [PRIVACY.md](PRIVACY.md).
 
 ## Feedback and support
 
@@ -74,7 +80,7 @@ No backend, no database, no accounts, no analytics. Images, OCR text and results
 - **Ideas and questions:** [Discussions](https://github.com/karthikvalluri85/vaultsnip/discussions)
 - **Sensitive text left unmasked:** report it **privately**, see [SECURITY.md](SECURITY.md)
 
-More in [SUPPORT.md](SUPPORT.md).
+More in [SUPPORT.md](SUPPORT.md). Enterprise and self-hosting: [ENTERPRISE.md](ENTERPRISE.md).
 
 ## Run it locally
 
