@@ -242,7 +242,8 @@
   function looksLikeShape(data, W, H, box, medH, minConf, text) {
     // a confident reading is text, whatever is behind it: a value on a coloured bar or pie slice is never left as it is
     if (minConf >= 80) return false;
-    const short = String(text || '').replace(/\s/g, '').length <= 3, tall = box.h > medH * 2.2;
+    // masks are padded by about 18% of the text's height on each side: compare the text's own height
+    const short = String(text || '').replace(/\s/g, '').length <= 3, tall = box.h / 1.36 > medH * 2.2;
     if (!tall && !short) return false;
     const bg = sampleBackground(data, W, H, box);
     const { x0, y0, x1, y1 } = clampBox(box, W, H);
@@ -254,9 +255,10 @@
     }
     if (!n) return false;
     if (tall) return far / n > 0.45 || (short && minConf < 75 && bg.share < 0.95);
-    // a swatch is one solid block: its ink fills its own outline, which text (even on a coloured bar) never does
-    const solid = far / Math.max(1, (fx1 - fx0 + 1) * (fy1 - fy0 + 1));
-    return far / n > 0.3 && solid > 0.85;
+    // a swatch is one solid block inside the box: its ink fills its own outline, which text never does, and it stops
+    // short of the box's edges (a bar running out of the box, with a value at its end, does not)
+    const solid = far / Math.max(1, (fx1 - fx0 + 1) * (fy1 - fy0 + 1)), inside = fx0 > x0 && fy0 > y0 && fx1 < x1 - 1 && fy1 < y1 - 1;
+    return far / n > 0.3 && solid > 0.85 && inside;
   }
 
   // source: canvas or image of the original. patches: [{x,y,w,h,synthetic,...}] in source pixels.
