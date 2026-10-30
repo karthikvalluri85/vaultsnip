@@ -5,6 +5,15 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Removed
+- **The retired chart-rebuilding replica and everything only it used**, now that the replica is the original screenshot changed in place:
+  - in `web/`: `replica.js`, `catalog.js`, the chart catalogue page (`charts.html`, `charts-page.js`), `selfcheck.js`, `share.js`, `layout-worker.js`, the ECharts, design, React and layout bundles in `web/lib`, and the map outlines;
+  - their sources (`src/layout`, `src/export`, `src/exporters`) and unit tests;
+  - the layout, resemblance, self-check, chart-type and AI-key benchmarks (`tools/layout-bench`, `tools/ai-bench`, parts of `tools/synth-bench`) with their baselines;
+  - the dependencies `echarts`, `react` and `react-dom`.
+
+  The masking benchmark is kept. The map outlines it draws its fictional maps with moved to `tools/synth-bench/maps`, trimmed to the five it uses. The feedback report no longer lists chart types.
+
+### Removed
 - **The AI key, and every call to an AI service.** The in-place replica is built entirely on the device, so VaultSnip no longer has an *AI key* setting, a send-to-Claude/OpenAI step, `web/llm.js`, or permission to reach `api.anthropic.com` or `api.openai.com`: the page's security policy now lets it contact only its own site. Nothing leaves the device, and nothing about a key is stored. The preview dialog's main button is now **Build replica**.
 
 ### Fixed (in-place replica, from a 50-dashboard test run)

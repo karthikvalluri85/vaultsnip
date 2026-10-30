@@ -26,21 +26,17 @@ for (const f of [...walk(join(root, 'web')), ...walk(join(root, 'extension')), .
 }
 
 console.log('JSON files');
-const maps = readdirSync(join(root, 'web', 'maps')).filter(f => f.endsWith('.json'));
-for (const f of maps) {
+// map outlines for the generated test dashboards (tools/synth-bench/gen.mjs)
+const mapDir = join(root, 'tools', 'synth-bench', 'maps');
+for (const f of readdirSync(mapDir).filter(f => f.endsWith('.json'))) {
   try {
-    const fc = JSON.parse(readFileSync(join(root, 'web', 'maps', f), 'utf8'));
+    const fc = JSON.parse(readFileSync(join(mapDir, f), 'utf8'));
     if (fc.type !== 'FeatureCollection' || !fc.features.length) throw new Error('not a non-empty FeatureCollection');
     const bad = fc.features.filter(x => !x.properties || !x.properties.name || !x.geometry);
     if (bad.length) throw new Error(bad.length + ' features without name or geometry');
-    ok(`maps/${f} (${fc.features.length} regions)`);
-  } catch (e) { fail(`maps/${f}: ${e.message}`); }
+    ok(`synth-bench/maps/${f} (${fc.features.length} regions)`);
+  } catch (e) { fail(`synth-bench/maps/${f}: ${e.message}`); }
 }
-const replica = readFileSync(join(root, 'web', 'replica.js'), 'utf8');
-const listed = (replica.match(/const MAP_LIST = \[([^\]]*)\]/) || [, ''])[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));
-for (const m of listed) if (!maps.includes(m + '.json')) fail(`MAP_LIST names "${m}" but web/maps/${m}.json is missing`);
-for (const f of maps) if (!listed.includes(f.replace('.json', ''))) fail(`web/maps/${f} is not in MAP_LIST`);
-if (listed.length === maps.length) ok('MAP_LIST matches web/maps');
 
 console.log('Extension manifest');
 const manifest = JSON.parse(readFileSync(join(root, 'extension', 'manifest.json'), 'utf8'));

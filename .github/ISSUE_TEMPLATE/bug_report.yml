@@ -50,11 +50,6 @@ body:
     attributes:
       label: Screen or step
       placeholder: Review and masking
-  - type: input
-    id: visuals
-    attributes:
-      label: Visual types involved (if any)
-      placeholder: map, column, table
   - type: textarea
     id: error
     attributes:

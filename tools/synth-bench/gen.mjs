@@ -3,8 +3,8 @@
 // Writes <id>.png or <id>.jpg and <id>.truth.json: { width, height, words: [{ text, x, y, w, h, kind, sensitive }],
 // panels: [{ type, box, title, cats, values, color }] } in the image's pixels (cats and values in drawing order).
 //
-// Independence: charts are drawn by Vega-Lite, Plotly and plain HTML, never by ECharts (which draws VaultSnip's
-// replicas), and each word's kind comes from how it was generated, never from VaultSnip's classifier.
+// Independence: charts are drawn by Vega-Lite, Plotly and plain HTML, and each word's kind comes from how it was
+// generated, never from VaultSnip's classifier.
 // Privacy: everything is invented and seeded. People and companies come from Faker, emails use example.com/.net/.org,
 // IDs and numbers are random. Nothing is fetched: libraries and fonts load from node_modules through a local server.
 // Variety: three fonts (Inter, Roboto Slab, IBM Plex Mono), light, dark and low-contrast themes, 10-16 px text, rotated
@@ -15,12 +15,12 @@ import { extname, join, normalize } from 'node:path';
 import { Faker, en } from '@faker-js/faker';
 import { chromium } from 'playwright';
 import { ALLOW_WORDS } from '../../src/shared/allowlist.ts';
-import { ROOT } from '../layout-bench/items.mjs';
+import { ROOT } from './review.mjs';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
 const COUNT = +arg('--count', 60), SEED = +arg('--seed', 1), OUT = arg('--out', join(ROOT, '.bench', 'synth'));
 const ALLOW = new Set(ALLOW_WORDS);
-const MAPS = Object.fromEntries(await Promise.all(['world', 'europe', 'usa', 'india', 'brazil'].map(async (m) => [m, JSON.parse(await readFile(join(ROOT, 'web', 'maps', m + '.json'), 'utf8'))])));
+const MAPS = Object.fromEntries(await Promise.all(['world', 'europe', 'usa', 'india', 'brazil'].map(async (m) => [m, JSON.parse(await readFile(join(ROOT, 'tools', 'synth-bench', 'maps', m + '.json'), 'utf8'))])));
 
 /* ---------- vocabulary: safe words come only from VaultSnip's allowlist, so "safe" means safe by its policy ---------- */
 const allowed = (s) => s.split(/\s+/).every((w) => ALLOW.has(w.toLowerCase()));
@@ -85,7 +85,7 @@ function dashboard(i) {
     panels.push({ type, title: title(m, cap(type === 'line' ? 'month' : pick(f, DIMS[k] || DIMS.place))), cats, values, measure: label(cap(m)), rotate: f.datatype.boolean() ? -45 : 0 });
   }
   // about one dashboard in three also carries a choropleth map, from its own random stream so that adding maps left the
-  // other panels of every dashboard as they were. Outlines: VaultSnip's own web/maps (Natural Earth, public domain).
+  // other panels of every dashboard as they were. Outlines: tools/synth-bench/maps (Natural Earth, public domain).
   const fm = new Faker({ locale: [en], seed: SEED * 7919 + i });
   if (fm.number.int({ min: 0, max: 2 }) === 0) {
     const mm = pick(fm, MEASURES), file = pick(fm, ['world', 'europe', 'usa', 'india', 'brazil']);

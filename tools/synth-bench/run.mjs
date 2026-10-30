@@ -13,8 +13,7 @@
 // Rates carry a 95% Wilson interval: with a few thousand words, a difference smaller than the interval is noise.
 import { readdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ROOT } from '../layout-bench/items.mjs';
-import { reviewer } from '../layout-bench/review.mjs';
+import { ROOT, reviewer } from './review.mjs';
 import { EXPOSED, covered, overlap, wilson } from './metrics.mjs';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);

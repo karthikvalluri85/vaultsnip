@@ -1,5 +1,5 @@
 name: Replica looks wrong
-description: The rebuilt dashboard does not match the original (chart types, layout, labels, filtering).
+description: The replica does not match the original (a chart changed, text left behind, replacement text in the wrong place, size or colour).
 title: "[Replica] "
 labels: ["replica"]
 body:
@@ -11,27 +11,18 @@ body:
     id: what
     attributes:
       label: What looks wrong?
-      placeholder: The source had a filled map of US states; the replica shows a bar chart instead.
+      placeholder: A value label on a bar was replaced, but a faint copy of the old number shows behind the new one.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
       label: What did you expect?
-  - type: dropdown
-    id: mode
-    attributes:
-      label: Privacy mode
-      options:
-        - Shape-preserving
-        - Structure-only
-        - Generic
-        - Not sure
   - type: input
     id: visuals
     attributes:
-      label: Visual types involved
-      placeholder: map, stacked column, KPI
+      label: Where in the picture
+      placeholder: axis labels of a bar chart, KPI tile, table column
   - type: input
     id: version
     attributes:
@@ -43,7 +34,7 @@ body:
     id: channel
     attributes:
       label: Where were you using it?
-      description: Web app, Chrome extension, Edge extension, Hugging Face Space, local copy or an exported replica file
+      description: Web app, Chrome extension, Edge extension, Hugging Face Space or local copy
       placeholder: Web app
   - type: input
     id: browser

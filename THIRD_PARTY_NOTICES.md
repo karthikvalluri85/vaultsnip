@@ -4,7 +4,6 @@ Bundled in `web/lib` and `web/lang`, each under the Apache License 2.0:
 
 - Tesseract.js and tesseract.js-core (OCR in the browser)
 - Tesseract English language model (`eng.traineddata`, 4.0.0_best_int)
-- Apache ECharts (charts in the replica and in every export)
 
 On-device name check, in `web/ml`, `web/lib/vs-context.js` and `web/models`:
 
@@ -29,20 +28,17 @@ Unread-text check, in `web/ml/models.js`, `web/models/pp-ocrv5-det` and `web/mod
   character list unchanged. Its decoding in `src/background/text-reader.ts` follows PaddleOCR's CTC decoding and was
   written for VaultSnip; no PaddleOCR code is copied. `npm run fetch:model -- --check` verifies both files.
 
-Realistic synthetic names, bundled in `web/lib/vs-faker.js` (and in HTML exports that use them):
+Realistic synthetic names in the replica, bundled in `web/lib/vs-faker.js`:
 
 - [Faker](https://github.com/faker-js/faker) 10.6.0 (`@faker-js/faker`), MIT License, Copyright (c) 2022-present Faker. The library and a slim copy of its name, company, place and product lists for 15 locales (`src/replica/faker-locales.json`, made by `tools/build-faker.mjs`).
-
-Map outlines in `web/maps` are simplified from [Natural Earth](https://www.naturalearthdata.com) (public domain) by `tools/maps/build_maps.py`. The world and India outlines follow Natural Earth's India point of view, matching official Indian boundaries.
 
 Development only, never shipped in the web app, the extension or any export. Used by `tools/synth-bench` to draw the
 fictional dashboards of the masking benchmark, installed as pinned `devDependencies`:
 
 - [Vega](https://github.com/vega/vega) 6.4.0 and [Vega-Lite](https://github.com/vega/vega-lite) 6.4.3, BSD 3-Clause License
 - [Plotly.js](https://github.com/plotly/plotly.js) 4.1.2 (`plotly.js-dist-min`), MIT License
+- Map outlines in `tools/synth-bench/maps`, simplified from [Natural Earth](https://www.naturalearthdata.com) (public domain)
+  by `tools/maps/build_maps.py`; the world and India outlines follow Natural Earth's India point of view
 - Fonts through [Fontsource](https://fontsource.org): [Inter](https://github.com/rsms/inter) 5.3.0 and
   [IBM Plex Mono](https://github.com/IBM/plex) 5.3.0 under the SIL Open Font License 1.1, and
   [Roboto Slab](https://github.com/googlefonts/robotoslab) 5.3.0 under the Apache License 2.0
-
-The public dashboards of the layout benchmark (`tools/layout-bench/truth.json`) are not redistributed: `fetch.mjs`
-downloads them from their sources for local evaluation, and `truth.json` records each source and its terms.

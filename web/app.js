@@ -1497,7 +1497,7 @@ customer service staff agent team people everyone nobody someone something nothi
     catch (e) { saveFile(await pngOf(replicaImage()), replicaName()); $('export-note').textContent = 'This browser cannot copy images, so the picture was downloaded instead.'; }
   };
 
-  // The masked image as the benchmarks read it (tools/layout-bench/review.mjs): solid boxes, the words that stay readable,
+  // The masked image as the benchmarks read it (tools/synth-bench/review.mjs): solid boxes, the words that stay readable,
   // and the active masks. Used by the masking benchmark only.
   function layoutInput() {
     const c = maskedCanvas(1, '#787c82'), im = c.getContext('2d').getImageData(0, 0, c.width, c.height);

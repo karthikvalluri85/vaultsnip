@@ -44,24 +44,16 @@
     if (vis('s-crop')) return 'Crop';
     return 'Start screen';
   }
-  // Only the kinds of visuals, never titles, labels or values.
-  function visuals() {
-    const S = global.__DSC; const spec = S && S.spec;
-    if (!spec || !spec.rows) return '';
-    const n = {}; spec.rows.forEach(r => (r.visuals || []).forEach(v => { n[v.type] = (n[v.type] || 0) + 1; }));
-    return Object.keys(n).map(k => n[k] > 1 ? `${k} ×${n[k]}` : k).join(', ');
-  }
   function context() {
     const S = global.__DSC || {};
     return {
       version: VERSION, channel: channel(), browser: browser(), step: step(),
-      mode: S.mode || '', source: S.sample ? 'Bundled sample: ' + S.sample.name : (S.spec || S.img ? 'Own screenshot' : ''),
-      visuals: visuals(), error: scrub(lastError)
+      source: S.sample ? 'Bundled sample: ' + S.sample.name : (S.img ? 'Own screenshot' : ''), error: scrub(lastError)
     };
   }
   function diagnostics(c) {
-    return [`VaultSnip ${c.version} · ${c.channel} · ${c.browser}`, `Step: ${c.step}${c.mode ? ' · mode: ' + c.mode : ''}${c.source ? ' · ' + c.source : ''}`,
-      c.visuals ? 'Visual types: ' + c.visuals : '', c.error ? 'Last error: ' + c.error : ''].filter(Boolean).join('\n');
+    return [`VaultSnip ${c.version} · ${c.channel} · ${c.browser}`, `Step: ${c.step}${c.source ? ' · ' + c.source : ''}`,
+      c.error ? 'Last error: ' + c.error : ''].filter(Boolean).join('\n');
   }
 
   /* ---------- dialog ---------- */
@@ -137,8 +129,7 @@
     }
     q.set('template', k.template); q.set('title', title(kind, text));
     q.set('what', String(text || '').trim()); q.set('version', c.version); q.set('channel', c.channel); q.set('browser', c.browser);
-    q.set('step', [c.step, c.mode && 'mode: ' + c.mode, c.source].filter(Boolean).join(' · '));
-    if (c.visuals) q.set('visuals', c.visuals);
+    q.set('step', [c.step, c.source].filter(Boolean).join(' · '));
     if (c.error) q.set('error', c.error);
     return REPO + '/issues/new?' + q.toString();
   }

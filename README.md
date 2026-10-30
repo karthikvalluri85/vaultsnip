@@ -99,15 +99,13 @@ web/              the app (static, no build step), published as-is
   app.js          pipeline: OCR, masking, gate, review, payload preview, replica screen
   inpaint.js      in-place replica: background sampling, pixel clearing, text redraw, hover layer
   synth.js        synthetic text for each hidden box, made on the device
-  replica.js …    the earlier chart-rebuilding replica; no longer loaded by the app, to be removed
   feedback.js     in-app feedback and error reporting
   samples.js      bundled fictional sample
-  maps/           map outlines (Natural Earth, simplified)
-  lib/ lang/      tesseract.js + OCR model, echarts, vs-context.js (on-device AI client)
+  lib/ lang/      tesseract.js + OCR model, vs-context.js (on-device AI client), vs-faker.js (made-up names)
   ml/ models/     on-device AI: Web Worker + ONNX runtime (npm run build:ml), PII and text-region models (npm run fetch:model)
 extension/        manifest.json; background.js, canvas-ocr.js, offscreen.*, wasm/ built from src/ (npm run build:ext)
-src/              TypeScript sources: name check, chart blur (background/, content/), exports (export/, exporters/), realistic names (replica/)
-tools/            check.mjs, e2e.mjs, build-ml.mjs, fetch-model.mjs, maps/build_maps.py
+src/              TypeScript sources: name check, chart blur (background/, content/), made-up names (replica/)
+tools/            check.mjs, e2e.mjs, build scripts, synth-bench/ (masking benchmark), inplace-bench/ (replica benchmark)
 build.sh          builds dist/web, dist/extension, dist/hf-space and zips
 ```
 
