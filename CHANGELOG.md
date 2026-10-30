@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-30
+
+The replica is now your own screenshot changed in place, made entirely on your device: no AI service, no key, nothing sent.
+
+### Added
+- **PDF input** (drop or pick a PDF; a multi-page PDF asks which page) and **batch masking** of screenshots and PDFs under one redaction policy, with a ZIP download.
+- **Per-client allowlist profiles**: save, load and delete named redaction policies, kept in this browser only (PRIVACY.md says what is stored).
+- **Totals and percentages that add up** in the masked image and replica: a faked total equals the sum of its faked parts, and a group of percentages makes 100%.
+- **A visual fingerprint warning** after each check: a logo or picture left in a top corner, or a header in strong brand colours.
+- **"Chart shapes are not hidden"** on the review screen: only text is replaced, so bar lengths, trends and slice sizes stay real; drag a box over a chart whose shape is confidential.
+- **ENTERPRISE.md**: zero-install route, self-hosting (Nginx, IIS, Cloudflare Pages), what leaves the network (nothing), managed extension deployment and air-gapped use.
+- End-to-end checks for PDF input, batch masking (the check runs on every image, held-back images stay out of the ZIP, the ZIP is well formed) and the fingerprint warning.
+
+### Fixed
+- **PDF input and batch ZIP downloads were blocked by the app's own security policy** on the live site: PDF.js and JSZip were loaded from public CDNs, which the policy (rightly) forbids, and which the Chrome and Edge stores do not allow in an extension. PDF.js 4.4.168 is now bundled in `web/lib/pdfjs` and loaded on demand from the app's own site; the ZIP is written by the app itself (stored entries, no library). The app again contacts nothing outside its own site.
+- **Batch masking skipped the safety check.** Each image now runs the same pipeline as a single screenshot (reading, masking, the on-device AI checks if on, and the six-pass check). Only images that pass are included, each with an optional safe-to-share receipt that says it was made in batch mode without a person looking it over; the rest are held back with a button to review each one. An option hides everything the check is unsure of instead.
+- **Batch masking of a PDF processed only its first page.** Every page is processed now (up to 30 a file, said in the queue when a PDF is longer).
+- **File names in the batch queue were inserted as HTML**; they are escaped now.
+- **The fingerprint warning fired on almost every dashboard**: any page with more than 12% strong colour (most charts) was flagged. It now looks only at the top corners and the header band, ignores text (masked or kept), and compares against each region's own background.
+- **Docs still described the removed AI path**: the README's extension section, ENTERPRISE.md's network allowlist and the security-headers comment. A doubled comma in the README.
+
 ### Removed
 - **The retired chart-rebuilding replica and everything only it used**, now that the replica is the original screenshot changed in place:
   - in `web/`: `replica.js`, `catalog.js`, the chart catalogue page (`charts.html`, `charts-page.js`), `selfcheck.js`, `share.js`, `layout-worker.js`, the ECharts, design, React and layout bundles in `web/lib`, and the map outlines;
@@ -29,10 +50,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 - **The replica is now the original screenshot, changed in place.** VaultSnip no longer redraws a dashboard with charts and a grid, which invented panels, dropped visuals it could not draw (decomposition trees, custom maps) and mistyped others. Each hidden box is wiped pixel by pixel from the background around it (`web/inpaint.js`): only the text's own pixels are rewritten, so a bar edge or cell border running through a box survives. Synthetic text is then drawn back in the same place, with the size, colour, weight and alignment read from the original. Every pixel outside the replaced boxes is the original's, which `tests/e2e/inplace.e2e.mjs` checks pixel by pixel. A layer of hotspots over the picture, mapped to its pixels at every size, explains each replaced value on hover or keyboard focus, never showing the hidden text.
-- **The AI is now a contextual data generator** (`web/synth.js`). It no longer reads a layout. It receives only each hidden box's kind, its character pattern ("$99.9A"), its position and the visible labels beside it, never the hidden text, and returns one replacement per box, keeping totals, rates and percentages coherent. Names and other text go as a length only. The send dialog shows the exact list under *Show exactly what is sent*, and the request is that list. An answer that changes the shape (currency, unit, decimals), is too long or repeats the hidden text is replaced by a value made on the device; axis ticks always use the on-device even scale. *Build on this device* makes every replacement locally, with no key.
-
-### Removed
-- The chart-rebuilding replica from the app: ECharts, the layout spec prompt, the on-device layout builder, privacy modes, share links, CSV, HTML, Figma and React exports, and the chart catalogue link. The source files stay in the repository for now, unused by the app, until they are deleted in a follow-up.
 
 ### Fixed
 - **A small whole number could keep its real value** in the masked image: "1" scaled by 0.55-1.8 rounds back to 1. A whole number that rounds back to itself is no longer accepted as a change.

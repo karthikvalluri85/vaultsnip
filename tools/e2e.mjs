@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const web = join(dirname(fileURLToPath(import.meta.url)), '..', 'web');
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.gz': 'application/gzip', '.wasm': 'application/wasm', '.css': 'text/css' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.gz': 'application/gzip', '.wasm': 'application/wasm', '.css': 'text/css', '.mjs': 'text/javascript', '.pdf': 'application/pdf' };
 // the site's security headers (web/_headers, as Cloudflare Pages serves them), so every check runs under the real policy
 const HEADERS = Object.fromEntries((await readFile(join(web, '_headers'), 'utf8')).split(/\r?\n/).filter(l => /^\s+[\w-]+:/.test(l)).map(l => { const i = l.indexOf(':'); return [l.slice(0, i).trim().toLowerCase(), l.slice(i + 1).trim()]; }));
 const server = createServer(async (req, res) => {
@@ -372,6 +372,84 @@ try {
     return { W, H, words: S.words.length, outWords: S.words.filter(w => !inside(w)).length, outMasks: S.masks.filter(m => !inside(m)).length };
   });
   check(race.W === 320 && race.outWords === 0 && race.outMasks === 0, `only the second screenshot's words and masks remain (${race.W}×${race.H}, ${race.words} words, ${race.outWords + race.outMasks} out of bounds)`);
+
+  console.log('PDF input and batch masking');
+  {
+    // fixtures made here, from invented content: a plain image with no text, one with a coloured logo in a corner,
+    // and a two-page PDF
+    const aux = await browser.newPage();
+    const pngOf = async (draw) => Buffer.from((await aux.evaluate(draw)).split(',')[1], 'base64');
+    const blank = await pngOf(() => { const c = document.createElement('canvas'); c.width = 600; c.height = 360; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 600, 360); x.fillStyle = '#d0d4da'; x.fillRect(60, 120, 480, 4); return c.toDataURL('image/png'); });
+    await aux.setContent(`<style>@page{size:600px 400px;margin:0}body{margin:0;font:28px sans-serif}div{height:400px;padding:40px;box-sizing:border-box;break-after:page}</style><div>Quarterly sales overview</div><div>Halvorsen Freight 48,213</div>`);
+    const pdf = await aux.pdf({ width: '600px', height: '400px', printBackground: true });
+    await aux.close();
+
+    await page.goto(base);
+    const onDialog = d => d.accept('2'); page.on('dialog', onDialog);
+    await page.setInputFiles('#file', { name: 'two-pages.pdf', mimeType: 'application/pdf', buffer: pdf });
+    const pdfOk = await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 120000, polling: 500 }).then(() => true, () => false);
+    const pdfRead = await page.evaluate(() => ({ w: window.__DSC.img && window.__DSC.img.width, words: (window.__DSC.words || []).map(w => w.text).join(' ') }));
+    page.off('dialog', onDialog);
+    check(pdfOk && pdfRead.w > 500 && /48|Halvorsen/i.test(pdfRead.words), `a PDF opens with the bundled reader, the chosen page is read and checked (${pdfRead.w} px wide)`);
+    check(pdfRead.w > 0 && !/Quarterly/.test(pdfRead.words), 'the page asked for is the one read (page 2, not page 1)');
+
+    await page.goto(base);
+    await page.click('#btn-batch');
+    await page.setInputFiles('#batch-file', [
+      { name: 'blank.png', mimeType: 'image/png', buffer: blank },
+      { name: 'kestrelmoor.png', mimeType: 'image/png', buffer: await readFile(join(web, 'samples', 'kestrelmoor.png')) },
+      { name: 'two-pages.pdf', mimeType: 'application/pdf', buffer: pdf },
+      { name: '<img src=x>.png', mimeType: 'image/png', buffer: blank },
+    ]);
+    check(await page.locator('#batch-queue img').count() === 0, 'file names in the batch queue are shown as text, not HTML');
+    await page.click('#btn-batch-run');
+    await page.waitForFunction(() => /^Done\./.test(document.getElementById('batch-status').textContent), null, { timeout: 400000, polling: 1000 });
+    const st = await page.evaluate(() => ({ status: document.getElementById('batch-status').textContent, queue: document.getElementById('batch-queue').textContent, held: [...document.querySelectorAll('#batch-held button')].map(b => b.textContent) }));
+    check(st.held.some(t => /kestrelmoor/.test(t)) && !st.held.some(t => /^Review blank/.test(t)), `batch runs the six-pass check on every image and holds back the ones that do not pass (${st.held.length} held)`);
+    check(/2 pages/.test(st.queue), 'batch masking reads every page of a PDF, not only the first');
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btn-batch-dl')]);
+    const zip = await readFile(await dl.path());
+    // read the ZIP's central directory and check each entry's CRC: a well-formed archive any unzip tool accepts
+    const { crc32 } = await import('node:zlib');
+    const eocd = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+    const n = zip.readUInt16LE(eocd + 10); let off = zip.readUInt32LE(eocd + 16); const names = []; let crcOk = true;
+    for (let i = 0; i < n; i++) {
+      const nl = zip.readUInt16LE(off + 28), lo = zip.readUInt32LE(off + 42), crc = zip.readUInt32LE(off + 16), size = zip.readUInt32LE(off + 24);
+      names.push(zip.subarray(off + 46, off + 46 + nl).toString());
+      const lnl = zip.readUInt16LE(lo + 26), data = zip.subarray(lo + 30 + lnl, lo + 30 + lnl + size);
+      if (crc32(data) >>> 0 !== crc) crcOk = false;
+      off += 46 + nl;
+    }
+    check(eocd > 0 && n === names.length && crcOk && names.every(x => x.endsWith('.png')), `the batch ZIP is well formed (${n} entries, checksums match), made in the browser`);
+    check(names.includes('blank-masked.png') && names.includes('blank-masked-receipt.png'), 'an image that passed is in the ZIP with its receipt');
+    check(!names.some(x => /kestrelmoor/.test(x)), 'an image held back by the check is not in the ZIP');
+    const pdfEntries = names.filter(x => /^two-pages-p\d-masked\.png$/.test(x)).length + st.held.filter(t => /two-pages-p\d/.test(t)).length;
+    check(pdfEntries === 2, `both PDF pages are accounted for, in the ZIP or held back (${pdfEntries})`);
+    // the receipt made in batch mode says no person looked it over
+    const batchNote = await page.evaluate(async () => { window.__DSC.batch = true; try { return (await window.__DSC.test.receiptFacts()).rows.find(r => r[0] === 'Reviewed')[1]; } finally { window.__DSC.batch = false; } });
+    check(/batch mode/.test(batchNote) && /no person/.test(batchNote), 'a batch receipt says no person looked the image over');
+    await page.keyboard.press('Escape');
+  }
+
+  console.log('Visual fingerprint warning');
+  {
+    await page.goto(base);
+    const fp = await page.evaluate(() => {
+      const S = window.__DSC, run = draw => {
+        const c = document.createElement('canvas'); c.width = 1200; c.height = 700; const x = c.getContext('2d');
+        x.fillStyle = '#fff'; x.fillRect(0, 0, 1200, 700); draw(x);
+        S.img = c; S.words = []; S.masks = []; return S.test.detectFingerprint();
+      };
+      const charts = run(x => { const hues = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']; for (let i = 0; i < 24; i++) { x.fillStyle = hues[i % 4]; x.fillRect(40 + i * 46, 260 + (i * 37) % 300, 34, 700); } });
+      const logo = run(x => { x.fillStyle = '#c8102e'; x.beginPath(); x.arc(70, 45, 30, 0, Math.PI * 2); x.fill(); });
+      const header = run(x => { x.fillStyle = '#0a5c36'; x.fillRect(0, 0, 1200, 70); });
+      S.img = null; return { charts, logo, header };
+    });
+    check(fp.charts.length === 0, `colourful charts below the header do not raise the warning (${fp.charts.join(', ') || 'none'})`);
+    check(fp.logo.some(t => /logo/.test(t)), 'a coloured logo left in a top corner raises the warning');
+    check(fp.header.some(t => /brand colours/.test(t)), 'a header in a strong brand colour raises the warning');
+    check(await page.locator('#shape-note').count() === 1, 'the review screen says chart shapes are not hidden');
+  }
 
   console.log('Start screen');
   await page.goto(base);

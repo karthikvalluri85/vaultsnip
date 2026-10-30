@@ -1,6 +1,6 @@
 # VaultSnip — Enterprise & Self-Hosting Guide
 
-VaultSnip is a static web application. No server, no database, no backend logic. Everything that runs on your device. This guide explains how to run it inside a corporate network.
+VaultSnip is a static web application. No server, no database, no backend logic. Everything runs on the user's device. This guide explains how to run it inside a corporate network.
 
 ---
 
@@ -80,26 +80,15 @@ VaultSnip loads several large resources on first use. On a corporate network wit
 | On-device PII model | `<origin>/models/` | 19 MB | First use of name-check |
 | Text-region detector | `<origin>/models/` | 5 MB | First use of unread-text check |
 | Text-region reader | `<origin>/models/` | 7 MB | First use of unread-text check |
-| PDF.js (when processing PDFs) | `cdnjs.cloudflare.com` | ~1 MB | First PDF upload |
+| PDF reader (PDF.js) | `<origin>/lib/pdfjs/` | 1.7 MB | First PDF opened |
 
-On a self-hosted deployment, all resources except PDF.js are served from your own origin. To remove the PDF.js CDN dependency, download `pdf.min.js` and `pdf.worker.min.js` from [Mozilla's releases](https://github.com/mozilla/pdf.js/releases) and place them in `web/lib/`, then update the `loadPdfJs()` URLs in `web/app.js`.
+Every file comes from the app's own origin, PDF reader included. On a self-hosted deployment nothing is fetched from anywhere else.
 
 ---
 
-## AI-key path: what leaves the network
+## What leaves the network
 
-The **local-first path** (Build on this device) makes no external network calls at all. Nothing leaves your network.
-
-The **AI-key path** (optional) sends one image to Anthropic or OpenAI. Before sending:
-- All text is masked (grey boxes)
-- All numbers are replaced with invented values (never the real figures)
-- The user approves the exact masked image in a preview dialog
-
-The API call goes directly from the user's browser to `api.anthropic.com` or `api.openai.com`. No traffic passes through a VaultSnip server. If your network blocks these domains, the AI-key path will not work — the local-first path (no key needed) still works fully.
-
-To allow the AI-key path on a restrictive network, allowlist:
-- `api.anthropic.com:443` (Claude)
-- `api.openai.com:443` (OpenAI)
+Nothing. VaultSnip has no AI service, no API key and no backend: reading, masking, the six-pass check and the replica all run in the browser tab. The page's Content-Security-Policy (`web/_headers`) lets it contact only its own origin, so a network monitor will see requests for the app's own files and nothing else. There is no domain to allowlist beyond the one you host it on.
 
 ---
 
@@ -111,25 +100,20 @@ The browser extension adds the ability to blur text inside charts on any live da
 
 For organisations using Chrome Browser Cloud Management or Microsoft Intune:
 
-1. Run `./build.sh --bundle-models` to build `dist/vaultsnip-extension.zip`.
-2. Unzip it; host the folder on an internal file share or web server.
-3. Push via policy:
-   - **Chrome:** `ExtensionInstallForcelist` policy with the extension's ID and the URL of the `update_manifest.xml`.
-   - **Edge:** equivalent `ExtensionInstallForcelist` group policy.
+Once the Chrome Web Store and Edge Add-ons listings are live (in review at the time of writing), the simplest route is to force-install by store ID:
+
+- **Chrome:** the `ExtensionInstallForcelist` policy with the extension's store ID and `https://clients2.google.com/service/update2/crx`.
+- **Edge:** the `ExtensionInstallForcelist` group policy with its Edge Add-ons ID and `https://edge.microsoft.com/extensionwebstorebase/v1/crx`.
+
+To host it yourself instead, build it with `./build.sh --bundle-models`, pack `dist/extension` as a signed `.crx` with your own key, and publish it with an `update_manifest.xml` on an internal server; Chrome and Edge accept off-store extensions only on managed devices.
 
 The extension uses only the `activeTab`, `scripting`, `offscreen`, and `contextMenus` permissions. It never reads the full browser history and never makes network calls (all OCR runs inside an offscreen document on this device).
 
 ---
 
-## Air-gapped or no-CDN environments
+## Air-gapped environments
 
-For fully air-gapped deployments:
-
-1. Download PDF.js and place it at `web/lib/pdf.min.js` and `web/lib/pdf.worker.min.js`.
-2. In `web/app.js`, update the two CDN URLs in `loadPdfJs()` to relative paths: `lib/pdf.min.js` and `lib/pdf.worker.min.js`.
-3. Do the same for `jszip.min.js` (used by batch-download): download from [npm](https://www.npmjs.com/package/jszip) and place at `web/lib/jszip.min.js`, then update the URL in `app.js`.
-
-After these steps the app works with no external network calls at all, even in the AI-key path (which still calls Anthropic or OpenAI — that call cannot be removed, because it is the user's own API call going to their own key).
+Copy the `web/` folder (or `dist/web` from `./build.sh`) to an internal static host. It needs nothing else: the OCR engine, its language model, the on-device AI models and the PDF reader are all files inside it, and the app calls no other server. The ZIP for batch downloads is made in the browser by the app itself.
 
 ---
 

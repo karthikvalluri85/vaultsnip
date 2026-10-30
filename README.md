@@ -10,7 +10,9 @@
 **Try it now:** https://vaultsnip.pages.dev (no sign-up, no key, nothing uploaded)  
 Also on Hugging Face: https://huggingface.co/spaces/karthikvalluri/vaultsnip · Chrome and Edge store listings are in review.
 
-VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, sends nothing anywhere,, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
+VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, sends nothing anywhere, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
+
+**What it does not hide:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, drag a box over that chart.
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
@@ -48,13 +50,14 @@ https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
 | **Safe-to-share receipt** | ✅ PNG or PDF beside the masked image: what was hidden (counts and kinds, never the text), the check, made on this device, and the image's SHA-256 |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
 | In-app feedback with a private route for masking misses | ✅ |
-| **PDF input** | ✅ drop or pick a PDF; multi-page PDFs ask which page; PDF.js loads on demand |
-| **Batch masking** | ✅ queue multiple screenshots or PDF pages, process with one policy, download as ZIP |
+| **PDF input** | ✅ drop or pick a PDF; multi-page PDFs ask which page; the PDF reader (PDF.js) is bundled and loads on demand |
+| **Batch masking** | ✅ queue screenshots and PDFs (every page, up to 30 a file) under one policy; each image runs the full six-pass check and only images that pass go in the ZIP, each with its receipt; the rest are held back for review |
 | **Per-client allowlist profiles** | ✅ save and reload named redaction policies (stored in your browser only) |
+| Visual fingerprint warning | ✅ flags a logo or picture in a top corner, or a header in strong brand colours, left after masking |
 
 ## Privacy
 
-Nothing leaves your device. OCR, masking, the six-pass safety gate, and the in-place replica all run in your browser tab. No backend, no database, no accounts, no analytics, and no AI service. Images, OCR text and results live in the tab's memory only. The browser stores only the app's model files (and your saved policies, if you choose to save them). See [PRIVACY.md](PRIVACY.md).
+Nothing leaves your device. OCR, masking, the six-pass safety gate, and the in-place replica all run in your browser tab. No backend, no database, no accounts, no analytics, and no AI service. Images, OCR text and results live in the tab's memory only. The browser stores only the app's model files, and your saved policies if you choose to save them (a policy's name and its safe words, in this browser only). See [PRIVACY.md](PRIVACY.md).
 
 Enterprise and self-hosting: [ENTERPRISE.md](ENTERPRISE.md).
 
@@ -87,7 +90,7 @@ Open http://localhost:8080 and click **Try with sample dashboards**. Opening `in
 3. Open any dashboard tab, click the VaultSnip toolbar icon, drag over the area, and go.
 4. To blur sensitive text inside the page's charts without leaving it, right-click → **Blur text in charts on this page** (or Alt+Shift+B). Run it again to remove the blur.
 
-Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: the OCR model ships inside the extension (about 7 MB zipped), so it works offline and makes no network request until you send an approved image to your AI provider. Tagged releases attach ready-made packages automatically.
+Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: the OCR model ships inside the extension (about 7 MB zipped), so it works offline and makes no network request at all. Tagged releases attach ready-made packages automatically.
 
 ## Deploy
 
