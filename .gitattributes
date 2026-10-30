@@ -4,6 +4,7 @@
 *.jpg binary
 *.gif binary
 *.mp4 binary
+*.webp binary
 *.gz binary
 *.wasm binary
 *.traineddata binary

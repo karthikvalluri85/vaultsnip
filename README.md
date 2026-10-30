@@ -23,9 +23,9 @@ capture → local OCR → mask everything except an allowlist → independent re
 
 ## See it in action
 
-https://github.com/user-attachments/assets/0df82dff-e0f8-49a3-b7a6-e36bdc1e8ddf
+<a href="docs/media/vaultsnip-demo.mp4"><img src="docs/media/vaultsnip-demo.webp" alt="VaultSnip 0.9 on the fictional Kestrelmoor sample dashboard: names, IDs and numbers are masked on the device, the six-pass check passes, and the replica shows the same dashboard with synthetic text in place" width="900"></a>
 
-*This recording shows the earlier, chart-rebuilding replica (before 0.9); the steps up to the payload are unchanged. A new recording of the in-place replica is to follow.*
+*VaultSnip 0.9 on the bundled fictional sample, sped up 2.5×. [Watch the full-speed recording (MP4, 87 s)](docs/media/vaultsnip-demo.mp4).*
 
 ## Features
 
@@ -90,7 +90,7 @@ Open http://localhost:8080 and click **Try with sample dashboards**. Opening `in
 3. Open any dashboard tab, click the VaultSnip toolbar icon, drag over the area, and go.
 4. To blur sensitive text inside the page's charts without leaving it, right-click → **Blur text in charts on this page** (or Alt+Shift+B). Run it again to remove the blur.
 
-Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: the OCR model ships inside the extension (about 7 MB zipped), so it works offline and makes no network request at all. Tagged releases attach ready-made packages automatically.
+Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: the OCR and on-device AI models ship inside the extension (about 42 MB zipped, uncompressed inside because the Edge store refuses compressed files), so it works offline and makes no network request at all. Tagged releases attach ready-made packages automatically.
 
 ## Deploy
 
@@ -114,6 +114,7 @@ extension/        manifest.json; background.js, canvas-ocr.js, offscreen.*, wasm
 src/              TypeScript sources: name check, chart blur (background/, content/), made-up names (replica/)
 tools/            check.mjs, e2e.mjs, build scripts, synth-bench/ (masking benchmark), inplace-bench/ (replica benchmark)
 build.sh          builds dist/web, dist/extension, dist/hf-space and zips
+docs/media/       the README's demo recording (not shipped in the app or the extension)
 ```
 
 ## Contributing
