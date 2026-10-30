@@ -654,7 +654,7 @@ export function splitKpiStacks(img: Img, ps: Panel[], words: Word[], med: number
       if (a - edgeY > span) { span = a - edgeY; gapTop = edgeY; gapBot = a; }
       edgeY = Math.max(edgeY, z);
     }
-    if (span < med * 0.9) return [p];
+    if (span < (masked.length >= 3 ? 1 : med * 0.9)) return [p];
     const ink = (y: number) => { let n = 0; for (let x = x0; x < x1; x++) n += e[y * img.width + x]; return n; };
     let bestInk = Infinity;
     for (let y = Math.ceil(gapTop); y <= Math.floor(gapBot); y++) { const n = ink(y); if (n < bestInk) { bestInk = n; at = y; } }

@@ -952,12 +952,12 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   //  mini sparkline bars are tiny and cover well under 10% of the card; a full bar or column chart's bars cover 15%+)
   const rectArea = rects.reduce((s, r) => s + width(r.b) * height(r.b), 0);
   const chartRects = rects.length >= 5 && rectArea >= pa * 0.12;
-  if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 2) && !chartRects && !lineChart && !stripes && coverage < 0.15) return done(kpi(c, 0.85))!;
+  if (prominent && bigMasked.length <= 3 && words.length <= 18 && !(barReading && rects.length >= 2) && !chartRects && !lineChart && !stripes && coverage < 0.15 && !(width(b) > height(b) * 2 && !rects.length && pie(c))) return done(kpi(c, 0.85))!;
   // a KPI card with a small chart in it (a sparkline, mini columns, an icon) or with its delta and comparison masked too:
   // a really big value, few words and little ink; a chart's own numbers are never that big for its panel
   // (not a line chart, two or more coloured lines; nor bars across much of the panel)
   const bigBars = !!barReading && rects.length >= 3 && width(hull(rects)) * height(hull(rects)) >= pa * 0.4;
-  if (bigH >= height(b) * 0.12 && words.length <= 18 && coverage < 0.12 && !lineChart && !(bigBars || chartRects) && !stripes) return done(kpi(c, 0.7))!;
+  if (bigH >= height(b) * 0.12 && words.length <= 18 && coverage < 0.12 && !lineChart && !(bigBars || chartRects) && !stripes && !(width(b) > height(b) * 2 && !rects.length && pie(c))) return done(kpi(c, 0.7))!;
   // words on a grid make a table, unless the panel also holds coloured strokes or several vivid colours (a table's
   // rules and stripes are grey or one colour): then a line or scatter reading comes first and the table is the fallback
   const table = grid ? { type: 'table' as const, certainty: coverage < 0.05 ? 0.8 : 0.6, fields: {} } : null;
@@ -992,7 +992,7 @@ export function readPanel(img: Img, b: Box, words: Word[], med: number, title: s
   // a chart no reader could type, with marks enough to draw: columns (the commonest chart) from its largest marks, left to
   // right, at a low certainty, so the replica shows a chart and the confidence score asks the user to check its type
   function bestGuess(): Reading | null {
-    if (coverage <= 0.1) return null;
+    if (coverage <= 0.06 || !rects.length) return null;
     const ms = [...body].sort((p, q) => q.n - p.n).slice(0, 8).sort((p, q) => p.b[0] - q.b[0]);
     if (ms.length < 2) return null;
     const base = Math.max(...ms.map((m) => m.b[3]));
