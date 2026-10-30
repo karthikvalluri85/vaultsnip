@@ -137,6 +137,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
   <span class="brand"><img src="icons/icon128.png" alt="" width="30" height="30" style="vertical-align:-9px;margin-right:8px">VaultSnip</span>
   <span class="pill hide-sm">Runs in your browser · nothing stored</span>
   <span class="sp"></span>
+  <button class="btn" id="btn-batch" type="button" title="Process multiple screenshots or PDFs with the same policy" style="font-size:13px">Batch</button>
   <button type="button" class="linkbtn" data-feedback="bug" style="font-size:13px;margin-right:6px">Feedback</button>
   <a href="privacy.html" style="font-size:13px;margin-right:6px">Privacy</a>
 </header>
@@ -159,10 +160,10 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
       </div>
       <div>
         <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload or paste a screenshot">
-          <strong>Use your own screenshot</strong>
-          <p>Drop a PNG, JPG or WebP here, click to choose, or paste with Ctrl+V / ⌘V</p>
+          <strong>Use your own screenshot or PDF</strong>
+          <p>Drop a PNG, JPG, WebP or PDF here, click to choose, or paste with Ctrl+V / ⌘V</p>
           <p class="note">Any source: BI tools, Excel, PDF report pages, web analytics, SaaS apps</p>
-          <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,application/pdf" hidden>
         </div>
         <button class="btn" id="btn-paste" type="button">Paste a screenshot</button>
         <p class="err" id="drop-err" role="alert" hidden></p>
@@ -225,6 +226,10 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
           <h3>Pre-flight check</h3>
           <div class="gate pending" id="gate"><b>Not run yet</b><span>The check re-reads the masked image on this device.</span></div>
           <div class="flags" id="flags"></div>
+          <div id="fingerprint-warn" hidden style="margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn);font-size:13px">
+            <b>Visual fingerprint risk:</b> <span id="fingerprint-detail"></span>
+            <div id="fingerprint-items" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+          </div>
           <div class="row">
             <button class="btn" id="btn-recheck" type="button" disabled>Re-run check</button>
             <button class="btn primary" id="btn-send" type="button" disabled>Preview masked image</button>
@@ -236,6 +241,11 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
             <input type="text" id="client-names" placeholder="e.g. Acme, Project Falcon"></label>
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
             <input type="text" id="extra-allow" placeholder="e.g. Pipeline, Bookings"></label>
+          <div class="row" style="gap:8px;margin-top:6px">
+            <select id="profile-select" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px;flex:1"></select>
+            <button class="btn" id="btn-save-profile" type="button">Save</button>
+            <button class="btn" id="btn-del-profile" type="button" disabled>Delete</button>
+          </div>
           <div class="row"><button class="btn" id="btn-reapply" type="button" disabled>Re-apply policy</button></div>
           <label class="chk"><input type="checkbox" id="fake-on" checked><span>Replace numbers with invented values of the same size</span></label>
           <p class="hint">$4.2M might show as $6.8M, 62% as 47%: never the real value, and labels stay masked. The image is tagged "Numbers are synthetic". Untick to cover numbers with grey boxes instead.</p>
@@ -296,6 +306,24 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 
 
 
+
+<dialog id="dlg-batch" style="border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:24px;max-width:480px;width:100%">
+  <form method="dialog">
+    <h3 style="margin:0 0 10px">Batch masking</h3>
+    <p class="note" style="margin:0 0 14px">Process multiple screenshots or PDF pages with the same redaction policy. Each file is masked on this device. Files never leave this tab.</p>
+    <label class="f">Files to process <span>PNG, JPG, WebP or PDF</span>
+      <input type="file" id="batch-file" multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,application/pdf" style="margin-top:6px">
+    </label>
+    <div id="batch-queue" hidden style="margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto"></div>
+    <p id="batch-status" style="font-size:13px;color:var(--muted);margin:8px 0 0"></p>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn" id="btn-batch-clear" type="button" hidden>Clear</button>
+      <button class="btn" id="btn-batch-dl" type="button" hidden disabled>Download results</button>
+      <button class="btn" value="cancel" type="submit">Close</button>
+      <button class="btn primary" id="btn-batch-run" type="button" disabled>Process all</button>
+    </div>
+  </form>
+</dialog>
 
 <script src="feedback.js"></script>
 <script src="config.js"></script>

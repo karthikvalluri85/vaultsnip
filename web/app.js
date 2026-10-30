@@ -654,6 +654,50 @@ customer service staff agent team people everyone nobody someone something nothi
     lines(m => m.y + m.h / 2, m => m.x + m.w / 2);   // x-axis ticks: one row
     return out;
   }
+  // Detects percentage groups (summing to ~100) and sum-of-parts relationships so faked totals equal the sum of faked parts.
+  function totalLinks(nums) {
+    const out = new Map();
+    const val = m => parseFloat((m.text.match(/\d[\d,]*(?:\.\d+)?/g) || ['NaN'])[0].replace(/,/g, ''));
+    const isPct = m => /^\s*\d[\d.,]*\s*%/.test(m.text) || /%\s*$/.test(m.text);
+    // Percentage groups: clusters of % values on the same horizontal band whose real values sum to ~100
+    const pctNums = nums.filter(isPct);
+    const pctBands = [];
+    pctNums.forEach(m => {
+      const b = pctBands.find(b => Math.abs(b[0].y + b[0].h / 2 - (m.y + m.h / 2)) < Math.max(b[0].h, m.h) * 0.7);
+      if (b) b.push(m); else pctBands.push([m]);
+    });
+    pctBands.forEach(band => {
+      if (band.length < 2) return;
+      const sum = band.reduce((s, m) => s + val(m), 0);
+      if (sum < 85 || sum > 115) return;
+      let remaining = 100;
+      band.slice(0, -1).forEach(m => { const faked = Math.round(val(m) / sum * 100); out.set(m, m.text.replace(/\d[\d.,]*/, String(faked))); remaining -= faked; });
+      const last = band[band.length - 1];
+      out.set(last, last.text.replace(/\d[\d.,]*/, String(Math.max(1, remaining))));
+    });
+    // Sum-of-parts: in a Y band, if one value ≈ sum of the rest (±6%), make faked total = sum of faked parts
+    const yBands = [];
+    nums.filter(m => !isPct(m)).forEach(m => {
+      const b = yBands.find(b => Math.abs(b[0].y + b[0].h / 2 - (m.y + m.h / 2)) < Math.max(b[0].h, m.h) * 0.6);
+      if (b) b.push(m); else yBands.push([m]);
+    });
+    yBands.forEach(band => {
+      if (band.length < 3) return;
+      const vals = band.map(m => ({ m, v: val(m) })).filter(x => Number.isFinite(x.v));
+      if (vals.length < 3) return;
+      vals.sort((a, b) => b.v - a.v);
+      const partSum = vals.slice(1).reduce((s, x) => s + x.v, 0);
+      if (Math.abs(vals[0].v - partSum) / Math.max(1, partSum) > 0.06) return;
+      // Already faked parts sum; force total to match
+      const partsEntry = vals.slice(1).map(x => x.m);
+      const totalM = vals[0].m;
+      if (partsEntry.some(m => out.has(m))) return; // already normalised by pct pass
+      const fakeParts = partsEntry.map(m => parseFloat((fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), undefined) || '0').replace(/[^0-9.]/g, '')) || val(m));
+      const fakeTotal = fakeParts.reduce((s, v) => s + v, 0);
+      out.set(totalM, totalM.text.replace(/\d[\d,]*(?:\.\d+)?/, String(Math.round(fakeTotal))));
+    });
+    return out;
+  }
   // Paints number masks with the background colour and an invented value in the same style; other masks stay grey. A
   // column-fill block (digits the reader skipped) gets the background colour, then its numbers on top.
   function paintFakes(x, masks, scale) {
@@ -670,14 +714,16 @@ customer service staff agent team people everyone nobody someone something nothi
       if (best < 60) ink = (bgC[0] + bgC[1] + bgC[2]) / 3 > 128 ? [40, 40, 40] : [235, 235, 235];
       return { bg: `rgb(${bgC.join(',')})`, ink: `rgb(${ink.join(',')})`, bold: dark / (w * h) > 0.22 };
     };
-    const nums = masks.filter(isNumberMask), blocks = masks.filter(m => m.text === '(table column)'), axes = axisFactors(nums.filter(m => m.text && m.text !== '(table column)'));
+    const plainNums = masks.filter(m => isNumberMask(m) && m.text && m.text !== '(table column)');
+    const nums = masks.filter(isNumberMask), blocks = masks.filter(m => m.text === '(table column)'), axes = axisFactors(plainNums), totals = totalLinks(plainNums);
+    const exact = m => axes.has(m) ? axes.get(m) : totals.has(m) ? totals.get(m) : undefined;
     masks.forEach(m => {
       x.fillStyle = isNumberMask(m) || blocks.includes(m) ? colours(m).bg : '#787c82';
       x.fillRect(m.x * scale, m.y * scale, m.w * scale, m.h * scale);
     });
     nums.forEach(m => {
       if (!m.text || m.text === '(table column)') return;
-      const c = colours(m), value = fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), axes.get(m));
+      const c = colours(m), value = fakeValue(m.text, hash(m.text + '|' + Math.round(m.x) + '|' + Math.round(m.y)), exact(m));
       const inner = (m.h / 1.36) * scale;                                               // masks are padded by ~18% on each side
       let size = Math.max(7, inner / 0.72);
       x.save(); x.beginPath(); x.rect(m.x * scale, m.y * scale, m.w * scale, m.h * scale); x.clip();
@@ -951,8 +997,39 @@ customer service staff agent team people everyone nobody someone something nothi
     });
     S.flags = flags;
     updateGate();
+    detectFingerprint();
     setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
     draw();
+  }
+  // Warns when brand colours or an unmasked corner logo remain in the image after masking.
+  function detectFingerprint() {
+    const warn = $('fingerprint-warn'); if (!warn || !S.img) return;
+    const W = S.img.width, H = S.img.height;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(S.img, 0, 0);
+    const toHsv = (r, g, b) => { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; return { s: mx ? d / mx : 0, v: mx }; };
+    const step = Math.max(1, Math.round(W / 120)), items = [];
+    let saturated = 0, total = 0;
+    const d = ctx.getImageData(0, 0, W, H).data;
+    for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) {
+      const p = (y * W + x) * 4, { s, v } = toHsv(d[p], d[p + 1], d[p + 2]);
+      total++; if (s > 0.5 && v > 0.15 && v < 0.9) saturated++;
+    }
+    if (saturated / total > 0.12) items.push('brand colours visible');
+    // check top-left and top-right 120×80 corners for coloured (non-white/grey) patches not covered by masks
+    [[0, 0, 120, 80], [W - 120, 0, 120, 80]].forEach(([cx, cy, cw, ch]) => {
+      const cd = ctx.getImageData(Math.max(0, cx), cy, Math.min(cw, W - cx), ch).data;
+      let coloured = 0;
+      for (let p = 0; p < cd.length; p += 4) { const { s } = toHsv(cd[p], cd[p + 1], cd[p + 2]); if (s > 0.35) coloured++; }
+      const covered = S.masks.filter(m => m.on && m.x < cx + cw && m.x + m.w > cx && m.y < cy + ch && m.y + m.h > cy).length;
+      if (coloured / (cd.length / 4) > 0.04 && !covered) items.push('possible logo in corner');
+    });
+    warn.hidden = !items.length;
+    if (items.length) {
+      $('fingerprint-detail').textContent = 'The masked image may still identify the client by visual appearance:';
+      const chips = $('fingerprint-items'); chips.innerHTML = '';
+      items.forEach(t => { const s = document.createElement('span'); s.className = 'chip warn'; s.textContent = t; chips.appendChild(s); });
+    }
   }
   // One click for the cautious answer: every finding the check left open is masked, numbers and unlisted words alike.
   // Nothing hidden is shown; each new box counts as your decision and can still be switched off.
@@ -1261,6 +1338,130 @@ customer service staff agent team people everyone nobody someone something nothi
     S.gate = 'policy'; renderGate();
   }));
 
+  /* ---------------- Per-client allowlist profiles ---------------- */
+  const PROFILES_KEY = 'vaultsnip-profiles-v1';
+  const loadProfiles = () => { try { return JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}'); } catch { return {}; } };
+  const saveProfiles = p => { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(p)); } catch {} };
+  function renderProfileSelect() {
+    const sel = $('profile-select'); if (!sel) return;
+    const profiles = loadProfiles(), names = Object.keys(profiles);
+    sel.innerHTML = '<option value="">— saved policies —</option>' + names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n.replace(/</g, '&lt;')}</option>`).join('');
+    const del = $('btn-del-profile'); if (del) del.disabled = !sel.value;
+  }
+  if ($('profile-select')) {
+    $('profile-select').onchange = () => {
+      const name = $('profile-select').value; if (!name) return;
+      const p = loadProfiles()[name]; if (!p) return;
+      $('client-names').value = p.clientNames || ''; $('extra-allow').value = p.allowWords || '';
+      if ($('btn-del-profile')) $('btn-del-profile').disabled = false;
+    };
+    $('btn-save-profile').onclick = () => {
+      const name = prompt('Save policy as:', $('profile-select').value || ''); if (!name) return;
+      const profiles = loadProfiles();
+      profiles[name] = { clientNames: $('client-names').value, allowWords: $('extra-allow').value };
+      saveProfiles(profiles); renderProfileSelect(); $('profile-select').value = name;
+    };
+    $('btn-del-profile').onclick = () => {
+      const name = $('profile-select').value; if (!name || !confirm(`Delete policy "${name}"?`)) return;
+      const profiles = loadProfiles(); delete profiles[name]; saveProfiles(profiles); renderProfileSelect();
+    };
+    renderProfileSelect();
+  }
+
+  /* ---------------- PDF input (PDF.js from CDN) ---------------- */
+  let _pdfJs = null;
+  async function loadPdfJs() {
+    if (_pdfJs) return _pdfJs;
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js';
+      s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js'; _pdfJs = window.pdfjsLib; resolve(_pdfJs); };
+      s.onerror = () => reject(new Error('Could not load PDF engine. Check your internet connection.'));
+      document.head.appendChild(s);
+    });
+  }
+  async function renderPdfPage(pdf, pageNum) {
+    const page = await pdf.getPage(pageNum);
+    const vp = page.getViewport({ scale: 2 });
+    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    return c;
+  }
+  async function usePdf(f) {
+    if (f.size > 50 * 1024 * 1024) { dropError('That PDF is over 50 MB. Try a smaller file.'); return; }
+    setStatus('Loading PDF…', true); show('s-review');
+    try {
+      const lib = await loadPdfJs();
+      const pdf = await lib.getDocument({ data: await f.arrayBuffer() }).promise;
+      let pageNum = 1;
+      if (pdf.numPages > 1) {
+        const n = parseInt(prompt(`This PDF has ${pdf.numPages} pages. Which page to process? (1–${pdf.numPages})`, '1'), 10);
+        pageNum = Number.isFinite(n) && n >= 1 && n <= pdf.numPages ? n : 1;
+      }
+      await startReview(await renderPdfPage(pdf, pageNum));
+    } catch (e) {
+      dropError(/Invalid PDF|Could not load/.test(e.message || '') ? (e.message || 'Could not read that PDF.') : 'Could not read that PDF: ' + (e.message || e));
+    }
+  }
+
+  /* ---------------- Batch mode: process multiple images / PDFs ---------------- */
+  let batchFiles = [];
+  function renderBatchQueue() {
+    const sec = $('batch-queue'); if (!sec) return;
+    if (!batchFiles.length) { sec.hidden = true; $('btn-batch-run').disabled = true; return; }
+    sec.hidden = false; $('btn-batch-run').disabled = false;
+    sec.innerHTML = batchFiles.map((item, i) => `<div class="batch-item bi-${item.status || 'pending'}"><span>${item.name}</span><span class="bi-st">${item.status || 'pending'}</span><button type="button" aria-label="Remove">✕</button></div>`).join('');
+    sec.querySelectorAll('button').forEach((btn, i) => { btn.onclick = () => { batchFiles.splice(i, 1); renderBatchQueue(); }; });
+  }
+  if ($('batch-file')) {
+    $('batch-file').onchange = e => {
+      [...e.target.files].forEach(f => {
+        if (!batchFiles.some(b => b.name === f.name && b.size === f.size)) batchFiles.push({ file: f, name: f.name, size: f.size, status: 'pending' });
+      }); e.target.value = ''; renderBatchQueue();
+    };
+  }
+  if ($('btn-batch')) $('btn-batch').onclick = () => $('dlg-batch').showModal();
+  async function runBatch() {
+    if (!batchFiles.length) return;
+    const savedImg = S.img, savedWords = S.words, savedMasks = S.masks;
+    const results = [];
+    $('batch-status').textContent = '';
+    for (let i = 0; i < batchFiles.length; i++) {
+      const item = batchFiles[i]; item.status = 'processing'; renderBatchQueue();
+      $('batch-status').textContent = `Processing ${i + 1} of ${batchFiles.length}: ${item.name}`;
+      try {
+        let imgCanvas;
+        if (item.file.type === 'application/pdf') {
+          const lib = await loadPdfJs();
+          const pdf = await lib.getDocument({ data: await item.file.arrayBuffer() }).promise;
+          imgCanvas = await renderPdfPage(pdf, 1);
+        } else {
+          const url = URL.createObjectURL(item.file); imgCanvas = await loadImage(url); URL.revokeObjectURL(url);
+        }
+        S.img = imgCanvas; S.words = []; S.masks = [];
+        await readAll(imgCanvas, READ_PASSES, '');
+        notMarks(S.img, S.words);
+        buildMasks(S.words);
+        const blob = await new Promise(res => maskedCanvas(1).toBlob(res, 'image/png'));
+        results.push({ name: item.name.replace(/\.[^.]+$/, '') + '-masked.png', blob });
+        item.status = 'done';
+      } catch (e) { item.status = 'error'; }
+      renderBatchQueue();
+    }
+    S.img = savedImg; S.words = savedWords; S.masks = savedMasks;
+    $('batch-status').textContent = `Done. ${results.filter(r => r.blob).length} of ${batchFiles.length} processed.`;
+    $('btn-batch-dl').hidden = false; $('btn-batch-dl').disabled = !results.some(r => r.blob);
+    $('btn-batch-clear').hidden = false;
+    if ($('btn-batch-dl')) $('btn-batch-dl').onclick = async () => {
+      if (results.length === 1) { saveFile(results[0].blob, results[0].name); return; }
+      const { default: JSZip } = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+      const zip = new JSZip();
+      results.forEach(r => { if (r.blob) zip.file(r.name, r.blob); });
+      saveFile(await zip.generateAsync({ type: 'blob' }), 'vaultsnip-batch.zip');
+    };
+  }
+  if ($('btn-batch-run')) $('btn-batch-run').onclick = runBatch;
+
   /* ---------------- Screen 1 ---------------- */
   $('btn-try').onclick = () => {
     const box = $('samples');
@@ -1314,7 +1515,8 @@ customer service staff agent team people everyone nobody someone something nothi
   function dropError(msg) { const e = $('drop-err'); e.textContent = msg || ''; e.hidden = !msg; }
   async function useFile(f) {
     dropError('');
-    if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(f.type)) { dropError('That file is not an image VaultSnip can read. Use a PNG, JPG or WebP screenshot.'); return; }
+    if (f.type === 'application/pdf') { S.sample = null; $('client-names').value = ''; S.fileBase = slug(String(f.name || '').replace(/\.[^.]+$/, '')) || 'screenshot'; await usePdf(f); return; }
+    if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(f.type)) { dropError('That file is not an image or PDF VaultSnip can read. Use a PNG, JPG, WebP or PDF.'); return; }
     if (f.size > 10 * 1024 * 1024) { dropError('That image is over 10 MB. Crop it, or save it as JPG, and try again.'); return; }
     S.sample = null; $('client-names').value = '';
     S.fileBase = slug(String(f.name || '').replace(/\.[^.]+$/, '')) || 'screenshot';
