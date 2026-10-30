@@ -65,7 +65,7 @@ export function isMark(r: number, g: number, b: number) {
 }
 
 /** A masked big number: a box much taller than text and wider than tall (tall thin strips are masked axis labels). */
-export const isBigBox = (w: { w: number; h: number }, med: number) => w.h > med * 1.55 && w.h < med * 8 && w.w >= w.h * 0.8;
+export const isBigBox = (w: { w: number; h: number }, med: number) => w.h > med * 1.55 && w.h < med * 14 && w.w >= w.h * 0.8;
 
 /**
  * Masked words that sit in a tight vertical stack of three or more (the masked category labels along a bar chart's

@@ -720,7 +720,14 @@ function fromCardsOf(img: Img, words: Word[], med: number | undefined, cards: Bo
     // are too thin/narrow (a KPI card split by a horizontal gap between its value and its trend row), the
     // card itself is the visual and splitting it produces sub-regions that are all filtered by couldBeVisual.
     const anyViable = parts.some((r) => { const w = r[2] - r[0], h = r[3] - r[1]; return w * h >= W * H * 0.004 && h >= H * 0.055 && w >= W * 0.055; });
-    if (parts.length >= 2 && anyViable) regions.push(...parts); else regions.push(c);
+    // A map or full-width visual may split into two side-by-side halves; that is one visual, not two.
+    // Skip the split when exactly two parts are mostly side-by-side (> 65 % vertical overlap relative to
+    // the shorter part) — legitimate multi-chart splits are vertically arranged (overlap ≈ 0).
+    const sideBySide = parts.length === 2 && (() => {
+      const [a, b] = parts, ov = Math.min(a[3], b[3]) - Math.max(a[1], b[1]);
+      return ov > Math.min(a[3] - a[1], b[3] - b[1]) * 0.65;
+    })();
+    if (parts.length >= 2 && anyViable && !sideBySide) regions.push(...parts); else regions.push(c);
   }
   // and whatever sits outside the cards (a page title, a filter strip)
   const overlap = (r: Box, c: Box) => Math.max(0, Math.min(r[2], c[2]) - Math.max(r[0], c[0])) * Math.max(0, Math.min(r[3], c[3]) - Math.max(r[1], c[1]));
