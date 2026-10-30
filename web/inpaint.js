@@ -93,19 +93,30 @@
     }
     // the height of the glyphs' main band: rows holding under a fifth of the busiest row's ink (a comma's tail, the
     // dot of a decimal point below the line) do not count
-    let band = null;
+    let band = null, base = null;
     if (ink) {
       const rows = new Array(ink.h).fill(0);
       for (const [, y, p] of inside) if (dist(p, bg) >= cut) rows[y - ink.y]++;
       const top = Math.max(...rows), keep = rows.map((c, i) => (c >= top * 0.2 ? i : -1)).filter(i => i >= 0);
       band = keep.length ? keep[keep.length - 1] - keep[0] + 1 : ink.h;
+      // the baseline: the bottom of the dense rows (the tails of g, p, y and J below it are sparse)
+      let last = -1; rows.forEach((c, i) => { if (c >= top * 0.35) last = i; });
+      base = last >= 0 ? ink.y + last + 1 : null;
     }
-    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.48 ? 700 : cover > 0.42 ? 600 : 400, ink, slant, band };
+    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.48 ? 700 : cover > 0.42 ? 600 : 400, ink, slant, band, base };
   }
 
   // Font size from the box height (Tier 2 rule: 75% of the box); when the glyphs' own height is known it is used instead,
   // as boxes are often padded.
-  const fontSize = (box, ink) => Math.max(7, ink && ink.h >= 5 ? Math.round(ink.h / 0.72) : Math.round(box.h * 0.75));
+  // The glyphs' height is a different share of the font size depending on the letters: capitals and tall letters reach
+  // about 72% of it, letters with tails (g, p, y) add about 21% below the line, and short letters alone ("ream") about
+  // 52%. The original text is known on the device, so its letters say which share its ink stands for.
+  function inkShare(text) {
+    if (!text) return 0.72;
+    const tall = /[A-Zbdfhiklt0-9!?$€£¥%&#@()\[\]{}\/|'"]/.test(text), tail = /[gjpqyQ,;()\[\]{}|]/.test(text);
+    return tall && tail ? 0.93 : tall ? 0.72 : tail ? 0.72 : 0.52;
+  }
+  const fontSize = (box, ink, text) => Math.max(7, ink && ink.h >= 5 ? Math.round(ink.h / inkShare(text)) : Math.round(box.h * 0.75));
 
   // Where the original text sat in its box: left, right or centred (from the gaps either side of the ink).
   function alignOf(box, ink) {
@@ -117,11 +128,14 @@
 
   // Everything a patch needs, read from the original pixels (never from a canvas already patched next door).
   // numeric: the box holds a number, whose glyphs all stand on the line at full height (so its main band is its height)
-  function styleFor(data, W, H, box, numeric) {
+  function styleFor(data, W, H, box, numeric, text) {
     const bg = sampleBackground(data, W, H, box);
     const ink = sampleInk(data, W, H, box, bg.color);
     const glyphs = numeric && ink.ink && ink.band ? Object.assign({}, ink.ink, { h: ink.band }) : ink.ink;
-    return { bg, ink: ink.color, weight: ink.weight, size: ink.slant ? Math.max(7, Math.round(ink.slant.size)) : fontSize(box, glyphs), align: alignOf(box, ink.ink), inkBox: ink.ink, slant: ink.slant };
+    const size = ink.slant ? Math.max(7, Math.round(ink.slant.size)) : fontSize(box, glyphs, numeric ? '' : text);
+    // where the original's letters stood: the bottom of its ink, less the tails of g, p, y when it has them
+    const baseline = ink.ink && text && ink.base != null ? ink.base : null;
+    return { bg, ink: ink.color, weight: ink.weight, size, align: alignOf(box, ink.ink), inkBox: ink.ink, slant: ink.slant, baseline };
   }
 
   function clearBox(ctx, box, bg) {
@@ -229,7 +243,9 @@
     else { ctx.textAlign = 'center'; x = st.inkBox ? st.inkBox.x + st.inkBox.w / 2 : box.x + box.w / 2; }
     // narrowed about the anchor, so left, right and centred text keep their edge
     ctx.translate(x, 0); ctx.scale(hk, 1);
-    ctx.fillText(text, 0, mid + size * 0.04);
+    // on the original's baseline when it is known, so a name with tails sits on the same line as its neighbours
+    if (st.baseline != null && size === st.size) { ctx.textBaseline = 'alphabetic'; ctx.fillText(text, 0, st.baseline); }
+    else ctx.fillText(text, 0, mid + size * 0.04);
     ctx.restore();
   }
 
@@ -263,6 +279,32 @@
 
   // source: canvas or image of the original. patches: [{x,y,w,h,synthetic,...}] in source pixels.
   // Returns the patched canvas (same size as the source) and the patches with the style each one used.
+  // Text in one table column or row is set in one size and lined up the same way. Each box's own size is read from its
+  // glyphs, and a word without tall letters ("ream") reads smaller than one with them ("Klinikum"), so neighbours came out
+  // in visibly different sizes. A box takes the median size of its column (boxes of the same kind, text or number, that
+  // share its left or right edge), or of its row when it has no column. A shorter made-up name is aligned like its
+  // column: a box read as centred only because its text filled it would otherwise drift to the middle of the old width.
+  function harmonise(list) {
+    const flat = list.filter(p => !p.style.slant && p.synthetic);
+    const own = new Map(flat.map(p => [p, p.style.size]));   // every box judged by the sizes read, not ones already set
+    const edge = p => { const k = p.style.inkBox || p; return { l: k.x, r: k.x + k.w, c: k.x + k.w / 2 }; };
+    flat.forEach(p => {
+      const num = p.kind === 'number', e = edge(p), cy = p.y + p.h / 2, tol = Math.max(3, p.h * 0.25);
+      const similar = flat.filter(q => (q.kind === 'number') === num && Math.abs(q.h - p.h) <= Math.max(q.h, p.h) * 0.35);
+      const vertical = similar.filter(q => q === p || Math.abs(q.y + q.h / 2 - cy) > p.h * 0.6);
+      const left = vertical.filter(q => Math.abs(edge(q).l - e.l) <= tol), right = vertical.filter(q => Math.abs(edge(q).r - e.r) <= tol);
+      const centre = vertical.filter(q => Math.abs(edge(q).c - e.c) <= tol);
+      const column = [left, right, centre].sort((a, b) => b.length - a.length)[0];
+      const row = similar.filter(q => Math.abs(q.y + q.h / 2 - cy) < Math.min(p.h, q.h) * 0.5);
+      const peers = column.length >= 2 ? column : row;
+      const style = Object.assign({}, p.style);
+      if (peers.length >= 2) { const sizes = peers.map(q => own.get(q)).sort((a, b) => a - b); style.size = sizes[sizes.length >> 1]; }
+      if (column.length >= 2) style.align = column === left ? 'left' : column === right ? 'right' : 'center';
+      else if (style.align === 'center' && !num && style.inkBox && style.inkBox.w >= p.w * 0.85) style.align = 'left';
+      p.style = style;
+    });
+  }
+
   function patch(source, patches, opts) {
     const W = source.width, H = source.height;
     const doc = (opts && opts.document) || global.document;
@@ -272,7 +314,7 @@
     ctx.drawImage(source, 0, 0);
     const data = ctx.getImageData(0, 0, W, H).data;     // the original pixels: every patch samples from these
     // a patch marked keep (a chart shape read as text) is left exactly as it is
-    const styled = patches.map(p => Object.assign({}, p, { style: styleFor(data, W, H, p, p.kind === 'number') }));
+    const styled = patches.map(p => Object.assign({}, p, { style: styleFor(data, W, H, p, p.kind === 'number', p.original) }));
     // Slanted labels (names along an axis at 45°) are mostly found by the text detector, not read: such a region gets a
     // made-up label of about its length, drawn along its slant (opts.slantText(chars, patch)), and the few fragments the
     // reader did pick out inside it are cleared without text of their own.
@@ -296,6 +338,7 @@
       });
     }
     const work = styled.filter(p => !p.keep);
+    harmonise(work);
     // clear all first, so no new text is wiped by a neighbour; every clear reads the original pixels
     const img = ctx.getImageData(0, 0, W, H);
     work.forEach(p => inpaintRegion(data, img.data, W, H, p, 40, p.style));
@@ -365,7 +408,7 @@
     return { frame, layer, tip, outline(on) { frame.classList.toggle('ip-outline', !!on); } };
   }
 
-  const api = { RING, looksLikeShape, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
+  const api = { inkShare, harmonise, RING, looksLikeShape, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.VSInpaint = api;
 })(typeof window !== 'undefined' ? window : globalThis);
