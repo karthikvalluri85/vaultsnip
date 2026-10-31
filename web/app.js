@@ -1610,16 +1610,30 @@ customer service staff agent team people everyone nobody someone something nothi
     const cell = Math.max(4, Math.round(Math.min(W, H) / 120)), cw = Math.ceil(W / cell), ch = Math.ceil(H / cell);
     const text = new Uint8Array(W * H);
     S.words.forEach(w => { for (let y = Math.max(0, Math.floor(w.y - 2)); y < Math.min(H, Math.ceil(w.y + w.h + 2)); y++) text.fill(1, y * W + Math.max(0, Math.floor(w.x - 2)), y * W + Math.min(W, Math.ceil(w.x + w.w + 2))); });
+    // A chart drawn only in greys has no colour to find, but its bars and areas stand out from the panel they sit on:
+    // the panel's colour is the commonest one in a block of cells around them. Such cells count when much of them
+    // (more than a thin line or a table's row stripe) is far from that colour. hot: 1 coloured, 2 grey only.
+    const B = 8, nbx = Math.ceil(cw / B), nby = Math.ceil(ch / B), panel = new Int32Array(nbx * nby);
+    for (let by = 0; by < nby; by++) for (let bx = 0; bx < nbx; bx++) {
+      const count = new Map(), step = Math.max(1, cell >> 1);
+      for (let y = by * B * cell; y < Math.min(H, (by + 1) * B * cell); y += step) for (let x = bx * B * cell; x < Math.min(W, (bx + 1) * B * cell); x += step) {
+        const i = (y * W + x) * 4, k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); count.set(k, (count.get(k) || 0) + 1);
+      }
+      panel[by * nbx + bx] = [...count.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    }
     const hot = new Uint8Array(cw * ch);
     for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
-      let n = 0, all = 0;
+      const pk = panel[((cy / B) | 0) * nbx + ((cx / B) | 0)], pr = ((pk >> 8) & 15) * 16 + 8, pg = ((pk >> 4) & 15) * 16 + 8, pb = (pk & 15) * 16 + 8;
+      let n = 0, far = 0, all = 0;
       for (let y = cy * cell; y < Math.min(H, (cy + 1) * cell); y++) for (let x = cx * cell; x < Math.min(W, (cx + 1) * cell); x++) {
         all++;
         const i = y * W + x; if (text[i]) continue;
         const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
         if (mx > 40 && (mx - mn) / mx > 0.28 && mx - mn > 40) n++;                     // a coloured pixel, not grey
+        else if (Math.abs(r - pr) + Math.abs(g - pg) + Math.abs(b - pb) > 150) far++;   // a grey clearly unlike the panel
       }
       if (n > all * 0.12) hot[cy * cw + cx] = 1;
+      else if (far > all * 0.45) hot[cy * cw + cx] = 2;
     }
     // join cells a few cells apart (the gaps between bars, a line's breaks), then find each joined area
     const R = 2, grown = new Uint8Array(cw * ch);
@@ -1629,16 +1643,18 @@ customer service staff agent team people everyone nobody someone something nothi
     for (let s0 = 0; s0 < cw * ch; s0++) {
       if (!grown[s0] || seen[s0]) continue;
       const stack = [s0]; seen[s0] = 1;
-      let x0 = cw, y0 = ch, x1 = -1, y1 = -1, core = 0;
+      let x0 = cw, y0 = ch, x1 = -1, y1 = -1, core = 0, colour = 0;
       while (stack.length) {
         const i = stack.pop(), cx = i % cw, cy = (i / cw) | 0;
-        if (hot[i]) { core++; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy); }
+        if (hot[i]) { core++; if (hot[i] === 1) colour++; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy); }
         [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const nx = cx + dx, ny = cy + dy, j = ny * cw + nx; if (nx >= 0 && ny >= 0 && nx < cw && ny < ch && grown[j] && !seen[j]) { seen[j] = 1; stack.push(j); } });
       }
       if (x1 < 0) continue;
       const bw = (x1 - x0 + 1) * cell, bh = (y1 - y0 + 1) * cell;
       // big enough to be a chart (a coloured badge, an icon or a thin brand strip is not), and not a few stray cells
       if (bw < Math.max(48, W * 0.05) || bh < Math.max(32, H * 0.04) || core < 6) continue;
+      // found mostly by grey: it must fill its box like a chart does, not trace a panel's edge
+      if (colour < core / 2 && core < (x1 - x0 + 1) * (y1 - y0 + 1) * 0.25) continue;
       const pad = Math.round(cell / 2);
       out.push({ x: Math.max(0, x0 * cell - pad), y: Math.max(0, y0 * cell - pad), w: Math.min(W, (x1 + 1) * cell + pad) - Math.max(0, x0 * cell - pad), h: Math.min(H, (y1 + 1) * cell + pad) - Math.max(0, y0 * cell - pad) });
     }
