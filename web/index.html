@@ -79,6 +79,7 @@ h1{font-size:clamp(26px,3.6vw,38px);line-height:1.15;letter-spacing:-.02em;margi
 .flag small{color:var(--muted);font-size:11.5px}
 .flag .crop{height:48px;width:auto;max-width:190px;object-fit:contain;border:1px solid var(--line);border-radius:4px;background:#fff;flex:none}
 .flag.done{opacity:.6}
+.warnnote{margin:10px 0 0;font-size:12.5px;color:var(--warn);background:var(--warn-soft);padding:6px 8px;border-radius:6px}
 .flag:focus-visible{outline:2px solid var(--accent, #0d6b5d);outline-offset:1px}
 @media (max-width:560px){.flag{flex-wrap:wrap}.flag .crop{max-width:100%}}
 .flag button{font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
@@ -242,6 +243,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
             <b>Visual fingerprint risk:</b> <span id="fingerprint-detail"></span>
             <div id="fingerprint-items" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
           </div>
+          <p id="size-note" class="note warnnote" role="status" hidden></p>
           <p id="shape-note" class="note" style="margin:10px 0 0;font-size:12.5px"><b>Chart shapes are not hidden.</b> Only text is replaced: bar lengths, line trends, slice sizes and map shading stay the real ones. If a trend or a proportion is itself confidential, choose <b>Blur a chart</b> and drag over it.</p>
           <div class="row">
             <button class="btn" id="btn-recheck" type="button" disabled>Re-run check</button>
