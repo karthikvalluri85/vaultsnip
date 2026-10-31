@@ -678,7 +678,7 @@ customer service staff agent team people everyone nobody someone something nothi
     }
     // several ticks the reader joined into one box ("0 20 40 … 540") become one even scale, not unrelated numbers
     const ticks = text.trim().split(/\s+/), joined = ticks.join(' ');
-    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t))) {
+    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t) && t.replace(/\D/g, '').length <= 12)) {
       const vals = ticks.map(t => parseFloat(t.replace(/,/g, ''))), st = vals[1] - vals[0];
       if (st && vals.every((v, i) => Math.abs(v - vals[0] - i * st) <= Math.abs(st) * 0.01)) {
         const dec = Math.max(...ticks.map(t => (t.split('.')[1] || '').length)), comma = ticks.some(t => t.includes(','));
@@ -686,7 +686,7 @@ customer service staff agent team people everyone nobody someone something nothi
         for (let k = 0; k < 40; k++) {
           const f = randomFactor(r), s2 = roundTo2(st * f), a = vals[0] === 0 ? 0 : roundTo2(vals[0] * f);
           const next = vals.map((_, i) => a + i * s2);
-          if (next.some(v => v < 0)) continue;
+          if (next.some(v => v < 0 || !Number.isFinite(v) || v >= 1e12)) continue;
           const out = next.map(fmt).join(' ');
           if (out !== joined && Math.abs(out.length - joined.length) <= Math.max(2, joined.length * 0.08)) return out;
         }
@@ -702,7 +702,8 @@ customer service staff agent team people everyone nobody someone something nothi
       const [intPart, dec = ''] = run.split('.'), plain = intPart.replace(/,/g, ''), v = parseFloat(plain + (dec ? '.' + dec : ''));
       const afterColon = text[offset - 1] === ':', pct = text.slice(offset + run.length).trim().startsWith('%');
       let n;
-      if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
+      if (plain.length > 15) n = digit(1) + Array.from({ length: plain.length - 1 }, () => digit()).join('') + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // a long run of digits (an ID, or ticks read as one): new digits, never "6e+23"
+      else if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
       else if (pct && v >= 100) n = String(90 + Math.floor(r() * 10)) + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // 100% becomes a high percentage
       else {
         // the real value scaled, kept to the same number of digits (a percentage stays at or under 100); a whole number
