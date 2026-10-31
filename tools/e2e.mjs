@@ -162,6 +162,29 @@ try {
   check(ctxNums.periods.every(l => !l.some(t => /\d/.test(t))), `period and rank labels stay readable: L12M, R12M, Q1-Q3, FY25-26, 2025-26, #1 (${JSON.stringify(ctxNums.periods)})`);
   check(ctxNums.money.some(t => /1\.2M/.test(t)) && !ctxNums.money.includes('5'), 'in "Top 5 $1.2M" the count stays readable and the money is masked');
   check(!(await page.evaluate(() => window.__DSC.masks.some(m => m.on && m.text === '5' && m.y > 600 && m.y < 670))), 'the demo\'s "Top 5 Accounts" title keeps its 5');
+  // a year-like number is a label, unless it is a tick on an axis of values (0, 2000, 4000, 6000)
+  const years = await page.evaluate(() => {
+    const { buildMasks } = window.__DSC.test;
+    const row = (texts, y, step = 60) => texts.map((t, i) => ({ text: t, x: 20 + i * step - t.length * 3.5, y, w: t.length * 7, h: 12, conf: 95 }));
+    const masked = ws => buildMasks(ws).map(m => m.text).join(' ');
+    return { axis: masked(row(['0', '2000', '4000', '6000'], 40)), years: masked(row(['2019', '2020', '2021', '2022'], 80)), title: masked([{ text: 'Revenue', x: 20, y: 120, w: 49, h: 12, conf: 95 }, { text: '2024', x: 76, y: 120, w: 28, h: 12, conf: 95 }]) };
+  });
+  check(/2000/.test(years.axis), `a "2000" tick between 0 and 4000 is a value and is masked (${years.axis})`);
+  // a number the reader read short ("8.5%" of "28.5%") is masked to its whole width, and letters' tops are covered
+  const grow = await page.evaluate(() => {
+    const S = window.__DSC, keep = S.img, c = document.createElement('canvas'); c.width = 300; c.height = 80;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 300, 80); x.fillStyle = '#222'; x.font = '20px sans-serif'; x.textBaseline = 'alphabetic';
+    x.fillText('28.5%', 40, 50); const full = x.measureText('28.5%').width, two = x.measureText('2').width;
+    x.fillText('Rate', 180, 50);
+    S.img = c; S.px = null;
+    try {
+      const m = S.test.buildMasks([{ text: '8.5%', x: 40 + two + 1, y: 36, w: full - two - 1, h: 14, conf: 90 }, { text: 'Rate', x: 180, y: 36, w: 40, h: 14, conf: 95 }]);
+      const n = m.find(q => q.text === '8.5%');
+      return { left: n.x, start: 40, right: n.x + n.w, end: 40 + full, top: n.y };
+    } finally { S.img = keep; S.px = null; }
+  });
+  check(grow.left <= grow.start && grow.right >= grow.end && grow.top <= 34 && grow.right < 175, `a number read short is masked to its whole width ("8.5%" box grows from x ${grow.start + 12} to ${Math.round(grow.left)}), and a safe word beside it is left alone`);
+  check(!/20(19|2\d)/.test(years.years) && !/2024/.test(years.title), `a row of years and a year in a title stay readable (${years.years || 'none'} / ${years.title || 'none'})`);
   // switching a number's mask off is remembered: the check does not re-flag it, and re-applying the policy keeps it off
   const userOff = await page.evaluate(async () => {
     const S = window.__DSC, m = S.masks.find(q => q.on && q.src === 'auto' && q.type === 'Number or money' && q.w < 120 && q.y < 300);
