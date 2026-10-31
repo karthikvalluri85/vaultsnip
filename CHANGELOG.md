@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.11.0] - 2026-10-31
 
 ### Fixed
 - **"The reader stopped responding twice" is shown reliably again.** With passes now running side by side, a pass that stalled handed its reader to the next pass in the queue before retrying, and the passes still running could overwrite the message with their progress. A stalled pass now keeps its reader for its retry, and once a reading has failed the passes still queued stop.
