@@ -991,12 +991,12 @@ customer service staff agent team people everyone nobody someone something nothi
   // The reader can miss words (tiny, rotated, coloured, low contrast), and a missed word is never classified, so it is
   // never masked. A small detector model (PP-OCRv5, in the same worker) finds every patch of text without reading it;
   // any part not covered by a mask or by a word read confidently and kept is masked as unread text. It only adds masks.
-  async function detectRegions() {
-    S.unread.regions = null;
-    if (!S.unread.on || !window.VSContext || !S.img) { S.unread.state = S.unread.on ? 'idle' : 'off'; return; }
-    S.unread.state = 'running';
+  // The text detector needs only the picture, so it can start as soon as the picture is in, and run (in its worker)
+  // while the reader reads; its regions are then waiting when the reading ends. Resolves to the raw regions, or the error.
+  function startDetect() {
+    if (!S.unread.on || !window.VSContext || !S.img) return null;
     const img = S.img;
-    try {
+    return (async () => {
       ctxClient = ctxClient || new VSContext.ContextClassifier(VSContext.moduleWorker(ctxWorkerUrl()), { timeoutMs: 60000 });
       const size = VSContext.detectorSize(img.width, img.height, S.unread.limit);
       const c = document.createElement('canvas'); c.width = size.width; c.height = size.height;
@@ -1005,8 +1005,21 @@ customer service staff agent team people everyone nobody someone something nothi
       x.drawImage(img, 0, 0, c.width, c.height);
       const d = x.getImageData(0, 0, c.width, c.height);
       const regions = await ctxClient.detect({ width: d.width, height: d.height, data: d.data });
+      return { img, regions, kx: img.width / size.width, ky: img.height / size.height };
+    })().catch(error => ({ img, error }));
+  }
+  // pre: a detection already started for this picture (startDetect), else it starts now
+  async function detectRegions(pre) {
+    S.unread.regions = null;
+    if (!S.unread.on || !window.VSContext || !S.img) { S.unread.state = S.unread.on ? 'idle' : 'off'; return; }
+    S.unread.state = 'running';
+    const img = S.img;
+    try {
+      const got = await (pre && pre.then ? pre : startDetect());
       if (S.img !== img) return;   // another screenshot started meanwhile
-      const kx = img.width / size.width, ky = img.height / size.height;
+      if (!got || got.img !== img) throw new Error('the text detector did not run');
+      if (got.error) throw got.error;
+      const { regions, kx, ky } = got;
       const scale = b => ({ x: b.x * kx, y: b.y * ky, w: b.w * kx, h: b.h * ky });
       S.unread.regions = regions.map(r => Object.assign(scale(r), r.core ? { core: scale(r.core) } : {}, r.len ? { angle: r.angle, len: r.len * kx, thick: r.thick * kx } : {}));
       await secondLook(img, S.unread.regions, buildMasks(S.words).concat(contextMasks()));
@@ -1556,13 +1569,14 @@ customer service staff agent team people everyone nobody someone something nothi
       // one figure for reading and the check that follows
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
       S.textK = 1;
+      const detecting = S.unread.on ? startDetect() : null;   // the text detector runs while the reader reads
       const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…', true);
       if (!current()) return;
       S.words = notMarks(canvas, words);
       S.comments = findComments(S.words);
       S.masks = buildMasks(S.words);
       if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); if (!current()) return; S.masks = allMasks(); }
-      if (S.unread.on) { renderTypes(); draw(); setStatus('Looking for text the reader missed (on-device AI)…', true); await detectRegions(); if (!current()) return; S.masks = allMasks(); }
+      if (S.unread.on) { renderTypes(); draw(); setStatus('Looking for text the reader missed (on-device AI)…', true); await detectRegions(detecting); if (!current()) return; S.masks = allMasks(); }
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
       renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
