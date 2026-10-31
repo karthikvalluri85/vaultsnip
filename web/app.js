@@ -1676,13 +1676,20 @@ customer service staff agent team people everyone nobody someone something nothi
     // A chart drawn only in greys has no colour to find, but its bars and areas stand out from the panel they sit on:
     // the panel's colour is the commonest one in a block of cells around them. Such cells count when much of them
     // (more than a thin line or a table's row stripe) is far from that colour. hot: 1 coloured, 2 grey only.
-    const B = 8, nbx = Math.ceil(cw / B), nby = Math.ceil(ch / B), panel = new Int32Array(nbx * nby);
+    const B = 8, nbx = Math.ceil(cw / B), nby = Math.ceil(ch / B), counts = [], panel = new Int32Array(nbx * nby);
     for (let by = 0; by < nby; by++) for (let bx = 0; bx < nbx; bx++) {
       const count = new Map(), step = Math.max(1, cell >> 1);
       for (let y = by * B * cell; y < Math.min(H, (by + 1) * B * cell); y += step) for (let x = bx * B * cell; x < Math.min(W, (bx + 1) * B * cell); x += step) {
         const i = (y * W + x) * 4, k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); count.set(k, (count.get(k) || 0) + 1);
       }
-      panel[by * nbx + bx] = [...count.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      counts.push(count);
+    }
+    // over the block and its eight neighbours, so a bar wider than a block does not become its own panel colour
+    for (let by = 0; by < nby; by++) for (let bx = 0; bx < nbx; bx++) {
+      const sum = new Map();
+      for (let y = Math.max(0, by - 1); y <= Math.min(nby - 1, by + 1); y++) for (let x = Math.max(0, bx - 1); x <= Math.min(nbx - 1, bx + 1); x++)
+        counts[y * nbx + x].forEach((n, k) => sum.set(k, (sum.get(k) || 0) + n));
+      panel[by * nbx + bx] = [...sum.entries()].sort((a, b) => b[1] - a[1])[0][0];
     }
     const hot = new Uint8Array(cw * ch);
     for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
