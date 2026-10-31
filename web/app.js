@@ -195,6 +195,7 @@ which what when where how why than then also just about across into out off per 
   function beat(slot, m) {
     const at = m.status + ':' + m.progress;
     if (at !== slot.at) { slot.at = at; slot.beat = Date.now(); }
+    if (slot.job && slot.job.failed) return;
     if (m.status && typeof m.progress === 'number') { if (/recognizing/i.test(m.status)) slot.prog = m.progress; showProgress(m.status); }
   }
   // One progress figure for a whole job: every reading pass, and for a new screenshot the check that follows. Each pass
@@ -270,32 +271,38 @@ which what when where how why than then also just about across into out off per 
   }
   // make: prepares the image for this pass, once a reader is free; weight: how much it counts in the progress figure
   async function recognize(make, kind, weight) {
-    for (let attempt = 0; ; attempt++) {
-      const slot = await acquire();
-      slot.weight = weight || 1; slot.prog = 0; slot.job = job;
-      try {
-        const w = await (slot.p || startReader(slot));
-        if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
-        const canvas = make();
-        // tests can make the next readings hang, to prove the watchdog recovers
-        // (silent, or repeating the same progress figure for a while)
-        const spin = () => { const t = setInterval(() => beat(slot, { status: 'recognizing text', progress: 0.06 }), 200); setTimeout(() => clearInterval(t), 10000); };
-        const run = S.test && S.test.stalls > 0 ? (S.test.stalls--, new Promise(() => {}))
-          : S.test && S.test.spins > 0 ? (S.test.spins--, spin(), new Promise(() => {}))
-          : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
-        run.catch(() => {});   // an abandoned reading may still fail once its reader is ended
-        return (await watched(run, slot)).data;
-      } catch (e) {
-        if (!(e instanceof ReaderStalled)) throw e;
-        console.warn('The on-device reader stopped responding; restarting it.');
-        const stuck = slot.p; slot.p = null;
-        if (stuck) stuck.then(w => w.terminate()).catch(() => {});
-        if (attempt >= 1) throw new Error('it stopped responding twice. Please try again; closing other tabs can help.');
-        continue;
-      } finally {
-        if (kind === 'block' && slot.p) await (await slot.p).setParameters({ tessedit_pageseg_mode: '11' }).catch(() => {});
-        release(slot);
+    // one reader for the whole pass, restarts included: a pass that stalls keeps its place instead of handing the reader
+    // to the next pass in the queue, so "stopped twice" means this pass stopped twice
+    const own = job, slot = await acquire();
+    try {
+      for (let attempt = 0; ; attempt++) {
+        // another pass of the same reading already failed: the reading is over, so this pass does not start
+        if (own && own.failed) throw new Error('the reading was stopped');
+        slot.weight = weight || 1; slot.prog = 0; slot.job = job;
+        try {
+          const w = await (slot.p || startReader(slot));
+          if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
+          const canvas = make();
+          // tests can make the next readings hang, to prove the watchdog recovers
+          // (silent, or repeating the same progress figure for a while)
+          const spin = () => { const t = setInterval(() => beat(slot, { status: 'recognizing text', progress: 0.06 }), 200); setTimeout(() => clearInterval(t), 10000); };
+          const run = S.test && S.test.stalls > 0 ? (S.test.stalls--, new Promise(() => {}))
+            : S.test && S.test.spins > 0 ? (S.test.spins--, spin(), new Promise(() => {}))
+            : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
+          run.catch(() => {});   // an abandoned reading may still fail once its reader is ended
+          return (await watched(run, slot)).data;
+        } catch (e) {
+          if (!(e instanceof ReaderStalled)) throw e;
+          console.warn('The on-device reader stopped responding; restarting it.');
+          const stuck = slot.p; slot.p = null;
+          if (stuck) stuck.then(w => w.terminate()).catch(() => {});
+          if (attempt >= 1) throw new Error('it stopped responding twice. Please try again; closing other tabs can help.');
+        } finally {
+          if (kind === 'block' && slot.p) await (await slot.p).setParameters({ tessedit_pageseg_mode: '11' }).catch(() => {});
+        }
       }
+    } finally {
+      release(slot);
     }
   }
   async function ocrPass(src, scale, kind) {
@@ -326,6 +333,9 @@ which what when where how why than then also just about across into out off per 
         // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
         all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
       });
+    } catch (e) {
+      j.failed = true;   // passes still queued stop, and their progress no longer overwrites the message
+      throw e;
     } finally { if (mine && job === j) job = null; }
     return plausible(all);
   }

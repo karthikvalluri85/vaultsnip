@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **"The reader stopped responding twice" is shown reliably again.** With passes now running side by side, a pass that stalled handed its reader to the next pass in the queue before retrying, and the passes still running could overwrite the message with their progress. A stalled pass now keeps its reader for its retry, and once a reading has failed the passes still queued stop.
+- The end-to-end tests report each failed check as a GitHub annotation, so a failure on CI can be read without the raw log.
+
 ## [0.10.0] - 2026-10-31
 
 The replica reads like the real dashboard, any chart can be blurred, the check raises fewer false alarms, reading is faster, and the measured leak figure is published.
