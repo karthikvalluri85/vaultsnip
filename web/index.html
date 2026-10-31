@@ -195,7 +195,8 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
             <button type="button" id="t-mask" aria-pressed="true" title="Drag over text to hide it">Drag to mask</button>
             <button type="button" id="t-blur" aria-pressed="false" title="Drag over a chart to blur it, so its shape cannot be read. Click a blurred area to remove it.">Blur a chart</button>
           </div>
-          <span class="hint">Click a box to turn its mask on or off. Drag to add a mask, or choose <b>Blur a chart</b> and drag over a chart to hide its shape.</span>
+          <button type="button" class="btn" id="t-blur-all" title="Find the charts on this picture (on this device) and blur them all. Click a blurred area to bring it back.">Blur all charts</button>
+          <span class="hint">Click a box to turn its mask on or off. Drag to add a mask, or choose <b>Blur a chart</b> and drag over a chart to hide its shape (<b>Blur all charts</b> does every chart at once).</span>
         </div>
         <p class="fakenote" id="fake-note" role="note" hidden><b>Numbers here are made up</b>: same scale as the real ones, never the real values. Names and labels stay masked. This is the image that is saved or copied, with the same note below it.</p>
         <div class="canvaswrap" id="review-wrap"><canvas id="review-canvas" role="img" aria-label="The screenshot with mask boxes. Use the list of masks beside it to turn masks on or off with the keyboard."></canvas></div>

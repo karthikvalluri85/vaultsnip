@@ -1414,6 +1414,59 @@ customer service staff agent team people everyone nobody someone something nothi
     rc.style.cursor = v === 'orig' ? 'crosshair' : 'default';
     draw();
   }
+  // "Blur all charts": the charts on the page found on the device, so their shapes can be blurred in one click. A chart is
+  // where colour is: bars, lines, slices, map shading and gauges are drawn in colour, while text, tables, panels and
+  // gridlines are black, white or grey. The picture is cut into small cells; cells with enough coloured pixels outside
+  // the text the reader found are joined with their neighbours, and each joined area big enough to be a chart is one.
+  function detectCharts() {
+    if (!S.img) return [];
+    const W = S.img.width, H = S.img.height, d = S.img.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+    const cell = Math.max(4, Math.round(Math.min(W, H) / 120)), cw = Math.ceil(W / cell), ch = Math.ceil(H / cell);
+    const text = new Uint8Array(W * H);
+    S.words.forEach(w => { for (let y = Math.max(0, Math.floor(w.y - 2)); y < Math.min(H, Math.ceil(w.y + w.h + 2)); y++) text.fill(1, y * W + Math.max(0, Math.floor(w.x - 2)), y * W + Math.min(W, Math.ceil(w.x + w.w + 2))); });
+    const hot = new Uint8Array(cw * ch);
+    for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
+      let n = 0, all = 0;
+      for (let y = cy * cell; y < Math.min(H, (cy + 1) * cell); y++) for (let x = cx * cell; x < Math.min(W, (cx + 1) * cell); x++) {
+        all++;
+        const i = y * W + x; if (text[i]) continue;
+        const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        if (mx > 40 && (mx - mn) / mx > 0.28 && mx - mn > 40) n++;                     // a coloured pixel, not grey
+      }
+      if (n > all * 0.12) hot[cy * cw + cx] = 1;
+    }
+    // join cells a few cells apart (the gaps between bars, a line's breaks), then find each joined area
+    const R = 2, grown = new Uint8Array(cw * ch);
+    for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) if (hot[cy * cw + cx])
+      for (let y = Math.max(0, cy - R); y <= Math.min(ch - 1, cy + R); y++) for (let x = Math.max(0, cx - R); x <= Math.min(cw - 1, cx + R); x++) grown[y * cw + x] = 1;
+    const seen = new Uint8Array(cw * ch), out = [];
+    for (let s0 = 0; s0 < cw * ch; s0++) {
+      if (!grown[s0] || seen[s0]) continue;
+      const stack = [s0]; seen[s0] = 1;
+      let x0 = cw, y0 = ch, x1 = -1, y1 = -1, core = 0;
+      while (stack.length) {
+        const i = stack.pop(), cx = i % cw, cy = (i / cw) | 0;
+        if (hot[i]) { core++; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy); }
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const nx = cx + dx, ny = cy + dy, j = ny * cw + nx; if (nx >= 0 && ny >= 0 && nx < cw && ny < ch && grown[j] && !seen[j]) { seen[j] = 1; stack.push(j); } });
+      }
+      if (x1 < 0) continue;
+      const bw = (x1 - x0 + 1) * cell, bh = (y1 - y0 + 1) * cell;
+      // big enough to be a chart (a coloured badge, an icon or a thin brand strip is not), and not a few stray cells
+      if (bw < Math.max(48, W * 0.05) || bh < Math.max(32, H * 0.04) || core < 6) continue;
+      const pad = Math.round(cell / 2);
+      out.push({ x: Math.max(0, x0 * cell - pad), y: Math.max(0, y0 * cell - pad), w: Math.min(W, (x1 + 1) * cell + pad) - Math.max(0, x0 * cell - pad), h: Math.min(H, (y1 + 1) * cell + pad) - Math.max(0, y0 * cell - pad) });
+    }
+    return out;
+  }
+  function blurAllCharts() {
+    const found = detectCharts().filter(c => !S.blurs.some(b => overlap(b, c) > 0.5));
+    found.forEach(c => S.blurs.push(c));
+    if (found.length) { if (S.tool !== 'blur') setTool('blur'); S.gate = 'dirty'; renderGate(); }
+    renderTypes(); draw();
+    setStatus(found.length ? `Blurred ${found.length} chart${found.length > 1 ? 's' : ''}. Click a blurred area to bring it back, or drag to blur another.`
+      : 'No charts found in colour. Choose Blur a chart and drag over one.', false);
+    return found.length;
+  }
   function setTool(t) {
     S.tool = t;
     $('t-mask').setAttribute('aria-pressed', String(t === 'mask'));
@@ -1422,6 +1475,7 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   $('t-mask').onclick = () => setTool('mask');
   $('t-blur').onclick = () => setTool('blur');
+  $('t-blur-all').onclick = blurAllCharts;
   $('v-orig').onclick = () => setView('orig');
   $('v-mask').onclick = () => setView('mask');
   $('v-zoom').onclick = () => { const on = $('review-wrap').classList.toggle('zoom'); $('v-zoom').setAttribute('aria-pressed', String(on)); };
@@ -1928,5 +1982,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

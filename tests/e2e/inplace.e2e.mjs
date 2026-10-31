@@ -125,6 +125,11 @@ try {
     check(inBlur.patch && inBlur.range < 120, `the blurred area keeps no readable shape (light-to-dark range ${inBlur.range})`);
     check(inBlur.under === 0, 'no synthetic text is drawn over a blurred area');
     await page.evaluate(() => { window.__DSC.blurs = []; window.__DSC.test.buildInPlace(false); });
+    // "Blur all charts": the replica differs only in the replaced boxes and the areas it found
+    const nAll = await page.evaluate(() => { const S = window.__DSC; S.blurs = []; const n = S.test.blurAllCharts(); S.test.buildInPlace(false); return n; });
+    const ca = await compare();
+    check(nAll >= 1 && ca.outside === 0, `with every chart blurred (${nAll}), every pixel outside the replaced boxes and the blurred areas is the original's (${ca.outside} differ)`);
+    await page.evaluate(() => { window.__DSC.blurs = []; window.__DSC.test.buildInPlace(false); });
   }
 
   console.log('Download');
