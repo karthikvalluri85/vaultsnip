@@ -2,9 +2,23 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.11.0] - 2026-10-31
+
+Less sensitive text left readable, findings you can judge at a glance, every chart blurred in one click, a private benchmark on your own screenshots, and faster reading. On the 20-dashboard test set the leaked area fell from 0.72% to 0.31%.
+
+### Added
+- **Blur all charts.** One click on the review screen finds the charts on the picture, on this device (bars, lines, slices, map shading and gauges are drawn in colour; text, tables and panels are not), and blurs them all. Each area can be clicked away like one drawn by hand.
+- **A close-up of each finding.** Every finding of the check shows the image as it would be shared, outlined, with what is around it. Numbers and IDs come first, then words, and findings where neither reader saw any text ("Probably a chart mark") last; they are still findings. With a finding focused, M masks it and S or K keeps it, and focus moves on to the next.
+- **A private benchmark on your own screenshots.** `npm run bench:real:label` opens a labeller on 127.0.0.1 for the screenshots in `.bench/real/` (git-ignored): drag a box over each sensitive item, and `npm run bench:real` scores masking on them with the same measures. Nothing leaves the computer.
+
+### Changed
+- **Fewer leaks.** A mask grows to the ink it touches: up and down to where its letters end, and for confident readings of two or more digits sideways across gaps narrower than a space, so a digit the reader missed at either end ("8.5%" of "28.5%") is covered; ink that runs on past the line (a bar, a gridline, a border) stops it. A year-like number ("2000") stays a label unless it is a tick on an axis of values (0, 2000, 4000), where it is masked and replaced like its neighbours. Sensitive words at least partly readable on the test set: 35 → 20 (numbers 23 → 9); safe words masked anyway: 8.8% → 9.5%.
+- **Maps are no longer smeared in the replica.** An unsure two- or three-letter reading where the text detector found no text is a shape, and is no longer masked; boxes with leftover pixels after clearing fell from 135 to 111, and sensitive words left readable in the replica from 20 to 10 (of 2,680).
+- **Faster.** The text reader starts loading when the pointer comes near the drop area or a file is dragged over the page, so its few seconds pass while the file is being picked; and the enlarged reading passes are only enlarged as far as the text's size needs. Median time on the test set: 47 s → 40 s.
+- The start screen, README and ACCURACY.md carry the new figures.
 
 ### Fixed
+- A very long run of digits (an ID, or axis ticks read as one) is replaced with new digits, never shown in exponent notation ("6e+23").
 - **"The reader stopped responding twice" is shown reliably again.** With passes now running side by side, a pass that stalled handed its reader to the next pass in the queue before retrying, and the passes still running could overwrite the message with their progress. A stalled pass now keeps its reader for its retry, and once a reading has failed the passes still queued stop.
 - The end-to-end tests report each failed check as a GitHub annotation, so a failure on CI can be read without the raw log.
 

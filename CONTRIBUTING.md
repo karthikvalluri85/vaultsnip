@@ -49,6 +49,16 @@ npm run test:inplace      # the in-place replica's end-to-end checks
 CI runs the masking benchmark on 8 generated dashboards for every pull request and on 60 nightly. A change that improves
 a figure raises its baseline file in the same pull request.
 
+Generated dashboards are not real ones. To score masking on your own screenshots without sharing them, put them in
+`.bench/real/` (git-ignored, so they can never be committed) and label them on your own computer:
+
+```bash
+npm run bench:real:label  # a labeller at http://127.0.0.1:8765/ (this computer only): drag a box over each sensitive item
+npm run bench:real        # the same masking scores on your labelled screenshots
+```
+
+Please share the figures, never the screenshots or their labels.
+
 [ACCURACY.md](ACCURACY.md) defines what each figure means, records the baseline and sets out the plan for raising it.
 
 ## Project layout

@@ -12,9 +12,9 @@ Also on Hugging Face: https://huggingface.co/spaces/karthikvalluri/vaultsnip · 
 
 VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, sends nothing anywhere, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
 
-**What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, choose **Blur a chart** and drag over it.
+**What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, choose **Blur a chart** and drag over it, or **Blur all charts**.
 
-**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.72% of the area of sensitive text was still readable** after masking and the pre-flight check: 35 of 1,852 sensitive words were at least partly readable (23 numbers, 6 person names, 4 product names, 2 organisations). That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-010).
+**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.31% of the area of sensitive text was still readable** after masking and the pre-flight check: 20 of 1,852 sensitive words were at least partly readable (9 numbers, 6 person names, 3 product names, 2 organisations). That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-011). To measure on your own screenshots, privately: `npm run bench:real:label`.
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
@@ -40,9 +40,9 @@ capture → local OCR → mask everything except an allowlist → independent re
 | Blur text in charts on any page (extension) | ✅ right-click → "Blur text in charts on this page" or Alt+Shift+B: charts drawn on canvas (Power BI, Tableau, ECharts…) are read on your device and sensitive text is blurred in place; run again to remove |
 | On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |
 | Unread-text check (AI) | ✅ two small PP-OCRv5 models (5 MB and 7 MB) find every patch of text and read it again line by line, and mask any the reader missed or could not vouch for; only adds masks; can be switched off |
-| Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain** |
+| Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain**; each finding shows a close-up of the image as it would be shared, likely leaks first and probable chart marks last, and M / K step through them from the keyboard |
 | Review: click to toggle, drag to add masks | ✅ |
-| **Blur a chart** | ✅ drag over any chart whose shape is confidential: it becomes a soft wash of its own colours in the masked image and the replica, so bar lengths, trends and proportions cannot be read; click it to undo; the receipt counts blurred areas |
+| **Blur a chart** | ✅ drag over any chart whose shape is confidential: it becomes a soft wash of its own colours in the masked image and the replica, so bar lengths, trends and proportions cannot be read; click it to undo; the receipt counts blurred areas. **Blur all charts** finds every chart on the device (from where the picture's colours are) and blurs them in one click |
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in |
 | Preview of the masked image before you save, copy or build | ✅ |
 | **In-place replica** | ✅ the original screenshot, pixel for pixel, with each hidden text wiped from its surrounding background (only the text's own pixels; bar edges and borders through a box survive) and synthetic text drawn back in the same place, size, colour, weight and alignment. Any visual works, because none is redrawn: decomposition trees, custom maps, proprietary widgets |

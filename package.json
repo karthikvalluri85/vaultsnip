@@ -1,6 +1,6 @@
 {
   "name": "vaultsnip",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "description": "Turn sensitive report snips into client-safe replicas. Browser-only: masks sensitive text on your device and replaces it in place with synthetic text.",
   "homepage": "https://vaultsnip.pages.dev",
@@ -43,7 +43,10 @@
     "build:faker": "node tools/build-faker.mjs",
     "build:privacy": "node tools/build-privacy.mjs",
     "bench:synth": "node tools/synth-bench/gen.mjs && node tools/synth-bench/run.mjs",
-    "bench:gate": "node tools/bench-gate.mjs"
+    "bench:gate": "node tools/bench-gate.mjs",
+    "bench:real:label": "node tools/real-bench/label.mjs",
+    "bench:real": "node tools/synth-bench/run.mjs --dir .bench/real",
+    "test:real-label": "node tests/e2e/real-label.e2e.mjs"
   },
   "dependencies": {
     "@faker-js/faker": "10.6.0",

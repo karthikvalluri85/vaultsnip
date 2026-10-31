@@ -76,7 +76,19 @@ try {
   const drops = prog.filter((v, i) => i > 0 && v < prog[i - 1]).length;
   check(prog.length > 5 && drops === 0 && Math.max(...prog) >= 90, `reading and checking show one progress figure that only climbs (${prog.length} updates, ${prog[0]}% → ${prog[prog.length - 1]}%, ${drops} restarts)`);
   const gate = (await page.locator('.gate').textContent()).replace(/\s+/g, ' ').trim();
-  check(/Blocked|Review/.test(gate), `pre-flight check catches readable text (${gate.slice(0, 40)}…)`);
+  check(/Blocked|Review|Pass/.test(gate), `the pre-flight check runs on the demo (${gate.slice(0, 40)}…)`);
+  // and it catches readable text: with one number's mask taken away (not switched off by the user), the check finds it
+  const caught = await page.evaluate(async () => {
+    const S = window.__DSC, i = S.masks.findIndex(m => m.on && m.src === 'auto' && m.type === 'Number or money' && m.w > 30 && m.h > 14);
+    const [m] = S.masks.splice(i, 1);
+    document.getElementById('btn-recheck').click();
+    let started = false;
+    await new Promise(r => { const t = setInterval(() => { if (S.gate === 'running') started = true; else if (started) { clearInterval(t); r(); } }, 50); });
+    const found = S.flags.some(f => f.x < m.x + m.w && f.x + f.w > m.x && f.y < m.y + m.h && f.y + f.h > m.y);
+    S.masks.splice(i, 0, m); S.flags = []; S.test.updateGate();
+    return { found, text: m.text, gate: S.gate };
+  });
+  check(caught.found, `pre-flight check catches readable text: a number left unmasked ("${caught.text}") becomes a finding`);
   check(await page.evaluate(() => (window.__DSC.masks || []).length > 20), 'sensitive text is masked');
   check(await page.evaluate(() => window.__DSC.ctx.state) === 'ready', `on-device name check ran on the demo (${await page.evaluate(() => window.__DSC.ctx.state)})`);
   const ctx = await page.evaluate(async () => {
@@ -162,6 +174,29 @@ try {
   check(ctxNums.periods.every(l => !l.some(t => /\d/.test(t))), `period and rank labels stay readable: L12M, R12M, Q1-Q3, FY25-26, 2025-26, #1 (${JSON.stringify(ctxNums.periods)})`);
   check(ctxNums.money.some(t => /1\.2M/.test(t)) && !ctxNums.money.includes('5'), 'in "Top 5 $1.2M" the count stays readable and the money is masked');
   check(!(await page.evaluate(() => window.__DSC.masks.some(m => m.on && m.text === '5' && m.y > 600 && m.y < 670))), 'the demo\'s "Top 5 Accounts" title keeps its 5');
+  // a year-like number is a label, unless it is a tick on an axis of values (0, 2000, 4000, 6000)
+  const years = await page.evaluate(() => {
+    const { buildMasks } = window.__DSC.test;
+    const row = (texts, y, step = 60) => texts.map((t, i) => ({ text: t, x: 20 + i * step - t.length * 3.5, y, w: t.length * 7, h: 12, conf: 95 }));
+    const masked = ws => buildMasks(ws).map(m => m.text).join(' ');
+    return { axis: masked(row(['0', '2000', '4000', '6000'], 40)), years: masked(row(['2019', '2020', '2021', '2022'], 80)), title: masked([{ text: 'Revenue', x: 20, y: 120, w: 49, h: 12, conf: 95 }, { text: '2024', x: 76, y: 120, w: 28, h: 12, conf: 95 }]) };
+  });
+  check(/2000/.test(years.axis), `a "2000" tick between 0 and 4000 is a value and is masked (${years.axis})`);
+  // a number the reader read short ("8.5%" of "28.5%") is masked to its whole width, and letters' tops are covered
+  const grow = await page.evaluate(() => {
+    const S = window.__DSC, keep = S.img, c = document.createElement('canvas'); c.width = 300; c.height = 80;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 300, 80); x.fillStyle = '#222'; x.font = '20px sans-serif'; x.textBaseline = 'alphabetic';
+    x.fillText('28.5%', 40, 50); const full = x.measureText('28.5%').width, two = x.measureText('2').width;
+    x.fillText('Rate', 180, 50);
+    S.img = c; S.px = null;
+    try {
+      const m = S.test.buildMasks([{ text: '8.5%', x: 40 + two + 1, y: 36, w: full - two - 1, h: 14, conf: 90 }, { text: 'Rate', x: 180, y: 36, w: 40, h: 14, conf: 95 }]);
+      const n = m.find(q => q.text === '8.5%');
+      return { left: n.x, start: 40, right: n.x + n.w, end: 40 + full, top: n.y };
+    } finally { S.img = keep; S.px = null; }
+  });
+  check(grow.left <= grow.start && grow.right >= grow.end && grow.top <= 34 && grow.right < 175, `a number read short is masked to its whole width ("8.5%" box grows from x ${grow.start + 12} to ${Math.round(grow.left)}), and a safe word beside it is left alone`);
+  check(!/20(19|2\d)/.test(years.years) && !/2024/.test(years.title), `a row of years and a year in a title stay readable (${years.years || 'none'} / ${years.title || 'none'})`);
   // switching a number's mask off is remembered: the check does not re-flag it, and re-applying the policy keeps it off
   const userOff = await page.evaluate(async () => {
     const S = window.__DSC, m = S.masks.find(q => q.on && q.src === 'auto' && q.type === 'Number or money' && q.w < 120 && q.y < 300);
@@ -220,6 +255,24 @@ try {
   const hu = await page.evaluate(() => ({ gate: document.querySelector('.gate').textContent, added: window.__DSC.masks.slice(-2).map(m => m.on && m.src === 'check' && m.type === 'Added after check'), n: window.__DSC.masks.length }));
   check(/Pass/.test(hu.gate) && hu.n === hu0 + 2 && hu.added.every(Boolean) && await huBtn.isHidden(), 'one click hides both, counts them as your decisions, and the gate passes');
   await page.evaluate(() => { const S = window.__DSC; S.masks.splice(-2, 2); S.flags = []; S.test.updateGate(); });
+  // each finding comes with a close-up of the image as it would be shared; likely leaks first, probable chart marks
+  // last; and M masks the focused one and moves on to the next
+  const m0 = await page.evaluate(() => window.__DSC.masks.length);
+  await page.evaluate(() => {
+    const S = window.__DSC;
+    S.flags = [{ x: 200, y: 90, w: 12, h: 16, text: '7', type: 'Number or money', severity: 'block', resolved: false, likelyMark: true },
+      { x: 60, y: 60, w: 30, h: 20, text: '42', type: 'Number or money', severity: 'block', resolved: false, likelyMark: false },
+      { x: 120, y: 60, w: 60, h: 20, text: 'Zorblat', type: 'Text not on allowlist', severity: 'review', resolved: false, likelyMark: false }];
+    S.test.updateGate();
+  });
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#flags .flag')].map(d => ({ t: d.querySelector('code').textContent, crop: !!d.querySelector('canvas.crop') && d.querySelector('canvas.crop').height > 0, hint: d.querySelector('small').textContent })));
+  check(rows.length === 3 && rows.every(r => r.crop), `every finding shows a close-up of the masked image (${rows.filter(r => r.crop).length}/${rows.length})`);
+  check(rows.map(r => r.t).join(',') === '42,Zorblat,7' && /chart mark/.test(rows[2].hint), `likely leaks first, probable chart marks last (${rows.map(r => r.t).join(', ')})`);
+  await page.locator('#flags .flag').first().focus();
+  await page.keyboard.press('m');
+  const afterM = await page.evaluate(() => ({ added: window.__DSC.masks.length, open: window.__DSC.flags.filter(f => !f.resolved).map(f => f.text), focus: document.activeElement && document.activeElement.querySelector && (document.activeElement.querySelector('code') || {}).textContent }));
+  check(afterM.added === m0 + 1 && afterM.open.join(',') === '7,Zorblat' && afterM.focus === 'Zorblat', `M masks the focused finding and moves on to the next (focus: ${afterM.focus})`);
+  await page.evaluate(() => { const S = window.__DSC; S.masks.splice(-1, 1); S.flags = []; S.test.updateGate(); });
   // the review summary: plain numbers that add up, your decisions counted, and a clear next step
   const sum = await page.evaluate(() => {
     const S = window.__DSC, words = S.words.filter(w => !w.ghost);
@@ -476,9 +529,30 @@ try {
     const [cx, cy] = at(400, 470);
     await page.mouse.click(cx, cy);
     check(await page.evaluate(() => window.__DSC.blurs.length) === 0, 'clicking a blurred area with "Blur a chart" removes it');
+    // "Blur all charts": the sample's charts are found on the device and blurred in one click; text-only panels are not
+    await page.click('#t-blur-all');
+    const all = await page.evaluate(() => {
+      const S = window.__DSC, W = S.img.width, H = S.img.height;
+      const inBlur = w => S.blurs.some(b => w.x + w.w / 2 > b.x && w.x + w.w / 2 < b.x + b.w && w.y + w.h / 2 > b.y && w.y + w.h / 2 < b.y + b.h);
+      return { n: S.blurs.length, share: S.blurs.reduce((a, b) => a + b.w * b.h, 0) / (W * H), wordsIn: S.words.filter(inBlur).length, words: S.words.length, status: document.getElementById('status').textContent };
+    });
+    check(all.n >= 2 && all.share < 0.7 && /Blurred \d+ chart/.test(all.status), `"Blur all charts" finds and blurs the sample's charts (${all.n} areas, ${Math.round(all.share * 100)}% of the picture)`);
+    check(all.wordsIn < all.words * 0.6, `it leaves the text panels alone (${all.wordsIn} of ${all.words} words fall in a blurred area)`);
+    await page.click('#t-blur-all');
+    check(await page.evaluate(n => window.__DSC.blurs.length === n, all.n), 'running it again adds nothing new');
+    await page.evaluate(() => { window.__DSC.blurs.length = 0; });
   }
 
   console.log('Start screen');
+  await page.goto(base);
+  // the reader starts loading when the pointer comes near the drop area, quietly
+  const st0 = await page.locator('#status').textContent();
+  const before = await page.evaluate(() => window.__DSC.test.readersStarted());
+  await page.hover('#drop');
+  await page.waitForFunction(() => window.__DSC.test.readersStarted() > 0, null, { timeout: 5000 }).catch(() => {});
+  const after = await page.evaluate(() => window.__DSC.test.readersStarted());
+  await page.waitForTimeout(1500);
+  check(before === 0 && after > 0 && (await page.locator('#status').textContent()) === st0, `the reader starts loading when the pointer nears the drop area, without a message (${before} → ${after})`);
   await page.goto(base);
   await page.setInputFiles('#file', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
   check(await page.locator('#drop-err').isVisible() && /PNG, JPG or WebP/.test(await page.locator('#drop-err').textContent()), 'a file that is not an image gets an inline message, not a pop-up');

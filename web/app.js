@@ -18,6 +18,7 @@
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     sessionAllow: new Set(),
+    valueYears: new Set(),   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
     blurs: [], tool: 'mask',   // areas the user chose to blur (charts whose shape is confidential), and what a drag draws
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
@@ -186,8 +187,22 @@ which what when where how why than then also just about across into out off per 
     for (;;) {
       let slot = slots.slice(0, size).find(sl => !sl.busy);
       if (!slot && slots.length < size) { slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null }; slots.push(slot); }
-      if (slot) { slot.busy = true; return slot; }
+      if (slot) { slot.busy = true; slot.quiet = false; return slot; }
       await new Promise(r => waiting.push(r));
+    }
+  }
+  // The reader takes a few seconds to start (its program and the English language file, from this site). It starts as
+  // soon as the pointer comes near the drop area, a file is dragged over the page or a sample is about to be chosen, so
+  // those seconds pass while the file is being picked. Quietly: its progress is not shown until it is put to work.
+  let warmed = false;
+  function prewarm() {
+    if (warmed || typeof Tesseract === 'undefined') return;
+    warmed = true;
+    const size = (S.test && S.test.pool) || POOL;
+    while (slots.length < size) {
+      const slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null, quiet: true };
+      slots.push(slot);
+      startReader(slot).catch(() => {});   // a failed start is retried when the reader is needed
     }
   }
   function release(slot) { slot.busy = false; slot.prog = 0; slot.job = null; const next = waiting.shift(); if (next) next(); }
@@ -195,7 +210,7 @@ which what when where how why than then also just about across into out off per 
   function beat(slot, m) {
     const at = m.status + ':' + m.progress;
     if (at !== slot.at) { slot.at = at; slot.beat = Date.now(); }
-    if (slot.job && slot.job.failed) return;
+    if ((slot.job && slot.job.failed) || slot.quiet) return;
     if (m.status && typeof m.progress === 'number') { if (/recognizing/i.test(m.status)) slot.prog = m.progress; showProgress(m.status); }
   }
   // One progress figure for a whole job: every reading pass, and for a new screenshot the check that follows. Each pass
@@ -319,8 +334,22 @@ which what when where how why than then also just about across into out off per 
     });
     return out;
   }
+  // The enlarged passes (2× and 3×) are there for small text: they bring 11-pixel labels up to the size the reader reads
+  // best. A screenshot taken on a high-density screen already has text twice that size, and enlarging it three times
+  // more only costs time (a 3× pass reads 4 times the pixels of a 1.5× one). So once the text's usual height is known,
+  // those passes are enlarged only as far as small text needs, never below 1.5×. Measured on the generated set: the same
+  // words read, in less time on 2× screenshots.
+  const SMALL_TEXT = 12;   // at 3×, text of this height or less reads at about 36 pixels, the size the reader reads best
+  function textSizeFactor(words) {
+    const hs = words.filter(w => w.conf >= 60 && /[A-Za-z0-9]/.test(w.text)).map(w => w.h).sort((a, b) => a - b);
+    if (hs.length < 8) return 1;
+    const med = hs[Math.floor(hs.length / 2)];
+    return Math.max(0.5, Math.min(1, SMALL_TEXT / med));
+  }
+  const fitScale = (scale, k) => (scale > 1.5 ? Math.max(1.5, Math.round(scale * k * 4) / 4) : scale);
   // Several passes, merged: a word found by a later pass is kept only if no earlier pass found it.
-  async function readAll(src, passes, label) {
+  // adapt: read the 1.5× passes first, and enlarge the others by what the text's size needs (see above)
+  async function readAll(src, passes, label, adapt) {
     let all = [];
     const mine = !job;
     if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, shown: 0 };
@@ -328,7 +357,19 @@ which what when where how why than then also just about across into out off per 
     j.label = label || 'Reading text on this device…';
     try {
       // all passes at once (as many as there are readers); merged in pass order, exactly as when they ran one by one
-      const results = await Promise.all(passes.map(([scale, kind, own]) => ocrPass(own || src, scale, kind).then(got => { j.done += scale * scale; return got; })));
+      const run = (list, k) => Promise.all(list.map(([scale, kind, own]) => {
+        const s2 = fitScale(scale, k);
+        j.total -= scale * scale - s2 * s2;   // the figure counts the pixels actually read
+        return ocrPass(own || src, s2, kind).then(got => { j.done += s2 * s2; return got; });
+      }));
+      let results;
+      if (adapt && passes.some(p => p[0] > 1.5)) {
+        const small = passes.filter(p => p[0] <= 1.5), big = passes.filter(p => p[0] > 1.5);
+        const first = await run(small, 1);
+        S.textK = textSizeFactor([].concat(...first));
+        const rest = await run(big, S.textK);
+        results = passes.map(p => (p[0] <= 1.5 ? first[small.indexOf(p)] : rest[big.indexOf(p)]));
+      } else results = await run(passes, S.textK || 1);
       results.forEach(got => {
         // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
         all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
@@ -464,15 +505,110 @@ customer service staff agent team people everyone nobody someone something nothi
   }
 
   /* ---------------- masks ---------------- */
+  // A year-like number ("2000") is a label, unless it is one tick of an axis of values (0, 2000, 4000, 6000): numbers on
+  // its row or column, evenly spaced and evenly stepped, that are not all years. Then it is a value like its neighbours.
+  const YEARLIKE = /^(19|20)\d{2}$/;
+  const plainNum = t => { const c = String(t).trim().replace(/[-–]$/, ''); return /^\d[\d,]*(\.\d+)?$/.test(c) ? parseFloat(c.replace(/,/g, '')) : NaN; };
+  function yearOnValueAxis(w, words) {
+    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+    const lines = [
+      words.filter(v => Math.abs(v.y + v.h / 2 - cy) < Math.max(v.h, w.h) * 0.6 && Math.abs(v.h - w.h) < Math.max(v.h, w.h) * 0.4),   // its row
+      words.filter(v => Math.abs(v.x + v.w - (w.x + w.w)) < Math.max(4, w.h * 0.5) || Math.abs(v.x + v.w / 2 - cx) < Math.max(4, w.h * 0.5))   // its column
+    ];
+    return lines.some((line, i) => {
+      const nums = line.filter(v => Number.isFinite(plainNum(v.text))).sort((a, b) => (i ? a.y - b.y : a.x - b.x));
+      const at = nums.indexOf(w);
+      if (nums.length < 3 || at < 0) return false;
+      // the stretch of neighbours around it that steps evenly, in value and position
+      for (let a = Math.max(0, at - 2); a <= at; a++) {
+        const run = nums.slice(a, a + 3);
+        if (run.length < 3 || !run.includes(w)) continue;
+        const vals = run.map(v => plainNum(v.text)), pos = run.map(v => (i ? v.y + v.h / 2 : v.x + v.w / 2));
+        const dv = vals[1] - vals[0], dp = pos[1] - pos[0];
+        if (!dv || !dp || Math.abs(vals[2] - vals[1] - dv) > Math.abs(dv) * 0.05 || Math.abs(pos[2] - pos[1] - dp) > Math.abs(dp) * 0.25) continue;
+        if (run.some(v => !YEARLIKE.test(v.text.trim().replace(/[-–]$/, '')))) return true;
+      }
+      return false;
+    });
+  }
+  // The reader's box can be smaller than the text it read: a digit or a letter at either end missed ("8.5%" of "28.5%"),
+  // or the tops of the letters left out. The box grows to the ink that touches it: up and down to where the letters end,
+  // and for numbers sideways across gaps narrower than a space. Ink that runs on far past the line (a bar, a
+  // gridline, a border) is a shape, not a letter, and stops the growth. On the device, from the picture's own pixels.
+  function pixels() {
+    if (!S.img) return null;
+    if (!S.px || S.px.img !== S.img) S.px = { img: S.img, W: S.img.width, H: S.img.height, d: S.img.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, S.img.width, S.img.height).data };
+    return S.px;
+  }
+  const unionBox = (a, b) => {
+    if (!b) return a;
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+  };
+  function inkBox(g) {
+    const P = pixels();
+    if (!P || g.h < 4) return null;
+    const { W, H, d } = P, h = g.h;
+    const x0 = Math.max(0, Math.round(g.x)), x1 = Math.min(W - 1, Math.round(g.x + g.w)), y0 = Math.max(0, Math.round(g.y)), y1 = Math.min(H - 1, Math.round(g.y + g.h));
+    if (x1 - x0 < 2 || y1 - y0 < 2) return null;
+    // the background: the most common colour on a ring just outside the box
+    const ring = [], add = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) { const i = (y * W + x) * 4; ring.push((d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4)); } };
+    for (let x = x0 - 2; x <= x1 + 2; x += 2) { add(x, y0 - 3); add(x, y1 + 3); }
+    for (let y = y0; y <= y1; y += 2) { add(x0 - 3, y); add(x1 + 3, y); }
+    const count = new Map(); ring.forEach(c => count.set(c, (count.get(c) || 0) + 1));
+    const bgKey = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!bgKey || bgKey[1] < ring.length * 0.4) return null;   // no steady background (a photo, a gradient): leave the box
+    const bg = [((bgKey[0] >> 8) & 15) * 16 + 8, ((bgKey[0] >> 4) & 15) * 16 + 8, (bgKey[0] & 15) * 16 + 8];
+    const ink = (x, y) => { const i = (y * W + x) * 4; return Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) > 90; };
+    // vertical band where letters of this line can be
+    const top = Math.max(0, Math.round(g.y - h * 0.35)), bot = Math.min(H - 1, Math.round(g.y + h * 1.35));
+    const colInk = x => { let n = 0; for (let y = top; y <= bot; y++) if (ink(x, y)) n++; return n; };
+    // a column whose ink fills the whole band, or carries on above and below it, belongs to a shape
+    const shapeCol = x => { const n = colInk(x); return n > (bot - top + 1) * 0.85 || (top > 0 && bot < H - 1 && ink(x, top - 1) && ink(x, bot + 1) && n > (bot - top) * 0.5); };
+    // a gap between letters, never a space between words (a space is about a quarter of the type size)
+    const gap = Math.max(1, Math.round(h * 0.12)), reach = Math.round(h * 1.5);
+    // sideways only for numbers and IDs: a digit read off the end is what leaks ("8.5%" of "28.5%"), while a word grown
+    // sideways would swallow the next word of a name ("and", "West")
+    // ...and only for a confident reading of two or more digits: an unsure lone "2" read from "Jan" is not a number cut short
+    const sideways = /Number|Identifier/.test(g.type || '') && (g.text.match(/\d/g) || []).length >= 2 && !(g.conf < 50);
+    let L = x0, R = x1;
+    for (let x = x0 - 1, miss = 0; sideways && x >= Math.max(0, x0 - reach); x--) {
+      if (shapeCol(x)) break;
+      if (colInk(x)) { L = x; miss = 0; } else if (++miss > gap) break;
+    }
+    for (let x = x1 + 1, miss = 0; sideways && x <= Math.min(W - 1, x1 + reach); x++) {
+      if (shapeCol(x)) break;
+      if (colInk(x)) { R = x; miss = 0; } else if (++miss > gap) break;
+    }
+    // up and down from the box, row by row, over the columns it now spans; a row of ink all along is a line, not text
+    const rowInk = y => { let n = 0; for (let x = L; x <= R; x++) if (ink(x, y)) n++; return n; };
+    const wide = R - L + 1;
+    let T = y0, B = y1;
+    for (let y = y0 - 1; y >= top; y--) { const n = rowInk(y); if (!n || n > wide * 0.9) break; T = y; }
+    for (let y = y1 + 1; y <= bot; y++) { const n = rowInk(y); if (!n || n > wide * 0.9) break; B = y; }
+    if (L === x0 && R === x1 && T === y0 && B === y1) return null;
+    return { x: L - 2, y: T - 2, w: R - L + 5, h: B - T + 5 };
+  }
+  function markOnly(w) {
+    const regs = S.unread && S.unread.on && S.unread.state === 'ready' && S.unread.regions;
+    if (!regs || /\d/.test(w.text) || !(w.conf < 60)) return false;
+    const letters = (w.text.match(/[A-Za-z]/g) || []).length;
+    return letters <= 3 && w.text.replace(/\s/g, '').length <= 4 && !regs.some(r => overlap(r, w) > 0.2);
+  }
   function buildMasks(words) {
     const keep = S.keepComments;
     S.commentVocab = new Set();
     // kept comment words read with good confidence: the check does not second-guess re-readings of these pixels
     S.keptBoxes = keep ? words.filter(w => w.inCm && !w.ghost && w.conf >= 80 && !commentType(w)) : [];
     const labels = countLabels(words);
+    S.valueYears = new Set();
     const flagged = words.map(w => {
       // (a scrap of a slanted label that the second look read as safe words is not masked)
-      const type = w.lookSafe ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
+      let type = w.lookSafe ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
+      // a scrap of two or three letters read unsurely from a map or a chart, where the text detector found no text at all,
+      // is a shape, not a word: masking it only smears the map in the replica. Never a reading with a digit.
+      if (type && markOnly(w)) type = null;
+      if (!type && !w.lookSafe && YEARLIKE.test(w.text.trim().replace(/[-–]$/, '')) && yearOnValueAxis(w, words)) { type = 'Number or money'; S.valueYears.add(w.text.trim().replace(/[-–]$/, '')); }
       if (keep && w.inCm && !type && normW(w.text)) S.commentVocab.add(normW(w.text));
       return Object.assign({}, w, { type });
     }).filter(w => w.type);
@@ -483,10 +619,11 @@ customer service staff agent team people everyone nobody someone something nothi
       const sameLine = g && Math.abs((g.y + g.h / 2) - (w.y + w.h / 2)) < Math.max(g.h, w.h) * 0.6;
       if (g && g.type === w.type && sameLine && w.x - (g.x + g.w) < Math.max(14, w.h * 1.2) && w.x >= g.x) {
         const x2 = Math.max(g.x + g.w, w.x + w.w), y1 = Math.min(g.y, w.y), y2 = Math.max(g.y + g.h, w.y + w.h);
-        g.text += ' ' + w.text; g.w = x2 - g.x; g.y = y1; g.h = y2 - y1;
-      } else groups.push({ x: w.x, y: w.y, w: w.w, h: w.h, type: w.type, text: w.text, on: true, src: 'auto' });
+        g.text += ' ' + w.text; g.w = x2 - g.x; g.y = y1; g.h = y2 - y1; g.conf = Math.min(g.conf ?? 100, w.conf ?? 100);
+      } else groups.push({ x: w.x, y: w.y, w: w.w, h: w.h, type: w.type, text: w.text, on: true, src: 'auto', conf: w.conf });
     });
-    const out = groups.map(g => { const p = Math.max(3, g.h * 0.18); return Object.assign(g, { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }); });
+    // core: the box before it grew to the ink, for the unread-text check, which judges the reader's own coverage
+    const out = groups.map(g => { const p = Math.max(3, g.h * 0.18), ink = inkBox(g), core = { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }; return Object.assign(g, unionBox(core, ink), ink ? { core } : {}); });
     return out.concat(columnFill(out));
   }
   // Table columns: when three or more number masks stack in one column, the whole column is masked, so
@@ -591,7 +728,7 @@ customer service staff agent team people everyone nobody someone something nothi
     }
     // several ticks the reader joined into one box ("0 20 40 … 540") become one even scale, not unrelated numbers
     const ticks = text.trim().split(/\s+/), joined = ticks.join(' ');
-    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t))) {
+    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t) && t.replace(/\D/g, '').length <= 12)) {
       const vals = ticks.map(t => parseFloat(t.replace(/,/g, ''))), st = vals[1] - vals[0];
       if (st && vals.every((v, i) => Math.abs(v - vals[0] - i * st) <= Math.abs(st) * 0.01)) {
         const dec = Math.max(...ticks.map(t => (t.split('.')[1] || '').length)), comma = ticks.some(t => t.includes(','));
@@ -599,7 +736,7 @@ customer service staff agent team people everyone nobody someone something nothi
         for (let k = 0; k < 40; k++) {
           const f = randomFactor(r), s2 = roundTo2(st * f), a = vals[0] === 0 ? 0 : roundTo2(vals[0] * f);
           const next = vals.map((_, i) => a + i * s2);
-          if (next.some(v => v < 0)) continue;
+          if (next.some(v => v < 0 || !Number.isFinite(v) || v >= 1e12)) continue;
           const out = next.map(fmt).join(' ');
           if (out !== joined && Math.abs(out.length - joined.length) <= Math.max(2, joined.length * 0.08)) return out;
         }
@@ -609,13 +746,14 @@ customer service staff agent team people everyone nobody someone something nothi
     const runs = text.match(/\d[\d,]*(?:\.\d+)?/g) || [], longest = runs.reduce((a, b) => (b.length > a.length ? b : a), '');
     let first = true;
     let out = text.replace(/\d[\d,]*(?:\.\d+)?/g, (run, offset) => {
-      if (/^(19|20)\d{2}$/.test(run)) return run;                                   // a year is a label, not a value
+      if (/^(19|20)\d{2}$/.test(run) && !(S.valueYears && S.valueYears.has(run))) return run;   // a year is a label, not a value (unless an axis of values)
       if (/\/\s*$/.test(text.slice(0, offset))) return run;                          // the scale of a rating ("/ 5") stays
       const outOf = /^\s*\/\s*(\d+(?:\.\d+)?)/.exec(text.slice(offset + run.length)), cap = outOf ? parseFloat(outOf[1]) : Infinity;
       const [intPart, dec = ''] = run.split('.'), plain = intPart.replace(/,/g, ''), v = parseFloat(plain + (dec ? '.' + dec : ''));
       const afterColon = text[offset - 1] === ':', pct = text.slice(offset + run.length).trim().startsWith('%');
       let n;
-      if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
+      if (plain.length > 15) n = digit(1) + Array.from({ length: plain.length - 1 }, () => digit()).join('') + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // a long run of digits (an ID, or ticks read as one): new digits, never "6e+23"
+      else if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
       else if (pct && v >= 100) n = String(90 + Math.floor(r() * 10)) + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // 100% becomes a high percentage
       else {
         // the real value scaled, kept to the same number of digits (a percentage stays at or under 100); a whole number
@@ -637,7 +775,7 @@ customer service staff agent team people everyone nobody someone something nothi
       return grouped + (nd2 !== undefined ? '.' + nd2 : '');
     });
     // try again only when there is a number to change (a lone year stays as it is), and never endlessly
-    if (out === text && exact !== 0 && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run))) out = fakeValue(text, seed + 7, undefined, depth + 1);
+    if (out === text && exact !== 0 && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run) || (S.valueYears && S.valueYears.has(run)))) out = fakeValue(text, seed + 7, undefined, depth + 1);
     return out;
   }
   // Numbers stacked as an axis (three or more in a column or a row, evenly spaced) share one factor, so the invented scale
@@ -886,7 +1024,8 @@ customer service staff agent team people everyone nobody someone something nothi
   // confidently and is safe by the same rules as the rest of the page. Anything else is masked as unread text.
   const SECOND_LOOK_CONF = 70, SECOND_LOOK_MAX = 120;
   function unreadCover(base) {
-    const on = base.filter(m => m.on);
+    // as the reader read them: a mask grown to the ink around it would hide how little of a slanted label it covers
+    const on = base.filter(m => m.on).map(m => m.core ? Object.assign({}, m, m.core) : m);
     const inside = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
     // words that account for their spot: read confidently and left readable by the rules; and parts of a region that
     // hold flat marks only (a bar beside its label), found by the second look
@@ -1054,7 +1193,7 @@ customer service staff agent team people everyone nobody someone something nothi
     // digit always counts, however short: a number both readers missed can surface here as a lone "4" (a real "10.7%"
     // did), and numbers are the text most often left exposed.
     const regs = S.unread.on && S.unread.state === 'ready' && S.unread.regions ? S.unread.regions : null;
-    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3);
+    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3 && !markOnly(v));
     // A re-reading of a word the first reader found at the same spot and judged safe ("Revenu" for "Revenue", "oup" for
     // "Group") is the same label read differently, not something the masks missed. A different reading there
     // ("Acme" where "Group" was read) is still a finding.
@@ -1092,7 +1231,9 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       if (t === 'Text not on allowlist' && (w.text.match(/[A-Za-z]/g) || []).length <= 2 && !/\d/.test(w.text)) return; // fragments like "El", "oy" carry no information
       if (flags.some(f => overlap(f, w) > 0.3)) return;
-      flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false });
+      // where neither the first reader nor the text detector saw text, a finding is most likely a chart mark read as text;
+      // it is still a finding (a lone digit there can be part of a real number), only listed after the others
+      flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false, likelyMark: noText(w) });
     });
     S.flags = flags; S.chartMarks = marks;
     updateGate();
@@ -1178,22 +1319,36 @@ customer service staff agent team people everyone nobody someone something nothi
       all.onclick = hideUncertain;
       fl.appendChild(all);
     }
-    S.flags.forEach((f, i) => {
+    // each finding with a close-up of the image as it would be shared, so it can be judged without hunting for it;
+    // the likeliest leaks first (numbers and IDs, then words), chart marks last, resolved ones at the end
+    const shared = openFlags.length ? maskedCanvas(1, null, { tag: false }) : null;
+    const rank = f => (f.resolved ? 4 : 0) + (f.likelyMark ? 2 : 0) + (f.severity === 'block' ? 0 : 1);
+    S.flags.slice().sort((a, b) => rank(a) - rank(b)).forEach(f => {
       const d = document.createElement('div');
-      d.className = 'flag';
-      d.innerHTML = `<span class="sw" style="background:${f.severity === 'block' ? 'var(--bad)' : 'var(--warn)'}"></span><code></code>`;
+      d.className = 'flag' + (f.resolved ? ' done' : '');
+      d.innerHTML = `<span class="sw" style="background:${f.severity === 'block' ? 'var(--bad)' : 'var(--warn)'}"></span><span class="what"><code></code><small></small></span>`;
       d.querySelector('code').textContent = f.resolved ? `${f.text} (resolved)` : f.text;
+      d.querySelector('small').textContent = f.resolved ? '' : f.likelyMark ? 'Probably a chart mark: no text was found here' : f.severity === 'block' ? 'A number or ID can still be read' : 'A word not on the allowlist can still be read';
+      if (!f.resolved && shared) d.insertBefore(findingCrop(f, shared), d.children[1]);
       if (!f.resolved) {
-        const mk = document.createElement('button'); mk.type = 'button'; mk.textContent = 'Mask it';
+        d.tabIndex = 0;
+        d.setAttribute('aria-label', `Finding: ${f.text}. Press M to mask it${f.severity === 'review' ? ', S if it is safe to keep' : ', K to keep it'}.`);
+        d.onkeydown = e => {
+          const k = e.key.toLowerCase(), btn = k === 'm' ? d.querySelector('[data-act=mask]') : (k === 's' || k === 'k') ? d.querySelector('[data-act=keep]') : null;
+          if (!btn) return;
+          e.preventDefault(); btn.click();
+          const next = $('flags').querySelector('.flag[tabindex="0"]'); if (next) next.focus();   // straight on to the next one
+        };
+        const mk = document.createElement('button'); mk.type = 'button'; mk.textContent = 'Mask it'; mk.dataset.act = 'mask';
         mk.onclick = () => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Added after check', text: f.text, on: true, src: 'check' }); f.resolved = true; updateGate(); renderTypes(); draw(); };
         d.appendChild(mk);
         if (f.severity === 'review') {
-          const ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Safe to keep';
+          const ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Safe to keep'; ok.dataset.act = 'keep';
           ok.onclick = () => { S.sessionAllow.add(f.text.toLowerCase().replace(/[^\w-]/g, '')); f.resolved = true; updateGate(); draw(); };
           d.appendChild(ok);
         } else {
           // a number or ID that is not sensitive here ("Top 5", a version number): kept at this spot only, never everywhere
-          const keepIt = document.createElement('button'); keepIt.type = 'button'; keepIt.textContent = 'Not sensitive, keep it';
+          const keepIt = document.createElement('button'); keepIt.type = 'button'; keepIt.textContent = 'Not sensitive, keep it'; keepIt.dataset.act = 'keep';
           keepIt.title = 'Keep this one value readable. Only this spot; the same number elsewhere stays masked.';
           keepIt.onclick = () => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Kept by you', text: f.text, on: false, userOff: true, src: 'user' }); f.resolved = true; updateGate(); renderTypes(); draw(); };
           d.appendChild(keepIt);
@@ -1201,6 +1356,22 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       fl.appendChild(d);
     });
+  }
+
+  // A close-up of one finding in the image as it would be shared: the finding outlined, with a little of what is around it.
+  function findingCrop(f, src) {
+    const padX = Math.max(f.h * 2.5, 24), padY = Math.max(f.h * 0.8, 8);
+    const x0 = Math.max(0, Math.floor(f.x - padX)), y0 = Math.max(0, Math.floor(f.y - padY));
+    const x1 = Math.min(src.width, Math.ceil(f.x + f.w + padX)), y1 = Math.min(src.height, Math.ceil(f.y + f.h + padY));
+    const H = 48, k = Math.min(4, H / Math.max(1, y1 - y0)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round((x1 - x0) * k)); c.height = Math.max(1, Math.round((y1 - y0) * k)); c.className = 'crop';
+    c.setAttribute('role', 'img'); c.setAttribute('aria-label', `Close-up of "${f.text}" in the masked image`);
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = k < 1;
+    x.drawImage(src, x0, y0, x1 - x0, y1 - y0, 0, 0, c.width, c.height);
+    x.strokeStyle = f.severity === 'block' ? '#b03c38' : '#a55d00'; x.lineWidth = 2; x.setLineDash([4, 3]);
+    x.strokeRect((f.x - x0) * k, (f.y - y0) * k, f.w * k, f.h * k);
+    return c;
   }
 
   /* ---------------- review canvas ---------------- */
@@ -1384,7 +1555,8 @@ customer service staff agent team people everyone nobody someone something nothi
       setStatus('Loading the on-device text reader…', true);
       // one figure for reading and the check that follows
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
-      const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…');
+      S.textK = 1;
+      const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…', true);
       if (!current()) return;
       S.words = notMarks(canvas, words);
       S.comments = findComments(S.words);
@@ -1414,14 +1586,70 @@ customer service staff agent team people everyone nobody someone something nothi
     rc.style.cursor = v === 'orig' ? 'crosshair' : 'default';
     draw();
   }
+  // "Blur all charts": the charts on the page found on the device, so their shapes can be blurred in one click. A chart is
+  // where colour is: bars, lines, slices, map shading and gauges are drawn in colour, while text, tables, panels and
+  // gridlines are black, white or grey. The picture is cut into small cells; cells with enough coloured pixels outside
+  // the text the reader found are joined with their neighbours, and each joined area big enough to be a chart is one.
+  function detectCharts() {
+    if (!S.img) return [];
+    const W = S.img.width, H = S.img.height, d = S.img.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+    const cell = Math.max(4, Math.round(Math.min(W, H) / 120)), cw = Math.ceil(W / cell), ch = Math.ceil(H / cell);
+    const text = new Uint8Array(W * H);
+    S.words.forEach(w => { for (let y = Math.max(0, Math.floor(w.y - 2)); y < Math.min(H, Math.ceil(w.y + w.h + 2)); y++) text.fill(1, y * W + Math.max(0, Math.floor(w.x - 2)), y * W + Math.min(W, Math.ceil(w.x + w.w + 2))); });
+    const hot = new Uint8Array(cw * ch);
+    for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
+      let n = 0, all = 0;
+      for (let y = cy * cell; y < Math.min(H, (cy + 1) * cell); y++) for (let x = cx * cell; x < Math.min(W, (cx + 1) * cell); x++) {
+        all++;
+        const i = y * W + x; if (text[i]) continue;
+        const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        if (mx > 40 && (mx - mn) / mx > 0.28 && mx - mn > 40) n++;                     // a coloured pixel, not grey
+      }
+      if (n > all * 0.12) hot[cy * cw + cx] = 1;
+    }
+    // join cells a few cells apart (the gaps between bars, a line's breaks), then find each joined area
+    const R = 2, grown = new Uint8Array(cw * ch);
+    for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) if (hot[cy * cw + cx])
+      for (let y = Math.max(0, cy - R); y <= Math.min(ch - 1, cy + R); y++) for (let x = Math.max(0, cx - R); x <= Math.min(cw - 1, cx + R); x++) grown[y * cw + x] = 1;
+    const seen = new Uint8Array(cw * ch), out = [];
+    for (let s0 = 0; s0 < cw * ch; s0++) {
+      if (!grown[s0] || seen[s0]) continue;
+      const stack = [s0]; seen[s0] = 1;
+      let x0 = cw, y0 = ch, x1 = -1, y1 = -1, core = 0;
+      while (stack.length) {
+        const i = stack.pop(), cx = i % cw, cy = (i / cw) | 0;
+        if (hot[i]) { core++; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy); }
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const nx = cx + dx, ny = cy + dy, j = ny * cw + nx; if (nx >= 0 && ny >= 0 && nx < cw && ny < ch && grown[j] && !seen[j]) { seen[j] = 1; stack.push(j); } });
+      }
+      if (x1 < 0) continue;
+      const bw = (x1 - x0 + 1) * cell, bh = (y1 - y0 + 1) * cell;
+      // big enough to be a chart (a coloured badge, an icon or a thin brand strip is not), and not a few stray cells
+      if (bw < Math.max(48, W * 0.05) || bh < Math.max(32, H * 0.04) || core < 6) continue;
+      const pad = Math.round(cell / 2);
+      out.push({ x: Math.max(0, x0 * cell - pad), y: Math.max(0, y0 * cell - pad), w: Math.min(W, (x1 + 1) * cell + pad) - Math.max(0, x0 * cell - pad), h: Math.min(H, (y1 + 1) * cell + pad) - Math.max(0, y0 * cell - pad) });
+    }
+    return out;
+  }
+  function blurAllCharts() {
+    const found = detectCharts().filter(c => !S.blurs.some(b => overlap(b, c) > 0.5));
+    found.forEach(c => S.blurs.push(c));
+    if (found.length) { if (S.tool !== 'blur') setTool('blur'); S.gate = 'dirty'; renderGate(); }
+    renderTypes(); draw();
+    setStatus(found.length ? `Blurred ${found.length} chart${found.length > 1 ? 's' : ''}. Click a blurred area to bring it back, or drag to blur another.`
+      : 'No charts found in colour. Choose Blur a chart and drag over one.', false);
+    return found.length;
+  }
   function setTool(t) {
     S.tool = t;
     $('t-mask').setAttribute('aria-pressed', String(t === 'mask'));
     $('t-blur').setAttribute('aria-pressed', String(t === 'blur'));
     if (S.view !== 'orig') setView('orig');   // boxes are drawn on the original view
   }
+  ['drop', 'btn-paste', 'btn-try', 'samples'].forEach(id => { const el = $(id); if (el) ['pointerenter', 'focusin', 'dragenter', 'touchstart'].forEach(ev => el.addEventListener(ev, prewarm, { passive: true, once: true })); });
+  document.addEventListener('dragenter', prewarm, { once: true });
   $('t-mask').onclick = () => setTool('mask');
   $('t-blur').onclick = () => setTool('blur');
+  $('t-blur-all').onclick = blurAllCharts;
   $('v-orig').onclick = () => setView('orig');
   $('v-mask').onclick = () => setView('mask');
   $('v-zoom').onclick = () => { const on = $('review-wrap').classList.toggle('zoom'); $('v-zoom').setAttribute('aria-pressed', String(on)); };
@@ -1928,5 +2156,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

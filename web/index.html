@@ -72,9 +72,15 @@ h1{font-size:clamp(26px,3.6vw,38px);line-height:1.15;letter-spacing:-.02em;margi
 .gate.blocked{background:var(--bad-soft);color:var(--bad)}
 .gate.pending{background:var(--sunken);color:var(--muted)}
 .gate span{color:var(--ink);font-size:13px}
-.flags{display:grid;gap:6px;margin-top:10px;max-height:220px;overflow:auto}
+.flags{display:grid;gap:6px;margin-top:10px;max-height:340px;overflow:auto}
 .flag{display:flex;gap:8px;align-items:center;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
-.flag code{font-family:var(--mono);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.flag .what{flex:1;min-width:0;display:grid;gap:2px}
+.flag code{font-family:var(--mono);font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flag small{color:var(--muted);font-size:11.5px}
+.flag .crop{height:48px;width:auto;max-width:190px;object-fit:contain;border:1px solid var(--line);border-radius:4px;background:#fff;flex:none}
+.flag.done{opacity:.6}
+.flag:focus-visible{outline:2px solid var(--accent, #0d6b5d);outline-offset:1px}
+@media (max-width:560px){.flag{flex-wrap:wrap}.flag .crop{max-width:100%}}
 .flag button{font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
 label.f{display:grid;gap:4px;font-size:13px;font-weight:600;margin-top:10px}
 label.f span{font-weight:400;color:var(--muted);font-size:12px}
@@ -155,7 +161,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
           <div><b>Nothing leaves your device.</b> Reading, masking, checking and the replica all run in this browser tab. No account, no key, no upload.</div>
-          <div><b>Measured, not promised.</b> On our published test set, about 0.7% of the area of sensitive text was still readable after masking and the check, so look over the masked image before you share it. <a href="https://github.com/karthikvalluri85/vaultsnip/blob/main/ACCURACY.md#where-it-stands-in-010" target="_blank" rel="noopener">How it is measured</a></div>
+          <div><b>Measured, not promised.</b> On our published test set, about 0.3% of the area of sensitive text was still readable after masking and the check, so look over the masked image before you share it. <a href="https://github.com/karthikvalluri85/vaultsnip/blob/main/ACCURACY.md#where-it-stands-in-011" target="_blank" rel="noopener">How it is measured</a></div>
           <div><b>Mask or replicate.</b> Download the masked screenshot for a forum post, a bug report or a slide, or build the in-place replica with synthetic values.</div>
         </div>
       </div>
@@ -195,7 +201,8 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
             <button type="button" id="t-mask" aria-pressed="true" title="Drag over text to hide it">Drag to mask</button>
             <button type="button" id="t-blur" aria-pressed="false" title="Drag over a chart to blur it, so its shape cannot be read. Click a blurred area to remove it.">Blur a chart</button>
           </div>
-          <span class="hint">Click a box to turn its mask on or off. Drag to add a mask, or choose <b>Blur a chart</b> and drag over a chart to hide its shape.</span>
+          <button type="button" class="btn" id="t-blur-all" title="Find the charts on this picture (on this device) and blur them all. Click a blurred area to bring it back.">Blur all charts</button>
+          <span class="hint">Click a box to turn its mask on or off. Drag to add a mask, or choose <b>Blur a chart</b> and drag over a chart to hide its shape (<b>Blur all charts</b> does every chart at once).</span>
         </div>
         <p class="fakenote" id="fake-note" role="note" hidden><b>Numbers here are made up</b>: same scale as the real ones, never the real values. Names and labels stay masked. This is the image that is saved or copied, with the same note below it.</p>
         <div class="canvaswrap" id="review-wrap"><canvas id="review-canvas" role="img" aria-label="The screenshot with mask boxes. Use the list of masks beside it to turn masks on or off with the keyboard."></canvas></div>

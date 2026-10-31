@@ -81,6 +81,8 @@ try {
   // ticks the reader joined into one box stay one even scale starting at 0
   const joined = await page.evaluate(() => window.__DSC.test.fakeValue('0 20 40 60 80 100 120 140 160 180 200', 11).split(' ').map(Number));
   const step = joined[1] - joined[0];
+  const long = await page.evaluate(() => [window.__DSC.test.fakeValue('6000000000000000000000000', 3), window.__DSC.test.fakeValue('0 100000000000000000 200000000000000000 300000000000000000', 4)]);
+  check(long.every(v => !/e[+-]\d/.test(v)) && long[0].length === 25, `very long numbers get new digits, never exponent notation (${long[0]})`);
   check(joined.length === 11 && joined[0] === 0 && step > 0 && step !== 20 && joined.every((v, i) => v === i * step), `joined axis ticks stay one even scale (${joined.join(' ')})`);
 
   console.log('Overlay');
@@ -124,6 +126,11 @@ try {
     check(cb.outside === 0, `with a chart blurred, every pixel outside the replaced boxes and the blurred area is the original's (${cb.outside} differ)`);
     check(inBlur.patch && inBlur.range < 120, `the blurred area keeps no readable shape (light-to-dark range ${inBlur.range})`);
     check(inBlur.under === 0, 'no synthetic text is drawn over a blurred area');
+    await page.evaluate(() => { window.__DSC.blurs = []; window.__DSC.test.buildInPlace(false); });
+    // "Blur all charts": the replica differs only in the replaced boxes and the areas it found
+    const nAll = await page.evaluate(() => { const S = window.__DSC; S.blurs = []; const n = S.test.blurAllCharts(); S.test.buildInPlace(false); return n; });
+    const ca = await compare();
+    check(nAll >= 1 && ca.outside === 0, `with every chart blurred (${nAll}), every pixel outside the replaced boxes and the blurred areas is the original's (${ca.outside} differ)`);
     await page.evaluate(() => { window.__DSC.blurs = []; window.__DSC.test.buildInPlace(false); });
   }
 
