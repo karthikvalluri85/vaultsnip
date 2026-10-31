@@ -18,7 +18,8 @@
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     sessionAllow: new Set(),
-    valueYears: new Set(),   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
+    valueYears: new Set(),
+    lang: 'auto', textLang: 'en', ocrLang: 'eng',   // the dashboard's language: chosen, as recognised, and the reader's file   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
     blurs: [], tool: 'mask',   // areas the user chose to blur (charts whose shape is confidential), and what a drag draws
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
@@ -108,9 +109,14 @@ which what when where how why than then also just about across into out off per 
   function clientNames() { return $('client-names').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean); }
   function extraAllow() { return new Set($('extra-allow').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)); }
 
+  // The dashboard's language (S.textLang: en, de, fr or es, found from the words read or chosen under Redaction policy)
+  // adds that language's report vocabulary (web/lexicon.js) to the safe words. English words stay safe in every language.
+  // a word marked "Safe to keep", as it is looked up: letters (accented too), digits, hyphens and apostrophes
+  const sessionKey = t => String(t).replace(/’/g, "'").replace(/[^\p{L}\p{N}_'-]/gu, '').replace(/^'+|'+$/g, '');
+  const langSafe = w => S.textLang && S.textLang !== 'en' && !!window.VSLexicon && VSLexicon.safeSet(S.textLang).has(w);
   function classify(text) {
     const raw = text.trim();
-    const clean = raw.replace(/^[^\w€$£¥₹%#@]+|[^\w€$£¥₹%]+$/g, '');
+    const clean = raw.replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '');
     if (!clean) return null;
     const low = clean.toLowerCase();
     if (clientNames().some(n => n && (low.includes(n) || n.split(/\s+/).includes(low)))) return 'Client name';
@@ -123,9 +129,11 @@ which what when where how why than then also just about across into out off per 
     if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return 'Identifier';
     if (/[\d€$£¥₹%]/.test(clean)) return 'Number or money';
     if (clean.length <= 1) return null;
-    if (ALLOW.has(low) || S.sessionAllow.has(low) || extraAllow().has(low)) return null;
-    const parts = low.split(/[-/&]/).filter(Boolean);
-    if (parts.length > 1 && parts.every(p => ALLOW.has(p) || extraAllow().has(p))) return null;
+    const safe = w => ALLOW.has(w) || langSafe(w) || extraAllow().has(w);
+    if (safe(low) || S.sessionAllow.has(sessionKey(low))) return null;
+    // a compound or an elided word ("Sous-total", "d'affaires", "Nord/Süd") is safe when every part is
+    const parts = low.replace(/’/g, "'").split(/[-/&']/).filter(Boolean);
+    if (parts.length > 1 && parts.every(p => p.length <= 1 || safe(p))) return null;
     return 'Text not on allowlist';
   }
 
@@ -137,7 +145,7 @@ which what when where how why than then also just about across into out off per 
   const SEQ_WORDS = new Set(['week', 'wk', 'step', 'phase', 'tier', 'level', 'stage', 'wave', 'page', 'round', 'sprint', 'version', 'release', 'grade', 'rank', 'no', 'number']);
   function countLabels(words) {
     const safe = new Set();
-    const low = w => (w ? w.text.trim().replace(/^[^\w]+|[^\w%]+$/g, '').toLowerCase() : '');
+    const low = w => (w ? w.text.trim().replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_%]+$/gu, '').toLowerCase() : '');
     const small = t => { const m = /^(\d{1,3})%?$/.exec(t); return !!m && +m[1] >= 1 && +m[1] <= 500; };
     const beside = (w, dir) => {
       const cy = w.y + w.h / 2, reach = Math.max(w.h, 8) * 3;
@@ -173,8 +181,11 @@ which what when where how why than then also just about across into out off per 
     return Math.max(1, Math.min(3, cores, mem < 4 ? 1 : mem < 8 ? 2 : 3));
   })();
   const slots = [], waiting = [];
-  function startReader(slot) {
-    slot.p = Tesseract.createWorker('eng', 1, {
+  // lang: the reader's language file (eng, deu, fra or spa), from this site; a reader set up for another language is
+  // replaced when a pass needs this one
+  function startReader(slot, lang = 'eng') {
+    slot.lang = lang;
+    slot.p = Tesseract.createWorker(lang, 1, {
       workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
       workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
       logger: m => beat(slot, m)
@@ -202,7 +213,7 @@ which what when where how why than then also just about across into out off per 
     while (slots.length < size) {
       const slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null, quiet: true };
       slots.push(slot);
-      startReader(slot).catch(() => {});   // a failed start is retried when the reader is needed
+      startReader(slot, OCR_OF[S.lang] || 'eng').catch(() => {});   // a failed start is retried when the reader is needed
     }
   }
   function release(slot) { slot.busy = false; slot.prog = 0; slot.job = null; const next = waiting.shift(); if (next) next(); }
@@ -285,7 +296,7 @@ which what when where how why than then also just about across into out off per 
     return Promise.race([promise, stalled]).finally(() => clearInterval(timer));
   }
   // make: prepares the image for this pass, once a reader is free; weight: how much it counts in the progress figure
-  async function recognize(make, kind, weight) {
+  async function recognize(make, kind, weight, lang = S.ocrLang || 'eng') {
     // one reader for the whole pass, restarts included: a pass that stalls keeps its place instead of handing the reader
     // to the next pass in the queue, so "stopped twice" means this pass stopped twice
     const own = job, slot = await acquire();
@@ -295,7 +306,8 @@ which what when where how why than then also just about across into out off per 
         if (own && own.failed) throw new Error('the reading was stopped');
         slot.weight = weight || 1; slot.prog = 0; slot.job = job;
         try {
-          const w = await (slot.p || startReader(slot));
+          if (slot.p && slot.lang !== lang) { const old = slot.p; slot.p = null; old.then(w => w.terminate()).catch(() => {}); }
+          const w = await (slot.p || startReader(slot, lang));
           if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
           const canvas = make();
           // tests can make the next readings hang, to prove the watchdog recovers
@@ -339,6 +351,15 @@ which what when where how why than then also just about across into out off per 
   // more only costs time (a 3× pass reads 4 times the pixels of a 1.5× one). So once the text's usual height is known,
   // those passes are enlarged only as far as small text needs, never below 1.5×. Measured on the generated set: the same
   // words read, in less time on 2× screenshots.
+  // The dashboard's language: chosen under Redaction policy, or (Automatic) recognised from the first words read in
+  // English. Sets the reader's language file and the safe words (S.textLang), and the replica's made-up names.
+  const OCR_OF = { en: 'eng', de: 'deu', fr: 'fra', es: 'spa' };
+  const langName = ocr => ({ eng: 'English', deu: 'German', fra: 'French', spa: 'Spanish' }[ocr] || ocr);
+  function chooseLanguage(words) {
+    const pick = S.lang && S.lang !== 'auto' ? S.lang : (window.VSLexicon ? VSLexicon.detect(words.filter(w => w.conf >= 50).map(w => w.text)) : 'en');
+    S.textLang = OCR_OF[pick] ? pick : 'en';
+    return OCR_OF[S.textLang];
+  }
   const SMALL_TEXT = 12;   // at 3×, text of this height or less reads at about 36 pixels, the size the reader reads best
   function textSizeFactor(words) {
     const hs = words.filter(w => w.conf >= 60 && /[A-Za-z0-9]/.test(w.text)).map(w => w.h).sort((a, b) => a - b);
@@ -365,7 +386,15 @@ which what when where how why than then also just about across into out off per 
       let results;
       if (adapt && passes.some(p => p[0] > 1.5)) {
         const small = passes.filter(p => p[0] <= 1.5), big = passes.filter(p => p[0] > 1.5);
-        const first = await run(small, 1);
+        let first = await run(small, 1);
+        // in German, French or Spanish? Then those passes are read again, and the rest read, with that language's file
+        const lang = chooseLanguage([].concat(...first));
+        if (lang !== S.ocrLang) {
+          S.ocrLang = lang;
+          j.label = `Reading text in ${langName(lang)} on this device…`;
+          j.total += weightOf(small.map(p => p[0]));
+          first = await run(small, 1);
+        }
         S.textK = textSizeFactor([].concat(...first));
         const rest = await run(big, S.textK);
         results = passes.map(p => (p[0] <= 1.5 ? first[small.indexOf(p)] : rest[big.indexOf(p)]));
@@ -978,10 +1007,13 @@ customer service staff agent team people everyone nobody someone something nothi
   function contextMasks() {
     if (!S.ctx.on || !S.ctx.scores || !window.VSContext) return [];
     // the same keys as "Safe to keep" stores (sessionAllow) and the safe-words list (extraAllow)
-    const approved = t => { const lc = t.trim().replace(/^[^\w€$£¥₹%#@]+|[^\w€$£¥₹%]+$/g, '').toLowerCase(); return S.sessionAllow.has(lc.replace(/[^\w-]/g, '')) || extraAllow().has(lc); };
+    const approved = t => { const lc = t.trim().replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase(); return S.sessionAllow.has(sessionKey(lc)) || extraAllow().has(lc); };
     const out = [];
     S.ctx.lines.forEach((line, li) => {
-      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) }));
+      // the report vocabulary of a German, French or Spanish dashboard is capitalised like names ("Kunde", "Monat"), and the
+      // (English) name model takes it for names; those words are the language's own labels, never names
+      const ownWord = t => langSafe(t.trim().replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '').toLowerCase());
+      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) && !ownWord(w.text) }));
       VSContext.contextualHits(words, S.ctx.scores[li]).forEach(i => {
         const w = line[i], p = Math.max(3, w.h * 0.18);
         out.push({ x: w.x - p, y: w.y - p, w: w.w + 2 * p, h: w.h + 2 * p, type: VSContext.CONTEXT_TYPE, text: w.text, on: true, src: 'auto' });
@@ -1378,7 +1410,7 @@ customer service staff agent team people everyone nobody someone something nothi
         d.appendChild(mk);
         if (f.severity === 'review') {
           const ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Safe to keep'; ok.dataset.act = 'keep';
-          ok.onclick = () => { S.sessionAllow.add(f.text.toLowerCase().replace(/[^\w-]/g, '')); f.resolved = true; updateGate(); draw(); };
+          ok.onclick = () => { S.sessionAllow.add(sessionKey(f.text.toLowerCase())); f.resolved = true; updateGate(); draw(); };
           d.appendChild(ok);
         } else {
           // a number or ID that is not sensitive here ("Top 5", a version number): kept at this spot only, never everywhere
@@ -1503,8 +1535,8 @@ customer service staff agent team people everyone nobody someone something nothi
   function renderKept() {
     const seen = new Map();
     (S.words || []).forEach(w => {
-      const t = w.text.replace(/^[^\w]+|[^\w]+$/g, '');
-      if (!/[A-Za-z]{3,}/.test(t) || /\d/.test(t) || classify(w.text)) return;
+      const t = w.text.replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '');
+      if (!/\p{L}{3,}/u.test(t) || /\d/.test(t) || classify(w.text)) return;
       if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
     });
     const box = $('kept-words'); box.innerHTML = '';
@@ -1595,6 +1627,9 @@ customer service staff agent team people everyone nobody someone something nothi
       // one figure for reading and the check that follows
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
       S.textK = 1;
+      // a language chosen under Redaction policy is read in from the start; Automatic starts in English
+      S.textLang = S.lang && S.lang !== 'auto' ? S.lang : 'en';
+      S.ocrLang = OCR_OF[S.textLang] || 'eng';
       const detecting = S.unread.on ? startDetect() : null;   // the text detector runs while the reader reads
       const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…', true);
       if (!current()) return;
@@ -1606,6 +1641,8 @@ customer service staff agent team people everyone nobody someone something nothi
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
       renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
+      const ln = $('lang-note');
+      if (ln) { ln.hidden = S.textLang === 'en'; ln.textContent = S.textLang === 'en' ? '' : `Read in ${langName(S.ocrLang)}: its report words (titles, months, column names) stay readable, and the replica's made-up names are ${langName(S.ocrLang)}.`; }
       $('btn-reapply').disabled = false;
       await verify();
     } catch (err) {
@@ -1759,17 +1796,23 @@ customer service staff agent team people everyone nobody someone something nothi
     sel.innerHTML = '<option value="">— saved policies —</option>' + names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n.replace(/</g, '&lt;')}</option>`).join('');
     const del = $('btn-del-profile'); if (del) del.disabled = !sel.value;
   }
+  // the dashboard's language: a change reads the picture again in that language (the reader's file differs)
+  if ($('lang-select')) $('lang-select').onchange = () => {
+    S.lang = $('lang-select').value;
+    if (S.img && S.gate !== 'running') startReview(S.img);
+  };
   if ($('profile-select')) {
     $('profile-select').onchange = () => {
       const name = $('profile-select').value; if (!name) return;
       const p = loadProfiles()[name]; if (!p) return;
       $('client-names').value = p.clientNames || ''; $('extra-allow').value = p.allowWords || '';
+      if (p.lang && $('lang-select')) { $('lang-select').value = p.lang; S.lang = p.lang; }
       if ($('btn-del-profile')) $('btn-del-profile').disabled = false;
     };
     $('btn-save-profile').onclick = () => {
       const name = prompt('Save policy as:', $('profile-select').value || ''); if (!name) return;
       const profiles = loadProfiles();
-      profiles[name] = { clientNames: $('client-names').value, allowWords: $('extra-allow').value };
+      profiles[name] = { clientNames: $('client-names').value, allowWords: $('extra-allow').value, lang: S.lang };
       saveProfiles(profiles); renderProfileSelect(); $('profile-select').value = name;
     };
     $('btn-del-profile').onclick = () => {
@@ -2111,7 +2154,7 @@ customer service staff agent team people everyone nobody someone something nothi
   const seededRandom = seed => seeded(seed);
   function buildInPlace() {
     const toks = VSSynth.tokens(S.masks.filter(m => m.on && !underBlur(m)), S.words);
-    const values = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
+    const values = VSSynth.local(toks, { fakeValue, axisFactors, lang: S.textLang }, S.seed);
     // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
     const full = S.img.full || S.img, k = full.width / S.img.width;
     const map = VSSynth.combine(toks, values).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k }));
@@ -2212,5 +2255,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { chooseLanguage, sessionKey, readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

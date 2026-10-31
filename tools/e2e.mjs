@@ -564,6 +564,25 @@ try {
     const note = await page.evaluate(() => ({ hidden: document.getElementById('size-note').hidden, text: document.getElementById('size-note').textContent, w: window.__DSC.img.width, k: window.__DSC.img.readScale }));
     check(!note.hidden && /read at \d+% of its size/.test(note.text) && note.w >= 1700, `a very large screenshot is read at a size where text stays legible, and the review says how much it was shrunk (${note.w} px wide, ${Math.round(note.k * 100)}%)`);
   }
+  console.log('German, French and Spanish dashboards');
+  {
+    await page.goto(base);
+    const lang = await page.evaluate(() => {
+      const S = window.__DSC, T = S.test, w = t => t.split(' ').map(x => ({ text: x, conf: 95 }));
+      const fr = T.chooseLanguage(w('Ventes par région Total Clients Moyenne Janv Févr Mars Année'));
+      const frSafe = ['Ventes', 'région', 'Année', "d'affaires", 'Sous-total'].map(x => T.classify(x)), frName = T.classify('Dupont');
+      const de = T.chooseLanguage(w('Umsatz nach Region Gesamt Kunden Monat'));
+      const deSafe = ['Umsatz', 'Kunden', 'Gesamt'].map(x => T.classify(x));
+      const en = T.chooseLanguage(w('Revenue by Region Total Customers'));
+      const enFr = T.classify('Ventes');
+      return { fr, frSafe, frName, de, deSafe, en, enFr };
+    });
+    check(lang.fr === 'fra' && lang.frSafe.every(t => t === null) && lang.frName, `a French dashboard is read in French and its report words stay readable, names do not (${lang.fr}, ${JSON.stringify(lang.frSafe)})`);
+    check(lang.de === 'deu' && lang.deSafe.every(t => t === null), `a German dashboard is read in German (${lang.de})`);
+    check(lang.en === 'eng' && !!lang.enFr, `an English dashboard stays English, and French words are not safe in it (${lang.en})`);
+    const files = await page.evaluate(async () => Promise.all(['fra', 'deu', 'spa'].map(l => fetch('lang/' + l + '.traineddata.gz', { method: 'HEAD' }).then(r => r.status))));
+    check(files.every(s => s === 200), `the German, French and Spanish reader files are served by the app itself (${files.join(', ')})`);
+  }
   console.log('Start screen');
   await page.goto(base);
   // the reader starts loading when the pointer comes near the drop area, quietly
