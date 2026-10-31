@@ -71,12 +71,12 @@ try {
       .observe(document.getElementById('status-text'), { childList: true, characterData: true, subtree: true });
   });
   await page.locator('#samples .sample button').nth(0).click();
-  await page.waitForFunction(() => { const g = document.querySelector('.gate'); return g && /Blocked|Review|Pass/.test(g.textContent) && !/Checking/.test(g.textContent); }, null, { timeout: 120000 });
+  await page.waitForFunction(() => { const g = document.querySelector('.gate'); return g && /Blocked|Review|Nothing found/.test(g.textContent) && !/Checking/.test(g.textContent); }, null, { timeout: 120000 });
   const prog = await page.evaluate(() => window.__progress);
   const drops = prog.filter((v, i) => i > 0 && v < prog[i - 1]).length;
   check(prog.length > 5 && drops === 0 && Math.max(...prog) >= 90, `reading and checking show one progress figure that only climbs (${prog.length} updates, ${prog[0]}% → ${prog[prog.length - 1]}%, ${drops} restarts)`);
   const gate = (await page.locator('.gate').textContent()).replace(/\s+/g, ' ').trim();
-  check(/Blocked|Review|Pass/.test(gate), `the pre-flight check runs on the demo (${gate.slice(0, 40)}…)`);
+  check(/Blocked|Review|Nothing found/.test(gate), `the pre-flight check runs on the demo (${gate.slice(0, 40)}…)`);
   // and it catches readable text: with one number's mask taken away (not switched off by the user), the check finds it
   const caught = await page.evaluate(async () => {
     const S = window.__DSC, i = S.masks.findIndex(m => m.on && m.src === 'auto' && m.type === 'Number or money' && m.w > 30 && m.h > 14);
@@ -240,7 +240,7 @@ try {
   check(await keepBtn.count() === 1 && /Blocked/.test(await page.locator('.gate').textContent()), 'a blocking finding offers "Not sensitive, keep it" next to "Mask it"');
   await keepBtn.click();
   const afterKeep = await page.evaluate(() => ({ gate: document.querySelector('.gate').textContent, kept: window.__DSC.masks.filter(m => m.type === 'Kept by you' && !m.on && m.userOff).length }));
-  check(/Pass/.test(afterKeep.gate) && afterKeep.kept === 1, `keeping it resolves the finding and records the spot as yours (${afterKeep.gate.trim().slice(0, 20)})`);
+  check(/Nothing found/.test(afterKeep.gate) && afterKeep.kept === 1, `keeping it resolves the finding and records the spot as yours (${afterKeep.gate.trim().slice(0, 20)})`);
   // "Hide everything uncertain": one click masks every open finding, numbers and unlisted words alike
   const hu0 = await page.evaluate(() => window.__DSC.masks.length);
   await page.evaluate(() => {
@@ -253,7 +253,7 @@ try {
   check(await huBtn.isVisible() && /\(2\)/.test(await huBtn.textContent()), `"Hide everything uncertain" appears with the number of open findings (${(await huBtn.textContent()).trim()})`);
   await huBtn.click();
   const hu = await page.evaluate(() => ({ gate: document.querySelector('.gate').textContent, added: window.__DSC.masks.slice(-2).map(m => m.on && m.src === 'check' && m.type === 'Added after check'), n: window.__DSC.masks.length }));
-  check(/Pass/.test(hu.gate) && hu.n === hu0 + 2 && hu.added.every(Boolean) && await huBtn.isHidden(), 'one click hides both, counts them as your decisions, and the gate passes');
+  check(/Nothing found/.test(hu.gate) && hu.n === hu0 + 2 && hu.added.every(Boolean) && await huBtn.isHidden(), 'one click hides both, counts them as your decisions, and the gate passes');
   await page.evaluate(() => { const S = window.__DSC; S.masks.splice(-2, 2); S.flags = []; S.test.updateGate(); });
   // each finding comes with a close-up of the image as it would be shared; likely leaks first, probable chart marks
   // last; and M masks the focused one and moves on to the next
@@ -336,9 +336,9 @@ try {
   console.log('Hide everything uncertain, copy, and the safe-to-share receipt');
   // the policy typed above, applied: the check runs again, and one click settles whatever it leaves open
   await page.click('#btn-reapply');
-  await page.waitForFunction(() => /Blocked|Review|Pass/.test(document.querySelector('.gate').textContent) && !/Checking/.test(document.querySelector('.gate').textContent), null, { timeout: 180000 });
+  await page.waitForFunction(() => /Blocked|Review|Nothing found/.test(document.querySelector('.gate').textContent) && !/Checking/.test(document.querySelector('.gate').textContent), null, { timeout: 180000 });
   if (await page.locator('#btn-hide-unsure').isVisible()) await page.click('#btn-hide-unsure');
-  check(/Pass/.test(await page.locator('.gate').textContent()) && await page.locator('#btn-send').isEnabled(), 'after "Hide everything uncertain" the check passes and the masked image can be previewed');
+  check(/Nothing found/.test(await page.locator('.gate').textContent()) && await page.locator('#btn-send').isEnabled(), 'after "Hide everything uncertain" the check passes and the masked image can be previewed');
   await page.click('#btn-send');
   check(await page.locator('#btn-copy-masked').isDisabled() && await page.locator('#btn-receipt-png').isDisabled(), 'copying and the receipt wait for "I have looked over the masked image", like downloading');
   await page.check('#pf-ok');
