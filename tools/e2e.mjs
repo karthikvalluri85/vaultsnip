@@ -494,6 +494,18 @@ try {
     const [cx, cy] = at(400, 470);
     await page.mouse.click(cx, cy);
     check(await page.evaluate(() => window.__DSC.blurs.length) === 0, 'clicking a blurred area with "Blur a chart" removes it');
+    // "Blur all charts": the sample's charts are found on the device and blurred in one click; text-only panels are not
+    await page.click('#t-blur-all');
+    const all = await page.evaluate(() => {
+      const S = window.__DSC, W = S.img.width, H = S.img.height;
+      const inBlur = w => S.blurs.some(b => w.x + w.w / 2 > b.x && w.x + w.w / 2 < b.x + b.w && w.y + w.h / 2 > b.y && w.y + w.h / 2 < b.y + b.h);
+      return { n: S.blurs.length, share: S.blurs.reduce((a, b) => a + b.w * b.h, 0) / (W * H), wordsIn: S.words.filter(inBlur).length, words: S.words.length, status: document.getElementById('status').textContent };
+    });
+    check(all.n >= 2 && all.share < 0.7 && /Blurred \d+ chart/.test(all.status), `"Blur all charts" finds and blurs the sample's charts (${all.n} areas, ${Math.round(all.share * 100)}% of the picture)`);
+    check(all.wordsIn < all.words * 0.6, `it leaves the text panels alone (${all.wordsIn} of ${all.words} words fall in a blurred area)`);
+    await page.click('#t-blur-all');
+    check(await page.evaluate(n => window.__DSC.blurs.length === n, all.n), 'running it again adds nothing new');
+    await page.evaluate(() => { window.__DSC.blurs.length = 0; });
   }
 
   console.log('Start screen');
