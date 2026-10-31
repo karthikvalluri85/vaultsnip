@@ -26,7 +26,8 @@ for (const [path, better, tol, why] of RULES) {
   checked++;
   const worse = better === 'lower' ? now - was : was - now;
   const mark = worse > tol ? '✗' : worse < -tol ? '↑' : '✓';
-  if (worse > tol) failed++;
+  if (worse > tol) { failed++; if (process.env.GITHUB_ACTIONS) console.log(`::error title=Accuracy gate::${path} ${was} → ${now} (${better} is better, tolerance ${tol}): ${why}`); }
+  else if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Accuracy::${path} ${was} → ${now}`);
   console.log(`  ${mark} ${path}: ${was} → ${now} (${better} is better, tolerance ${tol}) - ${why}`);
 }
 if (!checked) { console.error('no figure in common between the result and the baseline'); process.exit(2); }
