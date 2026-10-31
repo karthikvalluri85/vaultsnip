@@ -49,7 +49,7 @@ try {
   console.log('Sample: masks, then the in-place replica built on this device');
   await page.click('#btn-try');
   await page.locator('#samples .sample button').nth(0).click();
-  await page.waitForFunction(() => { const g = document.querySelector('.gate'); return g && /Blocked|Review|Pass/.test(g.textContent) && !/Checking/.test(g.textContent); }, null, { timeout: 180000 });
+  await page.waitForFunction(() => { const g = document.querySelector('.gate'); return g && /Blocked|Review|Nothing found/.test(g.textContent) && !/Checking/.test(g.textContent); }, null, { timeout: 180000 });
   await page.evaluate(() => { const T = window.__DSC.test; T.hideUncertain(); });
   await page.evaluate(() => document.getElementById('btn-send').onclick());
   check(await page.locator('#btn-confirm').isDisabled(), 'nothing is built before "I have looked over the masked image" is ticked');

@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-11-01
+
+### Changed
+- **The check no longer says "Pass".** When it finds nothing, the review screen says **Nothing found** and asks for a last look: "It can still miss something: look over the masked image (Zoom 2×) before you share it." The status line and the receipt say the check found nothing readable, never that nothing readable is left: the check can miss what neither reader saw, and the last look is the user's.
+
 ## [0.12.0] - 2026-10-31
 
 Dashboards in German, French and Spanish, half the false alarms, charts in greys found too, large screenshots read at a legible size, and a measure of what is actually still readable. On the English test set the leaked area fell from 0.31% to 0.25%, and words with readable letters from 9 to 5.

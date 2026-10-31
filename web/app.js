@@ -1316,7 +1316,7 @@ customer service staff agent team people everyone nobody someone something nothi
     S.flags = flags; S.chartMarks = marks; S.setAside = setAside;
     updateGate();
     detectFingerprint();
-    setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
+    setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed: it found nothing readable outside the masks. It can still miss something, so look over the masked image before you share it.', false);
     draw();
   }
   // Warns when brand colours or an unmasked corner logo remain in the image after masking.
@@ -1380,7 +1380,8 @@ customer service staff agent team people everyone nobody someone something nothi
       running: ['pending', 'Checking…', 'Re-reading the masked image on this device.'],
       dirty: ['pending', 'Masks changed', 'Re-run the check before sending.'],
       policy: ['pending', 'Policy changed', 'Click "Re-apply policy" so the new names and words take effect. The check then runs again.'],
-      pass: ['pass', 'Pass', S.flags.length ? 'Every finding is resolved. You can preview the masked image.' : 'Nothing readable is left outside the masks.'],
+      // not "Pass": the check can miss what neither reader saw, and the last look is the user's
+      pass: ['pass', 'Nothing found', (S.flags.length ? 'Every finding is resolved. ' : 'The check found nothing readable outside the masks. ') + 'It can still miss something: look over the masked image (Zoom 2×) before you share it.'],
       review: ['review', 'Review needed', 'Unlisted words are still readable. Mask them or mark them safe.'],
       blocked: ['blocked', 'Blocked', 'Numbers or IDs are still readable. Mask each one, or keep it if it is not sensitive.']
     }[S.gate];
@@ -2135,7 +2136,7 @@ customer service staff agent team people everyone nobody someone something nothi
       ['SHA-256', sha || 'not available (this page is not served over https)', true],
       ['Made', made.toLocaleString() + ' (' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time') + ')'],
       ['Where', 'On this device, in the browser. The original screenshot and the words read from it never left it.'],
-      ['Pre-flight check', S.gate === 'pass' ? 'Passed. The masked image was read again six independent ways on this device; nothing readable is left outside the masks.'
+      ['Pre-flight check', S.gate === 'pass' ? 'Passed. The masked image was read again six independent ways on this device and nothing readable was found outside the masks.'
         + (flags.length ? ` ${plural(flags.length, 'finding was', 'findings were')} resolved: ${[masked ? masked + ' masked' : '', keptByYou ? keptByYou + ' kept as not sensitive' : ''].filter(Boolean).join(', ')}.` : '') : 'Not passed'],
       ['Hidden', `${plural(t.hidden, 'word or number', 'words and numbers')} in ${plural(on.length, 'box', 'boxes')}: ` + Object.keys(TYPES).filter(k => counts[k]).map(k => `${label(k)} ${counts[k]}`).join(' · ')],
       ['Blurred', S.blurs.length ? `${S.blurs.length} ${S.blurs.length === 1 ? 'area' : 'areas'} blurred by you, so the chart shapes in them cannot be read` : 'Nothing blurred: chart shapes are the real ones'],
