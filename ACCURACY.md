@@ -44,7 +44,16 @@ never leaks. Before 0.12 these dashboards were read with the English file, and t
 every mask, is set aside (counted on the review screen, and shown on request). On the English set this halved the findings
 (53 → 27) with no more text left readable.
 
-**Replica:** figures follow from the in-place benchmark.
+**Replica** (`tools/inplace-bench/run.mjs`, after "Hide everything uncertain"):
+
+| Figure | English 0.11.0 (30 dashboards) | English 0.12.0 | French 0.12.0 (6 dashboards) |
+|---|---|---|---|
+| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image | 0 on every image |
+| Sensitive words left readable | 10 of 2,680 | **8** (0.3%) | 2 of 519 (0.4%) |
+| Boxes with leftover pixels after clearing | 111 of 2,651 | 115 of 2,611 | 19 of 564 |
+
+A French dashboard's replica gets French towns, people and companies ("Saint-Denis" → "La Rochelle"), and its axes keep
+one round, even scale.
 
 ### Earlier figures
 

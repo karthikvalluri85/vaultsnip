@@ -814,7 +814,7 @@ customer service staff agent team people everyone nobody someone something nothi
   function axisFactors(nums) {
     const main = t => (t.match(/\d[\d,]*(?:\.\d+)?/g) || ['NaN']).reduce((a, b) => (b.length > a.length ? b : a));
     const out = new Map(), val = m => parseFloat(main(m.text).replace(/,/g, ''));
-    const lines = (key, along) => {
+    const lines = (key, along, cross) => {
       const groups = [];
       nums.filter(m => !out.has(m) && Number.isFinite(val(m))).forEach(m => {
         // ticks of one axis are alike in size: a big KPI value above a chart is not one of them
@@ -858,30 +858,41 @@ customer service staff agent team people everyone nobody someone something nothi
         // one factor for the whole axis, tried until every tick keeps its number of digits
         const r = seeded(hash(g.map(m => m.text).join('|'))), digits = v => String(Math.floor(Math.abs(v))).length;
         const decs = Math.max(...g.map(m => ((main(m.text).match(/\.(\d+)/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
-        for (let k = 0; k < 24; k++) {
+        // last, factors close to 1: an axis from 0 to 9,000 keeps its digits only for a factor between 1 and 1.11, which the
+        // random ones never are; a nearby round scale reads far better than unrelated numbers
+        const NEAR = [1.15, 0.87, 1.1, 0.9, 1.06, 0.94];
+        // and last of all, the same with a digit more or fewer allowed on a few ticks (an axis from 0 to 1,000,000 crosses two
+        // digit counts, which no single factor keeps)
+        for (let k = 0; k < 24 + 2 * NEAR.length; k++) {
+          const late = k >= 24, loose = k >= 24 + NEAR.length;
           // a new start and a new step, at the labels' precision (so the steps stay exactly even); counted in steps, so a
           // missing tick leaves its gap, and anchored on the axis's 0 when it has one, which stays exactly 0
           // the step a round number (two significant figures, as real axes are), except in the last tries
-          const f = randomFactor(r), z = vals.indexOf(0), nice = x => (k < 16 ? roundTo2(x) : x);
+          const f = late ? NEAR[(k - 24) % NEAR.length] : randomFactor(r), z = vals.indexOf(0), nice = x => (k < 16 || late ? roundTo2(x) : x);
           const qs = q(nice(perStep * f)) || Math.sign(perStep) * unit;
           // an axis that runs down to 0 is anchored there even when the reader missed the 0 itself
           // (a small scale such as 8, 7, 6 has no other even scale through 0 of the same digits: then it floats free)
-          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = (z >= 0 || k < 12) && Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
+          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = (z >= 0 || k < 12 || late) && Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
           const start = q(nice(vals[0] * f));
           const next = idx.map(k => (kz != null ? (k - kz) * qs : start + k * qs)).map(q), idx_ = idx;
-          if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && digits(v) === digits(vals[i]) && v !== vals[i]))) {
+          const sameSize = (v, w) => (loose ? Math.abs(digits(v) - digits(w)) <= 1 : digits(v) === digits(w));
+          if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && sameSize(v, vals[i]) && v !== vals[i]))) {
             g.forEach((m, i) => out.set(m, next[i]));
             // a tick at a missing step (kept out by its odd size: the reader joined a stray letter to it) takes the same
             // scale when its value is the one that step should have
             // one step's length averaged over the whole axis, so one tick read off-centre does not skew it
             const a0 = along(g[0]), last = idx_[idx_.length - 1], unitGap = (along(g[g.length - 1]) - a0) / last, unitVal = perStep;
-            nums.filter(m => !out.has(m) && Number.isFinite(val(m)) && Math.abs(key(m) - key(g[0])) < Math.max(6, g[0].h)).forEach(m => {
+            // in the axis's column (or row): it overlaps one of its ticks across the axis, whatever its own edges (a tick read
+            // with its tick mark is wider, and its right edge no longer lines up)
+            const span = cross === 'x' ? m => [m.x, m.x + m.w] : m => [m.y, m.y + m.h];
+            const sameLine = m => g.some(t => { const a = span(m), b = span(t); return Math.min(a[1], b[1]) - Math.max(a[0], b[0]) > 0.5 * Math.min(a[1] - a[0], b[1] - b[0]); });
+            nums.filter(m => !out.has(m) && Number.isFinite(val(m)) && sameLine(m)).forEach(m => {
               const k = (along(m) - a0) / unitGap, idx = Math.round(k);
-              // inside the axis, or a step or two past its end (the 0 at the foot, read with its tick mark)
-              if (idx < 0 || Math.abs(k - idx) > 0.3 || idx > last + 2) return;
+              // anywhere along the axis, inside or past either end, as long as its value is the one that step should have
+              if (Math.abs(k - idx) > 0.3) return;
               const want = vals[0] + idx * unitVal;
               const v = q(kz != null ? (idx - kz) * qs : start + idx * qs);
-              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m)) && (v === 0) === (val(m) === 0)) out.set(m, v);
+              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && Math.abs(digits(v) - digits(val(m))) <= 1 && v >= 0 && (v === 0) === (val(m) === 0)) out.set(m, v);
             });
             break;
           }
@@ -889,9 +900,10 @@ customer service staff agent team people everyone nobody someone something nothi
       });
     };
     // positions are measured at each label's middle: a tick read with a stray letter beside it has a taller box
-    lines(m => m.x + m.w, m => m.y + m.h / 2);       // y-axis ticks: one column, right-aligned
-    lines(m => m.x + m.w / 2, m => m.y + m.h / 2);   // or centred
-    lines(m => m.y + m.h / 2, m => m.x + m.w / 2);   // x-axis ticks: one row
+    lines(m => m.x + m.w, m => m.y + m.h / 2, 'x');       // y-axis ticks: one column, right-aligned
+    lines(m => m.x, m => m.y + m.h / 2, 'x');             // or left-aligned (some read with their tick mark, some without)
+    lines(m => m.x + m.w / 2, m => m.y + m.h / 2, 'x');   // or centred
+    lines(m => m.y + m.h / 2, m => m.x + m.w / 2, 'y');   // x-axis ticks: one row
     return out;
   }
   // Detects percentage groups (summing to ~100) and sum-of-parts relationships so faked totals equal the sum of faked parts.
