@@ -273,6 +273,18 @@ try {
   const afterM = await page.evaluate(() => ({ added: window.__DSC.masks.length, open: window.__DSC.flags.filter(f => !f.resolved).map(f => f.text), focus: document.activeElement && document.activeElement.querySelector && (document.activeElement.querySelector('code') || {}).textContent }));
   check(afterM.added === m0 + 1 && afterM.open.join(',') === '7,Zorblat' && afterM.focus === 'Zorblat', `M masks the focused finding and moves on to the next (focus: ${afterM.focus})`);
   await page.evaluate(() => { const S = window.__DSC; S.masks.splice(-1, 1); S.flags = []; S.test.updateGate(); });
+  // chart marks set aside: counted, and turned into findings on request
+  const aside = await page.evaluate(() => {
+    const S = window.__DSC;
+    S.flags = []; S.setAside = [{ x: 300, y: 300, w: 14, h: 18, text: '4', type: 'Number or money', severity: 'block', resolved: false, likelyMark: true }];
+    S.test.updateGate();
+    const note = document.querySelector('#flags .aside'), gate1 = S.gate;
+    note.querySelector('button').click();
+    return { note: note.textContent, gate1, gate2: S.gate, flags: S.flags.length, left: S.setAside.length };
+  });
+  check(/1 chart mark read as a digit/.test(aside.note) && aside.gate1 === 'pass' && aside.gate2 === 'blocked' && aside.flags === 1 && aside.left === 0,
+    `chart marks set aside are counted, and "Review them too" makes them findings (${aside.gate1} → ${aside.gate2})`);
+  await page.evaluate(() => { const S = window.__DSC; S.flags = []; S.setAside = []; S.test.updateGate(); });
   // the review summary: plain numbers that add up, your decisions counted, and a clear next step
   const sum = await page.evaluate(() => {
     const S = window.__DSC, words = S.words.filter(w => !w.ghost);
