@@ -569,8 +569,10 @@ customer service staff agent team people everyone nobody someone something nothi
     const gap = Math.max(1, Math.round(h * 0.12)), reach = Math.round(h * 1.5);
     // sideways only for numbers and IDs: a digit read off the end is what leaks ("8.5%" of "28.5%"), while a word grown
     // sideways would swallow the next word of a name ("and", "West")
-    // ...and only for a confident reading of two or more digits: an unsure lone "2" read from "Jan" is not a number cut short
-    const sideways = /Number|Identifier/.test(g.type || '') && (g.text.match(/\d/g) || []).length >= 2 && !(g.conf < 50);
+    // ...and only for a confident reading: an unsure lone "2" read from "Jan" is not a number cut short
+    // (a lone digit only when read confidently: "1%" read off "-23.1%" grows, an unsure "2" read from "Jan" does not)
+    const digits = (g.text.match(/\d/g) || []).length;
+    const sideways = /Number|Identifier/.test(g.type || '') && digits >= 1 && (digits >= 2 ? !(g.conf < 50) : g.conf >= 70);
     let L = x0, R = x1;
     for (let x = x0 - 1, miss = 0; sideways && x >= Math.max(0, x0 - reach); x--) {
       if (shapeCol(x)) break;
