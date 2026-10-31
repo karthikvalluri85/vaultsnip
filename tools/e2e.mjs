@@ -76,7 +76,19 @@ try {
   const drops = prog.filter((v, i) => i > 0 && v < prog[i - 1]).length;
   check(prog.length > 5 && drops === 0 && Math.max(...prog) >= 90, `reading and checking show one progress figure that only climbs (${prog.length} updates, ${prog[0]}% → ${prog[prog.length - 1]}%, ${drops} restarts)`);
   const gate = (await page.locator('.gate').textContent()).replace(/\s+/g, ' ').trim();
-  check(/Blocked|Review/.test(gate), `pre-flight check catches readable text (${gate.slice(0, 40)}…)`);
+  check(/Blocked|Review|Pass/.test(gate), `the pre-flight check runs on the demo (${gate.slice(0, 40)}…)`);
+  // and it catches readable text: with one number's mask taken away (not switched off by the user), the check finds it
+  const caught = await page.evaluate(async () => {
+    const S = window.__DSC, i = S.masks.findIndex(m => m.on && m.src === 'auto' && m.type === 'Number or money' && m.w > 30 && m.h > 14);
+    const [m] = S.masks.splice(i, 1);
+    document.getElementById('btn-recheck').click();
+    let started = false;
+    await new Promise(r => { const t = setInterval(() => { if (S.gate === 'running') started = true; else if (started) { clearInterval(t); r(); } }, 50); });
+    const found = S.flags.some(f => f.x < m.x + m.w && f.x + f.w > m.x && f.y < m.y + m.h && f.y + f.h > m.y);
+    S.masks.splice(i, 0, m); S.flags = []; S.test.updateGate();
+    return { found, text: m.text, gate: S.gate };
+  });
+  check(caught.found, `pre-flight check catches readable text: a number left unmasked ("${caught.text}") becomes a finding`);
   check(await page.evaluate(() => (window.__DSC.masks || []).length > 20), 'sensitive text is masked');
   check(await page.evaluate(() => window.__DSC.ctx.state) === 'ready', `on-device name check ran on the demo (${await page.evaluate(() => window.__DSC.ctx.state)})`);
   const ctx = await page.evaluate(async () => {
