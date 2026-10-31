@@ -1008,7 +1008,10 @@ customer service staff agent team people everyone nobody someone something nothi
     const approved = t => { const lc = t.trim().replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase(); return S.sessionAllow.has(sessionKey(lc)) || extraAllow().has(lc); };
     const out = [];
     S.ctx.lines.forEach((line, li) => {
-      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) }));
+      // the report vocabulary of a German, French or Spanish dashboard is capitalised like names ("Kunde", "Monat"), and the
+      // (English) name model takes it for names; those words are the language's own labels, never names
+      const ownWord = t => langSafe(t.trim().replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '').toLowerCase());
+      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) && !ownWord(w.text) }));
       VSContext.contextualHits(words, S.ctx.scores[li]).forEach(i => {
         const w = line[i], p = Math.max(3, w.h * 0.18);
         out.push({ x: w.x - p, y: w.y - p, w: w.w + 2 * p, h: w.h + 2 * p, type: VSContext.CONTEXT_TYPE, text: w.text, on: true, src: 'auto' });
