@@ -47,7 +47,7 @@ const DEFAULT_ALLOW = new Set(ALLOW_WORDS);
 function classify(text, p = {}) {
   const allow = p.allow ?? DEFAULT_ALLOW;
   const raw = text.trim();
-  const clean = raw.replace(/^[^\w€$£¥₹%#@]+|[^\w€$£¥₹%]+$/g, "");
+  const clean = raw.replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, "");
   if (!clean) return null;
   const low = clean.toLowerCase();
   if ((p.clientNames ?? []).some((n) => n && (low.includes(n) || n.split(/\s+/).includes(low)))) return "Client name";
@@ -58,8 +58,8 @@ function classify(text, p = {}) {
   if (/[\d€$£¥₹%]/.test(clean)) return "Number or money";
   if (clean.length <= 1) return null;
   if (allow.has(low)) return null;
-  const parts = low.split(/[-/&]/).filter(Boolean);
-  if (parts.length > 1 && parts.every((x) => allow.has(x))) return null;
+  const parts = low.replace(/’/g, "'").split(/[-/&']/).filter(Boolean);
+  if (parts.length > 1 && parts.some((x) => x.length > 1) && parts.every((x) => x.length <= 1 || allow.has(x))) return null;
   return "Text not on allowlist";
 }
 function parseTsv(tsv, scale) {

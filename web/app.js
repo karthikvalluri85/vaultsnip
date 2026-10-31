@@ -133,7 +133,7 @@ which what when where how why than then also just about across into out off per 
     if (safe(low) || S.sessionAllow.has(sessionKey(low))) return null;
     // a compound or an elided word ("Sous-total", "d'affaires", "Nord/Süd") is safe when every part is
     const parts = low.replace(/’/g, "'").split(/[-/&']/).filter(Boolean);
-    if (parts.length > 1 && parts.every(p => p.length <= 1 || safe(p))) return null;
+    if (parts.length > 1 && parts.some(p => p.length > 1) && parts.every(p => p.length <= 1 || safe(p))) return null;
     return 'Text not on allowlist';
   }
 
