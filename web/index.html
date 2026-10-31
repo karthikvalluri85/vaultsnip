@@ -250,6 +250,11 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         </div>
         <div class="panel">
           <h3>Redaction policy</h3>
+          <label class="f" for="lang-select">Language of the dashboard <span>Automatic recognises German, French and Spanish from the first words read.</span>
+            <select id="lang-select" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px;width:100%">
+              <option value="auto">Automatic</option><option value="en">English</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option>
+            </select></label>
+          <p class="hint" id="lang-note" hidden></p>
           <label class="f" for="client-names">Names to always mask <span>Client, company or product names, comma separated. Not saved.</span>
             <input type="text" id="client-names" placeholder="e.g. Acme, Project Falcon"></label>
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
@@ -346,6 +351,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="lib/tesseract.min.js"></script>
 <script src="lib/vs-context.js"></script>
 <script src="lib/vs-faker.js"></script>
+<script src="lexicon.js"></script>
 <script src="synth.js"></script>
 <script src="inpaint.js"></script>
 <script src="samples.js"></script>
