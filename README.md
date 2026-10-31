@@ -100,7 +100,7 @@ Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: 
 
 - **Web app:** Cloudflare Pages, connected to this repo. Build command: none. Output directory: `web`. Every push to `main` deploys.
 - **Hugging Face Space:** a *Static* Space with the two files in `dist/hf-space` (`README.md` and a page that shows the live web app), so it always runs the latest release. Live at https://huggingface.co/spaces/karthikvalluri/vaultsnip.
-- **Chrome Web Store / Edge Add-ons:** run `./build.sh --bundle-models`, then upload `dist/vaultsnip-extension.zip`; privacy disclosures in [PRIVACY.md](PRIVACY.md).
+- **Chrome Web Store / Edge Add-ons:** run `./build.sh --bundle-models`, then upload `dist/vaultsnip-extension.zip`; listing text, permission justifications and privacy answers in [STORE_LISTING.md](STORE_LISTING.md), privacy disclosures in [PRIVACY.md](PRIVACY.md).
 
 ## Project layout
 
