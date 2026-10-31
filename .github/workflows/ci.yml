@@ -61,6 +61,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
       - run: npm run test:inplace
+      - run: npm run test:real-label
 
   ml:
     name: On-device name check

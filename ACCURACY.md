@@ -32,6 +32,15 @@ of a "Clicks by City" chart get towns). Replacements that had to shrink below 70
 original's size to fit stayed level (47 in 0.9, 49 in 0.10, of about 2,700), and the axis ticks of a chart keep one
 round, even scale down to 0.
 
+### Real screenshots, measured privately
+
+Every figure above comes from generated dashboards, where each word's position and kind is known. Real dashboards differ
+(denser tables, other fonts, other languages), and real screenshots cannot be published. So anyone can measure on their
+own, privately: `npm run bench:real:label` opens a labeller on `127.0.0.1` for the screenshots in `.bench/real/` (a
+git-ignored folder), where a box is dragged over each sensitive item, and `npm run bench:real` scores masking on them with
+the same measures. Nothing leaves the computer, and only the figures are meant to be shared. Please report them in an
+issue: they are the best check that the 0.7% above holds outside the generated set.
+
 VaultSnip earns trust in two ways: it never lets sensitive text through, and the replica looks and behaves like the
 dashboard in the screenshot. This page defines how both are measured, records the current figures, and sets out the
 phases for raising them. Every figure here is reproducible with `npm run bench` (see [CONTRIBUTING](CONTRIBUTING.md)).

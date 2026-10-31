@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VaultSnip labeller</title>
+<style>
+:root{--ink:#14181e;--muted:#5b6470;--line:#d9dde3;--bg:#f6f7f9;--surface:#fff;--accent:#0d6b5d;--bad:#b03c38;--safe:#2f7d3e;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--ink:#e8ebef;--muted:#9aa4b0;--line:#323a44;--bg:#12161b;--surface:#1a1f26;--accent:#43b8a5;--bad:#ec7a75;--safe:#5cbf6e;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);display:grid;grid-template-columns:260px 1fr;height:100vh}
+aside{border-right:1px solid var(--line);background:var(--surface);padding:14px;overflow:auto}
+h1{font-size:15px;margin:0 0 6px}
+p.note{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+ul{list-style:none;padding:0;margin:0;display:grid;gap:4px}
+li button{width:100%;text-align:left;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);cursor:pointer;font:inherit}
+li button[aria-current=true]{border-color:var(--accent);outline:1px solid var(--accent)}
+li small{color:var(--muted)}
+main{display:grid;grid-template-rows:auto 1fr;min-width:0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--surface)}
+.bar select,.bar button{font:inherit;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.bar button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.bar .sp{flex:1}
+.wrap{overflow:auto;padding:14px}
+canvas{max-width:100%;cursor:crosshair;background:#fff;box-shadow:0 0 0 1px var(--line)}
+kbd{font:12px ui-monospace,monospace;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+#msg{color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Label your screenshots</h1>
+  <p class="note">Drag a box over every sensitive item (a name, a number, an ID, an email). Boxes over safe labels are optional: they measure over-masking. Everything stays on this computer.</p>
+  <p class="note">Keys: <kbd>1</kbd>–<kbd>9</kbd> pick the kind, <kbd>Backspace</kbd> removes the last box, <kbd>Ctrl</kbd>+<kbd>S</kbd> saves, <kbd>→</kbd> next image. Click a box to remove it.</p>
+  <ul id="list"></ul>
+</aside>
+<main>
+  <div class="bar">
+    <label>Kind <select id="kind">
+      <option value="name">1 Person name</option><option value="org">2 Organisation</option><option value="number">3 Number or money</option>
+      <option value="id">4 ID</option><option value="email">5 Email</option><option value="place">6 Place</option>
+      <option value="product">7 Product</option><option value="other">8 Other sensitive</option><option value="safe">9 Safe label</option>
+    </select></label>
+    <span id="msg"></span><span class="sp"></span>
+    <button id="undo" type="button">Remove last</button>
+    <button id="save" class="primary" type="button">Save</button>
+  </div>
+  <div class="wrap"><canvas id="cv" width="10" height="10"></canvas></div>
+</main>
+<script>
+const $ = id => document.getElementById(id), cv = $('cv'), x = cv.getContext('2d');
+const COLORS = { name: '#b03c38', org: '#9b3fb3', number: '#c46a00', id: '#3155c6', email: '#0e7d8f', place: '#5d7d12', product: '#a1477a', other: '#6b4f2a', safe: '#2f7d3e' };
+let items = [], cur = -1, img = null, boxes = [], drag = null, dirty = false;
+const msg = t => { $('msg').textContent = t; };
+async function load() {
+  items = await (await fetch('/api/list')).json();
+  const ul = $('list'); ul.innerHTML = '';
+  if (!items.length) { ul.innerHTML = '<li><small>No screenshots yet: put PNG, JPG or WebP files in the folder and reload.</small></li>'; return; }
+  items.forEach((it, i) => {
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button'; b.innerHTML = '<span></span><br><small></small>';
+    b.firstChild.textContent = it.file; b.querySelector('small').textContent = it.boxes ? `${it.boxes} boxes saved` : 'not labelled yet';
+    b.onclick = () => open(i); li.appendChild(b); ul.appendChild(li);
+  });
+  [...ul.querySelectorAll('button')].forEach((b, k) => b.setAttribute('aria-current', k === cur));
+  if (cur < 0) open(0);
+}
+function open(i) {
+  if (dirty && !confirm('Leave this image without saving its boxes?')) return;
+  cur = i; dirty = false;
+  [...$('list').querySelectorAll('button')].forEach((b, k) => b.setAttribute('aria-current', k === i));
+  const it = items[i];
+  boxes = it.truth ? it.truth.words.map(w => ({ x: w.x, y: w.y, w: w.w, h: w.h, kind: w.sensitive ? w.kind : 'safe', text: w.text })) : [];
+  img = new Image();
+  img.onload = () => { cv.width = img.naturalWidth; cv.height = img.naturalHeight; draw(); msg(`${it.file}: ${boxes.length} boxes`); };
+  img.src = '/img/' + encodeURIComponent(it.file);
+}
+function draw() {
+  if (!img) return;
+  x.drawImage(img, 0, 0);
+  const lw = Math.max(2, cv.width / 700);
+  boxes.forEach(b => { x.lineWidth = lw; x.strokeStyle = COLORS[b.kind]; x.fillStyle = COLORS[b.kind] + '33'; x.fillRect(b.x, b.y, b.w, b.h); x.strokeRect(b.x, b.y, b.w, b.h); });
+  if (drag && drag.moved) { x.setLineDash([6, 4]); x.strokeStyle = COLORS[$('kind').value]; x.strokeRect(drag.x0, drag.y0, drag.x1 - drag.x0, drag.y1 - drag.y0); x.setLineDash([]); }
+}
+const at = e => { const r = cv.getBoundingClientRect(), k = cv.width / r.width; return [(e.clientX - r.left) * k, (e.clientY - r.top) * k]; };
+cv.onpointerdown = e => { const [px, py] = at(e); drag = { x0: px, y0: py, x1: px, y1: py, moved: false }; cv.setPointerCapture(e.pointerId); };
+cv.onpointermove = e => { if (!drag) return; [drag.x1, drag.y1] = at(e); drag.moved = Math.abs(drag.x1 - drag.x0) + Math.abs(drag.y1 - drag.y0) > 4; draw(); };
+cv.onpointerup = () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.moved) {
+    const b = { x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0), kind: $('kind').value, text: '' };
+    if (b.w > 2 && b.h > 2) { boxes.push(b); dirty = true; }
+  } else {
+    const hit = boxes.findIndex(b => d.x0 >= b.x && d.x0 <= b.x + b.w && d.y0 >= b.y && d.y0 <= b.y + b.h);
+    if (hit >= 0) { boxes.splice(hit, 1); dirty = true; }
+  }
+  draw(); msg(`${items[cur].file}: ${boxes.length} boxes${dirty ? ' (not saved)' : ''}`);
+};
+async function save() {
+  if (cur < 0) return;
+  const it = items[cur];
+  const r = await fetch('/api/save', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ file: it.file, width: cv.width, height: cv.height, words: boxes }) }).then(r => r.json());
+  if (r.error) { msg('Not saved: ' + r.error); return; }
+  dirty = false;
+  await load();   // the list shows the new count; this image stays open
+  msg(`${it.file}: ${r.saved} boxes saved`);
+}
+$('save').onclick = save;
+$('undo').onclick = () => { boxes.pop(); dirty = true; draw(); };
+document.onkeydown = e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); return; }
+  if (e.target.tagName === 'SELECT') return;
+  if (/^[1-9]$/.test(e.key)) $('kind').selectedIndex = +e.key - 1;
+  else if (e.key === 'Backspace') { e.preventDefault(); boxes.pop(); dirty = true; draw(); }
+  else if (e.key === 'ArrowRight' && cur < items.length - 1) open(cur + 1);
+  else if (e.key === 'ArrowLeft' && cur > 0) open(cur - 1);
+};
+window.onbeforeunload = e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } };
+load();
+</script>
+</body>
+</html>
