@@ -2,35 +2,49 @@
 
 > **History.** Most of this page measures the earlier chart-rebuilding replica and its AI-key path, both retired in 0.9: the replica is now the original screenshot changed in place, built only on the device, and nothing is sent to any AI service. The masking figures still apply. The in-place replica is measured by `npm run bench:inplace`.
 
-## Where it stands in 0.10
+## Where it stands in 0.11
 
 Measured on 31 October 2026 on two generated sets where every word's position and kind is known. Everything is invented
 (Faker people and companies, `example.com` emails), so the sets can be published and the figures reproduced by anyone.
 
 **Masking** (20 dashboards, `node tools/synth-bench/gen.mjs --count 20 --seed 3`, then `node tools/synth-bench/run.mjs`):
 
-| Figure | 0.9.0 | 0.10.0 |
-|---|---|---|
-| Sensitive text still readable after masking and the check (**leaked area**) | 0.72% of its area | **0.72%** of its area |
-| Sensitive words at least partly readable | 35 of 1,852 (1.9%, 95% interval 1.4 to 2.6%) | 35 of 1,852 (1.9%) |
-| Of which: numbers, person names, product names, organisations | 23, 6, 4, 2 | 23, 6, 4, 2 |
-| Safe words masked anyway (over-masking) | 68 of 771 (8.8%) | 68 of 771 (8.8%) |
-| Check findings / of which real leftovers | 62 / 2 | **58** / 2 |
-| Median reading time, drop to end of check (2-core test machine) | 72 s | **47 s** |
+| Figure | 0.9.0 | 0.10.0 | 0.11.0 |
+|---|---|---|---|
+| Sensitive text still readable after masking and the check (**leaked area**) | 0.72% of its area | 0.72% | **0.30%** |
+| Sensitive words at least partly readable | 35 of 1,852 (1.9%) | 35 (1.9%) | **19 (1.0%, 95% interval 0.7 to 1.6%)** |
+| Of which: numbers, person names, product names, organisations, places | 23, 6, 4, 2, 0 | 23, 6, 4, 2, 0 | 7, 6, 3, 2, 1 |
+| Safe words masked anyway (over-masking) | 68 of 771 (8.8%) | 68 (8.8%) | 76 (9.9%) |
+| Check findings / of which real leftovers | 62 / 2 | 58 / 2 | **47** / 0 |
+| Median time, drop to end of check (2-core test machine) | 72 s | 47 s | **40 s** |
+
+What changed in 0.11: a mask grows to the ink it touches (up and down to where its letters end, and sideways for numbers
+and IDs, so a digit the reader missed at either end is covered); a year-like number on an axis of values (0, 2000, 4000)
+is masked like its neighbours; and unsure letter scraps read from a map where no text was detected are left alone. The
+price is eight more safe words masked. The remaining person names are mostly a thin strip above the box the reader drew,
+where the measure's box is taller than the letters.
 
 The leaked area is the figure to watch: it is never 0 today, which is why the review screen asks you to look over the
-masked image before sharing, and why "Hide everything uncertain" exists. Most remaining false alarms from the check are
-lone digits read from chart shapes. A rule that dropped them cut findings to 21 but let one more real word through, so it
-was not shipped.
+masked image before sharing, and why "Hide everything uncertain" exists. Every remaining finding of the check on this set
+was a false alarm, mostly lone digits read from chart shapes; findings now show a close-up and probable chart marks are
+listed last, but they are never dropped, because a lone digit can be part of a real number.
 
-**Replica** (30 dashboards, `gen.mjs --count 30 --seed 7`, then `tools/inplace-bench/run.mjs`, after "Hide everything uncertain"): 20 of 2,680 sensitive
-words left readable (0.7%), and zero changed pixels outside the replaced boxes on every image.
+**Replica** (30 dashboards, `gen.mjs --count 30 --seed 7`, then `tools/inplace-bench/run.mjs`, after "Hide everything
+uncertain"):
 
-The replica's made-up text now reads like a dashboard: 0.9 turned names into syllable strings ("Corwyn Marnekal Tratan");
-0.10 uses English words of the same length, and names that fit their column (a Client column gets company names, the bars
-of a "Clicks by City" chart get towns). Replacements that had to shrink below 70% of the
-original's size to fit stayed level (47 in 0.9, 49 in 0.10, of about 2,700), and the axis ticks of a chart keep one
-round, even scale down to 0.
+| Figure | 0.10.0 | 0.11.0 |
+|---|---|---|
+| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image |
+| Sensitive words left readable | 20 of 2,680 (0.7%) | **10 (0.4%)** |
+| Boxes with leftover pixels after clearing | 135 of 2,719 | **111 of 2,651** |
+| Replacements shrunk below 70% to fit | 47 | 55 |
+
+The made-up text reads like a dashboard (English words of the same length, names that fit their column), and axis ticks
+keep one round, even scale down to 0. Most boxes with leftover pixels sit on charts and maps, where the pixels kept are
+the chart's own (a bar edge through the box), not text.
+
+**Blur all charts** finds charts from where the picture's colours are; a chart drawn only in greys is not found and is
+blurred by hand.
 
 ### Real screenshots, measured privately
 
