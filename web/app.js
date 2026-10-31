@@ -548,6 +548,12 @@ customer service staff agent team people everyone nobody someone something nothi
     if (L === x0 && R === x1 && T === y0 && B === y1) return null;
     return { x: L - 2, y: T - 2, w: R - L + 5, h: B - T + 5 };
   }
+  function markOnly(w) {
+    const regs = S.unread && S.unread.on && S.unread.state === 'ready' && S.unread.regions;
+    if (!regs || /\d/.test(w.text) || !(w.conf < 60)) return false;
+    const letters = (w.text.match(/[A-Za-z]/g) || []).length;
+    return letters <= 3 && w.text.replace(/\s/g, '').length <= 4 && !regs.some(r => overlap(r, w) > 0.2);
+  }
   function buildMasks(words) {
     const keep = S.keepComments;
     S.commentVocab = new Set();
@@ -558,6 +564,9 @@ customer service staff agent team people everyone nobody someone something nothi
     const flagged = words.map(w => {
       // (a scrap of a slanted label that the second look read as safe words is not masked)
       let type = w.lookSafe ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
+      // a scrap of two or three letters read unsurely from a map or a chart, where the text detector found no text at all,
+      // is a shape, not a word: masking it only smears the map in the replica. Never a reading with a digit.
+      if (type && markOnly(w)) type = null;
       if (!type && !w.lookSafe && YEARLIKE.test(w.text.trim().replace(/[-–]$/, '')) && yearOnValueAxis(w, words)) { type = 'Number or money'; S.valueYears.add(w.text.trim().replace(/[-–]$/, '')); }
       if (keep && w.inCm && !type && normW(w.text)) S.commentVocab.add(normW(w.text));
       return Object.assign({}, w, { type });
@@ -1143,7 +1152,7 @@ customer service staff agent team people everyone nobody someone something nothi
     // digit always counts, however short: a number both readers missed can surface here as a lone "4" (a real "10.7%"
     // did), and numbers are the text most often left exposed.
     const regs = S.unread.on && S.unread.state === 'ready' && S.unread.regions ? S.unread.regions : null;
-    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3);
+    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3 && !markOnly(v));
     // A re-reading of a word the first reader found at the same spot and judged safe ("Revenu" for "Revenue", "oup" for
     // "Group") is the same label read differently, not something the masks missed. A different reading there
     // ("Acme" where "Group" was read) is still a finding.
