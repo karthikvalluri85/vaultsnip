@@ -1549,17 +1549,19 @@ customer service staff agent team people everyone nobody someone something nothi
   /* ---------------- screens ---------------- */
   function show(id) { ['s-drop', 's-crop', 's-review', 's-replica'].forEach(s => $(s).hidden = s !== id); window.scrollTo(0, 0); }
 
-  const MAX_PIXELS = 2200 * 2200, MAX_SIDE = 8000, MAX_FULL_PIXELS = 40e6, MAX_FULL_SIDE = 16000;
+  const MAX_PIXELS = 3000 * 3000, MAX_SIDE = 10000, MAX_FULL_PIXELS = 40e6, MAX_FULL_SIDE = 16000;
   async function loadImage(src) {
     const img = new Image();
     img.decoding = 'async';
     await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('That file could not be read as an image.')); img.src = src; });
-    // a pixel budget (that of a 2200 x 2200 image), not a longest side: a tall full-page capture shrunk by its height
-    // came out with text too small to read, and text that is not read is not masked
+    // a pixel budget (that of a 3000 x 3000 image), not a longest side: a tall full-page capture shrunk by its height
+    // came out with text too small to read, and text that is not read is not masked. (2200 x 2200 until 0.12: a 2x
+    // full-page capture was read at a third of its size, and 16-pixel labels on a pie chart went unread.)
     const W = img.naturalWidth, H = img.naturalHeight, k = Math.min(1, Math.sqrt(MAX_PIXELS / (W * H)), MAX_SIDE / Math.max(W, H));
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    c.readScale = k;
     // the replica is drawn on the picture at its own size (within what a canvas can hold), not on the reading copy
     if (k < 1) {
       const kf = Math.min(1, Math.sqrt(MAX_FULL_PIXELS / (W * H)), MAX_FULL_SIDE / Math.max(W, H));
@@ -1580,6 +1582,9 @@ customer service staff agent team people everyone nobody someone something nothi
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
+    // a picture read at well under its size can have text too small to read, and text not read is not masked: say so
+    const sn = $('size-note'), k = canvas.readScale || 1;
+    if (sn) { sn.hidden = k >= 0.6; sn.textContent = k >= 0.6 ? '' : `This picture is very large, so it is read at ${Math.round(k * 100)}% of its size and its smallest text may be missed. For the safest result, crop it into parts, or check the masked image closely.`; }
     $('btn-reapply').disabled = true;
     // Reading takes seconds; if another screenshot arrives meanwhile, this run must not write into it.
     const seq = ++reviewSeq, current = () => seq === reviewSeq && S.img === canvas;

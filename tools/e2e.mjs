@@ -555,6 +555,15 @@ try {
     await page.evaluate(() => { window.__DSC.blurs.length = 0; });
   }
 
+  console.log('Large screenshots');
+  {
+    await page.goto(base);
+    const big = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 3600; c.height = 9000; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.fillStyle = '#333'; x.font = '32px sans-serif'; x.fillText('Revenue 4,200', 40, 80); return c.toDataURL('image/png').split(',')[1]; });
+    await page.setInputFiles('#file', { name: 'tall.png', mimeType: 'image/png', buffer: Buffer.from(big, 'base64') });
+    await page.waitForFunction(() => !document.getElementById('s-review').hidden, null, { timeout: 30000 });
+    const note = await page.evaluate(() => ({ hidden: document.getElementById('size-note').hidden, text: document.getElementById('size-note').textContent, w: window.__DSC.img.width, k: window.__DSC.img.readScale }));
+    check(!note.hidden && /read at \d+% of its size/.test(note.text) && note.w >= 1700, `a very large screenshot is read at a size where text stays legible, and the review says how much it was shrunk (${note.w} px wide, ${Math.round(note.k * 100)}%)`);
+  }
   console.log('Start screen');
   await page.goto(base);
   // the reader starts loading when the pointer comes near the drop area, quietly
