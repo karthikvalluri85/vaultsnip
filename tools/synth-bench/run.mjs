@@ -15,6 +15,7 @@ import { readdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ROOT, reviewer } from './review.mjs';
 import { EXPOSED, covered, overlap, wilson } from './metrics.mjs';
+import { chromium } from 'playwright';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
 const DIR = arg('--dir', join(ROOT, '.bench', 'synth'));
@@ -70,6 +71,48 @@ try {
 } finally {
   if (app) await app.close();
 }
+// Readable ink: the measure above counts a word exposed when more than EXPOSED of its box is uncovered, but a word's box
+// is taller than its letters (the line's height, an axis label's tick mark), so a strip of empty box above a fully
+// covered name counts as a leak. This second measure looks at the pixels: a word is exposed when more than EXPOSED of
+// the pixels of its letters (those unlike the background around the box) are outside every mask and finding.
+const inkResidual = await (async () => {
+  const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
+  try {
+    const page = await browser.newPage();
+    let n = 0, k = 0;
+    const list = [];
+    for (const f of files) {
+      const truth = JSON.parse(await readFile(join(DIR, f), 'utf8'));
+      const r = JSON.parse(await readFile(join(DIR, truth.id + '.review.json'), 'utf8'));
+      const sc = r.width / truth.width;
+      const words = truth.words.filter((w) => w.sensitive && w.kind !== 'unknown' && w.kind !== 'punctuation' && !w.rotated).map((w) => ({ text: w.text, kind: w.kind, x: w.x * sc, y: w.y * sc, w: w.w * sc, h: w.h * sc }));
+      const src = 'data:image/' + (truth.file.endsWith('.png') ? 'png' : 'jpeg') + ';base64,' + (await readFile(join(DIR, truth.file))).toString('base64');
+      const out = await page.evaluate(async ({ src, width, height, words, boxes }) => {
+        const img = new Image(); img.src = src; await img.decode();
+        const c = document.createElement('canvas'); c.width = width; c.height = height;
+        const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, width, height);
+        const d = x.getImageData(0, 0, width, height).data;
+        const inBox = (px, py) => boxes.some((m) => px >= m.x && px <= m.x + m.w && py >= m.y && py <= m.y + m.h);
+        return words.map((w) => {
+          const x0 = Math.max(0, Math.floor(w.x)), x1 = Math.min(width - 1, Math.ceil(w.x + w.w)), y0 = Math.max(0, Math.floor(w.y)), y1 = Math.min(height - 1, Math.ceil(w.y + w.h));
+          const count = new Map(), key = (i) => (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4);
+          for (let px = x0; px <= x1; px++) for (const py of [Math.max(0, y0 - 2), Math.min(height - 1, y1 + 2)]) { const kk = key((py * width + px) * 4); count.set(kk, (count.get(kk) || 0) + 1); }
+          for (let py = y0; py <= y1; py++) for (const px of [Math.max(0, x0 - 2), Math.min(width - 1, x1 + 2)]) { const kk = key((py * width + px) * 4); count.set(kk, (count.get(kk) || 0) + 1); }
+          const bk = [...count.entries()].sort((a, b) => b[1] - a[1])[0][0], bg = [((bk >> 8) & 15) * 16 + 8, ((bk >> 4) & 15) * 16 + 8, (bk & 15) * 16 + 8];
+          let ink = 0, open = 0;
+          for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
+            const i = (py * width + px) * 4;
+            if (Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) <= 90) continue;
+            ink++; if (!inBox(px + 0.5, py + 0.5)) open++;
+          }
+          return { ink, open };
+        });
+      }, { src, width: r.width, height: r.height, words, boxes: r.masks.concat(r.findings) });
+      out.forEach((o, i) => { n++; if (o.ink && o.open / o.ink > EXPOSED) { k++; list.push(`${truth.id} ${words[i].kind} "${words[i].text}" ${Math.round(100 * o.open / o.ink)}% of its ink`); } });
+    }
+    return { ...wilson(k, n), words: list };
+  } finally { await browser.close(); }
+})();
 console.table(per);
 times.sort((a, b) => a - b);
 const pct = (a, b) => (b ? Math.round((a / b) * 10000) / 100 : null);
@@ -80,10 +123,13 @@ const result = {
   overMasked: wilson(over, safe), falseAlarms: wilson(falseAlarms, findings),
   byKind: Object.fromEntries(Object.entries(kinds).map(([kk, v]) => [kk, { words: v.words, firstPassExposedPct: pct(v.firstExposed, v.words), residualExposedPct: pct(v.residual, v.words) }])),
   medianSeconds: times[Math.floor(times.length / 2)],
+  residualInkExposed: { pct: inkResidual.pct, lo: inkResidual.lo, hi: inkResidual.hi, k: inkResidual.k, n: inkResidual.n },
 };
 console.log(`MASKING on ${result.images} generated dashboards (${sens} sensitive words):`);
 console.log(`  exposed after masking   ${result.firstPassExposed.pct}% [${result.firstPassExposed.lo}–${result.firstPassExposed.hi}] (${firstExposed} words), area ${result.firstPassLeakedAreaPct}%`);
 console.log(`  exposed after the check ${result.residualExposed.pct}% [${result.residualExposed.lo}–${result.residualExposed.hi}] (${residual} words, ${residualRotated} rotated), area ${result.residualLeakedAreaPct}%`);
+console.log(`  letters still readable  ${inkResidual.pct}% [${inkResidual.lo}–${inkResidual.hi}] (${inkResidual.k} of ${inkResidual.n} upright words have more than ${EXPOSED * 100}% of their ink uncovered)`);
+if (process.argv.includes('--list')) inkResidual.words.forEach((w) => console.log('    ' + w));
 console.log(`  safe words masked       ${result.overMasked.pct}% [${result.overMasked.lo}–${result.overMasked.hi}] of ${safe}`);
 console.log(`  check false alarms      ${result.falseAlarms.pct}% [${result.falseAlarms.lo}–${result.falseAlarms.hi}] of ${findings} findings`);
 console.log(`  by kind ${JSON.stringify(result.byKind)}`);
