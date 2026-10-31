@@ -78,6 +78,15 @@ try {
   check(v8 > 0 && Math.abs((v8 - v6) - (v6 - v4)) <= 2 && Math.abs((v4 - v2) - (v2 - v0)) <= 2 && v0 === 0 && stray === undefined && v8 !== 800000,
     `an axis keeps one even scale, its zero and a tick with a stray digit beside it (${axis.v.join(', ')})`);
   check(axis.zero === '0-', 'an axis zero stays 0');
+  // an axis from 0 to 9,000, left-aligned, some ticks read with their tick mark (wider): one even scale for all of it
+  const wide = await page.evaluate(() => {
+    const T = window.__DSC.test, vals = [9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000, 1000, 0];
+    const M = vals.map((v, i) => { const t = v.toLocaleString('en-US') + (i % 3 === 0 ? '-' : ''); return { text: t, x: 48, y: 800 + i * 35, w: t.length * 7, h: i % 3 === 0 ? 22 : 16 }; });
+    const a = T.axisFactors(M);
+    return M.map(m => a.get(m));
+  });
+  const wsteps = wide.slice(1).map((v, i) => wide[i] - v);
+  check(wide.every(v => typeof v === 'number') && wide[9] === 0 && wsteps.every(d => d === wsteps[0] && d > 0) && wide[0] !== 9000, `an axis from 0 to 9,000 with ticks of mixed widths keeps one even scale (${wide.join(', ')})`);
   // ticks the reader joined into one box stay one even scale starting at 0
   const joined = await page.evaluate(() => window.__DSC.test.fakeValue('0 20 40 60 80 100 120 140 160 180 200', 11).split(' ').map(Number));
   const step = joined[1] - joined[0];

@@ -14,7 +14,7 @@ VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF re
 
 **What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, choose **Blur a chart** and drag over it, or **Blur all charts**.
 
-**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.31% of the area of sensitive text was still readable** after masking and the pre-flight check: 20 of 1,852 sensitive words were at least partly readable (9 numbers, 6 person names, 3 product names, 2 organisations). That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-011). To measure on your own screenshots, privately: `npm run bench:real:label`.
+**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.25% of the area of sensitive text was still readable** after masking and the pre-flight check, and **5 of 1,780 upright sensitive words had more than 15% of their letters uncovered** (2 numbers in part, a one-letter initial, a sliver of a product name and one organisation the reader never saw). Dashboards in German, French and Spanish are measured the same way. That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-012). To measure on your own screenshots, privately: `npm run bench:real:label`.
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
@@ -35,14 +35,15 @@ capture → local OCR → mask everything except an allowlist → independent re
 |---|---|
 | Sample on screen 1 | ✅ runs the full demo on a fictional dashboard: OCR, masking, check, in-place replica |
 | Upload, paste (on any screen, or with the Paste button), extension snip with crop | ✅ |
-| Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored |
+| Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored; very large screenshots are read at up to 9 megapixels, and the review says when one was shrunk |
+| **German, French and Spanish dashboards** | ✅ recognised from the first words read (or chosen under *Redaction policy*) and read with that language's file; its report words stay readable, and the replica's made-up names, companies, places and words are in that language |
 | Mask by default, allowlist to keep | ✅ client names, IDs, emails and unlisted text are masked; numbers are replaced with invented values of the same size (or masked, if you prefer) |
 | Blur text in charts on any page (extension) | ✅ right-click → "Blur text in charts on this page" or Alt+Shift+B: charts drawn on canvas (Power BI, Tableau, ECharts…) are read on your device and sensitive text is blurred in place; run again to remove |
 | On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |
 | Unread-text check (AI) | ✅ two small PP-OCRv5 models (5 MB and 7 MB) find every patch of text and read it again line by line, and mask any the reader missed or could not vouch for; only adds masks; can be switched off |
-| Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain**; each finding shows a close-up of the image as it would be shared, likely leaks first and probable chart marks last, and M / K step through them from the keyboard |
+| Independent re-scan gate (Pass / Review / Blocked) | ✅ six independent re-reads of the masked image, plus one-click **Hide everything uncertain**; each finding shows a close-up of the image as it would be shared, likely leaks first and probable chart marks last, and M / K step through them from the keyboard; digits read from chart shapes where no text was found are set aside (counted, and shown on request) |
 | Review: click to toggle, drag to add masks | ✅ |
-| **Blur a chart** | ✅ drag over any chart whose shape is confidential: it becomes a soft wash of its own colours in the masked image and the replica, so bar lengths, trends and proportions cannot be read; click it to undo; the receipt counts blurred areas. **Blur all charts** finds every chart on the device (from where the picture's colours are) and blurs them in one click |
+| **Blur a chart** | ✅ drag over any chart whose shape is confidential: it becomes a soft wash of its own colours in the masked image and the replica, so bar lengths, trends and proportions cannot be read; click it to undo; the receipt counts blurred areas. **Blur all charts** finds every chart on the device (by its colours, or for charts in greys by how they stand out from their panel) and blurs them in one click |
 | Customer comments: keep the wording of verbatims, mask the names, emails and numbers inside them | ✅ opt-in |
 | Preview of the masked image before you save, copy or build | ✅ |
 | **In-place replica** | ✅ the original screenshot, pixel for pixel, with each hidden text wiped from its surrounding background (only the text's own pixels; bar edges and borders through a box survive) and synthetic text drawn back in the same place, size, colour, weight and alignment. Any visual works, because none is redrawn: decomposition trees, custom maps, proprietary widgets |
@@ -99,7 +100,7 @@ Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: 
 
 - **Web app:** Cloudflare Pages, connected to this repo. Build command: none. Output directory: `web`. Every push to `main` deploys.
 - **Hugging Face Space:** a *Static* Space with the two files in `dist/hf-space` (`README.md` and a page that shows the live web app), so it always runs the latest release. Live at https://huggingface.co/spaces/karthikvalluri/vaultsnip.
-- **Chrome Web Store / Edge Add-ons:** run `./build.sh --bundle-models`, then upload `dist/vaultsnip-extension.zip`; privacy disclosures in [PRIVACY.md](PRIVACY.md).
+- **Chrome Web Store / Edge Add-ons:** run `./build.sh --bundle-models`, then upload `dist/vaultsnip-extension.zip`; listing text, permission justifications and privacy answers in [STORE_LISTING.md](STORE_LISTING.md), privacy disclosures in [PRIVACY.md](PRIVACY.md).
 
 ## Project layout
 

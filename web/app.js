@@ -18,7 +18,8 @@
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     sessionAllow: new Set(),
-    valueYears: new Set(),   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
+    valueYears: new Set(),
+    lang: 'auto', textLang: 'en', ocrLang: 'eng',   // the dashboard's language: chosen, as recognised, and the reader's file   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
     blurs: [], tool: 'mask',   // areas the user chose to blur (charts whose shape is confidential), and what a drag draws
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
@@ -108,9 +109,14 @@ which what when where how why than then also just about across into out off per 
   function clientNames() { return $('client-names').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean); }
   function extraAllow() { return new Set($('extra-allow').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)); }
 
+  // The dashboard's language (S.textLang: en, de, fr or es, found from the words read or chosen under Redaction policy)
+  // adds that language's report vocabulary (web/lexicon.js) to the safe words. English words stay safe in every language.
+  // a word marked "Safe to keep", as it is looked up: letters (accented too), digits, hyphens and apostrophes
+  const sessionKey = t => String(t).replace(/’/g, "'").replace(/[^\p{L}\p{N}_'-]/gu, '').replace(/^'+|'+$/g, '');
+  const langSafe = w => S.textLang && S.textLang !== 'en' && !!window.VSLexicon && VSLexicon.safeSet(S.textLang).has(w);
   function classify(text) {
     const raw = text.trim();
-    const clean = raw.replace(/^[^\w€$£¥₹%#@]+|[^\w€$£¥₹%]+$/g, '');
+    const clean = raw.replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '');
     if (!clean) return null;
     const low = clean.toLowerCase();
     if (clientNames().some(n => n && (low.includes(n) || n.split(/\s+/).includes(low)))) return 'Client name';
@@ -123,9 +129,11 @@ which what when where how why than then also just about across into out off per 
     if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return 'Identifier';
     if (/[\d€$£¥₹%]/.test(clean)) return 'Number or money';
     if (clean.length <= 1) return null;
-    if (ALLOW.has(low) || S.sessionAllow.has(low) || extraAllow().has(low)) return null;
-    const parts = low.split(/[-/&]/).filter(Boolean);
-    if (parts.length > 1 && parts.every(p => ALLOW.has(p) || extraAllow().has(p))) return null;
+    const safe = w => ALLOW.has(w) || langSafe(w) || extraAllow().has(w);
+    if (safe(low) || S.sessionAllow.has(sessionKey(low))) return null;
+    // a compound or an elided word ("Sous-total", "d'affaires", "Nord/Süd") is safe when every part is
+    const parts = low.replace(/’/g, "'").split(/[-/&']/).filter(Boolean);
+    if (parts.length > 1 && parts.some(p => p.length > 1) && parts.every(p => p.length <= 1 || safe(p))) return null;
     return 'Text not on allowlist';
   }
 
@@ -137,7 +145,7 @@ which what when where how why than then also just about across into out off per 
   const SEQ_WORDS = new Set(['week', 'wk', 'step', 'phase', 'tier', 'level', 'stage', 'wave', 'page', 'round', 'sprint', 'version', 'release', 'grade', 'rank', 'no', 'number']);
   function countLabels(words) {
     const safe = new Set();
-    const low = w => (w ? w.text.trim().replace(/^[^\w]+|[^\w%]+$/g, '').toLowerCase() : '');
+    const low = w => (w ? w.text.trim().replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_%]+$/gu, '').toLowerCase() : '');
     const small = t => { const m = /^(\d{1,3})%?$/.exec(t); return !!m && +m[1] >= 1 && +m[1] <= 500; };
     const beside = (w, dir) => {
       const cy = w.y + w.h / 2, reach = Math.max(w.h, 8) * 3;
@@ -173,8 +181,11 @@ which what when where how why than then also just about across into out off per 
     return Math.max(1, Math.min(3, cores, mem < 4 ? 1 : mem < 8 ? 2 : 3));
   })();
   const slots = [], waiting = [];
-  function startReader(slot) {
-    slot.p = Tesseract.createWorker('eng', 1, {
+  // lang: the reader's language file (eng, deu, fra or spa), from this site; a reader set up for another language is
+  // replaced when a pass needs this one
+  function startReader(slot, lang = 'eng') {
+    slot.lang = lang;
+    slot.p = Tesseract.createWorker(lang, 1, {
       workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
       workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
       logger: m => beat(slot, m)
@@ -202,7 +213,7 @@ which what when where how why than then also just about across into out off per 
     while (slots.length < size) {
       const slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null, quiet: true };
       slots.push(slot);
-      startReader(slot).catch(() => {});   // a failed start is retried when the reader is needed
+      startReader(slot, OCR_OF[S.lang] || 'eng').catch(() => {});   // a failed start is retried when the reader is needed
     }
   }
   function release(slot) { slot.busy = false; slot.prog = 0; slot.job = null; const next = waiting.shift(); if (next) next(); }
@@ -285,7 +296,7 @@ which what when where how why than then also just about across into out off per 
     return Promise.race([promise, stalled]).finally(() => clearInterval(timer));
   }
   // make: prepares the image for this pass, once a reader is free; weight: how much it counts in the progress figure
-  async function recognize(make, kind, weight) {
+  async function recognize(make, kind, weight, lang = S.ocrLang || 'eng') {
     // one reader for the whole pass, restarts included: a pass that stalls keeps its place instead of handing the reader
     // to the next pass in the queue, so "stopped twice" means this pass stopped twice
     const own = job, slot = await acquire();
@@ -295,7 +306,8 @@ which what when where how why than then also just about across into out off per 
         if (own && own.failed) throw new Error('the reading was stopped');
         slot.weight = weight || 1; slot.prog = 0; slot.job = job;
         try {
-          const w = await (slot.p || startReader(slot));
+          if (slot.p && slot.lang !== lang) { const old = slot.p; slot.p = null; old.then(w => w.terminate()).catch(() => {}); }
+          const w = await (slot.p || startReader(slot, lang));
           if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
           const canvas = make();
           // tests can make the next readings hang, to prove the watchdog recovers
@@ -339,6 +351,15 @@ which what when where how why than then also just about across into out off per 
   // more only costs time (a 3× pass reads 4 times the pixels of a 1.5× one). So once the text's usual height is known,
   // those passes are enlarged only as far as small text needs, never below 1.5×. Measured on the generated set: the same
   // words read, in less time on 2× screenshots.
+  // The dashboard's language: chosen under Redaction policy, or (Automatic) recognised from the first words read in
+  // English. Sets the reader's language file and the safe words (S.textLang), and the replica's made-up names.
+  const OCR_OF = { en: 'eng', de: 'deu', fr: 'fra', es: 'spa' };
+  const langName = ocr => ({ eng: 'English', deu: 'German', fra: 'French', spa: 'Spanish' }[ocr] || ocr);
+  function chooseLanguage(words) {
+    const pick = S.lang && S.lang !== 'auto' ? S.lang : (window.VSLexicon ? VSLexicon.detect(words.filter(w => w.conf >= 50).map(w => w.text)) : 'en');
+    S.textLang = OCR_OF[pick] ? pick : 'en';
+    return OCR_OF[S.textLang];
+  }
   const SMALL_TEXT = 12;   // at 3×, text of this height or less reads at about 36 pixels, the size the reader reads best
   function textSizeFactor(words) {
     const hs = words.filter(w => w.conf >= 60 && /[A-Za-z0-9]/.test(w.text)).map(w => w.h).sort((a, b) => a - b);
@@ -365,7 +386,15 @@ which what when where how why than then also just about across into out off per 
       let results;
       if (adapt && passes.some(p => p[0] > 1.5)) {
         const small = passes.filter(p => p[0] <= 1.5), big = passes.filter(p => p[0] > 1.5);
-        const first = await run(small, 1);
+        let first = await run(small, 1);
+        // in German, French or Spanish? Then those passes are read again, and the rest read, with that language's file
+        const lang = chooseLanguage([].concat(...first));
+        if (lang !== S.ocrLang) {
+          S.ocrLang = lang;
+          j.label = `Reading text in ${langName(lang)} on this device…`;
+          j.total += weightOf(small.map(p => p[0]));
+          first = await run(small, 1);
+        }
         S.textK = textSizeFactor([].concat(...first));
         const rest = await run(big, S.textK);
         results = passes.map(p => (p[0] <= 1.5 ? first[small.indexOf(p)] : rest[big.indexOf(p)]));
@@ -569,8 +598,10 @@ customer service staff agent team people everyone nobody someone something nothi
     const gap = Math.max(1, Math.round(h * 0.12)), reach = Math.round(h * 1.5);
     // sideways only for numbers and IDs: a digit read off the end is what leaks ("8.5%" of "28.5%"), while a word grown
     // sideways would swallow the next word of a name ("and", "West")
-    // ...and only for a confident reading of two or more digits: an unsure lone "2" read from "Jan" is not a number cut short
-    const sideways = /Number|Identifier/.test(g.type || '') && (g.text.match(/\d/g) || []).length >= 2 && !(g.conf < 50);
+    // ...and only for a confident reading: an unsure lone "2" read from "Jan" is not a number cut short
+    // (a lone digit only when read confidently: "1%" read off "-23.1%" grows, an unsure "2" read from "Jan" does not)
+    const digits = (g.text.match(/\d/g) || []).length;
+    const sideways = /Number|Identifier/.test(g.type || '') && digits >= 1 && (digits >= 2 ? !(g.conf < 50) : g.conf >= 70);
     let L = x0, R = x1;
     for (let x = x0 - 1, miss = 0; sideways && x >= Math.max(0, x0 - reach); x--) {
       if (shapeCol(x)) break;
@@ -783,7 +814,7 @@ customer service staff agent team people everyone nobody someone something nothi
   function axisFactors(nums) {
     const main = t => (t.match(/\d[\d,]*(?:\.\d+)?/g) || ['NaN']).reduce((a, b) => (b.length > a.length ? b : a));
     const out = new Map(), val = m => parseFloat(main(m.text).replace(/,/g, ''));
-    const lines = (key, along) => {
+    const lines = (key, along, cross) => {
       const groups = [];
       nums.filter(m => !out.has(m) && Number.isFinite(val(m))).forEach(m => {
         // ticks of one axis are alike in size: a big KPI value above a chart is not one of them
@@ -827,30 +858,41 @@ customer service staff agent team people everyone nobody someone something nothi
         // one factor for the whole axis, tried until every tick keeps its number of digits
         const r = seeded(hash(g.map(m => m.text).join('|'))), digits = v => String(Math.floor(Math.abs(v))).length;
         const decs = Math.max(...g.map(m => ((main(m.text).match(/\.(\d+)/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
-        for (let k = 0; k < 24; k++) {
+        // last, factors close to 1: an axis from 0 to 9,000 keeps its digits only for a factor between 1 and 1.11, which the
+        // random ones never are; a nearby round scale reads far better than unrelated numbers
+        const NEAR = [1.15, 0.87, 1.1, 0.9, 1.06, 0.94];
+        // and last of all, the same with a digit more or fewer allowed on a few ticks (an axis from 0 to 1,000,000 crosses two
+        // digit counts, which no single factor keeps)
+        for (let k = 0; k < 24 + 2 * NEAR.length; k++) {
+          const late = k >= 24, loose = k >= 24 + NEAR.length;
           // a new start and a new step, at the labels' precision (so the steps stay exactly even); counted in steps, so a
           // missing tick leaves its gap, and anchored on the axis's 0 when it has one, which stays exactly 0
           // the step a round number (two significant figures, as real axes are), except in the last tries
-          const f = randomFactor(r), z = vals.indexOf(0), nice = x => (k < 16 ? roundTo2(x) : x);
+          const f = late ? NEAR[(k - 24) % NEAR.length] : randomFactor(r), z = vals.indexOf(0), nice = x => (k < 16 || late ? roundTo2(x) : x);
           const qs = q(nice(perStep * f)) || Math.sign(perStep) * unit;
           // an axis that runs down to 0 is anchored there even when the reader missed the 0 itself
           // (a small scale such as 8, 7, 6 has no other even scale through 0 of the same digits: then it floats free)
-          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = (z >= 0 || k < 12) && Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
+          const k0 = z >= 0 ? idx[z] : -vals[0] / perStep, kz = (z >= 0 || k < 12 || late) && Math.abs(k0 - Math.round(k0)) < 0.02 ? Math.round(k0) : null;
           const start = q(nice(vals[0] * f));
           const next = idx.map(k => (kz != null ? (k - kz) * qs : start + k * qs)).map(q), idx_ = idx;
-          if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && digits(v) === digits(vals[i]) && v !== vals[i]))) {
+          const sameSize = (v, w) => (loose ? Math.abs(digits(v) - digits(w)) <= 1 : digits(v) === digits(w));
+          if (next.every((v, i) => (vals[i] === 0 ? v === 0 : v > 0 && sameSize(v, vals[i]) && v !== vals[i]))) {
             g.forEach((m, i) => out.set(m, next[i]));
             // a tick at a missing step (kept out by its odd size: the reader joined a stray letter to it) takes the same
             // scale when its value is the one that step should have
             // one step's length averaged over the whole axis, so one tick read off-centre does not skew it
             const a0 = along(g[0]), last = idx_[idx_.length - 1], unitGap = (along(g[g.length - 1]) - a0) / last, unitVal = perStep;
-            nums.filter(m => !out.has(m) && Number.isFinite(val(m)) && Math.abs(key(m) - key(g[0])) < Math.max(6, g[0].h)).forEach(m => {
+            // in the axis's column (or row): it overlaps one of its ticks across the axis, whatever its own edges (a tick read
+            // with its tick mark is wider, and its right edge no longer lines up)
+            const span = cross === 'x' ? m => [m.x, m.x + m.w] : m => [m.y, m.y + m.h];
+            const sameLine = m => g.some(t => { const a = span(m), b = span(t); return Math.min(a[1], b[1]) - Math.max(a[0], b[0]) > 0.5 * Math.min(a[1] - a[0], b[1] - b[0]); });
+            nums.filter(m => !out.has(m) && Number.isFinite(val(m)) && sameLine(m)).forEach(m => {
               const k = (along(m) - a0) / unitGap, idx = Math.round(k);
-              // inside the axis, or a step or two past its end (the 0 at the foot, read with its tick mark)
-              if (idx < 0 || Math.abs(k - idx) > 0.3 || idx > last + 2) return;
+              // anywhere along the axis, inside or past either end, as long as its value is the one that step should have
+              if (Math.abs(k - idx) > 0.3) return;
               const want = vals[0] + idx * unitVal;
               const v = q(kz != null ? (idx - kz) * qs : start + idx * qs);
-              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && digits(v) === digits(val(m)) && (v === 0) === (val(m) === 0)) out.set(m, v);
+              if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && Math.abs(digits(v) - digits(val(m))) <= 1 && v >= 0 && (v === 0) === (val(m) === 0)) out.set(m, v);
             });
             break;
           }
@@ -858,9 +900,10 @@ customer service staff agent team people everyone nobody someone something nothi
       });
     };
     // positions are measured at each label's middle: a tick read with a stray letter beside it has a taller box
-    lines(m => m.x + m.w, m => m.y + m.h / 2);       // y-axis ticks: one column, right-aligned
-    lines(m => m.x + m.w / 2, m => m.y + m.h / 2);   // or centred
-    lines(m => m.y + m.h / 2, m => m.x + m.w / 2);   // x-axis ticks: one row
+    lines(m => m.x + m.w, m => m.y + m.h / 2, 'x');       // y-axis ticks: one column, right-aligned
+    lines(m => m.x, m => m.y + m.h / 2, 'x');             // or left-aligned (some read with their tick mark, some without)
+    lines(m => m.x + m.w / 2, m => m.y + m.h / 2, 'x');   // or centred
+    lines(m => m.y + m.h / 2, m => m.x + m.w / 2, 'y');   // x-axis ticks: one row
     return out;
   }
   // Detects percentage groups (summing to ~100) and sum-of-parts relationships so faked totals equal the sum of faked parts.
@@ -976,10 +1019,13 @@ customer service staff agent team people everyone nobody someone something nothi
   function contextMasks() {
     if (!S.ctx.on || !S.ctx.scores || !window.VSContext) return [];
     // the same keys as "Safe to keep" stores (sessionAllow) and the safe-words list (extraAllow)
-    const approved = t => { const lc = t.trim().replace(/^[^\w€$£¥₹%#@]+|[^\w€$£¥₹%]+$/g, '').toLowerCase(); return S.sessionAllow.has(lc.replace(/[^\w-]/g, '')) || extraAllow().has(lc); };
+    const approved = t => { const lc = t.trim().replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase(); return S.sessionAllow.has(sessionKey(lc)) || extraAllow().has(lc); };
     const out = [];
     S.ctx.lines.forEach((line, li) => {
-      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) }));
+      // the report vocabulary of a German, French or Spanish dashboard is capitalised like names ("Kunde", "Monat"), and the
+      // (English) name model takes it for names; those words are the language's own labels, never names
+      const ownWord = t => langSafe(t.trim().replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '').toLowerCase());
+      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) && !ownWord(w.text) }));
       VSContext.contextualHits(words, S.ctx.scores[li]).forEach(i => {
         const w = line[i], p = Math.max(3, w.h * 0.18);
         out.push({ x: w.x - p, y: w.y - p, w: w.w + 2 * p, h: w.h + 2 * p, type: VSContext.CONTEXT_TYPE, text: w.text, on: true, src: 'auto' });
@@ -991,12 +1037,12 @@ customer service staff agent team people everyone nobody someone something nothi
   // The reader can miss words (tiny, rotated, coloured, low contrast), and a missed word is never classified, so it is
   // never masked. A small detector model (PP-OCRv5, in the same worker) finds every patch of text without reading it;
   // any part not covered by a mask or by a word read confidently and kept is masked as unread text. It only adds masks.
-  async function detectRegions() {
-    S.unread.regions = null;
-    if (!S.unread.on || !window.VSContext || !S.img) { S.unread.state = S.unread.on ? 'idle' : 'off'; return; }
-    S.unread.state = 'running';
+  // The text detector needs only the picture, so it can start as soon as the picture is in, and run (in its worker)
+  // while the reader reads; its regions are then waiting when the reading ends. Resolves to the raw regions, or the error.
+  function startDetect() {
+    if (!S.unread.on || !window.VSContext || !S.img) return null;
     const img = S.img;
-    try {
+    return (async () => {
       ctxClient = ctxClient || new VSContext.ContextClassifier(VSContext.moduleWorker(ctxWorkerUrl()), { timeoutMs: 60000 });
       const size = VSContext.detectorSize(img.width, img.height, S.unread.limit);
       const c = document.createElement('canvas'); c.width = size.width; c.height = size.height;
@@ -1005,8 +1051,28 @@ customer service staff agent team people everyone nobody someone something nothi
       x.drawImage(img, 0, 0, c.width, c.height);
       const d = x.getImageData(0, 0, c.width, c.height);
       const regions = await ctxClient.detect({ width: d.width, height: d.height, data: d.data });
+      return { img, regions, kx: img.width / size.width, ky: img.height / size.height };
+    })().catch(error => ({ img, error }));
+  }
+  // pre: a detection already started for this picture (startDetect), else it starts now
+  async function detectRegions(pre) {
+    S.unread.regions = null;
+    if (!S.unread.on || !window.VSContext || !S.img) { S.unread.state = S.unread.on ? 'idle' : 'off'; return; }
+    S.unread.state = 'running';
+    const img = S.img;
+    try {
+      let got = await (pre && pre.then ? pre : startDetect());
       if (S.img !== img) return;   // another screenshot started meanwhile
-      const kx = img.width / size.width, ky = img.height / size.height;
+      // started while the reader was busy, the detector can run out of time on a slow machine: then it runs again now,
+      // on its own, rather than leave unread text unmasked
+      if (pre && (!got || got.error || got.img !== img)) {
+        console.warn('The text detector did not finish alongside the reader; running it again.', got && got.error);
+        got = await startDetect();
+        if (S.img !== img) return;
+      }
+      if (!got || got.img !== img) throw new Error('the text detector did not run');
+      if (got.error) throw got.error;
+      const { regions, kx, ky } = got;
       const scale = b => ({ x: b.x * kx, y: b.y * ky, w: b.w * kx, h: b.h * ky });
       S.unread.regions = regions.map(r => Object.assign(scale(r), r.core ? { core: scale(r.core) } : {}, r.len ? { angle: r.angle, len: r.len * kx, thick: r.thick * kx } : {}));
       await secondLook(img, S.unread.regions, buildMasks(S.words).concat(contextMasks()));
@@ -1029,7 +1095,9 @@ customer service staff agent team people everyone nobody someone something nothi
     const inside = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
     // words that account for their spot: read confidently and left readable by the rules; and parts of a region that
     // hold flat marks only (a bar beside its label), found by the second look
-    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && !inside(w)),
+    // (a reading of symbols only, such as "=" or "-" for a word squeezed against a bar, accounts for nothing: it is the
+    // reader failing, and the text there stays to be masked as unread)
+    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && /[\p{L}\p{N}]/u.test(w.text) && !inside(w)),
       (S.unread.regions || []).flatMap(r => r.flat || []));
   }
   // One straightened line read by the second-look reader (PP-OCRv5, in the ML worker), as words with the page
@@ -1212,8 +1280,17 @@ customer service staff agent team people everyone nobody someone something nothi
     // the same spot, too: the two boxes overlap and are of a similar size, so a reading inside a long safe label is not let go
     const similar = (a, b) => { const r = (a.w * a.h) / Math.max(1, b.w * b.h); return r > 0.5 && r < 2; };
     const rereadsSafe = w => !/\d/.test(w.text) && safeSeen.some(v => overlap(v, w) > 0.5 && similar(v, w) && near(norm(w.text), norm(v.text)));
-    const flags = [];
+    const flags = [], setAside = [];
     let marks = 0;
+    // A digit or two (or a symbol) read where neither the first reader nor the text detector saw any text, at least a
+    // line's height away from every mask, or far taller than the page's text, is a chart mark: a bar end, a slice edge,
+    // an axis tick read as "4" or "[0". On the generated set every one of these was a false alarm. They are set aside,
+    // not dropped: the review screen counts them and shows them as findings on request. Close to a mask such a reading
+    // stays a finding, since it can be the end of a number the mask cut short ("4" of "10.7%").
+    const hs = S.words.map(v => v.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
+    const gapTo = (a, b) => Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.w, b.x + b.w), Math.max(a.y, b.y) - Math.min(a.y + a.h, b.y + b.h));
+    const chartMark = w => noText(w) && w.text.replace(/\s/g, '').length <= 3 && !/\p{L}{2}/u.test(w.text)
+      && (active.every(m => gapTo(m, w) >= Math.max(4, w.h)) || w.h >= textH * 2.5);
     all.forEach(w => {
       if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
       if (noText(w) && !/\d/.test(w.text) && w.text.replace(/\s/g, '').length <= 3) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'no text', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
@@ -1231,11 +1308,12 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       if (t === 'Text not on allowlist' && (w.text.match(/[A-Za-z]/g) || []).length <= 2 && !/\d/.test(w.text)) return; // fragments like "El", "oy" carry no information
       if (flags.some(f => overlap(f, w) > 0.3)) return;
+      if (chartMark(w)) { if (!setAside.some(f => overlap(f, w) > 0.3)) setAside.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false, likelyMark: true }); return; }
       // where neither the first reader nor the text detector saw text, a finding is most likely a chart mark read as text;
       // it is still a finding (a lone digit there can be part of a real number), only listed after the others
       flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false, likelyMark: noText(w) });
     });
-    S.flags = flags; S.chartMarks = marks;
+    S.flags = flags; S.chartMarks = marks; S.setAside = setAside;
     updateGate();
     detectFingerprint();
     setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
@@ -1314,6 +1392,15 @@ customer service staff agent team people everyone nobody someone something nothi
     const fl = $('flags');
     fl.innerHTML = '';
     const openFlags = S.flags.filter(f => !f.resolved);
+    if (S.setAside && S.setAside.length) {
+      const n = S.setAside.length, d = document.createElement('div');
+      d.className = 'aside';
+      d.innerHTML = '<span></span>';
+      d.firstChild.textContent = `${n} chart mark${n > 1 ? 's' : ''} read as a digit (no text found there) set aside. `;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'linkish'; b.textContent = 'Review them too';
+      b.onclick = () => { S.flags = S.flags.concat(S.setAside); S.setAside = []; updateGate(); draw(); };
+      d.appendChild(b); fl.appendChild(d);
+    }
     if (openFlags.length > 1) {
       const all = document.createElement('button'); all.type = 'button'; all.className = 'btn'; all.textContent = `Mask all ${openFlags.length} findings`;
       all.onclick = hideUncertain;
@@ -1344,7 +1431,7 @@ customer service staff agent team people everyone nobody someone something nothi
         d.appendChild(mk);
         if (f.severity === 'review') {
           const ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Safe to keep'; ok.dataset.act = 'keep';
-          ok.onclick = () => { S.sessionAllow.add(f.text.toLowerCase().replace(/[^\w-]/g, '')); f.resolved = true; updateGate(); draw(); };
+          ok.onclick = () => { S.sessionAllow.add(sessionKey(f.text.toLowerCase())); f.resolved = true; updateGate(); draw(); };
           d.appendChild(ok);
         } else {
           // a number or ID that is not sensitive here ("Top 5", a version number): kept at this spot only, never everywhere
@@ -1469,8 +1556,8 @@ customer service staff agent team people everyone nobody someone something nothi
   function renderKept() {
     const seen = new Map();
     (S.words || []).forEach(w => {
-      const t = w.text.replace(/^[^\w]+|[^\w]+$/g, '');
-      if (!/[A-Za-z]{3,}/.test(t) || /\d/.test(t) || classify(w.text)) return;
+      const t = w.text.replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '');
+      if (!/\p{L}{3,}/u.test(t) || /\d/.test(t) || classify(w.text)) return;
       if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
     });
     const box = $('kept-words'); box.innerHTML = '';
@@ -1517,17 +1604,19 @@ customer service staff agent team people everyone nobody someone something nothi
   /* ---------------- screens ---------------- */
   function show(id) { ['s-drop', 's-crop', 's-review', 's-replica'].forEach(s => $(s).hidden = s !== id); window.scrollTo(0, 0); }
 
-  const MAX_PIXELS = 2200 * 2200, MAX_SIDE = 8000, MAX_FULL_PIXELS = 40e6, MAX_FULL_SIDE = 16000;
+  const MAX_PIXELS = 3000 * 3000, MAX_SIDE = 10000, MAX_FULL_PIXELS = 40e6, MAX_FULL_SIDE = 16000;
   async function loadImage(src) {
     const img = new Image();
     img.decoding = 'async';
     await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('That file could not be read as an image.')); img.src = src; });
-    // a pixel budget (that of a 2200 x 2200 image), not a longest side: a tall full-page capture shrunk by its height
-    // came out with text too small to read, and text that is not read is not masked
+    // a pixel budget (that of a 3000 x 3000 image), not a longest side: a tall full-page capture shrunk by its height
+    // came out with text too small to read, and text that is not read is not masked. (2200 x 2200 until 0.12: a 2x
+    // full-page capture was read at a third of its size, and 16-pixel labels on a pie chart went unread.)
     const W = img.naturalWidth, H = img.naturalHeight, k = Math.min(1, Math.sqrt(MAX_PIXELS / (W * H)), MAX_SIDE / Math.max(W, H));
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    c.readScale = k;
     // the replica is drawn on the picture at its own size (within what a canvas can hold), not on the reading copy
     if (k < 1) {
       const kf = Math.min(1, Math.sqrt(MAX_FULL_PIXELS / (W * H)), MAX_FULL_SIDE / Math.max(W, H));
@@ -1544,10 +1633,13 @@ customer service staff agent team people everyone nobody someone something nothi
   let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.setAside = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
+    // a picture read at well under its size can have text too small to read, and text not read is not masked: say so
+    const sn = $('size-note'), k = canvas.readScale || 1;
+    if (sn) { sn.hidden = k >= 0.6; sn.textContent = k >= 0.6 ? '' : `This picture is very large, so it is read at ${Math.round(k * 100)}% of its size and its smallest text may be missed. For the safest result, crop it into parts, or check the masked image closely.`; }
     $('btn-reapply').disabled = true;
     // Reading takes seconds; if another screenshot arrives meanwhile, this run must not write into it.
     const seq = ++reviewSeq, current = () => seq === reviewSeq && S.img === canvas;
@@ -1556,16 +1648,22 @@ customer service staff agent team people everyone nobody someone something nothi
       // one figure for reading and the check that follows
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
       S.textK = 1;
+      // a language chosen under Redaction policy is read in from the start; Automatic starts in English
+      S.textLang = S.lang && S.lang !== 'auto' ? S.lang : 'en';
+      S.ocrLang = OCR_OF[S.textLang] || 'eng';
+      const detecting = S.unread.on ? startDetect() : null;   // the text detector runs while the reader reads
       const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…', true);
       if (!current()) return;
       S.words = notMarks(canvas, words);
       S.comments = findComments(S.words);
       S.masks = buildMasks(S.words);
       if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); if (!current()) return; S.masks = allMasks(); }
-      if (S.unread.on) { renderTypes(); draw(); setStatus('Looking for text the reader missed (on-device AI)…', true); await detectRegions(); if (!current()) return; S.masks = allMasks(); }
+      if (S.unread.on) { renderTypes(); draw(); setStatus('Looking for text the reader missed (on-device AI)…', true); await detectRegions(detecting); if (!current()) return; S.masks = allMasks(); }
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
       renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
+      const ln = $('lang-note');
+      if (ln) { ln.hidden = S.textLang === 'en'; ln.textContent = S.textLang === 'en' ? '' : `Read in ${langName(S.ocrLang)}: its report words (titles, months, column names) stay readable, and the replica's made-up names are ${langName(S.ocrLang)}.`; }
       $('btn-reapply').disabled = false;
       await verify();
     } catch (err) {
@@ -1596,16 +1694,37 @@ customer service staff agent team people everyone nobody someone something nothi
     const cell = Math.max(4, Math.round(Math.min(W, H) / 120)), cw = Math.ceil(W / cell), ch = Math.ceil(H / cell);
     const text = new Uint8Array(W * H);
     S.words.forEach(w => { for (let y = Math.max(0, Math.floor(w.y - 2)); y < Math.min(H, Math.ceil(w.y + w.h + 2)); y++) text.fill(1, y * W + Math.max(0, Math.floor(w.x - 2)), y * W + Math.min(W, Math.ceil(w.x + w.w + 2))); });
+    // A chart drawn only in greys has no colour to find, but its bars and areas stand out from the panel they sit on:
+    // the panel's colour is the commonest one in a block of cells around them. Such cells count when much of them
+    // (more than a thin line or a table's row stripe) is far from that colour. hot: 1 coloured, 2 grey only.
+    const B = 8, nbx = Math.ceil(cw / B), nby = Math.ceil(ch / B), counts = [], panel = new Int32Array(nbx * nby);
+    for (let by = 0; by < nby; by++) for (let bx = 0; bx < nbx; bx++) {
+      const count = new Map(), step = Math.max(1, cell >> 1);
+      for (let y = by * B * cell; y < Math.min(H, (by + 1) * B * cell); y += step) for (let x = bx * B * cell; x < Math.min(W, (bx + 1) * B * cell); x += step) {
+        const i = (y * W + x) * 4, k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); count.set(k, (count.get(k) || 0) + 1);
+      }
+      counts.push(count);
+    }
+    // over the block and its eight neighbours, so a bar wider than a block does not become its own panel colour
+    for (let by = 0; by < nby; by++) for (let bx = 0; bx < nbx; bx++) {
+      const sum = new Map();
+      for (let y = Math.max(0, by - 1); y <= Math.min(nby - 1, by + 1); y++) for (let x = Math.max(0, bx - 1); x <= Math.min(nbx - 1, bx + 1); x++)
+        counts[y * nbx + x].forEach((n, k) => sum.set(k, (sum.get(k) || 0) + n));
+      panel[by * nbx + bx] = [...sum.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    }
     const hot = new Uint8Array(cw * ch);
     for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
-      let n = 0, all = 0;
+      const pk = panel[((cy / B) | 0) * nbx + ((cx / B) | 0)], pr = ((pk >> 8) & 15) * 16 + 8, pg = ((pk >> 4) & 15) * 16 + 8, pb = (pk & 15) * 16 + 8;
+      let n = 0, far = 0, all = 0;
       for (let y = cy * cell; y < Math.min(H, (cy + 1) * cell); y++) for (let x = cx * cell; x < Math.min(W, (cx + 1) * cell); x++) {
         all++;
         const i = y * W + x; if (text[i]) continue;
         const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
         if (mx > 40 && (mx - mn) / mx > 0.28 && mx - mn > 40) n++;                     // a coloured pixel, not grey
+        else if (Math.abs(r - pr) + Math.abs(g - pg) + Math.abs(b - pb) > 150) far++;   // a grey clearly unlike the panel
       }
       if (n > all * 0.12) hot[cy * cw + cx] = 1;
+      else if (far > all * 0.45) hot[cy * cw + cx] = 2;
     }
     // join cells a few cells apart (the gaps between bars, a line's breaks), then find each joined area
     const R = 2, grown = new Uint8Array(cw * ch);
@@ -1615,16 +1734,18 @@ customer service staff agent team people everyone nobody someone something nothi
     for (let s0 = 0; s0 < cw * ch; s0++) {
       if (!grown[s0] || seen[s0]) continue;
       const stack = [s0]; seen[s0] = 1;
-      let x0 = cw, y0 = ch, x1 = -1, y1 = -1, core = 0;
+      let x0 = cw, y0 = ch, x1 = -1, y1 = -1, core = 0, colour = 0;
       while (stack.length) {
         const i = stack.pop(), cx = i % cw, cy = (i / cw) | 0;
-        if (hot[i]) { core++; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy); }
+        if (hot[i]) { core++; if (hot[i] === 1) colour++; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy); }
         [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const nx = cx + dx, ny = cy + dy, j = ny * cw + nx; if (nx >= 0 && ny >= 0 && nx < cw && ny < ch && grown[j] && !seen[j]) { seen[j] = 1; stack.push(j); } });
       }
       if (x1 < 0) continue;
       const bw = (x1 - x0 + 1) * cell, bh = (y1 - y0 + 1) * cell;
       // big enough to be a chart (a coloured badge, an icon or a thin brand strip is not), and not a few stray cells
       if (bw < Math.max(48, W * 0.05) || bh < Math.max(32, H * 0.04) || core < 6) continue;
+      // found mostly by grey: it must fill its box like a chart does, not trace a panel's edge
+      if (colour < core / 2 && core < (x1 - x0 + 1) * (y1 - y0 + 1) * 0.25) continue;
       const pad = Math.round(cell / 2);
       out.push({ x: Math.max(0, x0 * cell - pad), y: Math.max(0, y0 * cell - pad), w: Math.min(W, (x1 + 1) * cell + pad) - Math.max(0, x0 * cell - pad), h: Math.min(H, (y1 + 1) * cell + pad) - Math.max(0, y0 * cell - pad) });
     }
@@ -1703,17 +1824,23 @@ customer service staff agent team people everyone nobody someone something nothi
     sel.innerHTML = '<option value="">— saved policies —</option>' + names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n.replace(/</g, '&lt;')}</option>`).join('');
     const del = $('btn-del-profile'); if (del) del.disabled = !sel.value;
   }
+  // the dashboard's language: a change reads the picture again in that language (the reader's file differs)
+  if ($('lang-select')) $('lang-select').onchange = () => {
+    S.lang = $('lang-select').value;
+    if (S.img && S.gate !== 'running') startReview(S.img);
+  };
   if ($('profile-select')) {
     $('profile-select').onchange = () => {
       const name = $('profile-select').value; if (!name) return;
       const p = loadProfiles()[name]; if (!p) return;
       $('client-names').value = p.clientNames || ''; $('extra-allow').value = p.allowWords || '';
+      if (p.lang && $('lang-select')) { $('lang-select').value = p.lang; S.lang = p.lang; }
       if ($('btn-del-profile')) $('btn-del-profile').disabled = false;
     };
     $('btn-save-profile').onclick = () => {
       const name = prompt('Save policy as:', $('profile-select').value || ''); if (!name) return;
       const profiles = loadProfiles();
-      profiles[name] = { clientNames: $('client-names').value, allowWords: $('extra-allow').value };
+      profiles[name] = { clientNames: $('client-names').value, allowWords: $('extra-allow').value, lang: S.lang };
       saveProfiles(profiles); renderProfileSelect(); $('profile-select').value = name;
     };
     $('btn-del-profile').onclick = () => {
@@ -2055,7 +2182,7 @@ customer service staff agent team people everyone nobody someone something nothi
   const seededRandom = seed => seeded(seed);
   function buildInPlace() {
     const toks = VSSynth.tokens(S.masks.filter(m => m.on && !underBlur(m)), S.words);
-    const values = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
+    const values = VSSynth.local(toks, { fakeValue, axisFactors, lang: S.textLang }, S.seed);
     // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
     const full = S.img.full || S.img, k = full.width / S.img.width;
     const map = VSSynth.combine(toks, values).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k }));
@@ -2099,7 +2226,7 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   $('opt-outline').onchange = () => $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
   $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); buildInPlace(); };
-  function startOver() { reviewSeq++; S.img = null; S.fid = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; show('s-drop'); }
+  function startOver() { reviewSeq++; S.img = null; S.fid = null; S.masks = []; S.words = []; S.flags = []; S.setAside = []; S.payload = null; show('s-drop'); }
   $('btn-restart').onclick = startOver;
   // The replica as a picture, with a strip below it (hiding nothing) that says the text is synthetic.
   function replicaImage() {
@@ -2156,5 +2283,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { chooseLanguage, sessionKey, readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

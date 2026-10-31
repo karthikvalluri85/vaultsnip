@@ -3,7 +3,8 @@
 Bundled in `web/lib` and `web/lang`, each under the Apache License 2.0:
 
 - Tesseract.js and tesseract.js-core (OCR in the browser)
-- Tesseract English language model (`eng.traineddata`, 4.0.0_best_int)
+- Tesseract English, German, French and Spanish language models (`eng`, `deu`, `fra`, `spa` `.traineddata`, 4.0.0_best_int, from
+  [tessdata](https://github.com/tesseract-ocr/tessdata_best) via the `@tesseract.js-data` packages)
 
 On-device name check, in `web/ml`, `web/lib/vs-context.js` and `web/models`:
 

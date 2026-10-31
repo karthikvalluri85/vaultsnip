@@ -62,26 +62,34 @@ lakeside moonlight northwind orchard parkway riverside seaside sunrise thistle w
 plain open fair calm warm cool fresh solid level prime core main front point range scope frame
 standard balanced regional seasonal general premium classic central coastal national western eastern northern southern
 `).split(/\s+/).filter(Boolean);
-  const BYLEN = {};
-  POOL.forEach(w => { (BYLEN[w.length] = BYLEN[w.length] || []).push(w); });
+  const byLength = list => { const by = {}; list.forEach(w => { (by[w.length] = by[w.length] || []).push(w); }); return by; };
+  const BYLEN = byLength(POOL);
+  // In a German, French or Spanish dashboard, replacement words come from that language's report words (web/lexicon.js).
+  const LANG_POOLS = {};
+  function poolFor(lang) {
+    const L = lang && lang !== 'en' && global.VSLexicon && global.VSLexicon.LEX[lang];
+    if (!L) return BYLEN;
+    return LANG_POOLS[lang] || (LANG_POOLS[lang] = byLength(L.pool.concat(L.safe.filter(w => w.length >= 4 && !/['-]/.test(w)))));
+  }
   // a pool word of n letters (or the nearest length there is); long runs are joined from two words
-  function poolWord(n, r, not) {
+  function poolWord(n, r, not, by = BYLEN) {
     for (const d of [0, 1, -1, 2, -2]) {
-      const list = (BYLEN[n + d] || []).filter(w => w !== not);
+      const list = (by[n + d] || []).filter(w => w !== not);
       if (list.length) return list[Math.floor(r() * list.length)];
     }
-    if (n > 13) { const a = Math.ceil(n / 2); return poolWord(a, r, not) + poolWord(n - a, r, not); }
+    if (n > 13) { const a = Math.ceil(n / 2); return poolWord(a, r, not, by) + poolWord(n - a, r, not, by); }
     return (BYLEN[2] || ['ox'])[0];
   }
-  function word(text, r) {
+  function word(text, r, lang) {
     // a real word of the same length and capitalisation for each word of the original ("Acme Corp" → "Cove Tide")
+    const by = poolFor(lang);
     return String(text).split(/(\s+)/).map(part => {
-      if (/^\s+$/.test(part) || !/[A-Za-z]/.test(part)) return part;
-      const letters = part.replace(/[^A-Za-z]/g, ''), n = letters.length;
-      let w = poolWord(Math.max(2, n), r, letters.toLowerCase());
+      if (/^\s+$/.test(part) || !/\p{L}/u.test(part)) return part;
+      const letters = part.replace(/[^\p{L}]/gu, ''), n = letters.length;
+      let w = poolWord(Math.max(2, n), r, letters.toLowerCase(), by);
       if (part === part.toUpperCase() && n > 1) w = w.toUpperCase();
-      else if (/^[A-Z]/.test(part)) w = w[0].toUpperCase() + w.slice(1);
-      return part.replace(/[A-Za-z]+(?:[A-Za-z'’-]*[A-Za-z])?/, w);
+      else if (/^\p{Lu}/u.test(part)) w = w[0].toUpperCase() + w.slice(1);
+      return part.replace(/\p{L}+(?:[\p{L}'’-]*\p{L})?/u, w);
     }).join('');
   }
   // A date keeps its format with a made-up date near it ("30-Sep-2026" → "14-Aug-2026", "2026-09-30" → "2026-08-14").
@@ -113,7 +121,8 @@ standard balanced regional seasonal general premium classic central coastal nati
   // or the header of its table column (the nearest line above, over the same columns, that names a kind of value).
   const PERSON_CUE = /\b(manager|owner|rep|agent|assignee|contact|employee|author|reviewer|analyst|engineer|seller|buyer|approver|recruiter|lead|prepared by|owned by|created by|assigned to|advisor|consultant|director|physician|doctor|nurse|user name|full name)\b/i;
   const PLACE_DIM = /^(regions?|territor(y|ies)|areas?|zones?|locations?|markets?|sites?|cit(y|ies)|towns?)$/;
-  function roleOf(label) {
+  function roleOf(label, lang) {
+    if (lang && lang !== 'en' && global.VSLexicon) label = global.VSLexicon.toEnglish(label, lang);
     const l = String(label || '').toLowerCase().trim();
     if (!l) return null;
     // a chart titled "Leads by Region" labels its bars with regions: the words after "by" name the dimension
@@ -127,18 +136,18 @@ standard balanced regional seasonal general premium classic central coastal nati
     const f = global.VSFaker;
     return f && f.columnRole ? f.columnRole(l, 'text') : null;
   }
-  function labelFor(m, visible) {
+  function labelFor(m, visible, lang) {
     const cy = m.y + m.h / 2;
     // same line, just to the left (within a few letter widths)
     const left = visible.filter(w => Math.abs(w.y + w.h / 2 - cy) < Math.max(m.h, w.h) * 0.6 && w.x + w.w <= m.x + 2 && m.x - (w.x + w.w) < m.h * 6)
       .sort((a, b) => b.x - a.x).slice(0, 3).reverse().map(w => w.text).join(' ');
-    if (roleOf(left)) return left;
+    if (roleOf(left, lang)) return left;
     // the column header: lines above that overlap the box's columns, nearest first
     const above = visible.filter(w => w.y + w.h <= m.y + 2 && m.y - w.y < m.h * 24 && w.x < m.x + m.w + m.h && w.x + w.w > m.x - m.h);
     const lines = new Map();
     above.forEach(w => { const k = Math.round((w.y + w.h / 2) / Math.max(4, m.h * 0.6)); (lines.get(k) || lines.set(k, []).get(k)).push(w); });
     const ordered = [...lines.entries()].sort((a, b) => b[0] - a[0]).map(([, ws]) => ws.sort((a, b) => a.x - b.x).map(w => w.text).join(' '));
-    return ordered.find(t => roleOf(t)) || left || '';
+    return ordered.find(t => roleOf(t, lang)) || left || '';
   }
   const titleWords = s => String(s).trim().split(/\s+/).filter(w => /^[A-Z][A-Za-z'’.-]*$/.test(w));
   // Several draws, keeping the one closest to the original's length, so a made-up name fits its box without squeezing.
@@ -180,17 +189,20 @@ standard balanced regional seasonal general premium classic central coastal nati
     seed = seed >>> 0;
     // the dashboard's own visible words set the style of made-up organisations (a hospital list gets hospital names)
     const seen = toks.length && toks[0].visible ? toks[0].visible.map(w => w.text) : [];
-    let faker = global.VSFaker && global.VSFaker.create ? global.VSFaker.create({ seed, spec: seen }) : null;
+    // a German, French or Spanish dashboard gets names, companies and places of that language
+    const lang = helpers && helpers.lang, LX = lang && lang !== 'en' && global.VSLexicon && global.VSLexicon.LEX[lang];
+    const fopts = o => Object.assign({ seed, spec: seen }, LX ? { locale: LX.faker } : {}, o);
+    let faker = global.VSFaker && global.VSFaker.create ? global.VSFaker.create(fopts()) : null;
     // revenue and margin appear on every sales page: bank and fund names only for pages that are about finance
     if (faker && faker.industry === 'finance' && !/\b(portfolio|aum|loans?|deposits?|funds?|trading|credit|interest|assets?|equity|yield|nav|bank|banking)\b/i.test(seen.join(' ')))
-      faker = global.VSFaker.create({ seed, spec: seen, industry: 'general' });
+      faker = global.VSFaker.create(fopts({ industry: 'general' }));
     const nums = toks.filter(t => t.kind === 'number').map(t => t.mask);
     const axes = helpers && helpers.axisFactors ? helpers.axisFactors(nums) : new Map();
     const out = new Map();
     toks.forEach(t => {
       const key = t.id + '|' + t.original, r = seeded(hash(key) ^ seed);
-      const label = t.kind === 'number' || t.kind === 'unread' || t.kind === 'email' ? '' : labelFor(t.mask, t.visible || []);
-      const role = roleOf(label);
+      const label = t.kind === 'number' || t.kind === 'unread' || t.kind === 'email' ? '' : labelFor(t.mask, t.visible || [], lang);
+      const role = roleOf(label, lang);
       let s = '';
       if (t.kind === 'unread') s = '';
       else if (t.kind === 'number') s = helpers && helpers.fakeValue ? helpers.fakeValue(t.original, hash(t.original + '|' + t.bbox[0] + '|' + t.bbox[1]) ^ seed, axes.get(t.mask)) : t.original.replace(/\d/g, () => String(Math.floor(r() * 10)));
@@ -212,7 +224,7 @@ standard balanced regional seasonal general premium classic central coastal nati
         // a one-word name: a surname of about its length reads more naturally than a town where a town makes no sense
         if (!s && want === 'city') s = fitted(k => faker.person(k).split(' ').pop(), t.original, key) || '';
       }
-      if (!s && t.kind !== 'unread' && t.kind !== 'number') s = word(t.original, r);
+      if (!s && t.kind !== 'unread' && t.kind !== 'number') s = word(t.original, r, lang);
       out.set(t.id, { synthetic: s });
     });
     return out;

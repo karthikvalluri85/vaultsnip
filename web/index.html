@@ -79,6 +79,9 @@ h1{font-size:clamp(26px,3.6vw,38px);line-height:1.15;letter-spacing:-.02em;margi
 .flag small{color:var(--muted);font-size:11.5px}
 .flag .crop{height:48px;width:auto;max-width:190px;object-fit:contain;border:1px solid var(--line);border-radius:4px;background:#fff;flex:none}
 .flag.done{opacity:.6}
+.flags .aside{font-size:12.5px;color:var(--muted)}
+.flags .aside .linkish{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit}
+.warnnote{margin:10px 0 0;font-size:12.5px;color:var(--warn);background:var(--warn-soft);padding:6px 8px;border-radius:6px}
 .flag:focus-visible{outline:2px solid var(--accent, #0d6b5d);outline-offset:1px}
 @media (max-width:560px){.flag{flex-wrap:wrap}.flag .crop{max-width:100%}}
 .flag button{font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
@@ -161,7 +164,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
           <div><b>Nothing leaves your device.</b> Reading, masking, checking and the replica all run in this browser tab. No account, no key, no upload.</div>
-          <div><b>Measured, not promised.</b> On our published test set, about 0.3% of the area of sensitive text was still readable after masking and the check, so look over the masked image before you share it. <a href="https://github.com/karthikvalluri85/vaultsnip/blob/main/ACCURACY.md#where-it-stands-in-011" target="_blank" rel="noopener">How it is measured</a></div>
+          <div><b>Measured, not promised.</b> On our published test set, about 0.25% of the area of sensitive text was still readable after masking and the check, so look over the masked image before you share it. <a href="https://github.com/karthikvalluri85/vaultsnip/blob/main/ACCURACY.md#where-it-stands-in-012" target="_blank" rel="noopener">How it is measured</a></div>
           <div><b>Mask or replicate.</b> Download the masked screenshot for a forum post, a bug report or a slide, or build the in-place replica with synthetic values.</div>
         </div>
       </div>
@@ -242,6 +245,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
             <b>Visual fingerprint risk:</b> <span id="fingerprint-detail"></span>
             <div id="fingerprint-items" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
           </div>
+          <p id="size-note" class="note warnnote" role="status" hidden></p>
           <p id="shape-note" class="note" style="margin:10px 0 0;font-size:12.5px"><b>Chart shapes are not hidden.</b> Only text is replaced: bar lengths, line trends, slice sizes and map shading stay the real ones. If a trend or a proportion is itself confidential, choose <b>Blur a chart</b> and drag over it.</p>
           <div class="row">
             <button class="btn" id="btn-recheck" type="button" disabled>Re-run check</button>
@@ -250,6 +254,11 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         </div>
         <div class="panel">
           <h3>Redaction policy</h3>
+          <label class="f" for="lang-select">Language of the dashboard <span>Automatic recognises German, French and Spanish from the first words read.</span>
+            <select id="lang-select" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px;width:100%">
+              <option value="auto">Automatic</option><option value="en">English</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option>
+            </select></label>
+          <p class="hint" id="lang-note" hidden></p>
           <label class="f" for="client-names">Names to always mask <span>Client, company or product names, comma separated. Not saved.</span>
             <input type="text" id="client-names" placeholder="e.g. Acme, Project Falcon"></label>
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
@@ -346,6 +355,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="lib/tesseract.min.js"></script>
 <script src="lib/vs-context.js"></script>
 <script src="lib/vs-faker.js"></script>
+<script src="lexicon.js"></script>
 <script src="synth.js"></script>
 <script src="inpaint.js"></script>
 <script src="samples.js"></script>

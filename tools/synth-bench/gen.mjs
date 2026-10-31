@@ -1,5 +1,7 @@
 // Generates fictional dashboards with every word's position and kind known, for measuring masking (developer tool).
-//   node tools/synth-bench/gen.mjs [--count 60] [--seed 1] [--out .bench/synth]
+//   node tools/synth-bench/gen.mjs [--count 60] [--seed 1] [--out .bench/synth] [--lang de|fr|es]
+// --lang draws the whole dashboard in German, French or Spanish: titles, headers, months and number formats in that
+// language (safe words from web/lexicon.js), and people, companies and places from that Faker locale.
 // Writes <id>.png or <id>.jpg and <id>.truth.json: { width, height, words: [{ text, x, y, w, h, kind, sensitive }],
 // panels: [{ type, box, title, cats, values, color }] } in the image's pixels (cats and values in drawing order).
 //
@@ -12,28 +14,50 @@
 import { createServer } from 'node:http';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { Faker, en } from '@faker-js/faker';
+import * as fakerLocales from '@faker-js/faker';
+import { createRequire } from 'node:module';
+const { Faker, en } = fakerLocales;
 import { chromium } from 'playwright';
 import { ALLOW_WORDS } from '../../src/shared/allowlist.ts';
 import { ROOT } from './review.mjs';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
-const COUNT = +arg('--count', 60), SEED = +arg('--seed', 1), OUT = arg('--out', join(ROOT, '.bench', 'synth'));
-const ALLOW = new Set(ALLOW_WORDS);
+const COUNT = +arg('--count', 60), SEED = +arg('--seed', 1), OUT = arg('--out', join(ROOT, '.bench', 'synth')), LANG = arg('--lang', 'en');
+const LEXICON = createRequire(import.meta.url)('../../web/lexicon.js');
+if (LANG !== 'en' && !LEXICON.LEX[LANG]) { console.error(`--lang must be de, fr or es`); process.exit(2); }
+const LOCALES = LANG === 'en' ? [en] : [fakerLocales[LEXICON.LEX[LANG].faker], en];
+// the dashboard's own words in its language; every one is a safe word of that language (web/lexicon.js)
+const TR = {
+  de: { revenue: 'Umsatz', sales: 'Verkäufe', profit: 'Gewinn', cost: 'Kosten', orders: 'Bestellungen', customers: 'Kunden', sessions: 'Sitzungen', clicks: 'Klicks', leads: 'Leads', units: 'Stück', margin: 'Marge', spend: 'Ausgaben', budget: 'Budget', bookings: 'Buchungen', visits: 'Besuche',
+    customer: 'Kunde', client: 'Kunde', employee: 'Mitarbeiter', user: 'Nutzer', account: 'Konto', city: 'Stadt', region: 'Region', country: 'Land', territory: 'Gebiet', store: 'Filiale', product: 'Produkt', segment: 'Segment',
+    total: 'Gesamt', average: 'Durchschnitt', net: 'Netto', gross: 'Brutto', email: 'E-Mail', code: 'Code', id: 'ID', number: 'Nummer', share: 'Anteil', rate: 'Quote', growth: 'Wachstum', month: 'Monat', by: 'nach',
+    months: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'], locale: 'de-DE' },
+  fr: { revenue: 'Ventes', sales: 'Ventes', profit: 'Bénéfice', cost: 'Coûts', orders: 'Commandes', customers: 'Clients', sessions: 'Sessions', clicks: 'Clics', leads: 'Prospects', units: 'Volume', margin: 'Marge', spend: 'Dépenses', budget: 'Budget', bookings: 'Réservations', visits: 'Visites',
+    customer: 'Client', client: 'Client', employee: 'Collaborateurs', user: 'Utilisateur', account: 'Compte', city: 'Ville', region: 'Région', country: 'Pays', territory: 'Territoire', store: 'Magasin', product: 'Produit', segment: 'Segment',
+    total: 'Total', average: 'Moyenne', net: 'Net', gross: 'Brut', email: 'Email', code: 'Code', id: 'ID', number: 'Nombre', share: 'Part', rate: 'Taux', growth: 'Croissance', month: 'Mois', by: 'par',
+    months: ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'], locale: 'fr-FR' },
+  es: { revenue: 'Ingresos', sales: 'Ventas', profit: 'Beneficio', cost: 'Costos', orders: 'Pedidos', customers: 'Clientes', sessions: 'Sesiones', clicks: 'Clics', leads: 'Prospectos', units: 'Unidades', margin: 'Margen', spend: 'Gastos', budget: 'Presupuesto', bookings: 'Reservas', visits: 'Visitas',
+    customer: 'Cliente', client: 'Cliente', employee: 'Empleado', user: 'Usuario', account: 'Cuenta', city: 'Ciudad', region: 'Región', country: 'País', territory: 'Territorio', store: 'Tienda', product: 'Producto', segment: 'Segmento',
+    total: 'Total', average: 'Promedio', net: 'Neto', gross: 'Bruto', email: 'Email', code: 'Código', id: 'ID', number: 'Número', share: 'Cuota', rate: 'Tasa', growth: 'Crecimiento', month: 'Mes', by: 'por',
+    months: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'], locale: 'es-ES' },
+}[LANG];
+const tr = (w) => (TR && TR[w.toLowerCase()] ? TR[w.toLowerCase()] : w);
+const ALLOW = new Set([...ALLOW_WORDS, ...(LANG === 'en' ? [] : LEXICON.LEX[LANG].safe)]);
 const MAPS = Object.fromEntries(await Promise.all(['world', 'europe', 'usa', 'india', 'brazil'].map(async (m) => [m, JSON.parse(await readFile(join(ROOT, 'tools', 'synth-bench', 'maps', m + '.json'), 'utf8'))])));
 
 /* ---------- vocabulary: safe words come only from VaultSnip's allowlist, so "safe" means safe by its policy ---------- */
 const allowed = (s) => s.split(/\s+/).every((w) => ALLOW.has(w.toLowerCase()));
 const pick = (f, xs) => xs[f.number.int({ min: 0, max: xs.length - 1 })];
-const cap = (s) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+// the first letter of each word; letters with accents count as letters ("Génial", not "GéNial")
+const cap = (s) => s.replace(/(?<![\p{L}\p{N}_])[\p{L}\p{N}_]/gu, (c) => c.toUpperCase());
 const MEASURES = ['revenue', 'sales', 'profit', 'cost', 'orders', 'customers', 'sessions', 'clicks', 'leads', 'units', 'margin', 'spend', 'budget', 'bookings', 'visits'].filter(allowed);
 const DIMS = { name: ['customer', 'client', 'employee', 'user'], org: ['account', 'client', 'customer'], place: ['city', 'region', 'country', 'territory', 'store'], product: ['product', 'segment'] };
 for (const k of Object.keys(DIMS)) DIMS[k] = DIMS[k].filter(allowed);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = TR ? TR.months : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** One fictional dashboard: panels with their data, plus the kind of every word the generator wrote. */
 function dashboard(i) {
-  const f = new Faker({ locale: [en], seed: SEED * 100003 + i });
+  const f = new Faker({ locale: LOCALES, seed: SEED * 100003 + i });
   const kinds = new Map();                                     // word (normalised) → kind; sensitive kinds win
   const SENSITIVE = new Set(['name', 'org', 'email', 'id', 'place', 'product', 'number']);
   const note = (text, kind) => {
@@ -53,15 +77,19 @@ function dashboard(i) {
     if (kind === 'email') return note(f.internet.email({ provider: pick(f, ['example.com', 'example.net', 'example.org']) }).toLowerCase(), 'email');
     return note(`${f.string.alpha({ length: 3, casing: 'upper' })}-${f.string.numeric(5)}`, 'id');
   };
-  const money = () => note(pick(f, [`$${f.number.float({ min: 1, max: 99, fractionDigits: 1 })}M`, `$${f.number.int({ min: 1000, max: 999999 }).toLocaleString('en-US')}`,
+  const num = (v, d = 0) => (TR ? v.toLocaleString(TR.locale, { minimumFractionDigits: d, maximumFractionDigits: d }) : d ? v.toFixed(d) : v.toLocaleString('en-US'));
+  const money = () => note(TR
+    ? pick(f, [`${num(f.number.float({ min: 1, max: 99, fractionDigits: 1 }), 1)} Mio. €`.replace(' Mio.', LANG === 'de' ? ' Mio.' : ' M'), `${num(f.number.int({ min: 1000, max: 999999 }))} €`, `${num(f.number.float({ min: 1, max: 99, fractionDigits: 1 }), 1)} k€`])
+    : pick(f, [`$${f.number.float({ min: 1, max: 99, fractionDigits: 1 })}M`, `$${f.number.int({ min: 1000, max: 999999 }).toLocaleString('en-US')}`,
     `€${f.number.int({ min: 100, max: 99999 }).toLocaleString('en-US')}`, `${f.number.float({ min: 1, max: 99, fractionDigits: 1 })}K`]), 'number');
-  const pct = () => note(`${f.number.float({ min: 0.5, max: 99, fractionDigits: 1 })}%`, 'number');
-  const delta = () => note(`${pick(f, ['+', '−'])}${f.number.float({ min: 0.1, max: 30, fractionDigits: 1 })}%`, 'number');
+  const pct = () => note(TR ? `${num(f.number.float({ min: 0.5, max: 99, fractionDigits: 1 }), 1)} %` : `${f.number.float({ min: 0.5, max: 99, fractionDigits: 1 })}%`, 'number');
+  const delta = () => note(`${pick(f, ['+', '−'])}${TR ? num(f.number.float({ min: 0.1, max: 30, fractionDigits: 1 }), 1) + ' %' : f.number.float({ min: 0.1, max: 30, fractionDigits: 1 }) + '%'}`, 'number');
   const label = (s) => note(s, 'label');
 
   const measure = () => pick(f, MEASURES);
   const dimKind = () => pick(f, ['name', 'org', 'place', 'product']);
-  const title = (m, d) => label(cap(d ? `${m} by ${d}` : `${pick(f, ['total', 'average', 'net', 'gross'].filter(allowed))} ${m}`));
+  const title = (m, d) => label(TR ? (d ? `${tr(m)} ${TR.by} ${tr(d)}` : `${tr(pick(f, ['total', 'average', 'net', 'gross']))} ${tr(m)}`)
+    : cap(d ? `${m} by ${d}` : `${pick(f, ['total', 'average', 'net', 'gross'].filter(allowed))} ${m}`));
   const panels = [];
   const n = f.number.int({ min: 4, max: 9 });
   for (let p = 0; p < n; p++) {
@@ -72,7 +100,7 @@ function dashboard(i) {
       const cols = f.helpers.arrayElements(['name', 'org', 'email', 'id', 'place', 'money', 'pct'], { min: 3, max: 5 });
       const head = { name: pick(f, DIMS.name), org: pick(f, DIMS.org), email: 'email', id: pick(f, ['code', 'id', 'number'].filter(allowed)), place: pick(f, DIMS.place), money: m, pct: pick(f, ['share', 'rate', 'growth', 'margin'].filter(allowed)) };
       const rows = Array.from({ length: f.number.int({ min: 3, max: 8 }) }, () => cols.map((c) => (c === 'money' ? money() : c === 'pct' ? pct() : entity(c))));
-      panels.push({ type, title: title(m, cap(head[cols[0]])), head: cols.map((c) => label(cap(head[c]))), rows }); continue;
+      panels.push({ type, title: title(m, cap(head[cols[0]])), head: cols.map((c) => label(TR ? tr(head[c]) : cap(head[c]))), rows }); continue;
     }
     const dk = dimKind();
     const k = type === 'line' ? 'month' : dk;
@@ -82,7 +110,7 @@ function dashboard(i) {
     // too short to see)
     const magnitude = pick(f, [1, 10, 1000]);
     const values = cats.map(() => f.number.int({ min: 120, max: 950 }) * magnitude);
-    panels.push({ type, title: title(m, cap(type === 'line' ? 'month' : pick(f, DIMS[k] || DIMS.place))), cats, values, measure: label(cap(m)), rotate: f.datatype.boolean() ? -45 : 0 });
+    panels.push({ type, title: title(m, cap(type === 'line' ? 'month' : pick(f, DIMS[k] || DIMS.place))), cats, values, measure: label(TR ? tr(m) : cap(m)), rotate: f.datatype.boolean() ? -45 : 0 });
   }
   // about one dashboard in three also carries a choropleth map, from its own random stream so that adding maps left the
   // other panels of every dashboard as they were. Outlines: tools/synth-bench/maps (Natural Earth, public domain).
@@ -90,7 +118,8 @@ function dashboard(i) {
   if (fm.number.int({ min: 0, max: 2 }) === 0) {
     const mm = pick(fm, MEASURES), file = pick(fm, ['world', 'europe', 'usa', 'india', 'brazil']);
     const geo = MAPS[file];
-    panels.push({ type: 'map', title: label(cap(`${mm} by ${file === 'world' || file === 'europe' ? 'country' : 'region'}`)), measure: label(cap(mm)),
+    const dimMap = file === 'world' || file === 'europe' ? 'country' : 'region';
+    panels.push({ type: 'map', title: label(TR ? `${tr(mm)} ${TR.by} ${tr(dimMap)}` : cap(`${mm} by ${dimMap}`)), measure: label(TR ? tr(mm) : cap(mm)),
       geo: { ...geo, features: geo.features.map((ft) => ({ ...ft, properties: { name: ft.properties.name, v: fm.number.int({ min: 1, max: 999 }) } })) } });
   }
   const style = {
@@ -103,10 +132,10 @@ function dashboard(i) {
     format: pick(f, ['png', 'png', 'jpeg']),
     quality: pick(f, [60, 75, 90]),
   };
-  return { id: `synth-${String(SEED).padStart(2, '0')}-${String(i).padStart(3, '0')}`, panels, style, kinds: Object.fromEntries(kinds) };
+  return { id: `synth-${LANG === 'en' ? '' : LANG + '-'}${String(SEED).padStart(2, '0')}-${String(i).padStart(3, '0')}`, panels, style, kinds: Object.fromEntries(kinds) };
 }
 /** The form a word is looked up by: no surrounding punctuation, lower case. Shared with the page. */
-function norm(w) { return String(w).replace(/^[^\w€$£¥₹%#@+−-]+|[^\w€$£¥₹%]+$/g, '').toLowerCase(); }
+function norm(w) { return String(w).replace(/^[^\p{L}\p{N}_€$£¥₹%#@+−-]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase(); }
 
 /* ---------- drawing, in the page ---------- */
 async function render(d) {
@@ -187,7 +216,7 @@ async function render(d) {
   // every visible word with its box, from the text nodes themselves (HTML and SVG alike)
   const R = dash.getBoundingClientRect(), words = [], panels = [];
   const walker = document.createTreeWalker(dash, NodeFilter.SHOW_TEXT);
-  const norm = (w) => w.replace(/^[^\w€$£¥₹%#@+−-]+|[^\w€$£¥₹%]+$/g, '').toLowerCase();
+  const norm = (w) => w.replace(/^[^\p{L}\p{N}_€$£¥₹%#@+−-]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase();
   for (let n; (n = walker.nextNode());) {
     const pe = n.parentElement, cs = getComputedStyle(pe);
     if (cs.visibility === 'hidden' || cs.display === 'none' || +cs.opacity === 0 || pe.closest('defs,clipPath,title')) continue;
