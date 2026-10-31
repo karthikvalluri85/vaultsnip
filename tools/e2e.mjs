@@ -510,6 +510,15 @@ try {
 
   console.log('Start screen');
   await page.goto(base);
+  // the reader starts loading when the pointer comes near the drop area, quietly
+  const st0 = await page.locator('#status').textContent();
+  const before = await page.evaluate(() => window.__DSC.test.readersStarted());
+  await page.hover('#drop');
+  await page.waitForFunction(() => window.__DSC.test.readersStarted() > 0, null, { timeout: 5000 }).catch(() => {});
+  const after = await page.evaluate(() => window.__DSC.test.readersStarted());
+  await page.waitForTimeout(1500);
+  check(before === 0 && after > 0 && (await page.locator('#status').textContent()) === st0, `the reader starts loading when the pointer nears the drop area, without a message (${before} → ${after})`);
+  await page.goto(base);
   await page.setInputFiles('#file', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
   check(await page.locator('#drop-err').isVisible() && /PNG, JPG or WebP/.test(await page.locator('#drop-err').textContent()), 'a file that is not an image gets an inline message, not a pop-up');
   check(/image\/webp/.test(await page.getAttribute('#file', 'accept')), 'WebP screenshots are accepted');
