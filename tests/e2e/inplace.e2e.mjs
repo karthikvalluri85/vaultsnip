@@ -81,6 +81,8 @@ try {
   // ticks the reader joined into one box stay one even scale starting at 0
   const joined = await page.evaluate(() => window.__DSC.test.fakeValue('0 20 40 60 80 100 120 140 160 180 200', 11).split(' ').map(Number));
   const step = joined[1] - joined[0];
+  const long = await page.evaluate(() => [window.__DSC.test.fakeValue('6000000000000000000000000', 3), window.__DSC.test.fakeValue('0 100000000000000000 200000000000000000 300000000000000000', 4)]);
+  check(long.every(v => !/e[+-]\d/.test(v)) && long[0].length === 25, `very long numbers get new digits, never exponent notation (${long[0]})`);
   check(joined.length === 11 && joined[0] === 0 && step > 0 && step !== 20 && joined.every((v, i) => v === i * step), `joined axis ticks stay one even scale (${joined.join(' ')})`);
 
   console.log('Overlay');

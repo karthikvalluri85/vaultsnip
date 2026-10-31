@@ -18,6 +18,7 @@
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     sessionAllow: new Set(),
+    valueYears: new Set(),   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
     blurs: [], tool: 'mask',   // areas the user chose to blur (charts whose shape is confidential), and what a drag draws
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
@@ -504,15 +505,109 @@ customer service staff agent team people everyone nobody someone something nothi
   }
 
   /* ---------------- masks ---------------- */
+  // A year-like number ("2000") is a label, unless it is one tick of an axis of values (0, 2000, 4000, 6000): numbers on
+  // its row or column, evenly spaced and evenly stepped, that are not all years. Then it is a value like its neighbours.
+  const YEARLIKE = /^(19|20)\d{2}$/;
+  const plainNum = t => { const c = String(t).trim().replace(/[-–]$/, ''); return /^\d[\d,]*(\.\d+)?$/.test(c) ? parseFloat(c.replace(/,/g, '')) : NaN; };
+  function yearOnValueAxis(w, words) {
+    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+    const lines = [
+      words.filter(v => Math.abs(v.y + v.h / 2 - cy) < Math.max(v.h, w.h) * 0.6 && Math.abs(v.h - w.h) < Math.max(v.h, w.h) * 0.4),   // its row
+      words.filter(v => Math.abs(v.x + v.w - (w.x + w.w)) < Math.max(4, w.h * 0.5) || Math.abs(v.x + v.w / 2 - cx) < Math.max(4, w.h * 0.5))   // its column
+    ];
+    return lines.some((line, i) => {
+      const nums = line.filter(v => Number.isFinite(plainNum(v.text))).sort((a, b) => (i ? a.y - b.y : a.x - b.x));
+      const at = nums.indexOf(w);
+      if (nums.length < 3 || at < 0) return false;
+      // the stretch of neighbours around it that steps evenly, in value and position
+      for (let a = Math.max(0, at - 2); a <= at; a++) {
+        const run = nums.slice(a, a + 3);
+        if (run.length < 3 || !run.includes(w)) continue;
+        const vals = run.map(v => plainNum(v.text)), pos = run.map(v => (i ? v.y + v.h / 2 : v.x + v.w / 2));
+        const dv = vals[1] - vals[0], dp = pos[1] - pos[0];
+        if (!dv || !dp || Math.abs(vals[2] - vals[1] - dv) > Math.abs(dv) * 0.05 || Math.abs(pos[2] - pos[1] - dp) > Math.abs(dp) * 0.25) continue;
+        if (run.some(v => !YEARLIKE.test(v.text.trim().replace(/[-–]$/, '')))) return true;
+      }
+      return false;
+    });
+  }
+  // The reader's box can be smaller than the text it read: a digit or a letter at either end missed ("8.5%" of "28.5%"),
+  // or the tops of the letters left out. The box grows to the ink that touches it: up and down to where the letters end,
+  // and for numbers sideways across gaps narrower than a space. Ink that runs on far past the line (a bar, a
+  // gridline, a border) is a shape, not a letter, and stops the growth. On the device, from the picture's own pixels.
+  function pixels() {
+    if (!S.img) return null;
+    if (!S.px || S.px.img !== S.img) S.px = { img: S.img, W: S.img.width, H: S.img.height, d: S.img.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, S.img.width, S.img.height).data };
+    return S.px;
+  }
+  const unionBox = (a, b) => {
+    if (!b) return a;
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+  };
+  function inkBox(g) {
+    const P = pixels();
+    if (!P || g.h < 4) return null;
+    const { W, H, d } = P, h = g.h;
+    const x0 = Math.max(0, Math.round(g.x)), x1 = Math.min(W - 1, Math.round(g.x + g.w)), y0 = Math.max(0, Math.round(g.y)), y1 = Math.min(H - 1, Math.round(g.y + g.h));
+    if (x1 - x0 < 2 || y1 - y0 < 2) return null;
+    // the background: the most common colour on a ring just outside the box
+    const ring = [], add = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) { const i = (y * W + x) * 4; ring.push((d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4)); } };
+    for (let x = x0 - 2; x <= x1 + 2; x += 2) { add(x, y0 - 3); add(x, y1 + 3); }
+    for (let y = y0; y <= y1; y += 2) { add(x0 - 3, y); add(x1 + 3, y); }
+    const count = new Map(); ring.forEach(c => count.set(c, (count.get(c) || 0) + 1));
+    const bgKey = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!bgKey || bgKey[1] < ring.length * 0.4) return null;   // no steady background (a photo, a gradient): leave the box
+    const bg = [((bgKey[0] >> 8) & 15) * 16 + 8, ((bgKey[0] >> 4) & 15) * 16 + 8, (bgKey[0] & 15) * 16 + 8];
+    const ink = (x, y) => { const i = (y * W + x) * 4; return Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) > 90; };
+    // vertical band where letters of this line can be
+    const top = Math.max(0, Math.round(g.y - h * 0.35)), bot = Math.min(H - 1, Math.round(g.y + h * 1.35));
+    const colInk = x => { let n = 0; for (let y = top; y <= bot; y++) if (ink(x, y)) n++; return n; };
+    // a column whose ink fills the whole band, or carries on above and below it, belongs to a shape
+    const shapeCol = x => { const n = colInk(x); return n > (bot - top + 1) * 0.85 || (top > 0 && bot < H - 1 && ink(x, top - 1) && ink(x, bot + 1) && n > (bot - top) * 0.5); };
+    // a gap between letters, never a space between words (a space is about a quarter of the type size)
+    const gap = Math.max(1, Math.round(h * 0.12)), reach = Math.round(h * 1.5);
+    // sideways only for numbers and IDs: a digit read off the end is what leaks ("8.5%" of "28.5%"), while a word grown
+    // sideways would swallow the next word of a name ("and", "West")
+    const sideways = /Number|Identifier/.test(g.type || '');
+    let L = x0, R = x1;
+    for (let x = x0 - 1, miss = 0; sideways && x >= Math.max(0, x0 - reach); x--) {
+      if (shapeCol(x)) break;
+      if (colInk(x)) { L = x; miss = 0; } else if (++miss > gap) break;
+    }
+    for (let x = x1 + 1, miss = 0; sideways && x <= Math.min(W - 1, x1 + reach); x++) {
+      if (shapeCol(x)) break;
+      if (colInk(x)) { R = x; miss = 0; } else if (++miss > gap) break;
+    }
+    // up and down from the box, row by row, over the columns it now spans; a row of ink all along is a line, not text
+    const rowInk = y => { let n = 0; for (let x = L; x <= R; x++) if (ink(x, y)) n++; return n; };
+    const wide = R - L + 1;
+    let T = y0, B = y1;
+    for (let y = y0 - 1; y >= top; y--) { const n = rowInk(y); if (!n || n > wide * 0.9) break; T = y; }
+    for (let y = y1 + 1; y <= bot; y++) { const n = rowInk(y); if (!n || n > wide * 0.9) break; B = y; }
+    if (L === x0 && R === x1 && T === y0 && B === y1) return null;
+    return { x: L - 2, y: T - 2, w: R - L + 5, h: B - T + 5 };
+  }
+  function markOnly(w) {
+    const regs = S.unread && S.unread.on && S.unread.state === 'ready' && S.unread.regions;
+    if (!regs || /\d/.test(w.text) || !(w.conf < 60)) return false;
+    const letters = (w.text.match(/[A-Za-z]/g) || []).length;
+    return letters <= 3 && w.text.replace(/\s/g, '').length <= 4 && !regs.some(r => overlap(r, w) > 0.2);
+  }
   function buildMasks(words) {
     const keep = S.keepComments;
     S.commentVocab = new Set();
     // kept comment words read with good confidence: the check does not second-guess re-readings of these pixels
     S.keptBoxes = keep ? words.filter(w => w.inCm && !w.ghost && w.conf >= 80 && !commentType(w)) : [];
     const labels = countLabels(words);
+    S.valueYears = new Set();
     const flagged = words.map(w => {
       // (a scrap of a slanted label that the second look read as safe words is not masked)
-      const type = w.lookSafe ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
+      let type = w.lookSafe ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
+      // a scrap of two or three letters read unsurely from a map or a chart, where the text detector found no text at all,
+      // is a shape, not a word: masking it only smears the map in the replica. Never a reading with a digit.
+      if (type && markOnly(w)) type = null;
+      if (!type && !w.lookSafe && YEARLIKE.test(w.text.trim().replace(/[-–]$/, '')) && yearOnValueAxis(w, words)) { type = 'Number or money'; S.valueYears.add(w.text.trim().replace(/[-–]$/, '')); }
       if (keep && w.inCm && !type && normW(w.text)) S.commentVocab.add(normW(w.text));
       return Object.assign({}, w, { type });
     }).filter(w => w.type);
@@ -526,7 +621,8 @@ customer service staff agent team people everyone nobody someone something nothi
         g.text += ' ' + w.text; g.w = x2 - g.x; g.y = y1; g.h = y2 - y1;
       } else groups.push({ x: w.x, y: w.y, w: w.w, h: w.h, type: w.type, text: w.text, on: true, src: 'auto' });
     });
-    const out = groups.map(g => { const p = Math.max(3, g.h * 0.18); return Object.assign(g, { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }); });
+    // core: the box before it grew to the ink, for the unread-text check, which judges the reader's own coverage
+    const out = groups.map(g => { const p = Math.max(3, g.h * 0.18), ink = inkBox(g), core = { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }; return Object.assign(g, unionBox(core, ink), ink ? { core } : {}); });
     return out.concat(columnFill(out));
   }
   // Table columns: when three or more number masks stack in one column, the whole column is masked, so
@@ -631,7 +727,7 @@ customer service staff agent team people everyone nobody someone something nothi
     }
     // several ticks the reader joined into one box ("0 20 40 … 540") become one even scale, not unrelated numbers
     const ticks = text.trim().split(/\s+/), joined = ticks.join(' ');
-    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t))) {
+    if (exact == null && ticks.length >= 3 && ticks.every(t => /^\d[\d,]*(\.\d+)?$/.test(t) && t.replace(/\D/g, '').length <= 12)) {
       const vals = ticks.map(t => parseFloat(t.replace(/,/g, ''))), st = vals[1] - vals[0];
       if (st && vals.every((v, i) => Math.abs(v - vals[0] - i * st) <= Math.abs(st) * 0.01)) {
         const dec = Math.max(...ticks.map(t => (t.split('.')[1] || '').length)), comma = ticks.some(t => t.includes(','));
@@ -639,7 +735,7 @@ customer service staff agent team people everyone nobody someone something nothi
         for (let k = 0; k < 40; k++) {
           const f = randomFactor(r), s2 = roundTo2(st * f), a = vals[0] === 0 ? 0 : roundTo2(vals[0] * f);
           const next = vals.map((_, i) => a + i * s2);
-          if (next.some(v => v < 0)) continue;
+          if (next.some(v => v < 0 || !Number.isFinite(v) || v >= 1e12)) continue;
           const out = next.map(fmt).join(' ');
           if (out !== joined && Math.abs(out.length - joined.length) <= Math.max(2, joined.length * 0.08)) return out;
         }
@@ -649,13 +745,14 @@ customer service staff agent team people everyone nobody someone something nothi
     const runs = text.match(/\d[\d,]*(?:\.\d+)?/g) || [], longest = runs.reduce((a, b) => (b.length > a.length ? b : a), '');
     let first = true;
     let out = text.replace(/\d[\d,]*(?:\.\d+)?/g, (run, offset) => {
-      if (/^(19|20)\d{2}$/.test(run)) return run;                                   // a year is a label, not a value
+      if (/^(19|20)\d{2}$/.test(run) && !(S.valueYears && S.valueYears.has(run))) return run;   // a year is a label, not a value (unless an axis of values)
       if (/\/\s*$/.test(text.slice(0, offset))) return run;                          // the scale of a rating ("/ 5") stays
       const outOf = /^\s*\/\s*(\d+(?:\.\d+)?)/.exec(text.slice(offset + run.length)), cap = outOf ? parseFloat(outOf[1]) : Infinity;
       const [intPart, dec = ''] = run.split('.'), plain = intPart.replace(/,/g, ''), v = parseFloat(plain + (dec ? '.' + dec : ''));
       const afterColon = text[offset - 1] === ':', pct = text.slice(offset + run.length).trim().startsWith('%');
       let n;
-      if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
+      if (plain.length > 15) n = digit(1) + Array.from({ length: plain.length - 1 }, () => digit()).join('') + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // a long run of digits (an ID, or ticks read as one): new digits, never "6e+23"
+      else if (afterColon) n = String(Math.floor(r() * 60)).padStart(plain.length, '0');  // minutes or seconds stay valid
       else if (pct && v >= 100) n = String(90 + Math.floor(r() * 10)) + (dec ? '.' + Array.from({ length: dec.length }, () => digit()).join('') : '');   // 100% becomes a high percentage
       else {
         // the real value scaled, kept to the same number of digits (a percentage stays at or under 100); a whole number
@@ -677,7 +774,7 @@ customer service staff agent team people everyone nobody someone something nothi
       return grouped + (nd2 !== undefined ? '.' + nd2 : '');
     });
     // try again only when there is a number to change (a lone year stays as it is), and never endlessly
-    if (out === text && exact !== 0 && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run))) out = fakeValue(text, seed + 7, undefined, depth + 1);
+    if (out === text && exact !== 0 && depth < 8 && (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).some(run => !/^(19|20)\d{2}$/.test(run) || (S.valueYears && S.valueYears.has(run)))) out = fakeValue(text, seed + 7, undefined, depth + 1);
     return out;
   }
   // Numbers stacked as an axis (three or more in a column or a row, evenly spaced) share one factor, so the invented scale
@@ -926,7 +1023,8 @@ customer service staff agent team people everyone nobody someone something nothi
   // confidently and is safe by the same rules as the rest of the page. Anything else is masked as unread text.
   const SECOND_LOOK_CONF = 70, SECOND_LOOK_MAX = 120;
   function unreadCover(base) {
-    const on = base.filter(m => m.on);
+    // as the reader read them: a mask grown to the ink around it would hide how little of a slanted label it covers
+    const on = base.filter(m => m.on).map(m => m.core ? Object.assign({}, m, m.core) : m);
     const inside = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
     // words that account for their spot: read confidently and left readable by the rules; and parts of a region that
     // hold flat marks only (a bar beside its label), found by the second look
@@ -1094,7 +1192,7 @@ customer service staff agent team people everyone nobody someone something nothi
     // digit always counts, however short: a number both readers missed can surface here as a lone "4" (a real "10.7%"
     // did), and numbers are the text most often left exposed.
     const regs = S.unread.on && S.unread.state === 'ready' && S.unread.regions ? S.unread.regions : null;
-    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3);
+    const noText = w => !!regs && !regs.some(r => overlap(r, w) > 0.2) && !S.words.some(v => overlap(v, w) > 0.3 && !markOnly(v));
     // A re-reading of a word the first reader found at the same spot and judged safe ("Revenu" for "Revenue", "oup" for
     // "Group") is the same label read differently, not something the masks missed. A different reading there
     // ("Acme" where "Group" was read) is still a finding.
