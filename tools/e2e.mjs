@@ -24,7 +24,9 @@ await new Promise(r => server.listen(0, r));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
 let failures = 0;
-const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); if (!cond) failures++; };
+// on GitHub Actions a failed check is also an annotation, readable on the run's page and through the checks API
+const annotate = msg => { if (process.env.GITHUB_ACTIONS) console.log(`::error title=End-to-end::${String(msg).replace(/\r?\n/g, ' ').slice(0, 900)}`); };
+const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); if (!cond) { failures++; annotate(msg); } };
 const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
@@ -493,7 +495,7 @@ try {
   const unexpected = offsite.filter(u => !/^https:\/\/api\.anthropic\.com\/v1\/messages$/.test(u));   // only the blocked attempt above
   check(unexpected.length === 0, `across the whole run the app requested nothing outside its own site, ${unexpected.length ? ': ' + [...new Set(unexpected)].slice(0, 5).join(', ') : ''}`);
 } catch (e) {
-  failures++; console.log('  ✗ ' + e.message);
+  failures++; console.log('  ✗ ' + e.message); annotate(e.message);
 } finally {
   await browser.close(); server.close();
 }
