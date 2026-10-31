@@ -1,5 +1,7 @@
 // Generates fictional dashboards with every word's position and kind known, for measuring masking (developer tool).
-//   node tools/synth-bench/gen.mjs [--count 60] [--seed 1] [--out .bench/synth]
+//   node tools/synth-bench/gen.mjs [--count 60] [--seed 1] [--out .bench/synth] [--locale de]
+// --locale draws people, companies, places and products from another Faker locale (de, fr, es, pt_BR, it, nl, pl, tr,
+// ru, el...), so names with accents or in another script are measured too; labels stay those of VaultSnip's allowlist.
 // Writes <id>.png or <id>.jpg and <id>.truth.json: { width, height, words: [{ text, x, y, w, h, kind, sensitive }],
 // panels: [{ type, box, title, cats, values, color }] } in the image's pixels (cats and values in drawing order).
 //
@@ -12,13 +14,16 @@
 import { createServer } from 'node:http';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import { Faker, en } from '@faker-js/faker';
+import * as fakerLocales from '@faker-js/faker';
+const { Faker, en } = fakerLocales;
 import { chromium } from 'playwright';
 import { ALLOW_WORDS } from '../../src/shared/allowlist.ts';
 import { ROOT } from './review.mjs';
 
 const arg = (name, d) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : d);
-const COUNT = +arg('--count', 60), SEED = +arg('--seed', 1), OUT = arg('--out', join(ROOT, '.bench', 'synth'));
+const COUNT = +arg('--count', 60), SEED = +arg('--seed', 1), OUT = arg('--out', join(ROOT, '.bench', 'synth')), LOCALE = arg('--locale', 'en');
+if (!fakerLocales[LOCALE]) { console.error(`unknown Faker locale ${LOCALE}`); process.exit(2); }
+const LOCALES = LOCALE === 'en' ? [en] : [fakerLocales[LOCALE], en];
 const ALLOW = new Set(ALLOW_WORDS);
 const MAPS = Object.fromEntries(await Promise.all(['world', 'europe', 'usa', 'india', 'brazil'].map(async (m) => [m, JSON.parse(await readFile(join(ROOT, 'tools', 'synth-bench', 'maps', m + '.json'), 'utf8'))])));
 
@@ -33,7 +38,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** One fictional dashboard: panels with their data, plus the kind of every word the generator wrote. */
 function dashboard(i) {
-  const f = new Faker({ locale: [en], seed: SEED * 100003 + i });
+  const f = new Faker({ locale: LOCALES, seed: SEED * 100003 + i });
   const kinds = new Map();                                     // word (normalised) → kind; sensitive kinds win
   const SENSITIVE = new Set(['name', 'org', 'email', 'id', 'place', 'product', 'number']);
   const note = (text, kind) => {
@@ -106,7 +111,7 @@ function dashboard(i) {
   return { id: `synth-${String(SEED).padStart(2, '0')}-${String(i).padStart(3, '0')}`, panels, style, kinds: Object.fromEntries(kinds) };
 }
 /** The form a word is looked up by: no surrounding punctuation, lower case. Shared with the page. */
-function norm(w) { return String(w).replace(/^[^\w€$£¥₹%#@+−-]+|[^\w€$£¥₹%]+$/g, '').toLowerCase(); }
+function norm(w) { return String(w).replace(/^[^\p{L}\p{N}_€$£¥₹%#@+−-]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase(); }
 
 /* ---------- drawing, in the page ---------- */
 async function render(d) {
@@ -187,7 +192,7 @@ async function render(d) {
   // every visible word with its box, from the text nodes themselves (HTML and SVG alike)
   const R = dash.getBoundingClientRect(), words = [], panels = [];
   const walker = document.createTreeWalker(dash, NodeFilter.SHOW_TEXT);
-  const norm = (w) => w.replace(/^[^\w€$£¥₹%#@+−-]+|[^\w€$£¥₹%]+$/g, '').toLowerCase();
+  const norm = (w) => w.replace(/^[^\p{L}\p{N}_€$£¥₹%#@+−-]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase();
   for (let n; (n = walker.nextNode());) {
     const pe = n.parentElement, cs = getComputedStyle(pe);
     if (cs.visibility === 'hidden' || cs.display === 'none' || +cs.opacity === 0 || pe.closest('defs,clipPath,title')) continue;
