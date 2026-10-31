@@ -48,7 +48,8 @@ const MAPS = Object.fromEntries(await Promise.all(['world', 'europe', 'usa', 'in
 /* ---------- vocabulary: safe words come only from VaultSnip's allowlist, so "safe" means safe by its policy ---------- */
 const allowed = (s) => s.split(/\s+/).every((w) => ALLOW.has(w.toLowerCase()));
 const pick = (f, xs) => xs[f.number.int({ min: 0, max: xs.length - 1 })];
-const cap = (s) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+// the first letter of each word; letters with accents count as letters ("Génial", not "GéNial")
+const cap = (s) => s.replace(/(?<![\p{L}\p{N}_])[\p{L}\p{N}_]/gu, (c) => c.toUpperCase());
 const MEASURES = ['revenue', 'sales', 'profit', 'cost', 'orders', 'customers', 'sessions', 'clicks', 'leads', 'units', 'margin', 'spend', 'budget', 'bookings', 'visits'].filter(allowed);
 const DIMS = { name: ['customer', 'client', 'employee', 'user'], org: ['account', 'client', 'customer'], place: ['city', 'region', 'country', 'territory', 'store'], product: ['product', 'segment'] };
 for (const k of Object.keys(DIMS)) DIMS[k] = DIMS[k].filter(allowed);
