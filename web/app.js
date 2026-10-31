@@ -1092,7 +1092,9 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       if (t === 'Text not on allowlist' && (w.text.match(/[A-Za-z]/g) || []).length <= 2 && !/\d/.test(w.text)) return; // fragments like "El", "oy" carry no information
       if (flags.some(f => overlap(f, w) > 0.3)) return;
-      flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false });
+      // where neither the first reader nor the text detector saw text, a finding is most likely a chart mark read as text;
+      // it is still a finding (a lone digit there can be part of a real number), only listed after the others
+      flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false, likelyMark: noText(w) });
     });
     S.flags = flags; S.chartMarks = marks;
     updateGate();
@@ -1178,22 +1180,36 @@ customer service staff agent team people everyone nobody someone something nothi
       all.onclick = hideUncertain;
       fl.appendChild(all);
     }
-    S.flags.forEach((f, i) => {
+    // each finding with a close-up of the image as it would be shared, so it can be judged without hunting for it;
+    // the likeliest leaks first (numbers and IDs, then words), chart marks last, resolved ones at the end
+    const shared = openFlags.length ? maskedCanvas(1, null, { tag: false }) : null;
+    const rank = f => (f.resolved ? 4 : 0) + (f.likelyMark ? 2 : 0) + (f.severity === 'block' ? 0 : 1);
+    S.flags.slice().sort((a, b) => rank(a) - rank(b)).forEach(f => {
       const d = document.createElement('div');
-      d.className = 'flag';
-      d.innerHTML = `<span class="sw" style="background:${f.severity === 'block' ? 'var(--bad)' : 'var(--warn)'}"></span><code></code>`;
+      d.className = 'flag' + (f.resolved ? ' done' : '');
+      d.innerHTML = `<span class="sw" style="background:${f.severity === 'block' ? 'var(--bad)' : 'var(--warn)'}"></span><span class="what"><code></code><small></small></span>`;
       d.querySelector('code').textContent = f.resolved ? `${f.text} (resolved)` : f.text;
+      d.querySelector('small').textContent = f.resolved ? '' : f.likelyMark ? 'Probably a chart mark: no text was found here' : f.severity === 'block' ? 'A number or ID can still be read' : 'A word not on the allowlist can still be read';
+      if (!f.resolved && shared) d.insertBefore(findingCrop(f, shared), d.children[1]);
       if (!f.resolved) {
-        const mk = document.createElement('button'); mk.type = 'button'; mk.textContent = 'Mask it';
+        d.tabIndex = 0;
+        d.setAttribute('aria-label', `Finding: ${f.text}. Press M to mask it${f.severity === 'review' ? ', S if it is safe to keep' : ', K to keep it'}.`);
+        d.onkeydown = e => {
+          const k = e.key.toLowerCase(), btn = k === 'm' ? d.querySelector('[data-act=mask]') : (k === 's' || k === 'k') ? d.querySelector('[data-act=keep]') : null;
+          if (!btn) return;
+          e.preventDefault(); btn.click();
+          const next = $('flags').querySelector('.flag[tabindex="0"]'); if (next) next.focus();   // straight on to the next one
+        };
+        const mk = document.createElement('button'); mk.type = 'button'; mk.textContent = 'Mask it'; mk.dataset.act = 'mask';
         mk.onclick = () => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Added after check', text: f.text, on: true, src: 'check' }); f.resolved = true; updateGate(); renderTypes(); draw(); };
         d.appendChild(mk);
         if (f.severity === 'review') {
-          const ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Safe to keep';
+          const ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Safe to keep'; ok.dataset.act = 'keep';
           ok.onclick = () => { S.sessionAllow.add(f.text.toLowerCase().replace(/[^\w-]/g, '')); f.resolved = true; updateGate(); draw(); };
           d.appendChild(ok);
         } else {
           // a number or ID that is not sensitive here ("Top 5", a version number): kept at this spot only, never everywhere
-          const keepIt = document.createElement('button'); keepIt.type = 'button'; keepIt.textContent = 'Not sensitive, keep it';
+          const keepIt = document.createElement('button'); keepIt.type = 'button'; keepIt.textContent = 'Not sensitive, keep it'; keepIt.dataset.act = 'keep';
           keepIt.title = 'Keep this one value readable. Only this spot; the same number elsewhere stays masked.';
           keepIt.onclick = () => { S.masks.push({ x: f.x, y: f.y, w: f.w, h: f.h, type: 'Kept by you', text: f.text, on: false, userOff: true, src: 'user' }); f.resolved = true; updateGate(); renderTypes(); draw(); };
           d.appendChild(keepIt);
@@ -1201,6 +1217,22 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       fl.appendChild(d);
     });
+  }
+
+  // A close-up of one finding in the image as it would be shared: the finding outlined, with a little of what is around it.
+  function findingCrop(f, src) {
+    const padX = Math.max(f.h * 2.5, 24), padY = Math.max(f.h * 0.8, 8);
+    const x0 = Math.max(0, Math.floor(f.x - padX)), y0 = Math.max(0, Math.floor(f.y - padY));
+    const x1 = Math.min(src.width, Math.ceil(f.x + f.w + padX)), y1 = Math.min(src.height, Math.ceil(f.y + f.h + padY));
+    const H = 48, k = Math.min(4, H / Math.max(1, y1 - y0)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round((x1 - x0) * k)); c.height = Math.max(1, Math.round((y1 - y0) * k)); c.className = 'crop';
+    c.setAttribute('role', 'img'); c.setAttribute('aria-label', `Close-up of "${f.text}" in the masked image`);
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = k < 1;
+    x.drawImage(src, x0, y0, x1 - x0, y1 - y0, 0, 0, c.width, c.height);
+    x.strokeStyle = f.severity === 'block' ? '#b03c38' : '#a55d00'; x.lineWidth = 2; x.setLineDash([4, 3]);
+    x.strokeRect((f.x - x0) * k, (f.y - y0) * k, f.w * k, f.h * k);
+    return c;
   }
 
   /* ---------------- review canvas ---------------- */

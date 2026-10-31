@@ -220,6 +220,24 @@ try {
   const hu = await page.evaluate(() => ({ gate: document.querySelector('.gate').textContent, added: window.__DSC.masks.slice(-2).map(m => m.on && m.src === 'check' && m.type === 'Added after check'), n: window.__DSC.masks.length }));
   check(/Pass/.test(hu.gate) && hu.n === hu0 + 2 && hu.added.every(Boolean) && await huBtn.isHidden(), 'one click hides both, counts them as your decisions, and the gate passes');
   await page.evaluate(() => { const S = window.__DSC; S.masks.splice(-2, 2); S.flags = []; S.test.updateGate(); });
+  // each finding comes with a close-up of the image as it would be shared; likely leaks first, probable chart marks
+  // last; and M masks the focused one and moves on to the next
+  const m0 = await page.evaluate(() => window.__DSC.masks.length);
+  await page.evaluate(() => {
+    const S = window.__DSC;
+    S.flags = [{ x: 200, y: 90, w: 12, h: 16, text: '7', type: 'Number or money', severity: 'block', resolved: false, likelyMark: true },
+      { x: 60, y: 60, w: 30, h: 20, text: '42', type: 'Number or money', severity: 'block', resolved: false, likelyMark: false },
+      { x: 120, y: 60, w: 60, h: 20, text: 'Zorblat', type: 'Text not on allowlist', severity: 'review', resolved: false, likelyMark: false }];
+    S.test.updateGate();
+  });
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#flags .flag')].map(d => ({ t: d.querySelector('code').textContent, crop: !!d.querySelector('canvas.crop') && d.querySelector('canvas.crop').height > 0, hint: d.querySelector('small').textContent })));
+  check(rows.length === 3 && rows.every(r => r.crop), `every finding shows a close-up of the masked image (${rows.filter(r => r.crop).length}/${rows.length})`);
+  check(rows.map(r => r.t).join(',') === '42,Zorblat,7' && /chart mark/.test(rows[2].hint), `likely leaks first, probable chart marks last (${rows.map(r => r.t).join(', ')})`);
+  await page.locator('#flags .flag').first().focus();
+  await page.keyboard.press('m');
+  const afterM = await page.evaluate(() => ({ added: window.__DSC.masks.length, open: window.__DSC.flags.filter(f => !f.resolved).map(f => f.text), focus: document.activeElement && document.activeElement.querySelector && (document.activeElement.querySelector('code') || {}).textContent }));
+  check(afterM.added === m0 + 1 && afterM.open.join(',') === '7,Zorblat' && afterM.focus === 'Zorblat', `M masks the focused finding and moves on to the next (focus: ${afterM.focus})`);
+  await page.evaluate(() => { const S = window.__DSC; S.masks.splice(-1, 1); S.flags = []; S.test.updateGate(); });
   // the review summary: plain numbers that add up, your decisions counted, and a clear next step
   const sum = await page.evaluate(() => {
     const S = window.__DSC, words = S.words.filter(w => !w.ghost);
