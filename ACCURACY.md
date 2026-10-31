@@ -11,17 +11,17 @@ Measured on 31 October 2026 on two generated sets where every word's position an
 
 | Figure | 0.9.0 | 0.10.0 | 0.11.0 |
 |---|---|---|---|
-| Sensitive text still readable after masking and the check (**leaked area**) | 0.72% of its area | 0.72% | **0.30%** |
-| Sensitive words at least partly readable | 35 of 1,852 (1.9%) | 35 (1.9%) | **19 (1.0%, 95% interval 0.7 to 1.6%)** |
-| Of which: numbers, person names, product names, organisations, places | 23, 6, 4, 2, 0 | 23, 6, 4, 2, 0 | 7, 6, 3, 2, 1 |
-| Safe words masked anyway (over-masking) | 68 of 771 (8.8%) | 68 (8.8%) | 76 (9.9%) |
-| Check findings / of which real leftovers | 62 / 2 | 58 / 2 | **47** / 0 |
+| Sensitive text still readable after masking and the check (**leaked area**) | 0.72% of its area | 0.72% | **0.31%** |
+| Sensitive words at least partly readable | 35 of 1,852 (1.9%) | 35 (1.9%) | **20 (1.1%, 95% interval 0.7 to 1.7%)** |
+| Of which: numbers, person names, product names, organisations, places | 23, 6, 4, 2, 0 | 23, 6, 4, 2, 0 | 9, 6, 3, 2, 0 |
+| Safe words masked anyway (over-masking) | 68 of 771 (8.8%) | 68 (8.8%) | 73 (9.5%) |
+| Check findings / of which real leftovers | 62 / 2 | 58 / 2 | **53** / 0 |
 | Median time, drop to end of check (2-core test machine) | 72 s | 47 s | **40 s** |
 
-What changed in 0.11: a mask grows to the ink it touches (up and down to where its letters end, and sideways for numbers
-and IDs, so a digit the reader missed at either end is covered); a year-like number on an axis of values (0, 2000, 4000)
+What changed in 0.11: a mask grows to the ink it touches (up and down to where its letters end, and sideways for confident
+readings of numbers and IDs, so a digit the reader missed at either end is covered); a year-like number on an axis of values (0, 2000, 4000)
 is masked like its neighbours; and unsure letter scraps read from a map where no text was detected are left alone. The
-price is eight more safe words masked. The remaining person names are mostly a thin strip above the box the reader drew,
+price is five more safe words masked. The remaining person names are mostly a thin strip above the box the reader drew,
 where the measure's box is taller than the letters.
 
 The leaked area is the figure to watch: it is never 0 today, which is why the review screen asks you to look over the
