@@ -319,8 +319,22 @@ which what when where how why than then also just about across into out off per 
     });
     return out;
   }
+  // The enlarged passes (2× and 3×) are there for small text: they bring 11-pixel labels up to the size the reader reads
+  // best. A screenshot taken on a high-density screen already has text twice that size, and enlarging it three times
+  // more only costs time (a 3× pass reads 4 times the pixels of a 1.5× one). So once the text's usual height is known,
+  // those passes are enlarged only as far as small text needs, never below 1.5×. Measured on the generated set: the same
+  // words read, in less time on 2× screenshots.
+  const SMALL_TEXT = 14;
+  function textSizeFactor(words) {
+    const hs = words.filter(w => w.conf >= 60 && /[A-Za-z0-9]/.test(w.text)).map(w => w.h).sort((a, b) => a - b);
+    if (hs.length < 8) return 1;
+    const med = hs[Math.floor(hs.length / 2)];
+    return Math.max(0.5, Math.min(1, SMALL_TEXT / med));
+  }
+  const fitScale = (scale, k) => (scale > 1.5 ? Math.max(1.5, Math.round(scale * k * 4) / 4) : scale);
   // Several passes, merged: a word found by a later pass is kept only if no earlier pass found it.
-  async function readAll(src, passes, label) {
+  // adapt: read the 1.5× passes first, and enlarge the others by what the text's size needs (see above)
+  async function readAll(src, passes, label, adapt) {
     let all = [];
     const mine = !job;
     if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, shown: 0 };
@@ -328,7 +342,19 @@ which what when where how why than then also just about across into out off per 
     j.label = label || 'Reading text on this device…';
     try {
       // all passes at once (as many as there are readers); merged in pass order, exactly as when they ran one by one
-      const results = await Promise.all(passes.map(([scale, kind, own]) => ocrPass(own || src, scale, kind).then(got => { j.done += scale * scale; return got; })));
+      const run = (list, k) => Promise.all(list.map(([scale, kind, own]) => {
+        const s2 = fitScale(scale, k);
+        j.total -= scale * scale - s2 * s2;   // the figure counts the pixels actually read
+        return ocrPass(own || src, s2, kind).then(got => { j.done += s2 * s2; return got; });
+      }));
+      let results;
+      if (adapt && passes.some(p => p[0] > 1.5)) {
+        const small = passes.filter(p => p[0] <= 1.5), big = passes.filter(p => p[0] > 1.5);
+        const first = await run(small, 1);
+        S.textK = textSizeFactor([].concat(...first));
+        const rest = await run(big, S.textK);
+        results = passes.map(p => (p[0] <= 1.5 ? first[small.indexOf(p)] : rest[big.indexOf(p)]));
+      } else results = await run(passes, S.textK || 1);
       results.forEach(got => {
         // a reading with digits is never hidden by an earlier digit-free reading of the same spot ("~" vs "1.2")
         all = all.concat(got.filter(w => { const hit = all.filter(v => overlap(v, w) > 0.3); return !hit.length || (/\d/.test(w.text) && !hit.some(v => /\d/.test(v.text))); }));
@@ -1384,7 +1410,8 @@ customer service staff agent team people everyone nobody someone something nothi
       setStatus('Loading the on-device text reader…', true);
       // one figure for reading and the check that follows
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
-      const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…');
+      S.textK = 1;
+      const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…', true);
       if (!current()) return;
       S.words = notMarks(canvas, words);
       S.comments = findComments(S.words);
@@ -1928,5 +1955,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { textSizeFactor, fitScale, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();
