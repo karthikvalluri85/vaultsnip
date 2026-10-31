@@ -569,7 +569,8 @@ customer service staff agent team people everyone nobody someone something nothi
     const gap = Math.max(1, Math.round(h * 0.12)), reach = Math.round(h * 1.5);
     // sideways only for numbers and IDs: a digit read off the end is what leaks ("8.5%" of "28.5%"), while a word grown
     // sideways would swallow the next word of a name ("and", "West")
-    const sideways = /Number|Identifier/.test(g.type || '');
+    // ...and only for a confident reading of two or more digits: an unsure lone "2" read from "Jan" is not a number cut short
+    const sideways = /Number|Identifier/.test(g.type || '') && (g.text.match(/\d/g) || []).length >= 2 && !(g.conf < 50);
     let L = x0, R = x1;
     for (let x = x0 - 1, miss = 0; sideways && x >= Math.max(0, x0 - reach); x--) {
       if (shapeCol(x)) break;
@@ -618,8 +619,8 @@ customer service staff agent team people everyone nobody someone something nothi
       const sameLine = g && Math.abs((g.y + g.h / 2) - (w.y + w.h / 2)) < Math.max(g.h, w.h) * 0.6;
       if (g && g.type === w.type && sameLine && w.x - (g.x + g.w) < Math.max(14, w.h * 1.2) && w.x >= g.x) {
         const x2 = Math.max(g.x + g.w, w.x + w.w), y1 = Math.min(g.y, w.y), y2 = Math.max(g.y + g.h, w.y + w.h);
-        g.text += ' ' + w.text; g.w = x2 - g.x; g.y = y1; g.h = y2 - y1;
-      } else groups.push({ x: w.x, y: w.y, w: w.w, h: w.h, type: w.type, text: w.text, on: true, src: 'auto' });
+        g.text += ' ' + w.text; g.w = x2 - g.x; g.y = y1; g.h = y2 - y1; g.conf = Math.min(g.conf ?? 100, w.conf ?? 100);
+      } else groups.push({ x: w.x, y: w.y, w: w.w, h: w.h, type: w.type, text: w.text, on: true, src: 'auto', conf: w.conf });
     });
     // core: the box before it grew to the ink, for the unread-text check, which judges the reader's own coverage
     const out = groups.map(g => { const p = Math.max(3, g.h * 0.18), ink = inkBox(g), core = { x: g.x - p, y: g.y - p, w: g.w + 2 * p, h: g.h + 2 * p }; return Object.assign(g, unionBox(core, ink), ink ? { core } : {}); });
