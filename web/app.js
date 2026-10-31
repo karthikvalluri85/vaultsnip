@@ -186,8 +186,22 @@ which what when where how why than then also just about across into out off per 
     for (;;) {
       let slot = slots.slice(0, size).find(sl => !sl.busy);
       if (!slot && slots.length < size) { slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null }; slots.push(slot); }
-      if (slot) { slot.busy = true; return slot; }
+      if (slot) { slot.busy = true; slot.quiet = false; return slot; }
       await new Promise(r => waiting.push(r));
+    }
+  }
+  // The reader takes a few seconds to start (its program and the English language file, from this site). It starts as
+  // soon as the pointer comes near the drop area, a file is dragged over the page or a sample is about to be chosen, so
+  // those seconds pass while the file is being picked. Quietly: its progress is not shown until it is put to work.
+  let warmed = false;
+  function prewarm() {
+    if (warmed || typeof Tesseract === 'undefined') return;
+    warmed = true;
+    const size = (S.test && S.test.pool) || POOL;
+    while (slots.length < size) {
+      const slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null, quiet: true };
+      slots.push(slot);
+      startReader(slot).catch(() => {});   // a failed start is retried when the reader is needed
     }
   }
   function release(slot) { slot.busy = false; slot.prog = 0; slot.job = null; const next = waiting.shift(); if (next) next(); }
@@ -195,7 +209,7 @@ which what when where how why than then also just about across into out off per 
   function beat(slot, m) {
     const at = m.status + ':' + m.progress;
     if (at !== slot.at) { slot.at = at; slot.beat = Date.now(); }
-    if (slot.job && slot.job.failed) return;
+    if ((slot.job && slot.job.failed) || slot.quiet) return;
     if (m.status && typeof m.progress === 'number') { if (/recognizing/i.test(m.status)) slot.prog = m.progress; showProgress(m.status); }
   }
   // One progress figure for a whole job: every reading pass, and for a new screenshot the check that follows. Each pass
@@ -324,7 +338,7 @@ which what when where how why than then also just about across into out off per 
   // more only costs time (a 3× pass reads 4 times the pixels of a 1.5× one). So once the text's usual height is known,
   // those passes are enlarged only as far as small text needs, never below 1.5×. Measured on the generated set: the same
   // words read, in less time on 2× screenshots.
-  const SMALL_TEXT = 14;
+  const SMALL_TEXT = 12;   // at 3×, text of this height or less reads at about 36 pixels, the size the reader reads best
   function textSizeFactor(words) {
     const hs = words.filter(w => w.conf >= 60 && /[A-Za-z0-9]/.test(w.text)).map(w => w.h).sort((a, b) => a - b);
     if (hs.length < 8) return 1;
@@ -1447,6 +1461,8 @@ customer service staff agent team people everyone nobody someone something nothi
     $('t-blur').setAttribute('aria-pressed', String(t === 'blur'));
     if (S.view !== 'orig') setView('orig');   // boxes are drawn on the original view
   }
+  ['drop', 'btn-paste', 'btn-try', 'samples'].forEach(id => { const el = $(id); if (el) ['pointerenter', 'focusin', 'dragenter', 'touchstart'].forEach(ev => el.addEventListener(ev, prewarm, { passive: true, once: true })); });
+  document.addEventListener('dragenter', prewarm, { once: true });
   $('t-mask').onclick = () => setTool('mask');
   $('t-blur').onclick = () => setTool('blur');
   $('v-orig').onclick = () => setView('orig');
@@ -1955,5 +1971,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { textSizeFactor, fitScale, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { prewarm, textSizeFactor, fitScale, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();
