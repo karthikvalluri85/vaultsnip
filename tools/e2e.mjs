@@ -352,7 +352,7 @@ try {
     const spun = await page.waitForFunction(() => /Check (passed|found)/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 60000, polling: 500 }).then(() => true, () => false);
     check(spun && warnings.some(w => /stopped responding; restarting/.test(w)), 'a reader stuck repeating the same progress figure is restarted too');
     await page.goto(base);
-    // one reader, so the two stalls hit the same pass (side-by-side passes would each stall once and recover)
+    // one reader, so both stalls hit the same pass (passes side by side would each stall once and recover)
     await page.evaluate(() => { window.__DSC.test.pool = 1; window.__DSC.test.stalls = 2; window.__DSC.test.stallMs = 2000; });
     await page.setInputFiles('#file', { name: 'stall-twice.png', mimeType: 'image/png', buffer: small });
     const told = await page.waitForFunction(() => /could not finish: it stopped responding twice/.test(document.getElementById('status')?.textContent || ''), null, { timeout: 60000, polling: 500 }).then(() => true, () => false);
