@@ -1225,8 +1225,17 @@ customer service staff agent team people everyone nobody someone something nothi
     // the same spot, too: the two boxes overlap and are of a similar size, so a reading inside a long safe label is not let go
     const similar = (a, b) => { const r = (a.w * a.h) / Math.max(1, b.w * b.h); return r > 0.5 && r < 2; };
     const rereadsSafe = w => !/\d/.test(w.text) && safeSeen.some(v => overlap(v, w) > 0.5 && similar(v, w) && near(norm(w.text), norm(v.text)));
-    const flags = [];
+    const flags = [], setAside = [];
     let marks = 0;
+    // A digit or two (or a symbol) read where neither the first reader nor the text detector saw any text, at least a
+    // line's height away from every mask, or far taller than the page's text, is a chart mark: a bar end, a slice edge,
+    // an axis tick read as "4" or "[0". On the generated set every one of these was a false alarm. They are set aside,
+    // not dropped: the review screen counts them and shows them as findings on request. Close to a mask such a reading
+    // stays a finding, since it can be the end of a number the mask cut short ("4" of "10.7%").
+    const hs = S.words.map(v => v.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
+    const gapTo = (a, b) => Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.w, b.x + b.w), Math.max(a.y, b.y) - Math.min(a.y + a.h, b.y + b.h));
+    const chartMark = w => noText(w) && w.text.replace(/\s/g, '').length <= 3 && !/\p{L}{2}/u.test(w.text)
+      && (active.every(m => gapTo(m, w) >= Math.max(4, w.h)) || w.h >= textH * 2.5);
     all.forEach(w => {
       if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
       if (noText(w) && !/\d/.test(w.text) && w.text.replace(/\s/g, '').length <= 3) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'no text', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
@@ -1244,11 +1253,12 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       if (t === 'Text not on allowlist' && (w.text.match(/[A-Za-z]/g) || []).length <= 2 && !/\d/.test(w.text)) return; // fragments like "El", "oy" carry no information
       if (flags.some(f => overlap(f, w) > 0.3)) return;
+      if (chartMark(w)) { if (!setAside.some(f => overlap(f, w) > 0.3)) setAside.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false, likelyMark: true }); return; }
       // where neither the first reader nor the text detector saw text, a finding is most likely a chart mark read as text;
       // it is still a finding (a lone digit there can be part of a real number), only listed after the others
       flags.push({ x: w.x - 3, y: w.y - 3, w: w.w + 6, h: w.h + 6, text: w.text, type: t, severity: t === 'Text not on allowlist' ? 'review' : 'block', resolved: false, likelyMark: noText(w) });
     });
-    S.flags = flags; S.chartMarks = marks;
+    S.flags = flags; S.chartMarks = marks; S.setAside = setAside;
     updateGate();
     detectFingerprint();
     setStatus(flags.length ? `Check found ${flags.length} item${flags.length > 1 ? 's' : ''} to resolve.` : 'Check passed. Nothing readable is left outside the masks.', false);
@@ -1327,6 +1337,15 @@ customer service staff agent team people everyone nobody someone something nothi
     const fl = $('flags');
     fl.innerHTML = '';
     const openFlags = S.flags.filter(f => !f.resolved);
+    if (S.setAside && S.setAside.length) {
+      const n = S.setAside.length, d = document.createElement('div');
+      d.className = 'aside';
+      d.innerHTML = '<span></span>';
+      d.firstChild.textContent = `${n} chart mark${n > 1 ? 's' : ''} read as a digit (no text found there) set aside. `;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'linkish'; b.textContent = 'Review them too';
+      b.onclick = () => { S.flags = S.flags.concat(S.setAside); S.setAside = []; updateGate(); draw(); };
+      d.appendChild(b); fl.appendChild(d);
+    }
     if (openFlags.length > 1) {
       const all = document.createElement('button'); all.type = 'button'; all.className = 'btn'; all.textContent = `Mask all ${openFlags.length} findings`;
       all.onclick = hideUncertain;
@@ -1557,7 +1576,7 @@ customer service staff agent team people everyone nobody someone something nothi
   let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.setAside = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
@@ -2129,7 +2148,7 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   $('opt-outline').onchange = () => $('replica').classList.toggle('ip-outline', $('opt-outline').checked);
   $('btn-regen').onclick = () => { S.seed = 1000 + Math.floor(Math.random() * 9000); buildInPlace(); };
-  function startOver() { reviewSeq++; S.img = null; S.fid = null; S.masks = []; S.words = []; S.flags = []; S.payload = null; show('s-drop'); }
+  function startOver() { reviewSeq++; S.img = null; S.fid = null; S.masks = []; S.words = []; S.flags = []; S.setAside = []; S.payload = null; show('s-drop'); }
   $('btn-restart').onclick = startOver;
   // The replica as a picture, with a strip below it (hiding nothing) that says the text is synthetic.
   function replicaImage() {
