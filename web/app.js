@@ -1049,8 +1049,15 @@ customer service staff agent team people everyone nobody someone something nothi
     S.unread.state = 'running';
     const img = S.img;
     try {
-      const got = await (pre && pre.then ? pre : startDetect());
+      let got = await (pre && pre.then ? pre : startDetect());
       if (S.img !== img) return;   // another screenshot started meanwhile
+      // started while the reader was busy, the detector can run out of time on a slow machine: then it runs again now,
+      // on its own, rather than leave unread text unmasked
+      if (pre && (!got || got.error || got.img !== img)) {
+        console.warn('The text detector did not finish alongside the reader; running it again.', got && got.error);
+        got = await startDetect();
+        if (S.img !== img) return;
+      }
       if (!got || got.img !== img) throw new Error('the text detector did not run');
       if (got.error) throw got.error;
       const { regions, kx, ky } = got;
@@ -1076,7 +1083,9 @@ customer service staff agent team people everyone nobody someone something nothi
     const inside = w => on.some(m => w.x + w.w / 2 >= m.x && w.x + w.w / 2 <= m.x + m.w && w.y + w.h / 2 >= m.y && w.y + w.h / 2 <= m.y + m.h);
     // words that account for their spot: read confidently and left readable by the rules; and parts of a region that
     // hold flat marks only (a bar beside its label), found by the second look
-    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && !inside(w)),
+    // (a reading of symbols only, such as "=" or "-" for a word squeezed against a bar, accounts for nothing: it is the
+    // reader failing, and the text there stays to be masked as unread)
+    return on.concat(S.words.filter(w => !w.ghost && w.conf >= S.unread.minConf && /[\p{L}\p{N}]/u.test(w.text) && !inside(w)),
       (S.unread.regions || []).flatMap(r => r.flat || []));
   }
   // One straightened line read by the second-look reader (PP-OCRv5, in the ML worker), as words with the page
