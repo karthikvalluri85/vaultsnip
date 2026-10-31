@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-10-31
+
+Dashboards in German, French and Spanish, fewer false alarms, charts in greys found too, large screenshots read at a legible size, and a measure of what is actually still readable.
+
+### Added
+- **German, French and Spanish dashboards.** With *Language of the dashboard* on *Automatic* (the default), the first words are read in English and, when they are German, French or Spanish (by their short words, accents and report vocabulary), the picture is read with that language's file (tessdata, 0.7 to 2.1 MB, from this site, loaded only when needed). That language's report words stay readable like the English allowlist, accented and elided words ("année", "d'affaires") are looked up whole, the name check no longer takes capitalised nouns ("Kunde", "Monat") for names, and the replica's made-up names, companies, places and words are in that language ("Ventes par région" gets French towns). A language can also be chosen, and a saved policy remembers it. LANG_LINE
+- **A second leak measure: letters still readable.** A word's box is taller than its letters, so the box measure counted an empty strip above a fully hidden name as a leak. The benchmark now also counts a word exposed only when more than 15% of the pixels of its letters are uncovered, and names them (`--list`). LETTERS_LINE
+
+### Changed
+- **Fewer false alarms.** A digit or two read from a chart where neither reader saw any text, at least a line away from every mask (or far taller than the page's text), is set aside instead of raised as a finding; the review screen counts them and shows them on request ("Review them too"). Next to a mask such a reading stays a finding. ALARM_LINE
+- **Blur all charts finds charts drawn in greys**, by how their bars and areas stand out from the panel they sit on.
+- **Large screenshots are read at up to 9 megapixels** (was 4.8): a 2x full-page capture had been read at a third of its size, and small labels went unread and unmasked. When a picture is still read at under 60% of its size, the review screen says so and suggests cropping it.
+- **A confidently read lone digit at a number's end grows to the whole number** ("1%" read off "−23.1%").
+- **Faster:** the text detector runs while the reader reads. SPEED_LINE
+
 ## [0.11.0] - 2026-10-31
 
 Less sensitive text left readable, findings you can judge at a glance, every chart blurred in one click, a private benchmark on your own screenshots, and faster reading. On the 20-dashboard test set the leaked area fell from 0.72% to 0.31%.
