@@ -36,7 +36,7 @@ Also included
 
 Reads English dashboards.
 
-Honest about limits: on our published test set about 0.25% of the area of sensitive text was still readable after masking and the check. That is why VaultSnip asks you to look over the masked image before you share it.
+Honest about limits: on our published test set about 0.2% of the area of sensitive text was still readable after masking and the check. That is why VaultSnip asks you to look over the masked image before you share it.
 
 Free and open source (Apache-2.0): https://github.com/karthikvalluri85/vaultsnip
 ```
