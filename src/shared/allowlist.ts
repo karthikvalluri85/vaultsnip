@@ -46,4 +46,10 @@ downtime efficiency productivity output throughput yield defects defect scrap cl
 payouts patients patient admissions discharges beds readmissions encounters students enrollment enrolment courses breakdown split mix
 contribution composition generated printed is are was were be been has have had can not this that these those our your their its we they
 which what when where how why than then also just about across into out off per year-to-date month-to-date quarter-to-date
+people recent hire hires hired base salary salaries start started end ended ending approved approval disputed overdue due proposed qualify qualified
+meet note notes return returns vendor vendors billing board close closing deal phone impact exit win wins rep reps
+usd eur gbp inr jpy cad aud chf conv operating controller landing logo logos axis bar bars label labels slice slices panel statement statements
+payable payables receivable receivables aging business enterprise complaint complaints topic topics twice routing sent answered called changes
+capture card cards extract stated forward instead inside wait ever great but me nobody owner owners please thousands rotated lookup lookups
+acquire midwest northeast northwest southeast southwest excel sheet sheets workbook fx xlsx csv pdf re fyi cc fictional sample
 `.split(/\s+/).filter(Boolean);

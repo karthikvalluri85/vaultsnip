@@ -72,6 +72,12 @@ downtime efficiency productivity output throughput yield defects defect scrap cl
 payouts patients patient admissions discharges beds readmissions encounters students enrollment enrolment courses breakdown split mix
 contribution composition generated printed is are was were be been has have had can not this that these those our your their its we they
 which what when where how why than then also just about across into out off per year-to-date month-to-date quarter-to-date
+people recent hire hires hired base salary salaries start started end ended ending approved approval disputed overdue due proposed qualify qualified
+meet note notes return returns vendor vendors billing board close closing deal phone impact exit win wins rep reps
+usd eur gbp inr jpy cad aud chf conv operating controller landing logo logos axis bar bars label labels slice slices panel statement statements
+payable payables receivable receivables aging business enterprise complaint complaints topic topics twice routing sent answered called changes
+capture card cards extract stated forward instead inside wait ever great but me nobody owner owners please thousands rotated lookup lookups
+acquire midwest northeast northwest southeast southwest excel sheet sheets workbook fx xlsx csv pdf re fyi cc fictional sample
 `).split(/\s+/).filter(Boolean));
 
   const TYPES = {
@@ -123,6 +129,7 @@ which what when where how why than then also just about across into out off per 
     if (/^[lrtpn]\d{1,3}[dwmqy]$/i.test(clean) || /^q[1-4][-–]q[1-4]$/i.test(clean) || /^fy\d{2}[-–/]\d{2}$/i.test(clean)
       || /^(19|20)\d{2}[-–/]((19|20)?\d{2})$/.test(clean) || /^#\d{1,2}$/.test(clean)) return null;
     if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return 'Identifier';
+    if (!/[\p{L}\p{N}]/u.test(clean)) return null;   // symbols only: a row of rating stars read as "%%%%%", a lone "$"
     if (/[\d€$£¥₹%]/.test(clean)) return 'Number or money';
     if (clean.length <= 1) return null;
     const safe = w => ALLOW.has(w) || extraAllow().has(w);
@@ -133,6 +140,34 @@ which what when where how why than then also just about across into out off per 
     return 'Text not on allowlist';
   }
 
+  // Row numbers: a column of whole numbers counting up by one, row after evenly spaced row (a spreadsheet's row
+  // headers, a ranked list's 1, 2, 3…), at least five of them. They number the rows; they report nothing.
+  function indexColumns(words) {
+    const nums = words.filter(w => !w.ghost && /^\d{1,4}$/.test(w.text.trim()));
+    const safe = new Set();
+    const cols = [];
+    nums.forEach(w => {
+      const c = cols.find(c => Math.abs(c[0].x + c[0].w - (w.x + w.w)) < Math.max(4, c[0].h * 0.6) || Math.abs(c[0].x - w.x) < Math.max(4, c[0].h * 0.6));
+      if (c) c.push(w); else cols.push([w]);
+    });
+    cols.filter(c => c.length >= 5).forEach(c => {
+      const seen = new Map(); c.forEach(w => { const k = Math.round(w.y); if (!seen.has(k) || seen.get(k).conf < w.conf) seen.set(k, w); });
+      const col = [...seen.values()].sort((a, b) => a.y - b.y);
+      let run = [col[0]];
+      const flush = () => {
+        if (run.length < 5) return;
+        const steps = run.slice(1).map((w, i) => (w.y - run[i].y) / (+w.text - +run[i].text)).sort((a, b) => a - b), step = steps[steps.length >> 1];
+        if (step > 0 && steps.every(s => Math.abs(s - step) <= step * 0.2)) run.forEach(w => { safe.add(w); if (w.twin) safe.add(w.twin); });
+      };
+      for (let i = 1; i < col.length; i++) {
+        const dv = +col[i].text - +run[run.length - 1].text;
+        if (dv === 0 && col[i].y - run[run.length - 1].y < col[i].h) { run[run.length - 1].twin = col[i]; continue; }   // the same row read twice
+        if (dv >= 1 && dv <= 3) run.push(col[i]); else { flush(); run = [col[i]]; }
+      }
+      flush();
+    });
+    return safe;
+  }
   // A small number that labels a visual rather than reporting a value: a count after a ranking word ("Top 5 performers",
   // "Bottom 10", "Last 30 days", "Past 12 months") or a position after a sequence word ("Week 34", "Step 2", "Tier 1",
   // "Page 1 of 3"). Judged from the words beside it on the same line; a number standing as a value ("Revenue 5",
@@ -279,11 +314,14 @@ which what when where how why than then also just about across into out off per 
   // seconds), the stuck reader is ended and the pass runs once more with a fresh one; a second stall is reported.
   const STALL_MS = 30000, PASS_MAX_MS = 120000;
   class ReaderStalled extends Error {}
-  function watched(promise, slot) {
+  // A bigger picture takes longer before the reader reports anything (it lays out the whole page first), so the limits
+  // grow with its size: twice as long for 8 megapixels.
+  function watched(promise, slot, pixels) {
     const start = slot.beat = Date.now();
     slot.at = '';
     let timer;
-    const still = S.test && S.test.stallMs || STALL_MS, most = S.test && S.test.passMaxMs || PASS_MAX_MS;
+    const k = Math.max(1, (pixels || 0) / 4e6);
+    const still = S.test && S.test.stallMs || STALL_MS * k, most = S.test && S.test.passMaxMs || PASS_MAX_MS * k;
     const stalled = new Promise((_, reject) => {
       timer = setInterval(() => { const now = Date.now(); if (now - slot.beat > still || now - start > most) reject(new ReaderStalled('reader stalled')); }, 500);
     });
@@ -310,7 +348,7 @@ which what when where how why than then also just about across into out off per 
             : S.test && S.test.spins > 0 ? (S.test.spins--, spin(), new Promise(() => {}))
             : w.recognize(canvas, {}, { tsv: true, text: false, blocks: false, hocr: false });
           run.catch(() => {});   // an abandoned reading may still fail once its reader is ended
-          return (await watched(run, slot)).data;
+          return (await watched(run, slot, canvas.width * canvas.height)).data;
         } catch (e) {
           if (!(e instanceof ReaderStalled)) throw e;
           console.warn('The on-device reader stopped responding; restarting it.');
@@ -325,17 +363,39 @@ which what when where how why than then also just about across into out off per 
       release(slot);
     }
   }
+  // A pass over a large picture (a long or dense page read at 3×) is read in strips, side by side when readers are
+  // free: one reading of 20 megapixels of small print can take minutes before the reader reports any progress, and each
+  // strip takes a fraction of that. Strips overlap by more than a line of text; a word belongs to the strip that holds
+  // its middle within its own share of the page, so a line cut by one strip's edge is read whole by its neighbour.
+  const STRIP_PIXELS = 8e6, STRIP_OVERLAP = 40;
   async function ocrPass(src, scale, kind) {
     kind = kind === true ? 'inverted' : (kind || 'normal');
     const invert = kind === 'inverted';
-    const data = await recognize(() => prep(src, scale, kind), kind, scale * scale);
+    const n = Math.min(Math.ceil(src.width * src.height * scale * scale / STRIP_PIXELS), Math.max(1, Math.floor(src.height / 200)));
+    const step = Math.ceil(src.height / n);
+    const strips = Array.from({ length: n }, (_, i) => {
+      const own0 = i * step, own1 = Math.min(src.height, (i + 1) * step);
+      return { own0, own1, y0: Math.max(0, own0 - (i ? STRIP_OVERLAP : 0)), y1: Math.min(src.height, own1 + (i < n - 1 ? STRIP_OVERLAP : 0)) };
+    });
+    const cut = st => {
+      if (n === 1) return src;
+      const c = document.createElement('canvas'); c.width = src.width; c.height = st.y1 - st.y0;
+      c.getContext('2d').drawImage(src, 0, st.y0, src.width, c.height, 0, 0, src.width, c.height);
+      return c;
+    };
+    const read = await Promise.all(strips.map(st => recognize(() => prep(cut(st), scale, kind), kind, scale * scale * (st.y1 - st.y0) / src.height)));
     const out = [];
-    (data.tsv || '').split('\n').forEach(line => {
-      const c = line.split('\t');
-      if (c.length < 12 || c[0] !== '5') return;
-      const text = c.slice(11).join('\t').trim(); const conf = parseFloat(c[10]);
-      if (!text || conf < (/\d/.test(text) ? 12 : 30)) return;   // digits are the costliest leak: keep unsure ones
-      out.push({ text, conf, x: +c[6] / scale, y: +c[7] / scale, w: +c[8] / scale, h: +c[9] / scale, line: `${c[2]}-${c[3]}-${c[4]}`, inv: invert, pass: kind });
+    read.forEach((data, i) => {
+      const st = strips[i];
+      (data.tsv || '').split('\n').forEach(line => {
+        const c = line.split('\t');
+        if (c.length < 12 || c[0] !== '5') return;
+        const text = c.slice(11).join('\t').trim(); const conf = parseFloat(c[10]);
+        if (!text || conf < (/\d/.test(text) ? 12 : 30)) return;   // digits are the costliest leak: keep unsure ones
+        const w = { text, conf, x: +c[6] / scale, y: +c[7] / scale + st.y0, w: +c[8] / scale, h: +c[9] / scale, line: `${i}-${c[2]}-${c[3]}-${c[4]}`, inv: invert, pass: kind };
+        const mid = w.y + w.h / 2;
+        if (n === 1 || (mid >= st.own0 && mid < st.own1)) out.push(w);
+      });
     });
     return out;
   }
@@ -396,6 +456,7 @@ which what when where how why than then also just about across into out off per 
       if (w.w < 2 && w.h <= med * 0.5 && w.conf < 80) return false;   // an axis tick (one pixel wide, a few tall) read as "1" or "0"
       const tall = w.h / med, hasDigit = /\d/.test(w.text), letters = (w.text.match(/[A-Za-z]/g) || []).length;
       if (tall > 8 && !(hasDigit && w.conf >= 90)) return false;
+      if (tall > 15 && w.w > med * 15) return false;                              // a "word" as big as a block of the page (a table's column read as one): the reader's error
       if (tall > 3 && !hasDigit && (w.conf < 80 || letters < 3)) return false;
       if (tall > 4 && w.conf < 70) return false;                                   // tall, unsure "digits" drawn by chart shapes
       const chars = Math.max(1, w.text.replace(/\s/g, '').length);
@@ -609,14 +670,15 @@ customer service staff agent team people everyone nobody someone something nothi
     // kept comment words read with good confidence: the check does not second-guess re-readings of these pixels
     S.keptBoxes = keep ? words.filter(w => w.inCm && !w.ghost && w.conf >= 80 && !commentType(w)) : [];
     const labels = countLabels(words);
+    indexColumns(words).forEach(w => labels.add(w));
     S.valueYears = new Set();
     const flagged = words.map(w => {
       // (a scrap of a slanted label that the second look read as safe words is not masked)
-      let type = w.lookSafe ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
+      let type = w.lookSafe || w.inDate ? null : keep && w.inCm ? commentType(w) : labels.has(w) ? null : classify(w.text);
       // a scrap of two or three letters read unsurely from a map or a chart, where the text detector found no text at all,
       // is a shape, not a word: masking it only smears the map in the replica. Never a reading with a digit.
       if (type && markOnly(w)) type = null;
-      if (!type && !w.lookSafe && YEARLIKE.test(w.text.trim().replace(/[-–]$/, '')) && yearOnValueAxis(w, words)) { type = 'Number or money'; S.valueYears.add(w.text.trim().replace(/[-–]$/, '')); }
+      if (!type && !w.lookSafe && !w.inDate && YEARLIKE.test(w.text.trim().replace(/[-–]$/, '')) && yearOnValueAxis(w, words)) { type = 'Number or money'; S.valueYears.add(w.text.trim().replace(/[-–]$/, '')); }
       if (keep && w.inCm && !type && normW(w.text)) S.commentVocab.add(normW(w.text));
       return Object.assign({}, w, { type });
     }).filter(w => w.type);
@@ -728,11 +790,19 @@ customer service staff agent team people everyone nobody someone something nothi
   // exact: the value to show (an axis tick rebuilt on an even scale); otherwise the real value is scaled at random
   function fakeValue(text, seed, exact, depth = 0) {
     const r = seeded(seed), digit = (lo = 0) => String(lo + Math.floor(r() * (10 - lo)));
-    const date = /^(\d{1,2})([-/.])([A-Za-z]{3,}|\d{1,2})\2(\d{2,4})$/.exec(text);
-    if (date) {
-      const d = 1 + Math.floor(r() * 28), mon = /\d/.test(date[3]) ? String(1 + Math.floor(r() * 12)).padStart(date[3].length, '0') : date[3];
-      const out = `${String(d).padStart(date[1].length, '0')}${date[2]}${mon}${date[2]}${date[4]}`;
-      return out === text && depth < 8 ? fakeValue(text, seed + 1, undefined, depth + 1) : out;
+    // a date moves back by the page's shift in its own format, like every other date on the page (web/synth.js)
+    const isDate = t => window.VSSynth && VSSynth.fakeDate(t, S.seed || 1);
+    const date = isDate(text);
+    if (date) return date;
+    // a value and a date read as one ("$48,626 7/22/2026"): each part on its own
+    const parts = text.trim().split(/\s+/);
+    if (parts.length > 1 && parts.some(isDate)) return parts.map((t, i) => isDate(t) || fakeValue(t, seed + i * 7919, i === 0 ? exact : undefined, depth)).join(' ');
+    // a time stays a valid time ("07:42" → "19:05", "4:30 PM" → "9:12 PM")
+    const time = /^(\D*?)(\d{1,2}):([0-5]\d)(?::([0-5]\d))?(\s*[AaPp]\.?[Mm]\.?)?(\D*)$/.exec(text.trim());
+    if (time) {
+      const h12 = time[5] ? 12 : 24, h = h12 === 12 ? 1 + Math.floor(r() * 12) : Math.floor(r() * 24), two = () => String(Math.floor(r() * 60)).padStart(2, '0');
+      const out = time[1] + String(h).padStart(time[2].length, '0') + ':' + two() + (time[4] ? ':' + two() : '') + (time[5] || '') + time[6];
+      return out === text.trim() && depth < 8 ? fakeValue(text, seed + 1, undefined, depth + 1) : out;
     }
     // several ticks the reader joined into one box ("0 20 40 … 540") become one even scale, not unrelated numbers
     const ticks = text.trim().split(/\s+/), joined = ticks.join(' ');
@@ -788,9 +858,11 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   // Numbers stacked as an axis (three or more in a column or a row, evenly spaced) share one factor, so the invented scale
   // stays in order and evenly stepped.
+  const subseq = (a, b) => { let i = 0; for (const c of b) if (c === a[i]) i++; return i === a.length; };
   function axisFactors(nums) {
     const main = t => (t.match(/\d[\d,]*(?:\.\d+)?/g) || ['NaN']).reduce((a, b) => (b.length > a.length ? b : a));
-    const out = new Map(), val = m => parseFloat(main(m.text).replace(/,/g, ''));
+    // (text the second look read where the page reader missed it counts like any other reading)
+    const out = new Map(), txt = m => m.read || m.text, val = m => parseFloat(main(txt(m)).replace(/,/g, ''));
     const lines = (key, along, cross) => {
       const groups = [];
       nums.filter(m => !out.has(m) && Number.isFinite(val(m))).forEach(m => {
@@ -833,8 +905,8 @@ customer service staff agent team people everyone nobody someone something nothi
         const idx = [0]; gaps.forEach(d => idx.push(idx[idx.length - 1] + Math.round(d / unitGap0)));
         const perStep = (vals[vals.length - 1] - vals[0]) / idx[idx.length - 1];
         // one factor for the whole axis, tried until every tick keeps its number of digits
-        const r = seeded(hash(g.map(m => m.text).join('|'))), digits = v => String(Math.floor(Math.abs(v))).length;
-        const decs = Math.max(...g.map(m => ((main(m.text).match(/\.(\d+)/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
+        const r = seeded(hash(g.map(txt).join('|'))), digits = v => String(Math.floor(Math.abs(v))).length;
+        const decs = Math.max(...g.map(m => ((main(txt(m)).match(/\.(\d+)/) || [])[1] || '').length)), unit = Math.pow(10, -decs), q = v => Math.round(v / unit) * unit;
         // last, factors close to 1: an axis from 0 to 9,000 keeps its digits only for a factor between 1 and 1.11, which the
         // random ones never are; a nearby round scale reads far better than unrelated numbers
         const NEAR = [1.15, 0.87, 1.1, 0.9, 1.06, 0.94];
@@ -870,6 +942,9 @@ customer service staff agent team people everyone nobody someone something nothi
               const want = vals[0] + idx * unitVal;
               const v = q(kz != null ? (idx - kz) * qs : start + idx * qs);
               if (Math.abs(val(m) - want) <= Math.abs(unitVal) * 0.1 && Math.abs(digits(v) - digits(val(m))) <= 1 && v >= 0 && (v === 0) === (val(m) === 0)) out.set(m, v);
+              // a tick the reader misread by a digit ("1,440" where the step says 11,440), standing exactly on its step:
+              // it takes the scale's value too, so the axis does not show one stray number
+              else if (Math.abs(k - idx) <= 0.15 && want > 0 && v > 0 && [0, -1, 1, -2, 2].some(d => subseq(String(Math.round(val(m))), String(Math.round(want) + d)))) out.set(m, v);
             });
             break;
           }
@@ -1028,6 +1103,30 @@ customer service staff agent team people everyone nobody someone something nothi
       return { img, regions, kx: img.width / size.width, ky: img.height / size.height };
     })().catch(error => ({ img, error }));
   }
+  // The detector sometimes cuts a small slanted label in two ("2026-0" and "6-05-01"), and neither half reads as a
+  // date. Pieces at the same slant, one continuing the other along it with at most a letter's gap, are one label.
+  function joinSlanted(regions) {
+    const slanted = r => r.len && Math.abs(r.angle) > 10 && Math.abs(r.angle) < 170 && r.len >= 1.2 * r.thick;
+    const dir = a => { const t = a * Math.PI / 180; return [Math.cos(t), Math.sin(t)]; };
+    const centre = r => [r.x + r.w / 2, r.y + r.h / 2];
+    const out = regions.slice();
+    for (let again = true; again;) {
+      again = false;
+      for (let i = 0; i < out.length && !again; i++) for (let j = i + 1; j < out.length && !again; j++) {
+        const a = out[i], b = out[j];
+        if (!slanted(a) || !slanted(b)) continue;
+        let da = ((a.angle - b.angle) % 180 + 180) % 180; da = Math.min(da, 180 - da);
+        if (da > 8) continue;
+        const [ux, uy] = dir(a.angle), [ax, ay] = centre(a), [bx, by] = centre(b), dx = bx - ax, dy = by - ay;
+        const along = Math.abs(dx * ux + dy * uy), across = Math.abs(-dx * uy + dy * ux), thick = Math.max(a.thick, b.thick);
+        if (across > 0.5 * thick || along - (a.len + b.len) / 2 > 0.8 * thick) continue;
+        const box = (p, q) => { const x = Math.min(p.x, q.x), y = Math.min(p.y, q.y); return { x, y, w: Math.max(p.x + p.w, q.x + q.w) - x, h: Math.max(p.y + p.h, q.y + q.h) - y }; };
+        const joined = Object.assign(box(a, b), { core: box(a.core || a, b.core || b), angle: a.len >= b.len ? a.angle : b.angle, len: along + (a.len + b.len) / 2, thick });
+        out.splice(j, 1); out.splice(i, 1, joined); again = true;
+      }
+    }
+    return out;
+  }
   // pre: a detection already started for this picture (startDetect), else it starts now
   async function detectRegions(pre) {
     S.unread.regions = null;
@@ -1048,7 +1147,7 @@ customer service staff agent team people everyone nobody someone something nothi
       if (got.error) throw got.error;
       const { regions, kx, ky } = got;
       const scale = b => ({ x: b.x * kx, y: b.y * ky, w: b.w * kx, h: b.h * ky });
-      S.unread.regions = regions.map(r => Object.assign(scale(r), r.core ? { core: scale(r.core) } : {}, r.len ? { angle: r.angle, len: r.len * kx, thick: r.thick * kx } : {}));
+      S.unread.regions = joinSlanted(regions.map(r => Object.assign(scale(r), r.core ? { core: scale(r.core) } : {}, r.len ? { angle: r.angle, len: r.len * kx, thick: r.thick * kx } : {})));
       await secondLook(img, S.unread.regions, buildMasks(S.words).concat(contextMasks()));
       if (S.img !== img) return;
       S.unread.state = 'ready';
@@ -1062,7 +1161,7 @@ customer service staff agent team people everyone nobody someone something nothi
   // upright, and faint or tiny text it read with too little confidence. Each is cut out (straightened if slanted), read
   // again at a larger scale, as it is and with the contrast raised, and stays readable only if every word is read
   // confidently and is safe by the same rules as the rest of the page. Anything else is masked as unread text.
-  const SECOND_LOOK_CONF = 70, SECOND_LOOK_MAX = 120;
+  const SECOND_LOOK_CONF = 70, SECOND_LOOK_DATE_CONF = 60, SECOND_LOOK_MAX = 120;
   function unreadCover(base) {
     // as the reader read them: a mask grown to the ink around it would hide how little of a slanted label it covers
     const on = base.filter(m => m.on).map(m => m.core ? Object.assign({}, m, m.core) : m);
@@ -1108,6 +1207,66 @@ customer service staff agent team people everyone nobody someone something nothi
     x.drawImage(img, x0, y0, w, h, 0, 0, w, h);
     return x.getImageData(0, 0, w, h);
   }
+  // Two more marks the detector takes for text, and which clearing would take out of the picture: a checkbox (a square
+  // as tall as a letter or so, its four sides drawn, ticked or not) and a line of a chart (a sparkline: one connected
+  // thin stroke running across the part). Letters fail both: no letter is a closed square, and a word is many strokes.
+  function drawnMark(px, textH) {
+    const { data: d, width: w, height: h } = px, count = new Map();
+    const key = i => d[i * 4] >> 4 << 8 | d[i * 4 + 1] >> 4 << 4 | d[i * 4 + 2] >> 4;
+    for (let x = 0; x < w; x++) { count.set(key(x), (count.get(key(x)) || 0) + 1); count.set(key((h - 1) * w + x), (count.get(key((h - 1) * w + x)) || 0) + 1); }
+    for (let y = 0; y < h; y++) { count.set(key(y * w), (count.get(key(y * w)) || 0) + 1); count.set(key(y * w + w - 1), (count.get(key(y * w + w - 1)) || 0) + 1); }
+    const k = [...count].sort((a, b) => b[1] - a[1])[0][0], bg = [(k >> 8 & 15) * 16 + 8, (k >> 4 & 15) * 16 + 8, (k & 15) * 16 + 8];
+    const ink = new Uint8Array(w * h);
+    let n = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let i = 0; i < w * h; i++) {
+      if (Math.abs(d[i * 4] - bg[0]) + Math.abs(d[i * 4 + 1] - bg[1]) + Math.abs(d[i * 4 + 2] - bg[2]) <= 90) continue;
+      ink[i] = 1; n++;
+      const x = i % w, y = (i - x) / w; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (n < 6) return false;
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    // a checkbox: about square, about a letter's size, each side of its box drawn along most of its length
+    if (bw / bh > 0.75 && bw / bh < 1.33 && bh >= 0.6 * textH && bh <= 2.2 * textH) {
+      // (the middle of each side: a checkbox's corners are often rounded)
+      const side = (xa, ya, dx, dy, len) => { let k = 0, m = 0; for (let t = Math.floor(len * 0.2); t < Math.ceil(len * 0.8); t++) { k += ink[(ya + dy * t) * w + xa + dx * t]; m++; } return m ? k / m : 0; };
+      // and empty inside, or filled with the tick cut out of it: a digit in an outlined box is neither
+      let inner = 0, all = 0;
+      for (let y = y0 + 2; y <= y1 - 2; y++) for (let x = x0 + 2; x <= x1 - 2; x++) { all++; inner += ink[y * w + x]; }
+      const fill = all ? inner / all : 0;
+      if ((fill < 0.04 || fill > 0.5) && Math.min(side(x0, y0, 1, 0, bw), side(x0, y1, 1, 0, bw), side(x0, y0, 0, 1, bh), side(x1, y0, 0, 1, bh)) >= 0.8) return true;
+    }
+    // a chart's line: wider than tall and thin, in at most three strokes (the line leaves the box and comes back), each
+    // either long across the box or cut by its edge, together spanning most of its width. A word is more strokes than
+    // that, each a letter wide.
+    // (and it climbs and falls by more than a line of text: small print, its letters run together, can look like a
+    // flat stroke)
+    if (bw >= 2 * bh && bh >= 1.5 * textH && n / bw <= 4) {
+      const seen = new Uint8Array(w * h), comps = [];
+      for (let i = 0; i < w * h; i++) {
+        if (!ink[i] || seen[i]) continue;
+        const stack = [i]; seen[i] = 1; let size = 0, lo = w, hi = -1, top = h, bot = -1;
+        while (stack.length) {
+          const j = stack.pop(), x = j % w, y = (j - x) / w; size++;
+          if (x < lo) lo = x; if (x > hi) hi = x; if (y < top) top = y; if (y > bot) bot = y;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx, yy = y + dy, q = yy * w + xx;
+            if (xx >= 0 && yy >= 0 && xx < w && yy < h && ink[q] && !seen[q]) { seen[q] = 1; stack.push(q); }
+          }
+        }
+        if (size >= 4) comps.push({ lo, hi, edge: lo === 0 || hi === w - 1 || top === 0 || bot === h - 1 });
+      }
+      // and a line crosses most columns once; letters cross them two or three times (o, e, s, 8, %)
+      let cols = 0, multi = 0;
+      for (let x = x0; x <= x1; x++) {
+        let runs = 0; for (let y = y0; y <= y1; y++) if (ink[y * w + x] && (y === y0 || !ink[(y - 1) * w + x])) runs++;
+        if (runs) { cols++; if (runs >= 2) multi++; }
+      }
+      const long = c => c.hi - c.lo + 1 >= 0.3 * bw;
+      if (cols && multi / cols < 0.25 && comps.length >= 1 && comps.length <= 3 && comps.some(long) && comps.every(c => long(c) || c.edge)
+        && Math.max(...comps.map(c => c.hi)) - Math.min(...comps.map(c => c.lo)) + 1 >= 0.7 * bw) return true;
+    }
+    return false;
+  }
   // the commonest colour on the edge of a region's box: the background its text sits on
   function backgroundAt(img, r) {
     const d = pixelsOf(img, r), w = d.width, h = d.height, count = new Map();
@@ -1130,8 +1289,16 @@ customer service staff agent team people everyone nobody someone something nothi
       return inside.length && inside.every(scrap) ? inside : null;
     };
     const slantedRegion = r => r.len && Math.abs(r.angle) > 10 && Math.abs(r.angle) < 170 && r.len >= 1.5 * r.thick;
-    regions.forEach(r => { r.scraps = slantedRegion(r) ? scrapsIn(r) : null; });
-    const todo = regions.filter(r => r.scraps || VSContext.unreadParts([r], cover).length).slice(0, SECOND_LOOK_MAX);
+    // A slanted label the page reader read in pieces, some of them not plainly safe ("Nov" and a scrap for "2025"): an
+    // axis of dates, usually. It gets the second look too; read whole as a date, it is replaced whole by a made-up
+    // date in the same format, instead of piece by piece.
+    const wordsIn = r => { const k = r.core || r; return S.words.filter(w => !w.ghost && w.x + w.w / 2 >= k.x && w.x + w.w / 2 <= k.x + k.w && w.y + w.h / 2 >= k.y && w.y + w.h / 2 <= k.y + k.h); };
+    regions.forEach(r => {
+      r.scraps = slantedRegion(r) ? scrapsIn(r) : null;
+      r.pieces = slantedRegion(r) && !r.scraps ? wordsIn(r) : null;
+      if (r.pieces && !r.pieces.some(w => w.conf < S.unread.minConf || classify(w.text))) r.pieces = null;
+    });
+    const todo = regions.filter(r => r.scraps || r.pieces || VSContext.unreadParts([r], cover).length).slice(0, SECOND_LOOK_MAX);
     // the page's usual text height: a region no bigger than one character of it holds at most one character
     const hs = S.words.filter(w => !w.ghost).map(w => w.h).sort((a, b) => a - b), textH = hs.length ? hs[hs.length >> 1] : 12;
     for (const r of todo) {
@@ -1145,7 +1312,9 @@ customer service staff agent team people everyone nobody someone something nothi
       // legend chip, a gridline) and no letter-like shape accounts for itself, so the chart stays visible
       if (!slanted && !blob) {
         const parts = VSContext.unreadParts([r], cover);
-        r.flat = parts.filter(p => VSContext.flatMarksOnly(pixelsOf(img, p), textH));
+        // (a mark is judged a little wider than its part: the part ends where the next word's box begins, which can cut
+        // a checkbox's side off)
+        r.flat = parts.filter(p => VSContext.flatMarksOnly(pixelsOf(img, p), textH) || drawnMark(pixelsOf(img, { x: p.x - 3, y: p.y, w: p.w + 6, h: p.h }), textH));
         if (r.flat.length === parts.length) { r.safe = true; r.seen = 'flat marks'; continue; }
         cover.push(...r.flat);
       }
@@ -1182,6 +1351,21 @@ customer service staff agent team people everyone nobody someone something nothi
       }
       if (blob) { r.blob = true; r.unsafe = unsafe; r.seen = `blob, ${unsafe.length} unsafe`; continue; }
       r.seen = best.words.map(w => w.text + ':' + Math.round(w.conf)).join(' ');   // what the second look read (tests and the benchmark)
+      // What it read stays on this device with the mask, so the replica puts a made-up value of the same kind there (a
+      // name for a name, a number for a number, a date for a date) instead of a blank. A date read on a slanted label
+      // masks the label whole: the page reader's pieces of it are left to that one mask.
+      // (stray marks at either end are the reader's, not the label's: "Nov 2025*")
+      const reading = best.words.map(w => w.text).join(' ').trim().replace(/^[^\p{L}\p{N}(]+|[^\p{L}\p{N}.)%]+$/gu, '');
+      // (not a reading of one character in a box the size of one: a checkbox or an arrow read as "3" is no "3")
+      // A small number in a box that size ("9", "0" at the foot of an axis) is kept as a weak reading: the replica writes
+      // it only when it stands on an axis's scale.
+      // (a level line only: a slanted or vertical one is replaced only when it reads as a date, below)
+      r.read = best.conf >= SECOND_LOOK_CONF && !slanted && !glyphSized && reading.replace(/[^\p{L}\p{N}]/gu, '').length >= 2 ? reading : null;
+      r.weak = !r.read && !slanted && best.conf >= 85 && /^\d{1,2}$/.test(reading);
+      if (r.weak) r.read = reading;
+      r.slantRead = slanted && best.conf >= SECOND_LOOK_DATE_CONF ? reading : null;
+      r.date = r.slantRead && window.VSSynth && VSSynth.fakeDate(reading, 1) ? reading : null;
+      if (r.date) { wordsIn(r).forEach(w => { w.inDate = true; }); continue; }
       // a slanted label read confidently as safe words: the page reader's scraps of it are not masked
       const readSafe = best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text));
       if (r.scraps && readSafe) r.scraps.forEach(w => { w.lookSafe = true; });
@@ -1189,7 +1373,20 @@ customer service staff agent team people everyone nobody someone something nothi
       r.safe = (best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text)))
         // a mark the size of one character in which no letter or digit can be found, however it is read: a line marker,
         // a tick, a bullet or a divider, not text
-        || (glyphSized && !sawCharacters);
+        || (glyphSized && !sawCharacters)
+        // a row of one mark repeated (rating stars read as "kkkkk" or "*****", dots): no word is one letter five times
+        || (best.conf >= SECOND_LOOK_CONF && !/\d/.test(reading) && /^(\S)\1{2,}$/.test(reading.replace(/\s/g, '')));
+    }
+    // A label of an axis of dates read with its year cut short ("Oct 1, 202": the crop clipped its end), when its
+    // neighbours were read whole: completed with their year, so it is replaced as a date like them.
+    const years = regions.map(r => r.date && (r.date.match(/(?:19|20)\d{2}/) || [])[0]).filter(Boolean);
+    if (years.length >= 2 && window.VSSynth) {
+      const count = new Map(); years.forEach(y => count.set(y, (count.get(y) || 0) + 1));
+      const year = [...count].sort((a, b) => b[1] - a[1])[0][0];
+      regions.filter(r => r.slantRead && !r.date).forEach(r => {
+        const t = r.slantRead.replace(/(^|[\s,])((?:19|20)\d?)$/, (all, sep, y) => (year.startsWith(y) ? sep + year : all));
+        if (t !== r.slantRead && VSSynth.fakeDate(t, 1)) { r.date = t; r.safe = false; wordsIn(r).forEach(w => { w.inDate = true; }); }
+      });
     }
   }
   function unreadMasks(base) {
@@ -1197,10 +1394,18 @@ customer service staff agent team people everyone nobody someone something nothi
     // No padding of its own: the detector's region already reaches past the letters, and a mask taller than its text
     // looks like a KPI's big number to the on-device layout builder. Whole pixels, outward: a box edge drawn between
     // pixels blends grey into the background, and the builder would take those pixels for chart marks.
-    const blobs = S.unread.regions.filter(r => r.blob).flatMap(r => r.unsafe);
-    return VSContext.unreadParts(S.unread.regions.filter(r => !r.safe && !r.blob), unreadCover(base)).concat(blobs).map(p => {
+    const blobs = S.unread.regions.filter(r => r.blob).flatMap(r => r.unsafe), cover = unreadCover(base);
+    // a part that is (nearly) its whole region keeps what the second look read there; a date read on a slanted label
+    // is one mask over the whole label, along its slant
+    const parts = S.unread.regions.filter(r => !r.safe && !r.blob && !r.date).flatMap(r => {
+      const ps = VSContext.unreadParts([r], cover);
+      return ps.map(p => (r.read && ps.length === 1 && p.w * p.h >= 0.7 * r.w * r.h ? Object.assign(p, { read: r.read }, r.weak ? { weak: true } : {}) : p));
+    });
+    const dated = S.unread.regions.filter(r => r.date).map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, read: r.date, slant: { angle: r.angle, len: r.len, thick: r.thick } }));
+    return parts.concat(dated, blobs).map(p => {
       const x0 = Math.floor(p.x), y0 = Math.floor(p.y);
-      return { x: x0, y: y0, w: Math.ceil(p.x + p.w) - x0, h: Math.ceil(p.y + p.h) - y0, type: VSContext.UNREAD_TYPE, text: '(unread text)', on: true, src: 'auto' };
+      return Object.assign({ x: x0, y: y0, w: Math.ceil(p.x + p.w) - x0, h: Math.ceil(p.y + p.h) - y0, type: VSContext.UNREAD_TYPE, text: '(unread text)', on: true, src: 'auto' },
+        p.read ? { read: p.read } : {}, p.weak ? { weak: true } : {}, p.slant ? { slant: p.slant } : {});
     });
   }
   const allMasks = () => { const base = buildMasks(S.words).concat(contextMasks()); return base.concat(unreadMasks(base)); };
@@ -1230,6 +1435,7 @@ customer service staff agent team people everyone nobody someone something nothi
     // spots the user looked at and chose to show (a mask they switched off, or a finding marked not sensitive)
     const shown = S.masks.filter(m => !m.on && m.userOff);
     const labels = countLabels(all);
+    indexColumns(all).forEach(w => labels.add(w));
     // Chart marks read as text. A short re-reading with no digit ("|", "=", "»", "R", "a") where the original screenshot has
     // neither a word the first reader found nor a patch the text detector found is a gridline, a legend swatch or a bar
     // edge: on the generated set such findings were false alarms every time. Only when the detector ran. A reading with a
@@ -2158,12 +2364,56 @@ customer service staff agent team people everyone nobody someone something nothi
   // replaced box.
   S.fid = null;           // { canvas, patches }
   const seededRandom = seed => seeded(seed);
+  // One mask over words in two columns ("$48,626" and the date "7/22/2026" in the next column, joined because both are
+  // numbers) is replaced column by column, so each made-up value stands where its own column's value stood.
+  function splitAtColumns(m) {
+    if (!m.text || m.text === '(table column)' || m.type === VSContext.UNREAD_TYPE || m.read) return [m];
+    const ws = S.words.filter(w => !w.ghost && w.text && w.x + w.w / 2 > m.x && w.x + w.w / 2 < m.x + m.w && w.y + w.h / 2 > m.y && w.y + w.h / 2 < m.y + m.h).sort((a, b) => a.x - b.x);
+    if (ws.length < 2) return [m];
+    const hs = ws.map(w => w.h).sort((a, b) => a - b), h = hs[hs.length >> 1], groups = [[ws[0]]];
+    let end = ws[0].x + ws[0].w;
+    for (const w of ws.slice(1)) {
+      if (w.x - end > 0.9 * h) groups.push([w]); else groups[groups.length - 1].push(w);
+      end = Math.max(end, w.x + w.w);
+    }
+    if (groups.length < 2) return [m];
+    return groups.map((g, i) => {
+      const x0 = i ? Math.floor(g[0].x - 2) : m.x, x1 = i < groups.length - 1 ? Math.ceil(Math.max(...g.map(w => w.x + w.w)) + 2) : m.x + m.w;
+      const seen = new Set(), text = g.filter(w => !seen.has(w.text) && seen.add(w.text)).map(w => w.text).join(' ');
+      return Object.assign({}, m, { x: x0, w: x1 - x0, text });
+    });
+  }
+  // An email the reader read in two pieces ("aurelie.borer" and "@example.com") is replaced as one address.
+  function joinEmails(masks) {
+    const out = [], line = (a, b) => Math.abs(a.y + a.h / 2 - (b.y + b.h / 2)) < Math.min(a.h, b.h) * 0.5;
+    masks.slice().sort((a, b) => a.x - b.x).forEach(m => {
+      const prev = out.find(p => p.text && m.text && line(p, m) && m.x - (p.x + p.w) < Math.min(p.h, m.h) * 0.6 && m.x - (p.x + p.w) > -Math.min(p.w, m.w) * 0.5
+        && /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(p.text.trim() + m.text.trim()));
+      if (!prev) { out.push(m); return; }
+      const x = Math.min(prev.x, m.x), y = Math.min(prev.y, m.y);
+      Object.assign(prev, { x, y, w: Math.max(prev.x + prev.w, m.x + m.w) - x, h: Math.max(prev.y + prev.h, m.y + m.h) - y, text: prev.text.trim() + m.text.trim(), type: 'Email' });
+    });
+    return out;
+  }
   function buildInPlace() {
-    const toks = VSSynth.tokens(S.masks.filter(m => m.on && !underBlur(m)), S.words);
-    const values = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
+    const toks = VSSynth.tokens(joinEmails(S.masks.filter(m => m.on && !underBlur(m)).map(m => Object.assign({}, m))).flatMap(splitAtColumns), S.words);
+    const values = VSSynth.local(toks, { fakeValue, axisFactors, safeWord: w => !classify(w) }, S.seed);
     // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
     const full = S.img.full || S.img, k = full.width / S.img.width;
-    const map = VSSynth.combine(toks, values).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k }));
+    const map = VSSynth.combine(toks, values).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k },
+      p.slant ? { slant: { angle: p.slant.angle, len: p.slant.len * k, thick: p.slant.thick * k } } : {}));
+    // a value that stays as it is (an axis's 0) is left untouched, not cleared and drawn again
+    map.forEach(p => { if (p.kind === 'number' && p.synthetic && p.synthetic === p.original) Object.assign(p, { keep: true, same: true, synthetic: '' }); });
+    // A column masked whole (so that numbers the reader missed in it stay hidden) still holds words read surely and safe
+    // ("by", "Nov", "renewal of"): those stay as they are in the replica, instead of leaving gaps in each line.
+    const active = toks.map(t => t.mask);
+    map.forEach((p, i) => {
+      if (toks[i].mask.text !== '(table column)') return;
+      const m = toks[i].mask, inside = w => w.x + w.w / 2 > m.x && w.x + w.w / 2 < m.x + m.w && w.y + w.h / 2 > m.y && w.y + w.h / 2 < m.y + m.h;
+      const hidden = w => active.some(o => o !== m && o.text !== '(table column)' && w.x + w.w / 2 > o.x && w.x + w.w / 2 < o.x + o.w && w.y + w.h / 2 > o.y && w.y + w.h / 2 < o.y + o.h);
+      p.holes = S.words.filter(w => !w.ghost && w.conf >= 80 && inside(w) && !hidden(w) && !/\d/.test(w.text) && !classify(w.text))
+        .map(w => ({ x: w.x * k, y: w.y * k, w: w.w * k, h: w.h * k }));
+    });
     // chart shapes the reader took for text stay as they are (judged on the reading copy, where the words were measured)
     const im = S.img.getContext('2d').getImageData(0, 0, S.img.width, S.img.height).data;
     const hs = S.words.map(w => w.h).sort((a, b) => a - b), medH = hs[Math.floor(hs.length / 2)] || 12;
@@ -2180,10 +2430,11 @@ customer service staff agent team people everyone nobody someone something nothi
     S.fid = { canvas: res.canvas, patches: res.patches };
     showInPlace();
   }
-  const KIND_NAMES = { number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Text that could not be read (a made-up label, or cleared)' };
+  const KIND_NAMES = { date: 'Date (moved by the same made-up months as every date here)', number: 'Number or amount', client: 'Client name', person: 'Person', email: 'Email address', id: 'ID or code', text: 'Label', unread: 'Text that could not be read (a made-up label, or cleared)' };
   // What a hotspot tells: the synthetic value and why it is there. Never the hidden text.
   function describePatch(p) {
     if (p.kind === 'blur') return ['Blurred by you', 'This area was blurred on purpose, so the shape of its chart cannot be read.', 'Made on this device'];
+    if (p.same) return ['Left as it was', 'A value that stays the same on the made-up scale (an axis starts at 0 in both).'];
     if (p.keep) return ['Left as it was', 'The reader took this part of a chart for text; it is not text, so it was not changed.'];
     const lines = [p.synthetic ? p.synthetic : 'Cleared', KIND_NAMES[p.kind] || 'Replaced text'];
     if (p.context) lines.push('Beside: ' + p.context);
@@ -2261,5 +2512,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { sessionKey, readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { drawnMark, pixelsOf, splitAtColumns, joinSlanted, joinEmails, indexColumns, sessionKey, readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

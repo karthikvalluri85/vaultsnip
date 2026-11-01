@@ -166,3 +166,78 @@ describe('natural replica text', () => {
     expect(new Set(list.map(p => p.style.size)).size).toBe(1);
   });
 });
+
+describe('dates in the replica (web/synth.js)', () => {
+  const seed = 4127, back = Y.dateShift(seed);
+  it('moves every date back by one shift for the page, in its own format', () => {
+    expect(back).toBeGreaterThanOrEqual(1);
+    expect(back).toBeLessThanOrEqual(5);
+    const cases: [string, RegExp][] = [
+      ['Nov 2025', /^[A-Z][a-z]{2} 2025$/], ['2026-05-01', /^20\d\d-\d\d-01$/], ['10-30-2026', /^\d{1,2}-30-2026$/], ['07-04-2026', /^\d\d-04-20\d\d$/],
+      ['30/10/2026', /^30\/\d{1,2}\/2026$/], ['11-25', /^\d\d-25$/], ['11/2025', /^\d{1,2}\/2025$/], ['Oct 1, 2026', /^[A-Z][a-z]{2} 1, 2026$/],
+      ['30-Sep-2026', /^30-[A-Z][a-z]{2}-2026$/], ['SEP 2026', /^[A-Z]{3} 2026$/], ['September 2026', /^[A-Z][a-z]+ 2026$/], ["Nov '25", /^[A-Z][a-z]{2} '25$/]
+    ];
+    for (const [t, shape] of cases) {
+      const f = Y.fakeDate(t, seed, 'mdy');
+      expect(f, t).toMatch(shape);
+      expect(f, t).not.toBe(t);
+    }
+  });
+  it('keeps an axis of dates in order with even steps', () => {
+    const axis = ['2026-05-01', '2026-05-08', '2026-05-15', '2026-05-22', '2026-05-29', '2026-06-05'];
+    const t = axis.map(a => Date.parse(Y.fakeDate(a, seed)));
+    const steps = t.slice(1).map((v, i) => v - t[i]);
+    expect(steps.every(s => s === 7 * 864e5)).toBe(true);
+    const months = ['Nov 2025', 'Dec 2025', 'Jan 2026', 'Feb 2026'].map(m => Y.fakeDate(m, seed));
+    expect(new Set(months).size).toBe(4);
+    const idx = (m: string) => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(m.slice(0, 3)) + 12 * +m.slice(4);
+    expect(months.map(idx).slice(1).map((v, i) => v - months.map(idx)[i])).toEqual([1, 1, 1]);
+  });
+  it('gives only real dates, reads day and month order from the page, and leaves numbers alone', () => {
+    expect(Y.fakeDate('Mar 31, 2026', 1003)).toMatch(/^Jan 31, 2026$/);
+    expect(Y.fakeDate('May 31, 2026', 1003)).toBe('Mar 31, 2026');
+    expect(Y.dateOrder(['30/10/2026', '05/10/2026'])).toBe('dmy');
+    expect(Y.dateOrder(['10/30/2026'])).toBe('mdy');
+    expect(Y.fakeDate('05/10/2026', 1003, 'dmy')).toBe('05/08/2026');
+    for (const n of ['10.25', '2026', '12:45', '4.5 / 5', 'Q3 2026']) expect(Y.fakeDate(n, seed)).toBeNull();
+  });
+  it('replaces a day beside a readable month name with another valid day, in order', () => {
+    const a = parseInt(Y.fakeDay('1–', seed)), b = parseInt(Y.fakeDay('31,', seed));
+    expect(a).toBeGreaterThanOrEqual(1);
+    expect(b).toBeLessThanOrEqual(28);
+    expect(a).toBeLessThan(b);
+    expect(Y.fakeDay('31,', seed)).toMatch(/^\d\d,$/);
+  });
+  it('replaces a value and the date in the next column on their own, and a slanted label read as a date as a date', () => {
+    const toks = Y.tokens([
+      { x: 0, y: 0, w: 60, h: 12, type: 'Number or money', text: '2026-05-01', on: true },
+      { x: 0, y: 40, w: 60, h: 40, type: 'Unread text', text: '(unread text)', read: 'Oct 3, 2026', on: true }
+    ], []);
+    expect(toks.map((t: { kind: string }) => t.kind)).toEqual(['date', 'date']);
+    const v = Y.local(toks, {}, seed);
+    expect(v.get('t1').synthetic).toBe(Y.fakeDate('2026-05-01', seed));
+    expect(v.get('t2').synthetic).toBe(Y.fakeDate('Oct 3, 2026', seed));
+  });
+});
+
+describe('made-up text that does not give the hidden text away', () => {
+  it('replaces the letters inside a code or path, the same way wherever they appear', () => {
+    const toks = Y.tokens([
+      { x: 0, y: 0, w: 90, h: 12, type: 'Number or money', text: 'bf_koelpin_50', on: true },
+      { x: 0, y: 30, w: 200, h: 12, type: 'Number or money', text: '/customers/koelpin/case-study?ref=7', on: true }
+    ], []);
+    const v = Y.local(toks, { fakeValue: (t: string) => t.replace(/\d/g, '3'), safeWord: (w: string) => /^(customers|case|study|ref)$/i.test(w) }, 5);
+    const a = v.get('t1').synthetic, b = v.get('t2').synthetic;
+    expect(a).not.toMatch(/koelpin/i);
+    expect(b).not.toMatch(/koelpin/i);
+    expect(b).toMatch(/^\/customers\/[a-z]+\/case-study\?ref=3$/);
+    expect(a.split('_')[1]).toBe(b.split('/')[2]);
+  });
+  it('keeps a title a title and never repeats the word beside it', () => {
+    const toks = Y.tokens([{ x: 0, y: 0, w: 22, h: 12, type: 'Name in context', text: 'Ms.', on: true }], []);
+    expect(Y.local(toks, {}, 3).get('t1').synthetic).toMatch(/^(Mr|Mrs|Miss|Dr|Prof)\.$/);
+    const words = [{ text: 'West', x: 0, y: 0, w: 30, h: 12, conf: 95 }];
+    const near = Y.tokens([{ x: 34, y: 0, w: 90, h: 12, type: 'Text not on allowlist', text: 'Helenburg, OK', on: true }], words);
+    for (let s = 1; s <= 20; s++) expect(Y.local(near, {}, s).get('t1').synthetic.toLowerCase()).not.toMatch(/\bwest\b/);
+  });
+});

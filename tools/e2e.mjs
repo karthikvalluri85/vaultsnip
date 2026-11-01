@@ -133,6 +133,26 @@ try {
     return out;
   });
   check(wt[0] === 400 && wt[1] === 700 && wt[2] === 400 && wt[3] === 700, `the replica keeps bold text bold and regular text regular, dark on light and light on dark (${wt.join(', ')})`);
+  const marks = await page.evaluate(() => {
+    const T = window.__DSC.test, canvas = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); draw(x); return x.getImageData(0, 0, w, h); };
+    // a ticked checkbox, an empty one, a sparkline, and things that must stay text: a word, a digit in an outlined box
+    const ticked = canvas(20, 24, x => { x.fillStyle = '#2f6fd6'; x.fillRect(3, 5, 14, 14); x.strokeStyle = '#fff'; x.lineWidth = 2; x.beginPath(); x.moveTo(6, 12); x.lineTo(9, 15); x.lineTo(14, 8); x.stroke(); });
+    const empty = canvas(20, 24, x => { x.strokeStyle = '#8a8f98'; x.lineWidth = 1; x.strokeRect(3.5, 5.5, 13, 13); });
+    const spark = canvas(60, 24, x => { x.strokeStyle = '#7b5bd6'; x.lineWidth = 1.5; x.beginPath(); [[0, 20], [8, 6], [16, 18], [24, 10], [32, 21], [40, 4], [48, 15], [59, 9]].forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.stroke(); });
+    const word = canvas(80, 24, x => { x.fillStyle = '#222'; x.font = '13px sans-serif'; x.textBaseline = 'middle'; x.fillText('+2.3 pts', 4, 12); });
+    const boxed = canvas(20, 24, x => { x.strokeStyle = '#444'; x.strokeRect(3.5, 5.5, 13, 13); x.fillStyle = '#222'; x.font = 'bold 11px sans-serif'; x.fillText('7', 7, 16); });
+    return [ticked, empty, spark, word, boxed].map(px => T.drawnMark(px, 12));
+  });
+  check(marks[0] && marks[1] && marks[2] && !marks[3] && !marks[4], `checkboxes and a sparkline the detector took for text are kept in the replica; a word and a digit in a box are not (${marks.join(', ')})`);
+  const strips = await page.evaluate(async () => {
+    // a long page is read in strips (20 megapixels at 3×): words on either side of the joins, each once
+    const c = document.createElement('canvas'); c.width = 900; c.height = 2400; const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, 900, 2400); x.fillStyle = '#111'; x.font = '16px sans-serif';
+    for (let y = 40; y < 2400; y += 120) x.fillText('Revenue ' + (1000 + y), 60, y);
+    const got = await window.__DSC.test.ocr(c, 3, 'normal'), nums = got.filter(w => /^\d{4}$/.test(w.text)).map(w => +w.text);
+    return { n: nums.length, unique: new Set(nums).size, want: 20 };
+  });
+  check(strips.n >= 18 && strips.unique === strips.n, `a long page read in strips finds its words once each (${strips.unique} of ${strips.want} numbers, ${strips.n - strips.unique} twice)`);
   console.log('Numbers replaced with invented values of the same size');
   const fk = await page.evaluate(() => {
     const T = window.__DSC.test, bad = [];
@@ -154,7 +174,7 @@ try {
   });
   check(fk.n === 0, `invented numbers always differ from the real ones and keep their size, decimals, symbols and units (${fk.sample})` + (fk.n ? ': ' + fk.bad.join(' | ') : ''));
   check(fk.ratingOk, `a rating keeps its scale and stays within it (4.5 / 5 → ${fk.rating})`);
-  check(fk.kept[0] === '2026' && /-Sep-2026$/.test(fk.date) && +fk.date.split('-')[0] <= 28 && /^\d{2}:[0-5]\d$/.test(fk.time), `years stay, dates and times stay valid (${fk.date}, ${fk.time})`);
+  check(fk.kept[0] === '2026' && /^30-[A-Z][a-z]{2}-20\d\d$/.test(fk.date) && fk.date !== '30-Sep-2026' && /^([01]\d|2[0-3]):[0-5]\d$/.test(fk.time), `years stay, dates move to another real date in the same format, times stay valid (${fk.date}, ${fk.time})`);
   const img = await page.evaluate(() => {
     const S = window.__DSC, T = S.test, m = S.masks.find(q => q.on && q.type === 'Number or money' && q.w > 30 && q.h > 14 && q.text && q.text !== '(table column)');
     const c = T.maskedCanvas(1), x = c.getContext('2d'), d = x.getImageData(Math.round(m.x), Math.round(m.y), Math.round(m.w), Math.round(m.h)).data;
