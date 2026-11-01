@@ -1,3 +1,5 @@
+[![VaultSnip: Secure Your Data, Share with Confidence](https://repoclip.io/api/badge/c8e1ca5e-1926-42cf-989d-bf07515d310f)](https://repoclip.io/v/c8e1ca5e-1926-42cf-989d-bf07515d310f)
+
 # VaultSnip
 
 [![CI](https://github.com/karthikvalluri85/vaultsnip/actions/workflows/ci.yml/badge.svg)](https://github.com/karthikvalluri85/vaultsnip/actions/workflows/ci.yml)
