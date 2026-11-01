@@ -2,9 +2,9 @@
 
 > **History.** Most of this page measures the earlier chart-rebuilding replica and its AI-key path, both retired in 0.9: the replica is now the original screenshot changed in place, built only on the device, and nothing is sent to any AI service. The masking figures still apply. The in-place replica is measured by `npm run bench:inplace`.
 
-## Where it stands in 0.12
+## Where it stands in 0.13
 
-Measured on 31 October 2026 on generated sets where every word's position and kind is known (invented with Faker,
+Measured on 1 November 2026 (0.13.0; earlier columns on 31 October) on generated sets where every word's position and kind is known (invented with Faker,
 `example.com` emails), reproducible by anyone. Two measures of what is left readable:
 
 - **By box** (as before): a sensitive word is exposed when more than 15% of its box is outside every mask and finding.
@@ -15,14 +15,14 @@ Measured on 31 October 2026 on generated sets where every word's position and ki
 
 **English** (20 dashboards, `gen.mjs --count 20 --seed 3`, then `run.mjs`):
 
-| Figure | 0.11.0 | 0.12.0 |
-|---|---|---|
-| Leaked area (share of the area of sensitive text left readable) | 0.31% | **0.25%** |
-| Words exposed by box | 20 of 1,852 | **15** (0.81%, 95% interval 0.5 to 1.3%) |
-| Words exposed by letters | 9 of 1,780 upright | **5** (0.28%, 0.1 to 0.7%) |
-| Safe words masked anyway | 9.5% | 9.6% |
-| Check findings / real leftovers | 53 / 0 | **27** / 0 |
-| Median time, drop to end of check (2-core machine) | 40 s | 39 s |
+| Figure | 0.11.0 | 0.12.0 | 0.13.0 |
+|---|---|---|---|
+| Leaked area (share of the area of sensitive text left readable) | 0.31% | 0.25% | **0.25%** |
+| Words exposed by box | 20 of 1,852 | 15 | **15** (0.81%, 95% interval 0.5 to 1.3%) |
+| Words exposed by letters | 9 of 1,780 upright | 5 | **5** (0.28%, 0.1 to 0.7%) |
+| Safe words masked anyway | 9.5% | 9.6% | 9.6% |
+| Check findings / real leftovers | 53 / 0 | 27 / 0 | **22** / 0 |
+| Median time, drop to end of check (2-core machine) | 40 s | 39 s | **36 s** |
 
 The five words with readable letters: two numbers read only in part ("11.3%", "−23.1%"), a one-letter initial, a sliver
 of a product name, and one organisation the reader never saw and the detector did not find.
