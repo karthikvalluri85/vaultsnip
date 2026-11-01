@@ -25,9 +25,9 @@ capture → local OCR → mask everything except an allowlist → independent re
 
 ## See it in action
 
-<a href=".github/media/vaultsnip-demo.mp4"><img src=".github/media/vaultsnip-demo.webp" alt="VaultSnip 0.9 on the fictional Kestrelmoor sample dashboard: names, IDs and numbers are masked on the device, the six-pass check passes, and the replica shows the same dashboard with synthetic text in place" width="900"></a>
+<img src=".github/media/vaultsnip-demo.gif" alt="VaultSnip 0.13 walkthrough on the fictional sample dashboard in six steps: drop a screenshot, on-device masking and the six-pass pre-flight check, looking over the masked image, and the client-safe replica with synthetic text in place" width="900">
 
-*VaultSnip 0.9 on the bundled fictional sample, sped up 2.5×. [Watch the full-speed recording (MP4, 87 s)](.github/media/vaultsnip-demo.mp4).*
+*VaultSnip 0.13 on the bundled fictional sample. [Watch the older full-speed recording of 0.9 (MP4, 87 s)](.github/media/vaultsnip-demo.mp4).*
 
 ## Features
 
