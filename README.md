@@ -27,7 +27,7 @@ capture → local OCR → mask everything except an allowlist → independent re
 
 <img src=".github/media/vaultsnip-demo.gif" alt="VaultSnip 0.13 walkthrough on the fictional sample dashboard in six steps: drop a screenshot, on-device masking and the six-pass pre-flight check, looking over the masked image, and the client-safe replica with synthetic text in place" width="900">
 
-*VaultSnip 0.13 on the bundled fictional sample. [Watch the older full-speed recording of 0.9 (MP4, 87 s)](.github/media/vaultsnip-demo.mp4).*
+*VaultSnip 0.13 on the bundled fictional sample.*
 
 ## Features
 
