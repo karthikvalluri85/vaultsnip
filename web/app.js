@@ -393,6 +393,7 @@ which what when where how why than then also just about across into out off per 
     const med = hs.length ? hs[Math.floor(hs.length / 2)] : 10;
     return words.filter(w => {
       if (/^[1Il|!\[\]{}()]{3,}$/.test(w.text.replace(/\s/g, ''))) return false;     // bars and gridlines read as "1111"
+      if (w.w < 2 && w.h <= med * 0.5 && w.conf < 80) return false;   // an axis tick (one pixel wide, a few tall) read as "1" or "0"
       const tall = w.h / med, hasDigit = /\d/.test(w.text), letters = (w.text.match(/[A-Za-z]/g) || []).length;
       if (tall > 8 && !(hasDigit && w.conf >= 90)) return false;
       if (tall > 3 && !hasDigit && (w.conf < 80 || letters < 3)) return false;
@@ -1184,6 +1185,7 @@ customer service staff agent team people everyone nobody someone something nothi
       // a slanted label read confidently as safe words: the page reader's scraps of it are not masked
       const readSafe = best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text));
       if (r.scraps && readSafe) r.scraps.forEach(w => { w.lookSafe = true; });
+      r.lookWords = readSafe ? best.words.map(w => w.text) : null;   // the safe words it read there, for the check (verify)
       r.safe = (best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text)))
         // a mark the size of one character in which no letter or digit can be found, however it is read: a line marker,
         // a tick, a bullet or a divider, not text
@@ -1253,6 +1255,19 @@ customer service staff agent team people everyone nobody someone something nothi
     // the same spot, too: the two boxes overlap and are of a similar size, so a reading inside a long safe label is not let go
     const similar = (a, b) => { const r = (a.w * a.h) / Math.max(1, b.w * b.h); return r > 0.5 && r < 2; };
     const rereadsSafe = w => !/\d/.test(w.text) && safeSeen.some(v => overlap(v, w) > 0.5 && similar(v, w) && near(norm(w.text), norm(v.text)));
+    // A short re-reading on a safe word the first reader read confidently, made of that word's own letters in order
+    // ("teal" on "internal") or one letter off ("ots" on "pts"), is that word read in part: it sits on the word's line
+    // and within its width. Not for a reading with a digit.
+    const letters = t => String(t).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const subseq = (a, b) => { let i = 0; for (const c of b) if (c === a[i]) i++; return i === a.length; };
+    const oneOff = (a, b) => a.length === b.length && [...a].filter((c, i) => c !== b[i]).length <= 1;
+    const within = (w, v) => Math.max(0, Math.min(w.x + w.w, v.x + v.w) - Math.max(w.x, v.x)) >= 0.8 * w.w && Math.abs(w.y + w.h / 2 - (v.y + v.h / 2)) <= 0.5 * Math.max(w.h, v.h);
+    const partOfSafe = w => { const a = letters(w.text); return !/\d/.test(w.text) && a.length >= 3 && safeSeen.some(v => v.conf >= 85 && within(w, v) && (subseq(a, letters(v.text)) || oneOff(a, letters(v.text)))); };
+    // A spot the second look (a second reader, for text the first one missed) read confidently as safe words ("UK"),
+    // re-read here as something else of about the same length ("V1"), is that label read differently.
+    const looked = regs ? regs.filter(r => r.lookWords && r.lookWords.length) : [];
+    const vouched = w => looked.some(r => { const k = r.core || r, a = letters(w.text), b = letters(r.lookWords.join(''));
+      return a.length && Math.abs(a.length - b.length) <= 1 && within(w, { x: k.x - 2, y: k.y, w: k.w + 4, h: k.h }); });
     const flags = [], setAside = [];
     let marks = 0;
     // A digit or two (or a symbol) read where neither the first reader nor the text detector saw any text, at least a
@@ -1267,7 +1282,7 @@ customer service staff agent team people everyone nobody someone something nothi
     all.forEach(w => {
       if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
       if (noText(w) && !/\d/.test(w.text) && w.text.replace(/\s/g, '').length <= 3) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'no text', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
-      if (rereadsSafe(w)) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'reread', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
+      if (rereadsSafe(w) || partOfSafe(w) || vouched(w)) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'reread', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
       const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
       if (shown.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
