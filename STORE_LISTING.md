@@ -11,24 +11,35 @@ that describes something the package does not do (or the reverse) is a common re
 
 ## Description
 
-VaultSnip turns a screenshot of any dashboard or report (Power BI, Tableau, Looker, Excel, PDF report pages, product
-analytics, SaaS apps) into a copy you can share: names, IDs, emails and numbers are found and hidden on your device, a
-six-pass check re-reads the result before you share it, and the in-place replica is your own screenshot with each hidden
-text replaced by made-up text of the same size and colour. Charts, maps and visuals keep their original pixels.
+Paste this as plain text. It names no BI products on purpose: a list of product names reads as keyword spam to the Chrome
+Web Store (the first submission was rejected for it).
 
-- Everything runs in your browser: reading (OCR), masking, the check and the replica. No account, no key, no upload,
-  no analytics. The reader and the on-device AI models are packed inside the extension.
-- Dashboards in English, German, French and Spanish: recognised automatically, with that language's report words kept
-  readable and made-up names in that language.
-- Blur a chart, or blur all charts at once, when a chart's shape is itself confidential.
-- Each finding of the check comes with a close-up, likely leaks first.
-- A safe-to-share receipt (PNG or PDF) records what was hidden (counts and kinds, never the text) and the image's
-  SHA-256.
-- Right-click "Blur text in charts on this page" (Alt+Shift+B) blurs sensitive text inside charts drawn on a live page.
-- Measured, not promised: on our published test set about 0.3% of the area of sensitive text was still readable after
-  masking and the check, so the review screen asks you to look before you share.
+```
+VaultSnip turns a screenshot of a dashboard or report into a copy you can share safely.
+
+Names, emails, phone numbers, IDs and amounts are found and hidden on your own device. A six-pass check then reads the masked image again before you share it. The replica is your own screenshot with each hidden text replaced, in the same place, by made-up text of the same size and colour. Charts, maps and visuals keep their original pixels.
+
+How it works
+• Click the VaultSnip icon to snip the tab you are on, or drop in any screenshot.
+• Review the masks. Add one by dragging over anything you want hidden, or toggle one off.
+• Look over the masked image, then download or copy the replica.
+
+Private by design
+• Everything runs in your browser: reading the text, masking, the check and the replica.
+• No account, no upload, no analytics. The text reader and the small on-device AI models are packed inside the extension, and it makes no network requests.
+
+Also included
+• Blur a chart, or all charts at once, when the chart's shape itself is confidential.
+• Each finding of the check comes with a close-up, likely leaks first.
+• A safe-to-share receipt (PNG or PDF) lists what was hidden (counts and kinds, never the text) and the image's SHA-256 fingerprint.
+• Right-click "Blur text in charts on this page" (Alt+Shift+B) blurs sensitive text inside charts on a live page.
+
+Reads English dashboards.
+
+Honest about limits: on our published test set about 0.25% of the area of sensitive text was still readable after masking and the check. That is why VaultSnip asks you to look over the masked image before you share it.
 
 Free and open source (Apache-2.0): https://github.com/karthikvalluri85/vaultsnip
+```
 
 ## Single purpose
 

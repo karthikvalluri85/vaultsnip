@@ -77,6 +77,11 @@ try {
   check(prog.length > 5 && drops === 0 && Math.max(...prog) >= 90, `reading and checking show one progress figure that only climbs (${prog.length} updates, ${prog[0]}% → ${prog[prog.length - 1]}%, ${drops} restarts)`);
   const gate = (await page.locator('.gate').textContent()).replace(/\s+/g, ' ').trim();
   check(/Blocked|Review|Nothing found/.test(gate), `the pre-flight check runs on the demo (${gate.slice(0, 40)}…)`);
+  // the demo's safe labels ("pts", "internal", "UK") re-read in part or differently are not findings, and no axis tick
+  // under a bar is read as a digit and masked
+  const demo = await page.evaluate(() => { const S = window.__DSC; return { flags: S.flags.map(f => f.text), ticks: S.masks.filter(m => m.w < 12 && m.h < 12 && /^[\d|Il]+$/.test(m.text || '')).map(m => m.text) }; });
+  check(!demo.flags.length && /Nothing found/.test(gate), `the demo's check finds nothing on its safe labels (${demo.flags.join(', ') || 'none'})`);
+  check(!demo.ticks.length, `no axis tick is read as a digit and masked (${demo.ticks.join(', ') || 'none'})`);
   // and it catches readable text: with one number's mask taken away (not switched off by the user), the check finds it
   const caught = await page.evaluate(async () => {
     const S = window.__DSC, i = S.masks.findIndex(m => m.on && m.src === 'auto' && m.type === 'Number or money' && m.w > 30 && m.h > 14);
@@ -110,11 +115,24 @@ try {
     const { classify, plausible } = window.__DSC.test;
     const w = (text, h, conf, ww) => ({ text, x: 0, y: 0, w: ww || h * text.length * 0.6, h, conf });
     const kept = plausible([w('Revenue', 12, 95), w('Orders', 12, 95), w('Users', 12, 93), w('$4.2M', 30, 96), w('ffi', 180, 40), w('Il', 120, 55)]).map(x => x.text);
-    return { email: classify('ana@nor'), email2: classify('@example.com'), small: classify('9'), kept };
+    const ticks = plausible([w('Revenue', 12, 95), w('Orders', 12, 95), w('Users', 12, 93), w('1', 4, 57, 1), w('0', 5, 63, 1), w('7', 11, 88, 6)]).map(x => x.text);
+    return { email: classify('ana@nor'), email2: classify('@example.com'), small: classify('9'), kept, ticks };
   });
   check(unit.email === 'Email' && unit.email2 === 'Email', 'partial email addresses are still masked (#8)');
   check(unit.small === 'Number or money', 'single-digit numbers are masked (#8)');
   check(unit.kept.includes('$4.2M') && !unit.kept.includes('ffi') && !unit.kept.includes('Il'), `chart shapes read as giant "words" are dropped, big KPI numbers kept (#9: ${unit.kept.join(', ')})`);
+  check(!unit.ticks.includes('1') && !unit.ticks.includes('0') && unit.ticks.includes('7'), `one-pixel axis ticks read as "1" or "0" are dropped, a real small digit is kept (${unit.ticks.join(', ')})`);
+  const wt = await page.evaluate(() => {
+    const out = [];
+    for (const [weight, fg, bg] of [[400, '#222', '#fff'], [700, '#222', '#fff'], [400, '#fff', '#2d3748'], [700, '#fff', '#2d3748']]) {
+      const c = document.createElement('canvas'); c.width = 500; c.height = 60; const x = c.getContext('2d');
+      x.fillStyle = bg; x.fillRect(0, 0, 500, 60); x.fillStyle = fg; x.font = `${weight} 20px sans-serif`; x.textBaseline = 'middle';
+      const t = 'Kestrelmoor Therapeutics'; x.fillText(t, 10, 30);
+      out.push(VSInpaint.styleFor(x.getImageData(0, 0, 500, 60).data, 500, 60, { x: 6, y: 14, w: x.measureText(t).width + 8, h: 32 }, false, t).weight);
+    }
+    return out;
+  });
+  check(wt[0] === 400 && wt[1] === 700 && wt[2] === 400 && wt[3] === 700, `the replica keeps bold text bold and regular text regular, dark on light and light on dark (${wt.join(', ')})`);
   console.log('Numbers replaced with invented values of the same size');
   const fk = await page.evaluate(() => {
     const T = window.__DSC.test, bad = [];
@@ -564,24 +582,12 @@ try {
     const note = await page.evaluate(() => ({ hidden: document.getElementById('size-note').hidden, text: document.getElementById('size-note').textContent, w: window.__DSC.img.width, k: window.__DSC.img.readScale }));
     check(!note.hidden && /read at \d+% of its size/.test(note.text) && note.w >= 1700, `a very large screenshot is read at a size where text stays legible, and the review says how much it was shrunk (${note.w} px wide, ${Math.round(note.k * 100)}%)`);
   }
-  console.log('German, French and Spanish dashboards');
+  console.log('English only');
   {
     await page.goto(base);
-    const lang = await page.evaluate(() => {
-      const S = window.__DSC, T = S.test, w = t => t.split(' ').map(x => ({ text: x, conf: 95 }));
-      const fr = T.chooseLanguage(w('Ventes par région Total Clients Moyenne Janv Févr Mars Année'));
-      const frSafe = ['Ventes', 'région', 'Année', "d'affaires", 'Sous-total'].map(x => T.classify(x)), frName = T.classify('Dupont');
-      const de = T.chooseLanguage(w('Umsatz nach Region Gesamt Kunden Monat'));
-      const deSafe = ['Umsatz', 'Kunden', 'Gesamt'].map(x => T.classify(x));
-      const en = T.chooseLanguage(w('Revenue by Region Total Customers'));
-      const enFr = T.classify('Ventes');
-      return { fr, frSafe, frName, de, deSafe, en, enFr };
-    });
-    check(lang.fr === 'fra' && lang.frSafe.every(t => t === null) && lang.frName, `a French dashboard is read in French and its report words stay readable, names do not (${lang.fr}, ${JSON.stringify(lang.frSafe)})`);
-    check(lang.de === 'deu' && lang.deSafe.every(t => t === null), `a German dashboard is read in German (${lang.de})`);
-    check(lang.en === 'eng' && !!lang.enFr, `an English dashboard stays English, and French words are not safe in it (${lang.en})`);
-    const files = await page.evaluate(async () => Promise.all(['fra', 'deu', 'spa'].map(l => fetch('lang/' + l + '.traineddata.gz', { method: 'HEAD' }).then(r => r.status))));
-    check(files.every(s => s === 200), `the German, French and Spanish reader files are served by the app itself (${files.join(', ')})`);
+    const en = await page.evaluate(async () => ({ select: !!document.getElementById('lang-select'), lexicon: typeof window.VSLexicon, ventes: window.__DSC.test.classify('Ventes'),
+      files: await Promise.all(['fra', 'deu', 'spa'].map(l => fetch('lang/' + l + '.traineddata.gz', { method: 'HEAD' }).then(r => r.status))) }));
+    check(!en.select && en.lexicon === 'undefined' && !!en.ventes && en.files.every(s => s === 404), `the app reads English only: no language choice, no other language files, French words are not safe (${en.files.join(', ')})`);
   }
   console.log('Start screen');
   await page.goto(base);

@@ -18,8 +18,7 @@
     fid: null, seed: 4127,  // fid: the in-place replica (canvas and patches)
     view: 'orig',
     sessionAllow: new Set(),
-    valueYears: new Set(),
-    lang: 'auto', textLang: 'en', ocrLang: 'eng',   // the dashboard's language: chosen, as recognised, and the reader's file   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
+    valueYears: new Set(),   // year-like numbers that are values on this image (an axis 0, 2000, 4000)
     blurs: [], tool: 'mask',   // areas the user chose to blur (charts whose shape is confidential), and what a drag draws
     fakeNumbers: true,   // numbers in the masked image become invented values of the same size (switchable)
     keepComments: false, comments: [], commentVocab: new Set(),
@@ -109,11 +108,8 @@ which what when where how why than then also just about across into out off per 
   function clientNames() { return $('client-names').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean); }
   function extraAllow() { return new Set($('extra-allow').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)); }
 
-  // The dashboard's language (S.textLang: en, de, fr or es, found from the words read or chosen under Redaction policy)
-  // adds that language's report vocabulary (web/lexicon.js) to the safe words. English words stay safe in every language.
   // a word marked "Safe to keep", as it is looked up: letters (accented too), digits, hyphens and apostrophes
   const sessionKey = t => String(t).replace(/’/g, "'").replace(/[^\p{L}\p{N}_'-]/gu, '').replace(/^'+|'+$/g, '');
-  const langSafe = w => S.textLang && S.textLang !== 'en' && !!window.VSLexicon && VSLexicon.safeSet(S.textLang).has(w);
   function classify(text) {
     const raw = text.trim();
     const clean = raw.replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '');
@@ -129,7 +125,7 @@ which what when where how why than then also just about across into out off per 
     if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return 'Identifier';
     if (/[\d€$£¥₹%]/.test(clean)) return 'Number or money';
     if (clean.length <= 1) return null;
-    const safe = w => ALLOW.has(w) || langSafe(w) || extraAllow().has(w);
+    const safe = w => ALLOW.has(w) || extraAllow().has(w);
     if (safe(low) || S.sessionAllow.has(sessionKey(low))) return null;
     // a compound or an elided word ("Sous-total", "d'affaires", "Nord/Süd") is safe when every part is
     const parts = low.replace(/’/g, "'").split(/[-/&']/).filter(Boolean);
@@ -181,11 +177,9 @@ which what when where how why than then also just about across into out off per 
     return Math.max(1, Math.min(3, cores, mem < 4 ? 1 : mem < 8 ? 2 : 3));
   })();
   const slots = [], waiting = [];
-  // lang: the reader's language file (eng, deu, fra or spa), from this site; a reader set up for another language is
-  // replaced when a pass needs this one
-  function startReader(slot, lang = 'eng') {
-    slot.lang = lang;
-    slot.p = Tesseract.createWorker(lang, 1, {
+  // the reader reads English, with its language file from this site
+  function startReader(slot) {
+    slot.p = Tesseract.createWorker('eng', 1, {
       workerPath: 'lib/worker.min.js', corePath: 'lib/core', langPath: (window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langPath) || 'lang',
       workerBlobURL: false, gzip: !(window.VAULTSNIP_CONFIG && window.VAULTSNIP_CONFIG.langGzip === false), cacheMethod: 'write',
       logger: m => beat(slot, m)
@@ -213,7 +207,7 @@ which what when where how why than then also just about across into out off per 
     while (slots.length < size) {
       const slot = { p: null, busy: false, beat: 0, at: '', prog: 0, weight: 0, job: null, quiet: true };
       slots.push(slot);
-      startReader(slot, OCR_OF[S.lang] || 'eng').catch(() => {});   // a failed start is retried when the reader is needed
+      startReader(slot).catch(() => {});   // a failed start is retried when the reader is needed
     }
   }
   function release(slot) { slot.busy = false; slot.prog = 0; slot.job = null; const next = waiting.shift(); if (next) next(); }
@@ -296,7 +290,7 @@ which what when where how why than then also just about across into out off per 
     return Promise.race([promise, stalled]).finally(() => clearInterval(timer));
   }
   // make: prepares the image for this pass, once a reader is free; weight: how much it counts in the progress figure
-  async function recognize(make, kind, weight, lang = S.ocrLang || 'eng') {
+  async function recognize(make, kind, weight) {
     // one reader for the whole pass, restarts included: a pass that stalls keeps its place instead of handing the reader
     // to the next pass in the queue, so "stopped twice" means this pass stopped twice
     const own = job, slot = await acquire();
@@ -306,8 +300,7 @@ which what when where how why than then also just about across into out off per 
         if (own && own.failed) throw new Error('the reading was stopped');
         slot.weight = weight || 1; slot.prog = 0; slot.job = job;
         try {
-          if (slot.p && slot.lang !== lang) { const old = slot.p; slot.p = null; old.then(w => w.terminate()).catch(() => {}); }
-          const w = await (slot.p || startReader(slot, lang));
+          const w = await (slot.p || startReader(slot));
           if (kind === 'block') await w.setParameters({ tessedit_pageseg_mode: '6' });
           const canvas = make();
           // tests can make the next readings hang, to prove the watchdog recovers
@@ -351,15 +344,6 @@ which what when where how why than then also just about across into out off per 
   // more only costs time (a 3× pass reads 4 times the pixels of a 1.5× one). So once the text's usual height is known,
   // those passes are enlarged only as far as small text needs, never below 1.5×. Measured on the generated set: the same
   // words read, in less time on 2× screenshots.
-  // The dashboard's language: chosen under Redaction policy, or (Automatic) recognised from the first words read in
-  // English. Sets the reader's language file and the safe words (S.textLang), and the replica's made-up names.
-  const OCR_OF = { en: 'eng', de: 'deu', fr: 'fra', es: 'spa' };
-  const langName = ocr => ({ eng: 'English', deu: 'German', fra: 'French', spa: 'Spanish' }[ocr] || ocr);
-  function chooseLanguage(words) {
-    const pick = S.lang && S.lang !== 'auto' ? S.lang : (window.VSLexicon ? VSLexicon.detect(words.filter(w => w.conf >= 50).map(w => w.text)) : 'en');
-    S.textLang = OCR_OF[pick] ? pick : 'en';
-    return OCR_OF[S.textLang];
-  }
   const SMALL_TEXT = 12;   // at 3×, text of this height or less reads at about 36 pixels, the size the reader reads best
   function textSizeFactor(words) {
     const hs = words.filter(w => w.conf >= 60 && /[A-Za-z0-9]/.test(w.text)).map(w => w.h).sort((a, b) => a - b);
@@ -386,15 +370,7 @@ which what when where how why than then also just about across into out off per 
       let results;
       if (adapt && passes.some(p => p[0] > 1.5)) {
         const small = passes.filter(p => p[0] <= 1.5), big = passes.filter(p => p[0] > 1.5);
-        let first = await run(small, 1);
-        // in German, French or Spanish? Then those passes are read again, and the rest read, with that language's file
-        const lang = chooseLanguage([].concat(...first));
-        if (lang !== S.ocrLang) {
-          S.ocrLang = lang;
-          j.label = `Reading text in ${langName(lang)} on this device…`;
-          j.total += weightOf(small.map(p => p[0]));
-          first = await run(small, 1);
-        }
+        const first = await run(small, 1);
         S.textK = textSizeFactor([].concat(...first));
         const rest = await run(big, S.textK);
         results = passes.map(p => (p[0] <= 1.5 ? first[small.indexOf(p)] : rest[big.indexOf(p)]));
@@ -417,6 +393,7 @@ which what when where how why than then also just about across into out off per 
     const med = hs.length ? hs[Math.floor(hs.length / 2)] : 10;
     return words.filter(w => {
       if (/^[1Il|!\[\]{}()]{3,}$/.test(w.text.replace(/\s/g, ''))) return false;     // bars and gridlines read as "1111"
+      if (w.w < 2 && w.h <= med * 0.5 && w.conf < 80) return false;   // an axis tick (one pixel wide, a few tall) read as "1" or "0"
       const tall = w.h / med, hasDigit = /\d/.test(w.text), letters = (w.text.match(/[A-Za-z]/g) || []).length;
       if (tall > 8 && !(hasDigit && w.conf >= 90)) return false;
       if (tall > 3 && !hasDigit && (w.conf < 80 || letters < 3)) return false;
@@ -1022,10 +999,7 @@ customer service staff agent team people everyone nobody someone something nothi
     const approved = t => { const lc = t.trim().replace(/^[^\p{L}\p{N}_€$£¥₹%#@]+|[^\p{L}\p{N}_€$£¥₹%]+$/gu, '').toLowerCase(); return S.sessionAllow.has(sessionKey(lc)) || extraAllow().has(lc); };
     const out = [];
     S.ctx.lines.forEach((line, li) => {
-      // the report vocabulary of a German, French or Spanish dashboard is capitalised like names ("Kunde", "Monat"), and the
-      // (English) name model takes it for names; those words are the language's own labels, never names
-      const ownWord = t => langSafe(t.trim().replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '').toLowerCase());
-      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) && !ownWord(w.text) }));
+      const words = line.map(w => ({ text: w.text, kept: !(S.keepComments && w.inCm ? commentType(w) : classify(w.text)) && !approved(w.text) }));
       VSContext.contextualHits(words, S.ctx.scores[li]).forEach(i => {
         const w = line[i], p = Math.max(3, w.h * 0.18);
         out.push({ x: w.x - p, y: w.y - p, w: w.w + 2 * p, h: w.h + 2 * p, type: VSContext.CONTEXT_TYPE, text: w.text, on: true, src: 'auto' });
@@ -1211,6 +1185,7 @@ customer service staff agent team people everyone nobody someone something nothi
       // a slanted label read confidently as safe words: the page reader's scraps of it are not masked
       const readSafe = best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text));
       if (r.scraps && readSafe) r.scraps.forEach(w => { w.lookSafe = true; });
+      r.lookWords = readSafe ? best.words.map(w => w.text) : null;   // the safe words it read there, for the check (verify)
       r.safe = (best.conf >= SECOND_LOOK_CONF && best.words.some(w => /\p{L}/u.test(w.text)) && best.words.every(w => !classify(w.text)))
         // a mark the size of one character in which no letter or digit can be found, however it is read: a line marker,
         // a tick, a bullet or a divider, not text
@@ -1280,6 +1255,19 @@ customer service staff agent team people everyone nobody someone something nothi
     // the same spot, too: the two boxes overlap and are of a similar size, so a reading inside a long safe label is not let go
     const similar = (a, b) => { const r = (a.w * a.h) / Math.max(1, b.w * b.h); return r > 0.5 && r < 2; };
     const rereadsSafe = w => !/\d/.test(w.text) && safeSeen.some(v => overlap(v, w) > 0.5 && similar(v, w) && near(norm(w.text), norm(v.text)));
+    // A short re-reading on a safe word the first reader read confidently, made of that word's own letters in order
+    // ("teal" on "internal") or one letter off ("ots" on "pts"), is that word read in part: it sits on the word's line
+    // and within its width. Not for a reading with a digit.
+    const letters = t => String(t).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const subseq = (a, b) => { let i = 0; for (const c of b) if (c === a[i]) i++; return i === a.length; };
+    const oneOff = (a, b) => a.length === b.length && [...a].filter((c, i) => c !== b[i]).length <= 1;
+    const within = (w, v) => Math.max(0, Math.min(w.x + w.w, v.x + v.w) - Math.max(w.x, v.x)) >= 0.8 * w.w && Math.abs(w.y + w.h / 2 - (v.y + v.h / 2)) <= 0.5 * Math.max(w.h, v.h);
+    const partOfSafe = w => { const a = letters(w.text); return !/\d/.test(w.text) && a.length >= 3 && safeSeen.some(v => v.conf >= 85 && within(w, v) && (subseq(a, letters(v.text)) || oneOff(a, letters(v.text)))); };
+    // A spot the second look (a second reader, for text the first one missed) read confidently as safe words ("UK"),
+    // re-read here as something else of about the same length ("V1"), is that label read differently.
+    const looked = regs ? regs.filter(r => r.lookWords && r.lookWords.length) : [];
+    const vouched = w => looked.some(r => { const k = r.core || r, a = letters(w.text), b = letters(r.lookWords.join(''));
+      return a.length && Math.abs(a.length - b.length) <= 1 && within(w, { x: k.x - 2, y: k.y, w: k.w + 4, h: k.h }); });
     const flags = [], setAside = [];
     let marks = 0;
     // A digit or two (or a symbol) read where neither the first reader nor the text detector saw any text, at least a
@@ -1294,7 +1282,7 @@ customer service staff agent team people everyone nobody someone something nothi
     all.forEach(w => {
       if (w.conf < (/\d/.test(w.text) ? 20 : 45)) return;
       if (noText(w) && !/\d/.test(w.text) && w.text.replace(/\s/g, '').length <= 3) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'no text', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
-      if (rereadsSafe(w)) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'reread', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
+      if (rereadsSafe(w) || partOfSafe(w) || vouched(w)) { marks++; if (S.test) (S.test.dropped = S.test.dropped || []).push({ why: 'reread', t: w.text, c: w.conf, x: w.x, y: w.y, w: w.w, h: w.h }); return; }
       const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
       if (active.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
       if (shown.some(m => cx >= m.x && cx <= m.x + m.w && cy >= m.y && cy <= m.y + m.h)) return;
@@ -1649,9 +1637,6 @@ customer service staff agent team people everyone nobody someone something nothi
       // one figure for reading and the check that follows
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
       S.textK = 1;
-      // a language chosen under Redaction policy is read in from the start; Automatic starts in English
-      S.textLang = S.lang && S.lang !== 'auto' ? S.lang : 'en';
-      S.ocrLang = OCR_OF[S.textLang] || 'eng';
       const detecting = S.unread.on ? startDetect() : null;   // the text detector runs while the reader reads
       const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…', true);
       if (!current()) return;
@@ -1663,8 +1648,6 @@ customer service staff agent team people everyone nobody someone something nothi
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
       renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
-      const ln = $('lang-note');
-      if (ln) { ln.hidden = S.textLang === 'en'; ln.textContent = S.textLang === 'en' ? '' : `Read in ${langName(S.ocrLang)}: its report words (titles, months, column names) stay readable, and the replica's made-up names are ${langName(S.ocrLang)}.`; }
       $('btn-reapply').disabled = false;
       await verify();
     } catch (err) {
@@ -1825,23 +1808,17 @@ customer service staff agent team people everyone nobody someone something nothi
     sel.innerHTML = '<option value="">— saved policies —</option>' + names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n.replace(/</g, '&lt;')}</option>`).join('');
     const del = $('btn-del-profile'); if (del) del.disabled = !sel.value;
   }
-  // the dashboard's language: a change reads the picture again in that language (the reader's file differs)
-  if ($('lang-select')) $('lang-select').onchange = () => {
-    S.lang = $('lang-select').value;
-    if (S.img && S.gate !== 'running') startReview(S.img);
-  };
   if ($('profile-select')) {
     $('profile-select').onchange = () => {
       const name = $('profile-select').value; if (!name) return;
       const p = loadProfiles()[name]; if (!p) return;
       $('client-names').value = p.clientNames || ''; $('extra-allow').value = p.allowWords || '';
-      if (p.lang && $('lang-select')) { $('lang-select').value = p.lang; S.lang = p.lang; }
       if ($('btn-del-profile')) $('btn-del-profile').disabled = false;
     };
     $('btn-save-profile').onclick = () => {
       const name = prompt('Save policy as:', $('profile-select').value || ''); if (!name) return;
       const profiles = loadProfiles();
-      profiles[name] = { clientNames: $('client-names').value, allowWords: $('extra-allow').value, lang: S.lang };
+      profiles[name] = { clientNames: $('client-names').value, allowWords: $('extra-allow').value };
       saveProfiles(profiles); renderProfileSelect(); $('profile-select').value = name;
     };
     $('btn-del-profile').onclick = () => {
@@ -2183,7 +2160,7 @@ customer service staff agent team people everyone nobody someone something nothi
   const seededRandom = seed => seeded(seed);
   function buildInPlace() {
     const toks = VSSynth.tokens(S.masks.filter(m => m.on && !underBlur(m)), S.words);
-    const values = VSSynth.local(toks, { fakeValue, axisFactors, lang: S.textLang }, S.seed);
+    const values = VSSynth.local(toks, { fakeValue, axisFactors }, S.seed);
     // masks are in the reading copy's pixels; the replica is drawn on the full-size picture, so each box is scaled up
     const full = S.img.full || S.img, k = full.width / S.img.width;
     const map = VSSynth.combine(toks, values).map(p => Object.assign(p, { x: p.x * k, y: p.y * k, w: p.w * k, h: p.h * k }));
@@ -2284,5 +2261,5 @@ customer service staff agent team people everyone nobody someone something nothi
 
   // expose for tests
   window.__DSC = S;
-  S.test = { chooseLanguage, sessionKey, readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
+  S.test = { sessionKey, readersStarted: () => slots.filter(sl => sl.p).length, prewarm, textSizeFactor, fitScale, detectCharts, blurAllCharts, makeZip, crc32, runBatch, openPdf, detectFingerprint, hideUncertain, receiptFacts, buildInPlace, replicaImage, describePatch, fakeValue, maskedCanvas, axisFactors, classify, countLabels, updateGate, plausible, columnFill, ocr: ocrPass, prep, findComments, commentType, scrubQuote, buildMasks, contextMasks, scoreContext, layoutInput, detectRegions, unreadMasks };
 })();

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-11-01
+
+English only, for now, and a replica that keeps bold text bold.
+
+### Removed
+- **German, French and Spanish dashboards** (added in 0.12.0). On a French test dashboard, report labels were masked, made-up amounts came out in English formats and axis dates were garbled, so these languages are out until they meet the same bar as English. Gone with them: the *Language of the dashboard* choice and automatic recognition, the German, French and Spanish reader files, and the replica's language-specific names and words. Text in another language is read as English, so its words are masked as unknown: more is hidden than needed, never less.
+
+### Fixed
+- **Bold text stays bold in the replica.** Whether the original was bold was judged by how much of its box the ink filled, against a fixed figure that almost no word reaches, so bold titles, headers and KPI values were redrawn in the regular weight. The fill is now set against the same text drawn on the device at its size in both weights, and the nearer one wins: on 2,160 test renderings (6 fonts, 3 colour schemes, 10 to 32 px) 96% get the right weight (before: every bold one was wrong).
+- **Axis ticks are no longer read as digits.** A one-pixel tick mark under a bar was read as "1" or "0", masked, and the replica drew a small made-up digit there. Readings one pixel wide and under half the page's text height, read without confidence, are dropped.
+- **Fewer findings on safe labels.** The check re-read "pts" as "ots" and part of "internal" as "teal", and the sample's "UK" (which the second reader had read as UK) as "V1"; "Hide everything uncertain" then replaced them with made-up text ("Ox1", "sea"). A re-reading made of a confidently read safe word's own letters, or one letter off, on its line and within its width, is that word read in part; a spot the second reader read confidently as safe words, re-read as something of about the same length, is that label read differently. The first never applies to a reading with a digit; the second only where the first reader read nothing and the second reader read only safe words. On the 20-dashboard test set: findings 27 → 22, and the same sensitive text left readable as in 0.12 (0.25% of its area; 5 of 1,780 words with readable letters). Median time 39 s → 36 s.
+
 ## [0.12.1] - 2026-11-01
 
 ### Changed

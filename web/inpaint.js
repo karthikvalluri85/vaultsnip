@@ -103,7 +103,41 @@
       let last = -1; rows.forEach((c, i) => { if (c >= top * 0.35) last = i; });
       base = last >= 0 ? ink.y + last + 1 : null;
     }
-    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.48 ? 700 : cover > 0.42 ? 600 : 400, ink, slant, band, base };
+    return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.48 ? 700 : cover > 0.42 ? 600 : 400, ink, slant, band, base, cover };
+  }
+
+  // Bold or regular. How much of its own box the ink fills depends as much on the letters as on the weight ("UK" fills
+  // more than "Kestrelmoor" in any weight), so the original's fill is set against the same text drawn here, at its
+  // size, in the regular and the bold weight of the replica's font: the nearer of the two is its weight. Without a
+  // canvas to draw on (unit tests), the fill alone decides.
+  const fillCache = new Map();
+  function drawnFill(text, size, weight) {
+    const key = weight + '|' + size + '|' + text;
+    if (fillCache.has(key)) return fillCache.get(key);
+    let v = 0;
+    try {
+      const W = Math.ceil(size * (text.length + 2)), H = Math.ceil(size * 2.2);
+      const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : document.createElement('canvas');
+      c.width = W; c.height = H;
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.fillStyle = '#000';
+      x.font = `${weight} ${size}px ${FONT}`; x.textBaseline = 'middle'; x.fillText(text, size, H / 2);
+      const d = x.getImageData(0, 0, W, H).data;
+      let mx = 0; for (let i = 0; i < d.length; i += 4) mx = Math.max(mx, 255 - d[i]);
+      const cut = Math.max(60, 3 * mx * 0.6) / 3;   // the same cut as sampleInk (summed over three channels), on one grey channel
+      let n = 0, x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) if (255 - d[(y * W + xx) * 4] >= cut) { n++; if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      v = n ? n / ((x1 - x0 + 1) * (y1 - y0 + 1)) : 0;
+    } catch (e) { v = 0; }
+    fillCache.set(key, v);
+    return v;
+  }
+  function weightOf(text, size, cover, fallback) {
+    const t = String(text || '').trim();
+    if (!t || !cover || t.length > 60) return fallback;
+    const reg = drawnFill(t, size, 400), bold = drawnFill(t, size, 700);
+    if (!reg || !bold || bold <= reg * 1.05) return fallback;
+    return cover >= (reg + bold) / 2 ? 700 : 400;
   }
 
   // Font size from the box height (Tier 2 rule: 75% of the box); when the glyphs' own height is known it is used instead,
@@ -135,7 +169,8 @@
     const size = ink.slant ? Math.max(7, Math.round(ink.slant.size)) : fontSize(box, glyphs, numeric ? '' : text);
     // where the original's letters stood: the bottom of its ink, less the tails of g, p, y when it has them
     const baseline = ink.ink && text && ink.base != null ? ink.base : null;
-    return { bg, ink: ink.color, weight: ink.weight, size, align: alignOf(box, ink.ink), inkBox: ink.ink, slant: ink.slant, baseline };
+    const weight = ink.slant ? ink.weight : weightOf(text, size, ink.cover, ink.weight);
+    return { bg, ink: ink.color, weight, size, align: alignOf(box, ink.ink), inkBox: ink.ink, slant: ink.slant, baseline };
   }
 
   function clearBox(ctx, box, bg) {
@@ -440,7 +475,7 @@
     return { frame, layer, tip, outline(on) { frame.classList.toggle('ip-outline', !!on); } };
   }
 
-  const api = { blurRegion, inkShare, harmonise, RING, looksLikeShape, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
+  const api = { blurRegion, inkShare, weightOf, harmonise, RING, looksLikeShape, sampleBackground, sampleInk, fontSize, alignOf, styleFor, clearBox, inpaintRegion, drawText, patch, mount, dominant };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.VSInpaint = api;
 })(typeof window !== 'undefined' ? window : globalThis);

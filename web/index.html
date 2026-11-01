@@ -164,7 +164,7 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         <div class="promise">
           <div><b>No account, no storage.</b> Images and results live in this tab only.</div>
           <div><b>Nothing leaves your device.</b> Reading, masking, checking and the replica all run in this browser tab. No account, no key, no upload.</div>
-          <div><b>Measured, not promised.</b> On our published test set, about 0.25% of the area of sensitive text was still readable after masking and the check, so look over the masked image before you share it. <a href="https://github.com/karthikvalluri85/vaultsnip/blob/main/ACCURACY.md#where-it-stands-in-012" target="_blank" rel="noopener">How it is measured</a></div>
+          <div><b>Measured, not promised.</b> On our published test set, about 0.25% of the area of sensitive text was still readable after masking and the check, so look over the masked image before you share it. <a href="https://github.com/karthikvalluri85/vaultsnip/blob/main/ACCURACY.md#where-it-stands-in-013" target="_blank" rel="noopener">How it is measured</a></div>
           <div><b>Mask or replicate.</b> Download the masked screenshot for a forum post, a bug report or a slide, or build the in-place replica with synthetic values.</div>
         </div>
       </div>
@@ -254,11 +254,6 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         </div>
         <div class="panel">
           <h3>Redaction policy</h3>
-          <label class="f" for="lang-select">Language of the dashboard <span>Automatic recognises German, French and Spanish from the first words read.</span>
-            <select id="lang-select" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px;width:100%">
-              <option value="auto">Automatic</option><option value="en">English</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option>
-            </select></label>
-          <p class="hint" id="lang-note" hidden></p>
           <label class="f" for="client-names">Names to always mask <span>Client, company or product names, comma separated. Not saved.</span>
             <input type="text" id="client-names" placeholder="e.g. Acme, Project Falcon"></label>
           <label class="f" for="extra-allow">Words that are safe to keep <span>Labels such as dimension names. Everything else is masked by default.</span>
@@ -355,7 +350,6 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
 <script src="lib/tesseract.min.js"></script>
 <script src="lib/vs-context.js"></script>
 <script src="lib/vs-faker.js"></script>
-<script src="lexicon.js"></script>
 <script src="synth.js"></script>
 <script src="inpaint.js"></script>
 <script src="samples.js"></script>

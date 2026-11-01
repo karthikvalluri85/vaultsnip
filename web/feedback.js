@@ -5,7 +5,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '0.12.1';
+  const VERSION = '0.13.0';
   const REPO = 'https://github.com/karthikvalluri85/vaultsnip';
   const EMAIL = ['karthikvalluri', 'gmail.com'].join('@'); // assembled at runtime to keep it away from scrapers
 

@@ -14,8 +14,8 @@ const src = (app.match(/\n  function classify\(text\) \{[\s\S]*?\n  \}\n/) || ['
 /** classify() from web/app.js, with its policy (allowlist, safe words, client names) passed in. */
 function appClassify(allow: Set<string>, clients: string[]): (t: string) => string | null {
   // eslint-disable-next-line no-new-func
-  // the extension reads English only: no dashboard language (langSafe), and no "Safe to keep" choices (sessionKey)
-  return new Function('ALLOW', 'S', 'extraAllow', 'clientNames', 'langSafe', 'sessionKey', `${src}; return classify;`)(allow, { sessionAllow: new Set() }, () => new Set(), () => clients, () => false, (t: string) => t);
+  // the extension has no "Safe to keep" choices (sessionKey)
+  return new Function('ALLOW', 'S', 'extraAllow', 'clientNames', 'sessionKey', `${src}; return classify;`)(allow, { sessionAllow: new Set() }, () => new Set(), () => clients, (t: string) => t);
 }
 
 function rng(seed: number) {
