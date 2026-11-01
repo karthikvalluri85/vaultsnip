@@ -2412,7 +2412,9 @@ customer service staff agent team people everyone nobody someone something nothi
       const m = toks[i].mask, inside = w => w.x + w.w / 2 > m.x && w.x + w.w / 2 < m.x + m.w && w.y + w.h / 2 > m.y && w.y + w.h / 2 < m.y + m.h;
       const hidden = w => active.some(o => o !== m && o.text !== '(table column)' && w.x + w.w / 2 > o.x && w.x + w.w / 2 < o.x + o.w && w.y + w.h / 2 > o.y && w.y + w.h / 2 < o.y + o.h);
       p.holes = S.words.filter(w => !w.ghost && w.conf >= 80 && inside(w) && !hidden(w) && !/\d/.test(w.text) && !classify(w.text))
-        .map(w => ({ x: w.x * k, y: w.y * k, w: w.w * k, h: w.h * k }));
+        .map(w => ({ x: w.x * k, y: w.y * k, w: w.w * k, h: w.h * k }))
+        // and boxes left as they are (an axis's 0, a chart shape) stay so inside the column too
+        .concat(map.filter(q => q.keep && inside({ x: q.x / k, y: q.y / k, w: q.w / k, h: q.h / k })).map(q => ({ x: q.x, y: q.y, w: q.w, h: q.h })));
     });
     // chart shapes the reader took for text stay as they are (judged on the reading copy, where the words were measured)
     const im = S.img.getContext('2d').getImageData(0, 0, S.img.width, S.img.height).data;

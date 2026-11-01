@@ -4,7 +4,7 @@
 
 ## Where it stands in 0.13
 
-Measured on 1 November 2026 (0.13.0; earlier columns on 31 October) on generated sets where every word's position and kind is known (invented with Faker,
+Measured on 1 November 2026 (0.13.0 and 0.13.1; earlier columns on 31 October) on generated sets where every word's position and kind is known (invented with Faker,
 `example.com` emails), reproducible by anyone. Two measures of what is left readable:
 
 - **By box** (as before): a sensitive word is exposed when more than 15% of its box is outside every mask and finding.
@@ -15,14 +15,14 @@ Measured on 1 November 2026 (0.13.0; earlier columns on 31 October) on generated
 
 **English** (20 dashboards, `gen.mjs --count 20 --seed 3`, then `run.mjs`):
 
-| Figure | 0.11.0 | 0.12.0 | 0.13.0 |
-|---|---|---|---|
-| Leaked area (share of the area of sensitive text left readable) | 0.31% | 0.25% | **0.25%** |
-| Words exposed by box | 20 of 1,852 | 15 | **15** (0.81%, 95% interval 0.5 to 1.3%) |
-| Words exposed by letters | 9 of 1,780 upright | 5 | **5** (0.28%, 0.1 to 0.7%) |
-| Safe words masked anyway | 9.5% | 9.6% | 9.6% |
-| Check findings / real leftovers | 53 / 0 | 27 / 0 | **22** / 0 |
-| Median time, drop to end of check (2-core machine) | 40 s | 39 s | **36 s** |
+| Figure | 0.11.0 | 0.12.0 | 0.13.0 | 0.13.1 |
+|---|---|---|---|---|
+| Leaked area (share of the area of sensitive text left readable) | 0.31% | 0.25% | 0.25% | **0.21%** |
+| Words exposed by box | 20 of 1,852 | 15 | 15 (0.81%) | **13** (0.70%, 95% interval 0.4 to 1.2%) |
+| Words exposed by letters | 9 of 1,780 upright | 5 | 5 (0.28%) | **5** (0.28%, 0.1 to 0.7%) |
+| Safe words masked anyway | 9.5% | 9.6% | 9.6% | **8.7%** |
+| Check findings / real leftovers | 53 / 0 | 27 / 0 | 22 / 0 | **20** / 0 |
+| Median time, drop to end of check (2-core machine) | 40 s | 39 s | 36 s | 37 s |
 
 The five words with readable letters: two numbers read only in part ("11.3%", "−23.1%"), a one-letter initial, a sliver
 of a product name, and one organisation the reader never saw and the detector did not find.
@@ -34,13 +34,19 @@ English. Their 0.12 figures are in this file's history.
 every mask, is set aside (counted on the review screen, and shown on request). On the English set this halved the findings
 (53 → 27) with no more text left readable.
 
+**The tester's kit** (14 hard English screenshots, `vaultsnip-test-kit-0.13`): 0.13.0 left axis dates as made-up words
+or invalid dates ("15/18/2026"), blanked bar labels on a dark chart, erased checkboxes and sparklines, and could not finish
+the 1366×1600 table of 9-pixel text. In 0.13.1 the date axes of the Power BI, Tableau and web-analytics screenshots read as
+real dates in their own formats, moved together; the table finishes in about 2½ minutes on a 2-core machine.
+
 **Replica** (`tools/inplace-bench/run.mjs`, after "Hide everything uncertain"):
 
-| Figure | English 0.11.0 (30 dashboards) | English 0.12.0 |
-|---|---|---|
-| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image |
-| Sensitive words left readable | 10 of 2,680 | **8** (0.3%) |
-| Boxes with leftover pixels after clearing | 111 of 2,651 | 115 of 2,611 |
+| Figure | English 0.11.0 (30 dashboards) | English 0.12.0 | English 0.13.1 |
+|---|---|---|---|
+| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image | 0 on every image |
+| Sensitive words left readable | 10 of 2,680 | 8 (0.3%) | 9 (0.3%) |
+| Boxes with leftover pixels after clearing | 111 of 2,651 | 115 of 2,611 | 111 of 2,702 |
+| Made-up text shrunk below 70% to fit its box | | 55 | **32** |
 
 ### Earlier figures
 
@@ -76,7 +82,7 @@ uncertain"):
 
 | Figure | 0.10.0 | 0.11.0 |
 |---|---|---|
-| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image |
+| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image | 0 on every image |
 | Sensitive words left readable | 20 of 2,680 (0.7%) | **10 (0.4%)** |
 | Boxes with leftover pixels after clearing | 135 of 2,719 | **111 of 2,651** |
 | Replacements shrunk below 70% to fit | 47 | 55 |
