@@ -14,7 +14,7 @@ VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF re
 
 **What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, choose **Blur a chart** and drag over it, or **Blur all charts**.
 
-**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.25% of the area of sensitive text was still readable** after masking and the pre-flight check, and **5 of 1,780 upright sensitive words had more than 15% of their letters uncovered** (2 numbers in part, a one-letter initial, a sliver of a product name and one organisation the reader never saw). Dashboards in German, French and Spanish are measured the same way. That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-012). To measure on your own screenshots, privately: `npm run bench:real:label`.
+**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.25% of the area of sensitive text was still readable** after masking and the pre-flight check, and **5 of 1,780 upright sensitive words had more than 15% of their letters uncovered** (2 numbers in part, a one-letter initial, a sliver of a product name and one organisation the reader never saw). That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-012). To measure on your own screenshots, privately: `npm run bench:real:label`.
 
 ```
 capture → local OCR → mask everything except an allowlist → independent re-scan gate
@@ -36,7 +36,7 @@ capture → local OCR → mask everything except an allowlist → independent re
 | Sample on screen 1 | ✅ runs the full demo on a fictional dashboard: OCR, masking, check, in-place replica |
 | Upload, paste (on any screen, or with the Paste button), extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored; very large screenshots are read at up to 9 megapixels, and the review says when one was shrunk |
-| **German, French and Spanish dashboards** | ✅ recognised from the first words read (or chosen under *Redaction policy*) and read with that language's file; its report words stay readable, and the replica's made-up names, companies, places and words are in that language |
+| Language | English dashboards. Text in other languages is read as English, so its words are masked as unknown: more is hidden than needed, never less |
 | Mask by default, allowlist to keep | ✅ client names, IDs, emails and unlisted text are masked; numbers are replaced with invented values of the same size (or masked, if you prefer) |
 | Blur text in charts on any page (extension) | ✅ right-click → "Blur text in charts on this page" or Alt+Shift+B: charts drawn on canvas (Power BI, Tableau, ECharts…) are read on your device and sensitive text is blurred in place; run again to remove |
 | On-device name check (AI) | ✅ a 19 MB PII model in a Web Worker masks safe words used as names ("May Chen", "Delta Airlines"); only adds masks; can be switched off |

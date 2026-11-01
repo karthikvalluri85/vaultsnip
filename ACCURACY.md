@@ -27,18 +27,8 @@ Measured on 31 October 2026 on generated sets where every word's position and ki
 The five words with readable letters: two numbers read only in part ("11.3%", "−23.1%"), a one-letter initial, a sliver
 of a product name, and one organisation the reader never saw and the detector did not find.
 
-**German, French and Spanish** (6 dashboards each, `gen.mjs --lang de|fr|es --count 6 --seed 5`): titles, column headers,
-months and number formats in that language, people and companies from that Faker locale.
-
-| Figure | French | German | Spanish |
-|---|---|---|---|
-| Words exposed by letters | 4 of 518 (0.8%) | 3 of 637 (0.5%) | 4 of 800 (0.5%) |
-| Leaked area | 0.60% | 0.19% | 0.31% |
-| Safe words masked anyway | 16% | 14% | 5% |
-
-Most of what remains are numbers read in part and labels squeezed against a chart's bars. The higher over-masking in French
-and German comes mostly from abbreviated months and words the reader splits differently; it hides more than needed and
-never leaks. Before 0.12 these dashboards were read with the English file, and their report words were masked as unknown.
+German, French and Spanish dashboards were supported in 0.12 and removed in 0.13 (see the changelog); VaultSnip reads
+English. Their 0.12 figures are in this file's history.
 
 **False alarms.** A digit or two read from a chart where neither the reader nor the detector saw text, at least a line from
 every mask, is set aside (counted on the review screen, and shown on request). On the English set this halved the findings
@@ -46,14 +36,11 @@ every mask, is set aside (counted on the review screen, and shown on request). O
 
 **Replica** (`tools/inplace-bench/run.mjs`, after "Hide everything uncertain"):
 
-| Figure | English 0.11.0 (30 dashboards) | English 0.12.0 | French 0.12.0 (6 dashboards) |
-|---|---|---|---|
-| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image | 0 on every image |
-| Sensitive words left readable | 10 of 2,680 | **8** (0.3%) | 2 of 519 (0.4%) |
-| Boxes with leftover pixels after clearing | 111 of 2,651 | 115 of 2,611 | 19 of 564 |
-
-A French dashboard's replica gets French towns, people and companies ("Saint-Denis" → "La Rochelle"), and its axes keep
-one round, even scale.
+| Figure | English 0.11.0 (30 dashboards) | English 0.12.0 |
+|---|---|---|
+| Changed pixels outside the replaced boxes | 0 on every image | 0 on every image |
+| Sensitive words left readable | 10 of 2,680 | **8** (0.3%) |
+| Boxes with leftover pixels after clearing | 111 of 2,651 | 115 of 2,611 |
 
 ### Earlier figures
 
