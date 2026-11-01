@@ -2,9 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [0.13.0] - 2026-11-01
+## [0.13.1] - 2026-11-01
 
-English only, for now, and a replica that keeps bold text bold.
+Fixes from a tester's run of 14 hard screenshots: dates on chart axes, a dense table that would not finish, and blank or garbled spots in the replica.
+
+### Fixed
+- **Dates in the replica are dates.** Every date on a page moves back by the same made-up number of months (1 to 5), in its own format: "Nov 2025" → "Jul 2025", "2026-05-01" → "2026-01-01", "10/30/2026" → "6/30/2026", "11-25" → "07-25", "Oct 1, 2026" → "Jun 1, 2026", so an axis of dates stays in order with even steps. A day beside a month name that stays readable ("Oct" · "31,") becomes another real day, and times stay real times ("07:42" → "19:05"). Before, dates were scaled like amounts (into "15/18/2026") or replaced by words.
+- **Slanted axis labels.** A rotated date the page reader read in pieces is read again whole by the second reader and replaced whole, along its slant, at its size; a label the text detector cut in two is joined first, and a year cut short by the crop ("Oct 1, 202") is completed from its neighbours.
+- **A dense table no longer stops.** A 1366×1600 table of 9-pixel text was read at 3× (20 megapixels) in one go; the reader reported no progress for over 30 seconds while laying it out, and the watchdog ended it twice ("it stopped responding twice"). Large passes are now read in overlapping strips, side by side when readers are free, and the watchdog allows more time for bigger pictures. On a 2-core machine that table now finishes in about 2½ minutes.
+- **No more blanks where the second reader read the text.** Bar labels on a dark chart, a percentage in a donut slice and similar text the page reader missed were cleared and left empty. What the second reader read stays on the device with its mask, and the replica puts a made-up value of the same kind there.
+- **Checkboxes and sparklines stay.** The text detector took filter checkboxes and KPI sparklines for text, and the replica erased them. A checkbox (a letter-sized square, its four sides drawn, empty or filled) and a chart line (one to three thin strokes crossing the box, each column crossed once) are left as they are; a word or a digit in an outlined box is not.
+- **Codes and paths no longer show the hidden name.** "bf_koelpin_50" became "bf_koelpin_62": only its digits changed. Letters inside numbers, codes and paths that are not safe words now become a plain word, the same one wherever they appear on the page.
+- **Bold KPI values stay bold** when their box reaches into the line below (the weight is measured on the main line only).
+- **Fewer odd replacements.** Values two columns apart read as one ("$48,626 7/22/2026") are replaced column by column; an email read in two pieces is one address; a title stays a title ("Ms." → "Dr.", not "Ox."); a made-up name never repeats the word beside it ("West West Mckenzie"); an ID keeps the prefix its column shares ("INV-", "EMP-") and its length; row numbers (1, 2, 3… down a column) are no longer masked; plain words inside a column masked whole stay; rating stars read as "%%%%%" are no longer masked; a misread axis tick takes its scale's value; and common report words (People, Start, Base salary, Win rate, USD, Excel…) are on the safe list.
 
 ### Removed
 - **German, French and Spanish dashboards** (added in 0.12.0). On a French test dashboard, report labels were masked, made-up amounts came out in English formats and axis dates were garbled, so these languages are out until they meet the same bar as English. Gone with them: the *Language of the dashboard* choice and automatic recognition, the German, French and Spanish reader files, and the replica's language-specific names and words. Text in another language is read as English, so its words are masked as unknown: more is hidden than needed, never less.

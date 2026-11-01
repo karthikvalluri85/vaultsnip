@@ -27,6 +27,7 @@ export function classify(text: string, p: ClassifyPolicy = {}): TextType | null 
   if (/^[lrtpn]\d{1,3}[dwmqy]$/i.test(clean) || /^q[1-4][-–]q[1-4]$/i.test(clean) || /^fy\d{2}[-–/]\d{2}$/i.test(clean)
     || /^(19|20)\d{2}[-–/]((19|20)?\d{2})$/.test(clean) || /^#\d{1,2}$/.test(clean)) return null;
   if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return 'Identifier';
+  if (!/[\p{L}\p{N}]/u.test(clean)) return null; // symbols only: rating stars read as "%%%%%", a lone "$"
   if (/[\d€$£¥₹%]/.test(clean)) return 'Number or money';
   if (clean.length <= 1) return null;
   if (allow.has(low)) return null;

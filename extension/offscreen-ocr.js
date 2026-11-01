@@ -42,6 +42,12 @@ downtime efficiency productivity output throughput yield defects defect scrap cl
 payouts patients patient admissions discharges beds readmissions encounters students enrollment enrolment courses breakdown split mix
 contribution composition generated printed is are was were be been has have had can not this that these those our your their its we they
 which what when where how why than then also just about across into out off per year-to-date month-to-date quarter-to-date
+people recent hire hires hired base salary salaries start started end ended ending approved approval disputed overdue due proposed qualify qualified
+meet note notes return returns vendor vendors billing board close closing deal phone impact exit win wins rep reps
+usd eur gbp inr jpy cad aud chf conv operating controller landing logo logos axis bar bars label labels slice slices panel statement statements
+payable payables receivable receivables aging business enterprise complaint complaints topic topics twice routing sent answered called changes
+capture card cards extract stated forward instead inside wait ever great but me nobody owner owners please thousands rotated lookup lookups
+acquire midwest northeast northwest southeast southwest excel sheet sheets workbook fx xlsx csv pdf re fyi cc fictional sample
 `.split(/\s+/).filter(Boolean);
 const DEFAULT_ALLOW = new Set(ALLOW_WORDS);
 function classify(text, p = {}) {
@@ -55,6 +61,7 @@ function classify(text, p = {}) {
   if (/^(19|20)\d{2}$/.test(clean) || /^(q[1-4]|h[12]|fy\d{2,4}|w\d{1,2}|p\d{1,2})$/i.test(clean)) return null;
   if (/^[lrtpn]\d{1,3}[dwmqy]$/i.test(clean) || /^q[1-4][-–]q[1-4]$/i.test(clean) || /^fy\d{2}[-–/]\d{2}$/i.test(clean) || /^(19|20)\d{2}[-–/]((19|20)?\d{2})$/.test(clean) || /^#\d{1,2}$/.test(clean)) return null;
   if (/[A-Za-z]{2,}[-_]?\d{3,}|\d{3,}[-_][A-Za-z]/.test(clean)) return "Identifier";
+  if (!/[\p{L}\p{N}]/u.test(clean)) return null;
   if (/[\d€$£¥₹%]/.test(clean)) return "Number or money";
   if (clean.length <= 1) return null;
   if (allow.has(low)) return null;

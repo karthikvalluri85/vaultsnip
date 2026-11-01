@@ -74,8 +74,9 @@ for (const f of files) {
         const k = r >= 0.75 ? 1 : r / 0.75;
         if (k < 0.7) squeezed.push({ original: p.original, synthetic: p.synthetic, kind: p.kind, fit: Math.round(k * 100) / 100 });
       });
-      const unchanged = P.filter(p => p.synthetic && p.original && p.synthetic === p.original).map(p => p.original);
-      const covered = w => P.some(p => !p.keep && w.x + w.w / 2 > p.x && w.x + w.w / 2 < p.x + p.w && w.y + w.h / 2 > p.y && w.y + w.h / 2 < p.y + p.h);
+      // (a value the made-up scale keeps, an axis's 0, is left as it was: counted as unchanged, as when it was redrawn)
+      const unchanged = P.filter(p => (p.synthetic && p.original && p.synthetic === p.original) || p.same).map(p => p.original);
+      const covered = w => P.some(p => (!p.keep || p.same) && w.x + w.w / 2 > p.x && w.x + w.w / 2 < p.x + p.w && w.y + w.h / 2 > p.y && w.y + w.h / 2 < p.y + p.h);
       const k = W / truth.width, sens = truth.words.filter(w => w.sensitive).map(w => ({ text: w.text, kind: w.kind, x: w.x * k, y: w.y * k, w: w.w * k, h: w.h * k })), exposed = sens.filter(w => !covered(w)).map(w => ({ text: w.text, kind: w.kind }));
       const kept = P.filter(p => p.keep).map(p => p.original);
       return { kept, scale: Math.round(100 * S.img.width / W) / 100, fullSize: W === truth.width, patches: P.length, distortion, ghosts, squeezed, unchanged, sensitive: sens.length, exposed, png: shot ? S.fid.canvas.toDataURL('image/png') : null };

@@ -48,7 +48,7 @@ capture → local OCR → mask everything except an allowlist → independent re
 | Preview of the masked image before you save, copy or build | ✅ |
 | **In-place replica** | ✅ the original screenshot, pixel for pixel, with each hidden text wiped from its surrounding background (only the text's own pixels; bar edges and borders through a box survive) and synthetic text drawn back in the same place, size, colour, weight and alignment. Any visual works, because none is redrawn: decomposition trees, custom maps, proprietary widgets |
 | **Hover explanations** | ✅ an invisible layer over the picture, aligned to its pixels at every size: hover or tab to a replaced value to see its kind, the labels beside it and where it came from; never the hidden text |
-| Synthetic text **made on this device** | ✅ numbers of the same size (axis ticks on an even new scale), made-up people, companies and IDs (Faker), emails only at example.com/.net/.org |
+| Synthetic text **made on this device** | ✅ numbers of the same size (axis ticks on an even new scale), dates in their own format all moved by the same made-up months (an axis of dates stays in order, slanted labels included), made-up people, companies and IDs (Faker), emails only at example.com/.net/.org |
 | **Download / Copy image** of the replica | ✅ PNG with a strip below the picture saying its text is synthetic |
 | **Mask-only download** | ✅ masked PNG for forums, bug reports and slides, or **Copy masked image** to paste it anywhere |
 | **Safe-to-share receipt** | ✅ PNG or PDF beside the masked image: what was hidden (counts and kinds, never the text), the check, made on this device, and the image's SHA-256 |

@@ -79,8 +79,27 @@
       if (x < ix0) ix0 = x; if (x > ix1) ix1 = x; if (y < iy0) iy0 = y; if (y > iy1) iy1 = y;
     }
     const ink = n ? { x: ix0, y: iy0, w: ix1 - ix0 + 1, h: iy1 - iy0 + 1 } : null;
-    // ink coverage of the glyphs' own box: bold strokes fill more of it
-    const cover = ink ? n / (ink.w * ink.h) : 0;
+    // ink coverage of the glyphs' own box: bold strokes fill more of it. Measured on the line that holds most of the
+    // ink: a box that reaches into the next line (the top of a KPI's "▲ 0.5%" under its value) would otherwise stretch
+    // the glyphs' box over the gap between the lines and make bold text look regular
+    let cover = ink ? n / (ink.w * ink.h) : 0, line = null;
+    if (ink) {
+      const per = new Array(ink.h).fill(0);
+      for (const [, y, p] of inside) if (dist(p, bg) >= cut) per[y - ink.y]++;
+      // runs of rows with ink, a single empty row inside a run allowed (the dot of an i)
+      for (let i = 0; i < per.length;) {
+        if (!per[i]) { i++; continue; }
+        let j = i, sum = 0;
+        while (j < per.length && (per[j] || (per[j + 1] && j + 1 < per.length))) sum += per[j++];
+        if (!line || sum > line.sum) line = { a: i, b: j, sum };
+        i = j;
+      }
+      if (line && line.b - line.a < ink.h) {
+        let lx = Infinity, rx = -1;
+        for (const [x, y, p] of inside) if (y - ink.y >= line.a && y - ink.y < line.b && dist(p, bg) >= cut) { if (x < lx) lx = x; if (x > rx) rx = x; }
+        if (rx >= lx) cover = line.sum / ((rx - lx + 1) * (line.b - line.a));
+      } else line = null;
+    }
     // the line the text runs along: the main axis of its ink. A slanted or vertical axis label runs at an angle; its
     // size comes from the ink's spread across that axis (with ascenders and descenders, about 0.27 of the size)
     let slant = null;
@@ -95,12 +114,16 @@
     // dot of a decimal point below the line) do not count
     let band = null, base = null;
     if (ink) {
+      // (on the main line only, when the box reaches into another)
       const rows = new Array(ink.h).fill(0);
       for (const [, y, p] of inside) if (dist(p, bg) >= cut) rows[y - ink.y]++;
+      if (line) rows.forEach((c, i) => { if (i < line.a || i >= line.b) rows[i] = 0; });
       const top = Math.max(...rows), keep = rows.map((c, i) => (c >= top * 0.2 ? i : -1)).filter(i => i >= 0);
       band = keep.length ? keep[keep.length - 1] - keep[0] + 1 : ink.h;
-      // the baseline: the bottom of the dense rows (the tails of g, p, y and J below it are sparse)
-      let last = -1; rows.forEach((c, i) => { if (c >= top * 0.35) last = i; });
+      // the baseline: the bottom of the dense rows (the tails of g, p, y and J below it are sparse). Dense against the
+      // typical row, not the busiest: in "1–" the dash's row holds most of the ink, and the digit's rows would not count
+      const filled = rows.filter(c => c > 0).sort((a, b) => a - b), typical = filled.length ? filled[filled.length >> 1] : 0;
+      let last = -1; rows.forEach((c, i) => { if (c >= Math.min(top * 0.35, typical * 0.5)) last = i; });
       base = last >= 0 ? ink.y + last + 1 : null;
     }
     return { color: n ? sum.map(v => v / n) : [32, 33, 36], weight: cover > 0.48 ? 700 : cover > 0.42 ? 600 : 400, ink, slant, band, base, cover };
@@ -111,6 +134,15 @@
   // size, in the regular and the bold weight of the replica's font: the nearer of the two is its weight. Without a
   // canvas to draw on (unit tests), the fill alone decides.
   const fillCache = new Map();
+  // the width of a text drawn in FONT at 1 pixel
+  let measurer = null;
+  function textWidth(text) {
+    try {
+      measurer = measurer || (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(8, 8) : document.createElement('canvas')).getContext('2d');
+      measurer.font = `400 100px ${FONT}`;
+      return measurer.measureText(text).width / 100;
+    } catch (e) { return 0; }
+  }
   function drawnFill(text, size, weight) {
     const key = weight + '|' + size + '|' + text;
     if (fillCache.has(key)) return fillCache.get(key);
@@ -166,7 +198,24 @@
     const bg = sampleBackground(data, W, H, box);
     const ink = sampleInk(data, W, H, box, bg.color);
     const glyphs = numeric && ink.ink && ink.band ? Object.assign({}, ink.ink, { h: ink.band }) : ink.ink;
-    const size = ink.slant ? Math.max(7, Math.round(ink.slant.size)) : fontSize(box, glyphs, numeric ? '' : text);
+    // a slanted label the text detector measured (box.slant: its angle in degrees, length and thickness, web/app.js):
+    // its box also holds pieces of the labels beside it, which would make the ink's own line longer and its letters
+    // look bigger, so the detector's measure caps both, and gives the line when the ink alone does not show one
+    const hint = box.slant && box.slant.len && box.slant.thick ? box.slant : null;
+    if (box.fromRegion && !hint) ink.slant = null;   // a level line read by the second look is drawn level
+    if (hint) {
+      let a = hint.angle; while (a > 90) a -= 180; while (a <= -90) a += 180;
+      // the size that makes the label's own text as long as the detector measured it, when its text is known (a date
+      // read by the second look); else from the line's thickness, which the labels of one axis share
+      const per = text && text !== '(unread text)' ? textWidth(text) : 0;
+      const cap = per ? Math.max(hint.thick * 0.45, Math.min(hint.thick * 0.85, hint.len * 0.94 / per)) : hint.thick * 0.58;
+      if (ink.slant) ink.slant = Object.assign({}, ink.slant, { size: cap, length: Math.min(ink.slant.length, hint.len) });
+      else if (Math.abs(a) > 10) ink.slant = { angle: a * Math.PI / 180, cx: box.x + box.w / 2, cy: box.y + box.h / 2, length: hint.len, size: cap };
+    }
+    let size = ink.slant ? Math.max(7, Math.round(ink.slant.size)) : fontSize(box, glyphs, numeric ? '' : text);
+    // a box the text detector drew (read by the second look) is taller than its text by a margin, and may take in an
+    // edge of the shape the text sits on (a slice's white border): its text is at most about two thirds of its height
+    if (box.fromRegion && !ink.slant) size = Math.min(size, Math.max(7, Math.round(box.h * 0.68)));
     // where the original's letters stood: the bottom of its ink, less the tails of g, p, y when it has them
     const baseline = ink.ink && text && ink.base != null ? ink.base : null;
     const weight = ink.slant ? ink.weight : weightOf(text, size, ink.cover, ink.weight);
@@ -215,6 +264,21 @@
         if (ii >= 0 && jj >= 0 && ii < w && jj < h) grown[jj * w + ii] = 1;
       }
     }
+    // a slanted label's box (box.slant, from the text detector) also takes in pieces of its neighbours and of what
+    // stands beside it (an axis's 0): only the band the label runs along is cleared
+    if (box.slant && box.slant.len && box.slant.thick) {
+      const a = box.slant.angle * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+      const half = box.slant.len / 2 + box.slant.thick * 0.3, side = box.slant.thick * 0.45;
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const dx = x0 + i + 0.5 - cx, dy = y0 + j + 0.5 - cy;
+        if (Math.abs(dx * ux + dy * uy) > half || Math.abs(-dx * uy + dy * ux) > side) grown[j * w + i] = 0;
+      }
+    }
+    // box.holes: safe words read in the box, which stay as they are (a column masked whole keeps its plain words)
+    (box.holes || []).forEach(o => {
+      for (let y = Math.max(y0, Math.floor(o.y)); y < Math.min(y1, Math.ceil(o.y + o.h)); y++)
+        for (let x = Math.max(x0, Math.floor(o.x)); x < Math.min(x1, Math.ceil(o.x + o.w)); x++) grown[(y - y0) * w + (x - x0)] = 0;
+    });
     for (let i = 0; i < w; i++) {
       const x = x0 + i;
       for (let j = 0; j < h; j++) {
@@ -338,7 +402,9 @@
       const row = similar.filter(q => Math.abs(q.y + q.h / 2 - cy) < Math.min(p.h, q.h) * 0.5);
       const peers = column.length >= 2 ? column : row;
       const style = Object.assign({}, p.style);
-      if (peers.length >= 2) { const sizes = peers.map(q => own.get(q)).sort((a, b) => a - b); style.size = sizes[sizes.length >> 1]; }
+      // (a box the text detector drew, read by the second look, may only come down to its peers' size: a lone label in
+      // a donut slice is not the size of the KPI value above it)
+      if (peers.length >= 2) { const sizes = peers.map(q => own.get(q)).sort((a, b) => a - b), mid = sizes[sizes.length >> 1]; style.size = p.fromRegion ? Math.min(own.get(p), mid) : mid; }
       if (column.length >= 2) style.align = column === left ? 'left' : column === right ? 'right' : 'center';
       else if (style.align === 'center' && !num && style.inkBox && style.inkBox.w >= p.w * 0.85) style.align = 'left';
       p.style = style;
@@ -394,12 +460,15 @@
         for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { n++; if (dist(px(data, W, x, y), p.style.bg.color) > 60) far++; }
         return n > 0 && far / n < 0.3;
       };
-      const slanted = styled.filter(p => p.kind === 'unread' && p.original !== '(table column)' && !p.keep && p.style.slant && diag(p.style.slant.angle) && thin(p));
-      slanted.forEach(p => { p.synthetic = opts.slantText(Math.max(2, Math.round(p.style.slant.length / (p.style.size * 0.55))), p); });
+      // (a label read as a date already has its made-up date, in the same format)
+      const slanted = styled.filter(p => (p.kind === 'unread' || p.kind === 'date') && p.original !== '(table column)' && !p.keep && p.style.slant && diag(p.style.slant.angle) && thin(p));
+      slanted.forEach(p => { if (p.kind === 'unread') p.synthetic = opts.slantText(Math.max(2, Math.round(p.style.slant.length / (p.style.size * 0.55))), p); });
       styled.forEach(p => {
-        if (p.kind === 'unread' || !p.synthetic) return;
+        if (slanted.includes(p) || !p.synthetic) return;
         const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-        if (slanted.some(s => cx > s.x && cx < s.x + s.w && cy > s.y && cy < s.y + s.h)) p.synthetic = '';
+        // (a label read whole as a date has no such fragments: the page reader's pieces of it were never masked, and a
+        // box beside it, such as the axis's 0, keeps its own text)
+        if (slanted.some(s => s.kind === 'unread' && cx > s.x && cx < s.x + s.w && cy > s.y && cy < s.y + s.h)) p.synthetic = '';
       });
     }
     const work = styled.filter(p => !p.keep);
