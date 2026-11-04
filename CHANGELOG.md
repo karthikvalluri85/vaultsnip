@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Desktop app** (`desktop/`): the web app in a window of its own, with a system-wide hotkey (Ctrl+Alt+V; Control+Option+V on a Mac) that takes a screenshot of the primary screen, opens the crop screen on it, and puts the masked image on the clipboard once the check passes, with no click. Closing the window keeps it in the tray. A Tauri 2 shell of about 150 lines of Rust (`xcap` for the screenshot); the page is `web/` unchanged, served from the app, so nothing is contacted. Built by the new *Desktop app* workflow for Windows, macOS and Linux (unsigned). `web/app.js` gained a small bridge (`isDesktop`) and the start screen a *Snip the screen* button and the hotkey, shown only inside the app. Described in PRIVACY.md and THIRD_PARTY_NOTICES.md.
+
 ## [0.14.0] - 2026-11-04
 
 The first masked image in seconds, a paste-first start screen, a strip that says where the image stands, and pages that say the job in plain words. Nothing new is read, sent or stored: what is read in the end is the same as before; it is shown sooner.

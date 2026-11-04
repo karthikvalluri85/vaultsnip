@@ -6,6 +6,9 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const isExt = !!(window.chrome && chrome.runtime && chrome.runtime.id);
+  // the desktop app (desktop/): the same page inside a Tauri window, with a hotkey, a screenshot and the clipboard
+  // provided by the shell (desktop/src-tauri/src/lib.rs). Nothing else differs.
+  const isDesktop = !!(window.__TAURI__ && window.__TAURI__.core);
 
   /* ---------------- state (memory only) ---------------- */
   const S = {
@@ -1921,6 +1924,11 @@ customer service staff agent team people everyone nobody someone something nothi
       await verify();
       if (!current()) return;
       offerChartBlur();
+      // the desktop app's whole point: the masked image is on the clipboard once the check passes, with no click
+      if (isDesktop && S.gate === 'pass') {
+        try { await copyPng(pngOf(maskedImage())); toast('Masked image copied to the clipboard. Paste it anywhere.'); }
+        catch (e) { toast('Could not reach the clipboard: ' + (e && e.message || e)); }
+      }
     } catch (err) {
       job = null;
       if (!current()) return;
@@ -2360,6 +2368,11 @@ customer service staff agent team people everyone nobody someone something nothi
   };
   // Straight into Teams, Slack, a ticket or a slide: the clipboard gets the same PNG as the download.
   async function copyPng(blobPromise) {
+    if (isDesktop) {   // through the shell: works without a click, and in every webview
+      const blob = await blobPromise;
+      const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+      return window.__TAURI__.core.invoke('copy_png', { dataUrl: url });
+    }
     if (!navigator.clipboard || !window.ClipboardItem) throw new Error('This browser cannot copy images.');
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
   }
@@ -2589,6 +2602,16 @@ customer service staff agent team people everyone nobody someone something nothi
   }
   if (isExt && location.hash === '#snip') {
     chrome.runtime.sendMessage({ type: 'dsc-get-snip' }, resp => { if (resp && resp.dataUrl) startCrop(resp.dataUrl); });
+  }
+  if (isDesktop) {
+    const T = window.__TAURI__;
+    // the hotkey or the tray: the shell took a screenshot; open the crop screen on it
+    T.event.listen('snip', e => { reviewSeq++; startOver(); startCrop(e.payload); });
+    T.event.listen('snip-error', e => { show('s-drop'); dropError('The screen could not be captured: ' + e.payload); });
+    // the start screen says how to snip, and offers a button for it
+    const hint = $('desktop-hint'), btn = $('btn-desktop-snip');
+    if (hint) { T.core.invoke('hotkey_label').then(k => { hint.hidden = false; hint.querySelector('kbd').textContent = k; }); }
+    if (btn) { btn.hidden = false; btn.onclick = () => T.core.invoke('snip_now'); }
   }
 
   // The second visit is instant and works offline: a service worker (sw.js) keeps this site's own files (the page, the
