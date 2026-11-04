@@ -2,7 +2,7 @@
   "name": "vaultsnip",
   "version": "0.13.1",
   "private": true,
-  "description": "Turn sensitive report snips into client-safe replicas. Browser-only: masks sensitive text on your device and replaces it in place with synthetic text.",
+  "description": "Blur sensitive text in any screenshot, on your device, in seconds. Browser-only: masks names, numbers, emails and IDs and can replace them in place with synthetic text.",
   "homepage": "https://vaultsnip.pages.dev",
   "repository": {
     "type": "git",
@@ -14,6 +14,8 @@
   "author": "Karthik Valluri",
   "license": "Apache-2.0",
   "keywords": [
+    "screenshot",
+    "blur",
     "dashboard",
     "redaction",
     "privacy",

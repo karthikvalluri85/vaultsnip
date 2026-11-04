@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+The first masked image in seconds, a paste-first start screen, a strip that says where the image stands, and pages that say the job in plain words. Nothing new is read, sent or stored: what is read in the end is the same as before; it is shown sooner.
+
+### Added
+- **First masks in seconds.** The two 1.5× reading passes run first and the masked image is shown, and can be copied or downloaded, as soon as they finish. The 3× passes for small print, the on-device name check, the unread-text check and the six-pass re-scan then run on, in the background, and only add masks; choices made meanwhile (a box switched off, one drawn) are kept. On the bundled sample on a 2-core machine the first masks show after about 7 s instead of 23 s, and the whole run still ends at the same time.
+- **A strip above the picture** with one line on where the image stands (reading, quick mask ready, checking, looks clean, N to review, N still readable) and the two actions most people came for, **Copy masked image** and **Download**, without opening the preview dialog. A light band passes once over the picture when the first masks land (not with reduced motion). The pre-flight panel keeps every finding and the receipt and replica stay behind **Receipt or replica…**.
+- **Blur chart shapes too.** Once the picture is read and checked, the charts on it are found on the device and one click blurs them all (the same as *Blur all charts*), offered where the next step is shown, since chart shapes are the one thing masking leaves readable.
+- **Second visit instant, works offline.** A service worker keeps the app's own files (the page and its scripts, the reader's program and WASM cores, the on-device AI runtime) in the browser's cache, same site only; never an image, a result or anything read from one. The language file and the AI models are not kept there a second time: the reader and the AI already keep their own copies. Described in PRIVACY.md. Not in the extension, whose files are already local.
+- **Pages for the jobs people search for:** `power-bi.html`, `tableau.html` and `excel.html`, plus `robots.txt` and `sitemap.xml`, each a short page that names the job and opens the app.
+
+### Changed
+- **The start screen is the paste target.** The page opens on "Blur sensitive text in any screenshot. Free, offline, in your browser." with the drop and paste area first, three steps (paste, look, copy), and the sample behind a second button. The page title, description and social cards, the README, the store listing, the Hugging Face Space and the extension's description say the same job in the same words; the replica is the step after copying, not the headline.
+- The preview dialog's button is **Receipt or replica…**, and building the replica is **Make it look real (replica)**.
+
 ## [0.13.1] - 2026-11-01
 
 Fixes from a tester's run of 14 hard screenshots: dates on chart axes, a dense table that would not finish, and blank or garbled spots in the replica.

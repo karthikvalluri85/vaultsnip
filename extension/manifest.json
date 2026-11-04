@@ -3,7 +3,7 @@
   "name": "VaultSnip",
   "short_name": "VaultSnip",
   "version": "0.13.1",
-  "description": "Turn sensitive report snips into client-safe replicas. Sensitive text is masked on your device; nothing is stored.",
+  "description": "Blur sensitive text in any screenshot, on your device, in seconds. Free, offline, nothing sent or stored.",
   "action": {
     "default_title": "Snip this tab with VaultSnip",
     "default_icon": {
