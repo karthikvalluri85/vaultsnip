@@ -157,9 +157,9 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
   .step{font-size:13.5px;color:var(--muted)}.step b{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}
   .fine{font-size:13px;color:var(--muted);margin-top:18px}
   /* review screen: the strip above the picture, one line on where the image stands and the two actions most people want */
-  .strip{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border-radius:10px;margin-bottom:10px;border:1px solid var(--line);background:var(--sunken)}
-  .strip b{font-size:15px;white-space:nowrap}.strip>span{flex:1 1 260px;font-size:13px;line-height:1.4;min-height:2.8em;color:var(--ink)} /* two lines reserved: the picture below must not move when the line changes */
-  .strip .acts{display:flex;gap:8px;margin-left:auto}
+  .strip{display:grid;gap:6px;padding:12px 14px;border-radius:10px;margin-bottom:12px;border:1px solid var(--line);background:var(--sunken)}
+  .strip b{font-size:16px}.strip>span{font-size:13px;line-height:1.4;color:var(--ink)}
+  .strip .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
   .strip.green{background:var(--good-soft);border-color:var(--good)}.strip.green b{color:var(--good)}
   .strip.amber{background:var(--warn-soft);border-color:var(--warn)}.strip.amber b{color:var(--warn)}
   .strip.red{background:var(--bad-soft);border-color:var(--bad)}.strip.red b{color:var(--bad)}
@@ -228,12 +228,6 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
   <section id="s-review" hidden>
     <div class="grid2">
       <div>
-        <div class="strip wait" id="strip" role="status" aria-live="polite"><b>Reading…</b><span>Masking sensitive text on this device.</span>
-          <div class="acts">
-            <button class="btn" id="btn-strip-dl" type="button" disabled title="Saves the masked image as a PNG">Download</button>
-            <button class="btn primary" id="btn-strip-copy" type="button" disabled title="Copies the masked image to paste into Slack, Teams, a ticket or a slide">Copy masked image</button>
-          </div>
-        </div>
         <div class="toolbar">
           <div class="viewtabs" role="group" aria-label="View">
             <button type="button" id="v-orig" aria-pressed="true">Original with boxes</button>
@@ -251,6 +245,12 @@ details.more{margin-top:10px;font-size:13px}details.more summary{cursor:pointer;
         <div class="canvaswrap" id="review-wrap"><canvas id="review-canvas" role="img" aria-label="The screenshot with mask boxes. Use the list of masks beside it to turn masks on or off with the keyboard."></canvas><div id="sweep" aria-hidden="true"></div></div>
       </div>
       <div>
+        <div class="strip wait" id="strip" role="status" aria-live="polite"><b>Reading…</b><span>Masking sensitive text on this device.</span>
+          <div class="acts">
+            <button class="btn" id="btn-strip-dl" type="button" disabled title="Saves the masked image as a PNG">Download</button>
+            <button class="btn primary" id="btn-strip-copy" type="button" disabled title="Copies the masked image to paste into Slack, Teams, a ticket or a slide">Copy masked image</button>
+          </div>
+        </div>
         <div class="panel">
           <div class="status" id="status"><span class="spinner"></span><span id="status-text">Preparing…</span></div>
         </div>
