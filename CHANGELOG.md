@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.14.0] - 2026-11-04
 
 The first masked image in seconds, a paste-first start screen, a strip that says where the image stands, and pages that say the job in plain words. Nothing new is read, sent or stored: what is read in the end is the same as before; it is shown sooner.
 
