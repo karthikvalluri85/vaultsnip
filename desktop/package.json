@@ -1,0 +1,15 @@
+{
+  "name": "vaultsnip-desktop",
+  "version": "0.14.0",
+  "private": true,
+  "description": "VaultSnip on the desktop (Tauri shell around ../web).",
+  "scripts": {
+    "icons": "tauri icon ../web/icons/logo-1024.png --output src-tauri/icons",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

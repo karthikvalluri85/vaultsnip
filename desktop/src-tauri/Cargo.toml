@@ -1,0 +1,26 @@
+[package]
+name = "vaultsnip-desktop"
+version = "0.14.0"
+description = "VaultSnip on the desktop: a hotkey, a drag, and the masked screenshot is on your clipboard."
+authors = ["Karthik Valluri"]
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "vaultsnip_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-clipboard-manager = "2"
+xcap = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
