@@ -49,9 +49,9 @@ paste → quick local OCR → mask everything except an allowlist → first mask
 
 ## See it in action
 
-<img src=".github/media/vaultsnip-demo.gif" alt="VaultSnip 0.13 walkthrough on the fictional sample dashboard in six steps: drop a screenshot, on-device masking and the six-pass pre-flight check, looking over the masked image, and the client-safe replica with synthetic text in place" width="900">
+<img src=".github/media/vaultsnip-demo.gif" alt="VaultSnip walkthrough on the fictional sample dashboard: paste a screenshot, the first masks in seconds, the background checks finishing, copying the masked image, blurring every chart shape in one click, and the replica with made-up values drawn in place" width="900">
 
-*VaultSnip 0.13 on the bundled fictional sample.*
+*VaultSnip 0.14 on the bundled fictional sample: the first masks at about 7 s, the full check at about 23 s on a 2-core laptop.*
 
 ## Features
 

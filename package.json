@@ -1,6 +1,6 @@
 {
   "name": "vaultsnip",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "private": true,
   "description": "Blur sensitive text in any screenshot, on your device, in seconds. Browser-only: masks names, numbers, emails and IDs and can replace them in place with synthetic text.",
   "homepage": "https://vaultsnip.pages.dev",

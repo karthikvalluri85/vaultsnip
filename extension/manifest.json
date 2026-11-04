@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "VaultSnip",
   "short_name": "VaultSnip",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "description": "Blur sensitive text in any screenshot, on your device, in seconds. Free, offline, nothing sent or stored.",
   "action": {
     "default_title": "Snip this tab with VaultSnip",
