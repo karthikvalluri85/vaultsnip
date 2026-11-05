@@ -2,9 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.14.0] - 2026-11-05
+
+The first masked image in seconds, a paste-first start screen, a strip that says where the image stands, pages that say the job in plain words, and a desktop app with a hotkey. Nothing new is read, sent or stored: what is read in the end is the same as before; it is shown sooner.
 
 ### Fixed
+(Found by a test pass over the unreleased 0.14.0 builds.)
 - **The offline cache picks up new releases.** The service worker served the reader's program and the on-device AI runtime from its cache for ever; those files change between releases, so a returning visitor could keep an old reader after an update. They are still served from the cache at once, and fetched again in the background, so the next visit has the new ones.
 - **Desktop app: the clipboard gets the masked image whenever the check turns green**, also after *Hide everything uncertain* or resolving the findings by hand, not only when it passed on its own (once per picture). The hotkey also closes an open receipt dialog before the new crop screen.
 - **The extension package no longer carries the site's own files** (the Power BI, Tableau and Excel pages, the sitemap, robots.txt and the offline cache script).
@@ -13,11 +16,6 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - **Desktop app** (`desktop/`): the web app in a window of its own, with a system-wide hotkey (Ctrl+Alt+V; Control+Option+V on a Mac) that takes a screenshot of the primary screen, opens the crop screen on it, and puts the masked image on the clipboard once the check passes, with no click. Closing the window keeps it in the tray. A Tauri 2 shell of about 150 lines of Rust (`xcap` for the screenshot); the page is `web/` unchanged, served from the app, so nothing is contacted. Built by the new *Desktop app* workflow for Windows, macOS and Linux (unsigned). `web/app.js` gained a small bridge (`isDesktop`) and the start screen a *Snip the screen* button and the hotkey, shown only inside the app. Described in PRIVACY.md and THIRD_PARTY_NOTICES.md.
 
-## [0.14.0] - 2026-11-04
-
-The first masked image in seconds, a paste-first start screen, a strip that says where the image stands, and pages that say the job in plain words. Nothing new is read, sent or stored: what is read in the end is the same as before; it is shown sooner.
-
-### Added
 - **First masks in seconds.** The two 1.5× reading passes run first and the masked image is shown, and can be copied or downloaded, as soon as they finish. The 3× passes for small print, the on-device name check, the unread-text check and the six-pass re-scan then run on, in the background, and only add masks; choices made meanwhile (a box switched off, one drawn) are kept. On the bundled sample on a 2-core machine the first masks show after about 7 s instead of 23 s, and the whole run still ends at the same time.
 - **A status strip** at the top of the side panel, with one line on where the image stands (reading, quick mask ready, checking, looks clean, N to review, N still readable) and the two actions most people came for, **Copy masked image** and **Download**, without opening the preview dialog. A light band passes once over the picture when the first masks land (not with reduced motion). The pre-flight panel keeps every finding and the receipt and replica stay behind **Receipt or replica…**.
 - **Blur chart shapes too.** Once the picture is read and checked, the charts on it are found on the device and one click blurs them all (the same as *Blur all charts*), offered where the next step is shown, since chart shapes are the one thing masking leaves readable.
