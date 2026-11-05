@@ -572,7 +572,7 @@ try {
       const spread = c => { const d = c.getContext('2d').getImageData(Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h)).data; let lo = 765, hi = 0; for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; lo = Math.min(lo, v); hi = Math.max(hi, v); } return hi - lo; };
       return { n: S.blurs.length, before: spread(S.img), after: spread(S.test.maskedCanvas(1)), gate: S.gate };
     });
-    check(blur && blur.n === 1 && blur.gate === 'dirty', 'dragging with "Blur a chart" adds a blurred area and asks for the check again');
+    check(blur && blur.n === 1 && blur.gate !== 'dirty', `dragging with "Blur a chart" adds a blurred area and keeps the check's result (a blur never shows more; gate: ${blur && blur.gate})`);
     check(blur && blur.after < blur.before * 0.25, `the masked image shows the area blurred: its light-to-dark range falls from ${blur && blur.before} to ${blur && blur.after}`);
     const receipt = await page.evaluate(async () => (await window.__DSC.test.receiptFacts()).rows.find(x => x[0] === 'Blurred')[1]);
     check(/1 area blurred/.test(receipt), 'the receipt says how many areas were blurred');
