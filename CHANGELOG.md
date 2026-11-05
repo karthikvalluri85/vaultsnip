@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- **The offline cache picks up new releases.** The service worker served the reader's program and the on-device AI runtime from its cache for ever; those files change between releases, so a returning visitor could keep an old reader after an update. They are still served from the cache at once, and fetched again in the background, so the next visit has the new ones.
+- **Desktop app: the clipboard gets the masked image whenever the check turns green**, also after *Hide everything uncertain* or resolving the findings by hand, not only when it passed on its own (once per picture). The hotkey also closes an open receipt dialog before the new crop screen.
+- **The extension package no longer carries the site's own files** (the Power BI, Tableau and Excel pages, the sitemap, robots.txt and the offline cache script).
+- **Blurring a chart no longer asks for the check again.** A blur (drawn, from *Blur all charts* or from *Blur chart shapes too*) never changes which text is masked and never shows more, so a check that passed still holds; the receipt and replica stay one click away. Removing a blur returns the picture to exactly what was checked, so that needs no re-check either.
+
 ### Added
 - **Desktop app** (`desktop/`): the web app in a window of its own, with a system-wide hotkey (Ctrl+Alt+V; Control+Option+V on a Mac) that takes a screenshot of the primary screen, opens the crop screen on it, and puts the masked image on the clipboard once the check passes, with no click. Closing the window keeps it in the tray. A Tauri 2 shell of about 150 lines of Rust (`xcap` for the screenshot); the page is `web/` unchanged, served from the app, so nothing is contacted. Built by the new *Desktop app* workflow for Windows, macOS and Linux (unsigned). `web/app.js` gained a small bridge (`isDesktop`) and the start screen a *Snip the screen* button and the hotkey, shown only inside the app. Described in PRIVACY.md and THIRD_PARTY_NOTICES.md.
 

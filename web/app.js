@@ -1575,6 +1575,15 @@ customer service staff agent team people everyone nobody someone something nothi
     const open = S.flags.filter(f => !f.resolved);
     S.gate = open.some(f => f.severity === 'block') ? 'blocked' : open.length ? 'review' : 'pass';
     renderGate();
+    autoCopy();
+  }
+  // The desktop app's whole point: the masked image is on the clipboard as soon as the check passes, with no click,
+  // whether it passed on its own or after the findings were resolved. Once per picture; a later change is copied by hand.
+  async function autoCopy() {
+    if (!isDesktop || S.gate !== 'pass' || S.autoCopied || !S.img) return;
+    S.autoCopied = true;
+    try { await copyPng(pngOf(maskedImage())); toast('Masked image copied to the clipboard. Paste it anywhere.'); }
+    catch (e) { S.autoCopied = false; toast('Could not reach the clipboard: ' + (e && e.message || e)); }
   }
   // The strip above the picture: one line on where the image stands (green, amber or red) and the two actions most
   // people came for, copy and download. It never says "safe": a green strip means the check found nothing, and the last
@@ -1842,7 +1851,10 @@ customer service staff agent team people everyone nobody someone something nothi
       const on = !hits.some(m => m.on);
       hits.forEach(m => { m.on = on; m.userOff = !on; });
     }
-    S.gate = 'dirty'; renderGate(); renderTypes(); draw();
+    // a blur added or removed never changes which text is masked, so it does not need the check again; a mask does
+    const blurOnly = S.tool === 'blur';
+    if (!blurOnly) S.gate = 'dirty';
+    renderGate(); renderTypes(); draw();
   });
 
   /* ---------------- status ---------------- */
@@ -1880,7 +1892,7 @@ customer service staff agent team people everyone nobody someone something nothi
   let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.setAside = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.setAside = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.autoCopied = false; S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
     const offer = $('btn-offer-blur'); if (offer) offer.hidden = true;
@@ -1924,11 +1936,7 @@ customer service staff agent team people everyone nobody someone something nothi
       await verify();
       if (!current()) return;
       offerChartBlur();
-      // the desktop app's whole point: the masked image is on the clipboard once the check passes, with no click
-      if (isDesktop && S.gate === 'pass') {
-        try { await copyPng(pngOf(maskedImage())); toast('Masked image copied to the clipboard. Paste it anywhere.'); }
-        catch (e) { toast('Could not reach the clipboard: ' + (e && e.message || e)); }
-      }
+      autoCopy();
     } catch (err) {
       job = null;
       if (!current()) return;
@@ -2017,8 +2025,9 @@ customer service staff agent team people everyone nobody someone something nothi
   function blurAllCharts() {
     const found = detectCharts().filter(c => !S.blurs.some(b => overlap(b, c) > 0.5));
     found.forEach(c => S.blurs.push(c));
-    if (found.length) { if (S.tool !== 'blur') setTool('blur'); S.gate = 'dirty'; renderGate(); }
-    renderTypes(); draw();
+    // a blur never changes which text is masked, so a passed check still holds: the masked image is checked, then blurred
+    if (found.length && S.tool !== 'blur') setTool('blur');
+    renderGate(); renderTypes(); draw();
     setStatus(found.length ? `Blurred ${found.length} chart${found.length > 1 ? 's' : ''}. Click a blurred area to bring it back, or drag to blur another.`
       : 'No charts found in colour. Choose Blur a chart and drag over one.', false);
     return found.length;
@@ -2606,7 +2615,7 @@ customer service staff agent team people everyone nobody someone something nothi
   if (isDesktop) {
     const T = window.__TAURI__;
     // the hotkey or the tray: the shell took a screenshot; open the crop screen on it
-    T.event.listen('snip', e => { reviewSeq++; startOver(); startCrop(e.payload); });
+    T.event.listen('snip', e => { document.querySelectorAll('dialog[open]').forEach(d => d.close()); reviewSeq++; startOver(); startCrop(e.payload); });
     T.event.listen('snip-error', e => { show('s-drop'); dropError('The screen could not be captured: ' + e.payload); });
     // the start screen says how to snip, and offers a button for it
     const hint = $('desktop-hint'), btn = $('btn-desktop-snip');
