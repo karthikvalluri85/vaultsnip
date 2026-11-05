@@ -8,6 +8,8 @@ VaultSnip is a static web application. No server, no database, no backend logic.
 
 The fastest enterprise deployment requires no software install at all. Users open the hosted app at https://vaultsnip.pages.dev in any modern browser (Chrome, Edge, Firefox, Safari). 
 
+**A desktop app with a hotkey** is also available for users who snip many times a day (`desktop/`, built by the *Desktop app* workflow; unsigned, so allow it in your endpoint policy or sign it with your own certificate). It is the same page served from the app itself and contacts no site at all.
+
 **No browser extension needed.** The extension adds chart-blur on external pages; the full redaction and replica workflow runs in the web app without it. For users on managed devices where unapproved extensions are blocked, point them to the URL directly.
 
 ---

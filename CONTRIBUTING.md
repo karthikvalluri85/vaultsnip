@@ -66,7 +66,9 @@ Please share the figures, never the screenshots or their labels.
 | Path | What it is |
 |---|---|
 | `web/` | The app, published as-is to Cloudflare Pages |
-| `web/app.js` | Pipeline: OCR, masking, gate, review, preview, replica screen |
+| `web/app.js` | Pipeline: quick and deep OCR tiers, masking, gate, review, status strip, preview, replica screen; desktop bridge |
+| `web/sw.js` | Offline cache of the app's own files (same site only) |
+| `desktop/` | Desktop app: Tauri 2 shell (Rust) around `web/`; see `desktop/README.md` |
 | `web/inpaint.js` | In-place replica: background sampling, pixel clearing, text redraw, hover layer |
 | `web/synth.js` | Synthetic text for each hidden box, made on the device |
 | `web/feedback.js` | In-app feedback and error reporting |

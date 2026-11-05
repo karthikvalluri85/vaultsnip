@@ -21,6 +21,10 @@ image you can copy straight into Slack, Teams, a ticket or a slide. Nothing is u
 Works with screenshots of Power BI, Tableau, Looker, Qlik, Excel, Google Sheets, Salesforce, Jira, PDF report pages and
 any other app on your screen.
 
+**On the desktop:** a [small app](desktop/README.md) with a hotkey. Press Ctrl+Alt+V (Control+Option+V on a Mac), drag over the
+part of the screen you want, and once the check passes the masked image is on your clipboard. Installers are built by the
+*Desktop app* workflow (unsigned for now; expect a first-launch warning).
+
 ## Three steps
 
 1. **Paste.** Take a screenshot, press Ctrl+V on the page (or drop a PNG, JPG, WebP or PDF).
@@ -51,7 +55,7 @@ paste → quick local OCR → mask everything except an allowlist → first mask
 
 <img src=".github/media/vaultsnip-demo.gif" alt="VaultSnip walkthrough on the fictional sample dashboard: paste a screenshot, the first masks in seconds, the background checks finishing, copying the masked image, blurring every chart shape in one click, and the replica with made-up values drawn in place" width="900">
 
-*VaultSnip 0.14 on the bundled fictional sample: the first masks at about 7 s, the full check at about 23 s on a 2-core laptop.*
+*VaultSnip 0.14.0 on the bundled fictional sample: the first masks within seconds, the full check about half a minute later on a 2-core laptop (the recording skips the waits).*
 
 ## Features
 
@@ -80,6 +84,7 @@ For BI teams and consultants there is more under the hood than the three steps: 
 | **Download / Copy image** of the replica | ✅ PNG with a strip below the picture saying its text is synthetic |
 | **Mask-only download** | ✅ masked PNG for forums, bug reports and slides, or **Copy masked image** to paste it anywhere |
 | **Safe-to-share receipt** | ✅ PNG or PDF beside the masked image: what was hidden (counts and kinds, never the text), the check, made on this device, and the image's SHA-256 |
+| Desktop app (Tauri shell around this page: hotkey, screenshot, clipboard without a click) | ✅ `desktop/`; Windows, macOS and Linux builds from the *Desktop app* workflow, unsigned |
 | Chrome/Edge extension (MV3, `activeTab` only) | ✅ model downloaded on first launch, cached in IndexedDB |
 | In-app feedback with a private route for masking misses | ✅ |
 | **PDF input** | ✅ drop or pick a PDF; multi-page PDFs ask which page; the PDF reader (PDF.js) is bundled and loads on demand |
@@ -134,7 +139,8 @@ Use the same `--bundle-models` build for the Chrome Web Store and Edge Add-ons: 
 
 ```
 web/              the app (static, no build step), published as-is
-  index.html      screens and styles
+  index.html      screens and styles; power-bi.html, tableau.html, excel.html: one page per job, for search engines
+  sw.js           offline cache of the app's own files (same site only; never an image or a result)
   app.js          pipeline: OCR, masking, gate, review, payload preview, replica screen
   inpaint.js      in-place replica: background sampling, pixel clearing, text redraw, hover layer
   synth.js        synthetic text for each hidden box, made on the device
@@ -143,6 +149,7 @@ web/              the app (static, no build step), published as-is
   lib/ lang/      tesseract.js + OCR model, vs-context.js (on-device AI client), vs-faker.js (made-up names)
   ml/ models/     on-device AI: Web Worker + ONNX runtime (npm run build:ml), PII and text-region models (npm run fetch:model)
 extension/        manifest.json; background.js, canvas-ocr.js, offscreen.*, wasm/ built from src/ (npm run build:ext)
+desktop/          the desktop app: a Tauri 2 shell (src-tauri/, Rust) around web/; see desktop/README.md
 src/              TypeScript sources: name check, chart blur (background/, content/), made-up names (replica/)
 tools/            check.mjs, e2e.mjs, build scripts, synth-bench/ (masking benchmark), inplace-bench/ (replica benchmark)
 build.sh          builds dist/web, dist/extension, dist/hf-space and zips
