@@ -47,3 +47,11 @@ fictional dashboards of the masking benchmark, installed as pinned `devDependenc
 - Fonts through [Fontsource](https://fontsource.org): [Inter](https://github.com/rsms/inter) 5.3.0 and
   [IBM Plex Mono](https://github.com/IBM/plex) 5.3.0 under the SIL Open Font License 1.1, and
   [Roboto Slab](https://github.com/googlefonts/robotoslab) 5.3.0 under the Apache License 2.0
+
+Desktop app, in `desktop/` (built from source by anyone who wants it; not part of the web app or the extension):
+
+- [Tauri](https://tauri.app) 2, `tauri-plugin-global-shortcut` and `tauri-plugin-clipboard-manager`, MIT License or
+  Apache License 2.0 (dual-licensed), the Tauri Programme within The Commons Conservancy
+- [xcap](https://github.com/nashaofu/xcap) 0.4, Apache License 2.0 (screenshot of the screen)
+- [image](https://github.com/image-rs/image) 0.25, MIT License or Apache License 2.0; [base64](https://github.com/marshallpierce/rust-base64) 0.22, MIT License or Apache License 2.0
+- The full list of Rust crates and their licences is in `desktop/src-tauri/Cargo.lock`.

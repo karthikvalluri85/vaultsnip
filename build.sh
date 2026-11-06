@@ -22,6 +22,8 @@ cp -r web dist/extension/app
 # Chrome reserves file names starting with "_" in extensions, and the site's headers file means nothing there
 # (the extension's own Content-Security-Policy is in its manifest)
 rm -f dist/extension/app/_headers
+# site-only files: the search-engine pages, the sitemap and the offline cache belong to vaultsnip.pages.dev, not to a package
+rm -f dist/extension/app/power-bi.html dist/extension/app/tableau.html dist/extension/app/excel.html dist/extension/app/robots.txt dist/extension/app/sitemap.xml dist/extension/app/sw.js
 if [[ $BUNDLE -eq 0 ]]; then
   rm -rf dist/extension/app/lang dist/extension/app/models
   printf "window.VAULTSNIP_CONFIG = { langPath: '%s', mlModels: '%s' };\n" "$MODEL_URL" "$ML_URL" > dist/extension/app/config.js

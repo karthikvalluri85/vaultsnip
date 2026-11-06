@@ -7,7 +7,7 @@ that describes something the package does not do (or the reverse) is a common re
 ## Name and summary
 
 - **Name:** VaultSnip
-- **Summary (132 characters max):** Turn sensitive dashboard snips into client-safe replicas. Text is masked on your device; nothing is sent or stored.
+- **Summary (132 characters max):** Blur sensitive text in any screenshot, on your device, in seconds. Free, offline, nothing sent or stored.
 
 ## Description
 
@@ -15,24 +15,27 @@ Paste this as plain text. It names no BI products on purpose: a list of product 
 Web Store (the first submission was rejected for it).
 
 ```
-VaultSnip turns a screenshot of a dashboard or report into a copy you can share safely.
+VaultSnip blurs the sensitive text in a screenshot before you share it.
 
-Names, emails, phone numbers, IDs and amounts are found and hidden on your own device. A six-pass check then reads the masked image again before you share it. The replica is your own screenshot with each hidden text replaced, in the same place, by made-up text of the same size and colour. Charts, maps and visuals keep their original pixels.
+Snip the tab you are on, or paste any screenshot of a dashboard, report, table or app. Names, emails, phone numbers, IDs and amounts are found and masked on your own device. The first masks appear within seconds; the small-print passes, the on-device AI checks and a six-way re-scan then run on and only add masks. Copy the masked image straight into a chat, a ticket or a slide.
+
+Or make a replica: your own screenshot with each hidden text replaced, in the same place, by made-up text of the same size and colour. Charts, maps and visuals keep their original pixels.
 
 How it works
-• Click the VaultSnip icon to snip the tab you are on, or drop in any screenshot.
-• Review the masks. Add one by dragging over anything you want hidden, or toggle one off.
-• Look over the masked image, then download or copy the replica.
+• Click the VaultSnip icon to snip the tab you are on, or paste any screenshot.
+• Masks appear in seconds. Add one by dragging over anything you want hidden, or click one to keep it.
+• A strip above the picture turns green, amber or red as the checks finish. Take a last look, then copy or download.
 
 Private by design
-• Everything runs in your browser: reading the text, masking, the check and the replica.
+• Everything runs in your browser: reading the text, masking, the checks and the replica.
 • No account, no upload, no analytics. The text reader and the small on-device AI models are packed inside the extension, and it makes no network requests.
 
 Also included
-• Blur a chart, or all charts at once, when the chart's shape itself is confidential.
+• Blur every chart shape in one click when a trend or a proportion is itself confidential.
 • Each finding of the check comes with a close-up, likely leaks first.
 • A safe-to-share receipt (PNG or PDF) lists what was hidden (counts and kinds, never the text) and the image's SHA-256 fingerprint.
 • Right-click "Blur text in charts on this page" (Alt+Shift+B) blurs sensitive text inside charts on a live page.
+• Per-client policies, batch masking and PDF pages for teams that do this every day.
 
 Reads English dashboards.
 
@@ -43,7 +46,7 @@ Free and open source (Apache-2.0): https://github.com/karthikvalluri85/vaultsnip
 
 ## Single purpose
 
-Masks sensitive text in screenshots of dashboards and reports, on the user's device, so they can be shared safely.
+Masks sensitive text in screenshots, on the user's device, so they can be shared safely.
 
 ## Permission justifications
 

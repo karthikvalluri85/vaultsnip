@@ -1,0 +1,73 @@
+name: Desktop app
+
+# Builds the desktop app (desktop/, a Tauri shell around web/) for Windows, macOS and Linux. Runs on request, and on a
+# desktop-v* tag, when it also attaches the installers to a GitHub release. The installers are unsigned: Windows
+# SmartScreen and macOS Gatekeeper warn on first launch until a signing certificate is added (see desktop/README.md).
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['desktop-v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: ''
+          - os: macos-latest
+            args: '--target universal-apple-darwin'
+          - os: ubuntu-22.04
+            args: ''
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: write   # only to attach installers to the release on a tag
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - name: Linux build dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libxcb1-dev libxrandr-dev libdbus-1-dev
+      - name: Web app checks (the desktop app ships web/ as it is)
+        run: node tools/check.mjs
+      - run: npm ci
+        working-directory: desktop
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        run: test "desktop-v$(node -p "require('./desktop/package.json').version")" = "$GITHUB_REF_NAME"
+        shell: bash
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          args: ${{ matrix.args }}
+          tagName: ${{ startsWith(github.ref, 'refs/tags/desktop-v') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/desktop-v') && format('VaultSnip desktop {0}', github.ref_name) || '' }}
+          releaseBody: 'See desktop/README.md. Unsigned builds: expect a first-launch warning from SmartScreen or Gatekeeper.'
+          releaseDraft: true
+          prerelease: true
+      - name: Keep the installers as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vaultsnip-desktop-${{ matrix.os }}
+          path: |
+            desktop/src-tauri/target/**/release/bundle/**/*.msi
+            desktop/src-tauri/target/**/release/bundle/**/*.exe
+            desktop/src-tauri/target/**/release/bundle/**/*.dmg
+            desktop/src-tauri/target/**/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/**/release/bundle/**/*.deb
+          if-no-files-found: warn

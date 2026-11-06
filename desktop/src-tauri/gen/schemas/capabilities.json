@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"What the page may ask the shell for: its own three commands and events. No file system, no shell, no network.","local":true,"windows":["main"],"permissions":["core:default"]}}

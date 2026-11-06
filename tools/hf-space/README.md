@@ -7,14 +7,14 @@ sdk: static
 app_file: index.html
 pinned: false
 license: apache-2.0
-short_description: Turn sensitive report snips into client-safe replicas
+short_description: Blur sensitive text in any screenshot, offline, in your browser
 ---
 
 # VaultSnip
 
-Show a dashboard without showing the data.
+Blur sensitive text in any screenshot. Free, offline, in your browser.
 
-VaultSnip masks sensitive text in a screenshot of a dashboard, report or spreadsheet **on your device**, re-checks the masked image, and gives you back the same screenshot with every sensitive text replaced in place by synthetic text. Nothing is sent anywhere and nothing is stored.
+Paste a screenshot of a dashboard, report, table or app. VaultSnip finds names, numbers, emails and IDs and masks them **on your device**: the first masks show within seconds, the deeper checks keep running and only add masks, and you copy the masked image straight into a chat or a slide. Or make a replica: the same screenshot with every hidden text replaced in place by made-up text. Nothing is sent anywhere and nothing is stored.
 
 - Try it: click **Try with a sample dashboard**.
 - This Space shows the live app at https://vaultsnip.pages.dev, so it is always the latest version.

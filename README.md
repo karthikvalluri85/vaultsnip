@@ -7,34 +7,60 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Version](https://img.shields.io/github/package-json/v/karthikvalluri85/vaultsnip)](CHANGELOG.md)
 
-**Turn sensitive report snips into client-safe replicas.**
+**Blur sensitive text in any screenshot. Free, offline, in your browser.**
 
-**Try it now:** https://vaultsnip.pages.dev (no sign-up, no key, nothing uploaded)  
-Also on Hugging Face: https://huggingface.co/spaces/karthikvalluri/vaultsnip · Chrome and Edge store listings are in review.
+Paste a screenshot of a dashboard, report, table or app. VaultSnip finds names, numbers, emails and IDs and masks them
+**on your device**, shows the first masks within seconds, keeps checking in the background, and gives you a masked
+image you can copy straight into Slack, Teams, a ticket or a slide. Nothing is uploaded and nothing is stored.
 
-VaultSnip takes a screenshot of any dashboard or report (BI tools, Excel, PDF report pages, product analytics, SaaS apps), finds and masks sensitive text **on your device**, sends nothing anywhere, and gives you back **the same screenshot with every sensitive text replaced in place by synthetic text**: every chart, map and visual keeps its original pixels, and only the hidden text changes. Nothing is stored.
+**Try it:** https://vaultsnip.pages.dev (no sign-up, no key, no upload) ·
+[Chrome](https://chromewebstore.google.com/detail/cdmldcadgijefheekeamiicgcoimlbkg) ·
+[Edge](https://microsoftedge.microsoft.com/addons/detail/jhlhonheebmedikjjmeaklgfeohabloa) ·
+[Hugging Face](https://huggingface.co/spaces/karthikvalluri/vaultsnip)
 
-**What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map shading) stay the real ones, and the review screen says so. If a trend is itself confidential, choose **Blur a chart** and drag over it, or **Blur all charts**.
+Works with screenshots of Power BI, Tableau, Looker, Qlik, Excel, Google Sheets, Salesforce, Jira, PDF report pages and
+any other app on your screen.
 
-**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with `npm run bench`), **0.25% of the area of sensitive text was still readable** after masking and the pre-flight check, and **5 of 1,780 upright sensitive words had more than 15% of their letters uncovered** (2 numbers in part, a one-letter initial, a sliver of a product name and one organisation the reader never saw). That is why the review screen asks you to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-013). To measure on your own screenshots, privately: `npm run bench:real:label`.
+## Three steps
+
+1. **Paste.** Take a screenshot, press Ctrl+V on the page (or drop a PNG, JPG, WebP or PDF).
+2. **Look.** Masks appear in seconds, while the small-print passes, the on-device AI checks and a six-way re-scan keep
+   running and only add masks. Click a box to keep it, drag to add one, blur a chart if its shape is the secret.
+3. **Copy.** Copy or download the masked image. Or make a **replica**: your own screenshot with every hidden text
+   replaced, in place, by made-up text of the same size and colour, so it still looks like the real thing.
+
+**What it does not hide on its own:** only text is replaced. Chart shapes (bar lengths, line trends, slice sizes, map
+shading) stay the real ones, and the review screen says so. Once the picture is read, VaultSnip offers to **blur every
+chart shape** in one click, or drag over one with **Blur a chart**.
+
+**How safe it is, measured:** on 20 generated dashboards with known sensitive words (seed 3, reproducible with
+`npm run bench`), **0.25% of the area of sensitive text was still readable** after masking and the check, and
+**5 of 1,780 upright sensitive words had more than 15% of their letters uncovered** (2 numbers in part, a one-letter
+initial, a sliver of a product name and one organisation the reader never saw). That is why the review screen asks you
+to look before you share. Details and how to reproduce it: [ACCURACY.md](ACCURACY.md#where-it-stands-in-013). To
+measure on your own screenshots, privately: `npm run bench:real:label`.
 
 ```
-capture → local OCR → mask everything except an allowlist → independent re-scan gate
-        → you look over the masked image → synthetic text for each hidden box, made on your device
-        → in-place replica: hidden text wiped from the background around it and redrawn in the same place, size and colour
-        → hover a replaced value to see what it stands for → download or copy the PNG
+paste → quick local OCR → mask everything except an allowlist → first masked image on screen (seconds)
+      → small-print OCR, on-device name check and unread-text check (background, only add masks)
+      → independent six-pass re-scan → strip turns green, amber or red → you look, then copy
+      → optional in-place replica: hidden text wiped from the background and redrawn with synthetic text
 ```
 
 ## See it in action
 
-<img src=".github/media/vaultsnip-demo.gif" alt="VaultSnip 0.13 walkthrough on the fictional sample dashboard in six steps: drop a screenshot, on-device masking and the six-pass pre-flight check, looking over the masked image, and the client-safe replica with synthetic text in place" width="900">
+<img src=".github/media/vaultsnip-demo.gif" alt="VaultSnip walkthrough on the fictional sample dashboard: paste a screenshot, the first masks in seconds, the background checks finishing, copying the masked image, blurring every chart shape in one click, and the replica with made-up values drawn in place" width="900">
 
-*VaultSnip 0.13 on the bundled fictional sample.*
+*VaultSnip 0.14 on the bundled fictional sample: the first masks at about 7 s, the full check at about 23 s on a 2-core laptop.*
 
 ## Features
 
+For BI teams and consultants there is more under the hood than the three steps: per-client policies, batch masking, PDFs, receipts.
+
 | Area | Status |
 |---|---|
+| First masks in seconds | ✅ the 1.5× reading passes run first and the masked image is shown and copyable at once; the 3× passes, the AI checks and the re-scan then run on and only add masks |
+| Second visit instant, works offline | ✅ a service worker keeps the app's own files in the browser cache (same site only; never an image or a result) |
 | Sample on screen 1 | ✅ runs the full demo on a fictional dashboard: OCR, masking, check, in-place replica |
 | Upload, paste (on any screen, or with the Paste button), extension snip with crop | ✅ |
 | Local OCR (Tesseract.js, WASM) | ✅ normal, inverted, high-contrast and block passes; implausible "words" from chart shapes are ignored; very large screenshots are read at up to 9 megapixels, and the review says when one was shrunk |

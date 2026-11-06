@@ -6,6 +6,9 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const isExt = !!(window.chrome && chrome.runtime && chrome.runtime.id);
+  // the desktop app (desktop/): the same page inside a Tauri window, with a hotkey, a screenshot and the clipboard
+  // provided by the shell (desktop/src-tauri/src/lib.rs). Nothing else differs.
+  const isDesktop = !!(window.__TAURI__ && window.__TAURI__.core);
 
   /* ---------------- state (memory only) ---------------- */
   const S = {
@@ -256,7 +259,12 @@ acquire midwest northeast northwest southeast southwest excel sheet sheets workb
   // One progress figure for a whole job: every reading pass, and for a new screenshot the check that follows. Each pass
   // counts by how much image it reads (scale squared), and the figure never goes back, so it climbs to 100% once
   // instead of restarting with every pass.
-  const READ_PASSES = [[1.5, 'normal'], [1.5, 'inverted'], [3, 'contrast'], [3, 'ink']];
+  // Two tiers. The quick passes (1.5×, a few seconds) give a first masked image the user can already look at and copy;
+  // the deep passes (3×, for small print), the on-device AI checks and the six-pass re-scan then run on and only add
+  // masks. What is read in the end is the same as when every pass ran before anything was shown; it is shown sooner.
+  const QUICK_PASSES = [[1.5, 'normal'], [1.5, 'inverted']];
+  const DEEP_PASSES = [[3, 'contrast'], [3, 'ink']];
+  const READ_PASSES = QUICK_PASSES.concat(DEEP_PASSES);
   const CHECK_SCALES = [2, 1.5, 3, 3, 3, 2];
   const weightOf = scales => scales.reduce((a, k) => a + k * k, 0);
   let job = null;
@@ -414,8 +422,9 @@ acquire midwest northeast northwest southeast southwest excel sheet sheets workb
   const fitScale = (scale, k) => (scale > 1.5 ? Math.max(1.5, Math.round(scale * k * 4) / 4) : scale);
   // Several passes, merged: a word found by a later pass is kept only if no earlier pass found it.
   // adapt: read the 1.5× passes first, and enlarge the others by what the text's size needs (see above)
-  async function readAll(src, passes, label, adapt) {
-    let all = [];
+  // prior: words already read by earlier passes; the new ones are merged after them by the same rule
+  async function readAll(src, passes, label, adapt, prior) {
+    let all = (prior || []).slice();
     const mine = !job;
     if (mine) job = { total: weightOf(passes.map(p => p[0])), done: 0, shown: 0 };
     const j = job;   // this run's own figure, even if a newer screenshot starts another
@@ -1566,11 +1575,61 @@ customer service staff agent team people everyone nobody someone something nothi
     const open = S.flags.filter(f => !f.resolved);
     S.gate = open.some(f => f.severity === 'block') ? 'blocked' : open.length ? 'review' : 'pass';
     renderGate();
+    autoCopy();
+  }
+  // The desktop app's whole point: the masked image is on the clipboard as soon as the check passes, with no click,
+  // whether it passed on its own or after the findings were resolved. Once per picture; a later change is copied by hand.
+  async function autoCopy() {
+    if (!isDesktop || S.gate !== 'pass' || S.autoCopied || !S.img) return;
+    S.autoCopied = true;
+    try { await copyPng(pngOf(maskedImage())); toast('Masked image copied to the clipboard. Paste it anywhere.'); }
+    catch (e) { S.autoCopied = false; toast('Could not reach the clipboard: ' + (e && e.message || e)); }
+  }
+  // The strip above the picture: one line on where the image stands (green, amber or red) and the two actions most
+  // people came for, copy and download. It never says "safe": a green strip means the check found nothing, and the last
+  // look is still the user's. The pre-flight panel beside it keeps the details and each finding.
+  function renderStrip() {
+    const st = $('strip'); if (!st) return;
+    const open = S.flags.filter(f => !f.resolved).length;
+    const map = {
+      pending: ['wait', 'Reading…', 'Masking sensitive text on this device.'],
+      quick: ['amber', 'Quick mask ready', 'Deeper checks still running; they only add masks. Copy now, or wait.'],
+      running: ['amber', 'Checking…', 'Re-reading the masked image six ways on this device.'],
+      dirty: ['amber', 'Masks changed', 'Re-run the check to confirm.'],
+      policy: ['amber', 'Policy changed', 'Re-apply the policy to update the masks.'],
+      pass: ['green', 'Looks clean', 'Checked six ways on this device, nothing readable found outside the masks. Take a last look, then copy.'],
+      review: ['amber', `${open} to review`, 'Words not on the safe list are still readable. Mask them or mark them safe.'],
+      blocked: ['red', `${open} still readable`, 'Numbers or IDs are still readable. Mask each one, or keep it if harmless.']
+    }[S.gate] || ['wait', '', ''];
+    st.className = 'strip ' + map[0];
+    st.querySelector('b').textContent = map[1];
+    st.querySelector('span').textContent = map[2];
+    const ready = !!(S.img && S.words && S.words.length) && S.gate !== 'pending';
+    ['btn-strip-copy', 'btn-strip-dl'].forEach(id => { const b = $(id); if (b) b.disabled = !ready; });
+  }
+  // A light band passes once over the picture when the first masks land, so the eye goes to what changed.
+  function sweep() {
+    const el = $('sweep'); if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+  }
+  function toast(t) {
+    const el = $('toast'); if (!el) return;
+    el.textContent = t; el.hidden = false; el.classList.add('show');
+    clearTimeout(toast.t); toast.t = setTimeout(() => { el.classList.remove('show'); el.hidden = true; }, 2600);
+  }
+  // Chart shapes are the one thing masking leaves readable. Once the picture is read, the charts on it are found on the
+  // device and one click blurs them all; the user chooses, since a blurred chart is a changed picture.
+  function offerChartBlur() {
+    const b = $('btn-offer-blur'); if (!b || !S.img) return;
+    const n = S.blurs.length ? 0 : detectCharts().length;
+    b.hidden = !n;
+    b.textContent = `Blur ${n} chart shape${n === 1 ? '' : 's'} too`;
   }
   function renderGate() {
     const g = $('gate');
     const map = {
       pending: ['pending', 'Not run yet', 'The check re-reads the masked image on this device.'],
+      quick: ['pending', 'Quick mask ready', 'Small print, the on-device AI checks and the six re-reads are still running; they only add masks. Copy it now if it already looks right, or wait for the check.'],
       running: ['pending', 'Checking…', 'Re-reading the masked image on this device.'],
       dirty: ['pending', 'Masks changed', 'Re-run the check before sending.'],
       policy: ['pending', 'Policy changed', 'Click "Re-apply policy" so the new names and words take effect. The check then runs again.'],
@@ -1584,6 +1643,7 @@ customer service staff agent team people everyone nobody someone something nothi
     g.innerHTML = `<b>${map[1]}</b><span>${map[2]}</span>`;
     $('btn-send').disabled = S.gate !== 'pass';
     $('btn-recheck').disabled = S.gate === 'running';
+    renderStrip();
     const fl = $('flags');
     fl.innerHTML = '';
     const openFlags = S.flags.filter(f => !f.resolved);
@@ -1704,12 +1764,13 @@ customer service staff agent team people everyone nobody someone something nothi
     const open = (S.flags || []).filter(f => !f.resolved), blocks = open.filter(f => f.severity === 'block').length, plural = (n, a, b) => n + ' ' + (n === 1 ? a : b);
     const msg = {
       pending: 'Reading the screenshot on this device…',
+      quick: `First masks are on: ${plural(hidden, 'item', 'items')} hidden so far. Small print, the AI checks and the six re-reads are still running and can only add masks.`,
       running: 'Checking the masked image again on this device…',
       dirty: `You changed what is hidden. Run the check again to confirm nothing sensitive is readable.`,
       policy: 'Click "Re-apply policy" to update what is hidden with your new names and safe words.',
       blocked: `${plural(blocks, 'number or ID is', 'numbers or IDs are')} still readable. For each one, choose "Mask it", or "Not sensitive, keep it" if it is harmless (like the 5 in "Top 5").`,
       review: `${plural(open.length, 'word is', 'words are')} readable but not on the safe list. Mask them, or mark them safe to keep.`,
-      pass: `Ready: ${plural(hidden, 'item', 'items')} hidden and ${plural(kept, 'safe word', 'safe words')} kept${yours ? `, including ${plural(yours, 'decision', 'decisions')} of yours` : ''}. Preview the masked image to continue.`
+      pass: `Ready: ${plural(hidden, 'item', 'items')} hidden and ${plural(kept, 'safe word', 'safe words')} kept${yours ? `, including ${plural(yours, 'decision', 'decisions')} of yours` : ''}. Copy the masked image above, or open the receipt or the replica.`
     }[S.gate] || '';
     $('next-step').textContent = msg;
     const hu = $('btn-hide-unsure');
@@ -1790,7 +1851,10 @@ customer service staff agent team people everyone nobody someone something nothi
       const on = !hits.some(m => m.on);
       hits.forEach(m => { m.on = on; m.userOff = !on; });
     }
-    S.gate = 'dirty'; renderGate(); renderTypes(); draw();
+    // a blur added or removed never changes which text is masked, so it does not need the check again; a mask does
+    const blurOnly = S.tool === 'blur';
+    if (!blurOnly) S.gate = 'dirty';
+    renderGate(); renderTypes(); draw();
   });
 
   /* ---------------- status ---------------- */
@@ -1828,9 +1892,10 @@ customer service staff agent team people everyone nobody someone something nothi
   let reviewSeq = 0;
   async function startReview(canvas) {
     // "Safe to keep" choices belong to one screenshot; a name marked safe here must not stay readable in the next.
-    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.setAside = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
+    S.img = canvas; S.words = []; S.masks = []; S.flags = []; S.setAside = []; S.blurs = []; S.gate = 'pending'; S.view = 'orig'; S.fid = null; S.sessionAllow = new Set(); S.autoCopied = false; S.ctx.lines = null; S.ctx.scores = null; S.ctx.state = 'idle'; S.unread.regions = null; S.unread.state = 'idle';
     S.keepComments = false; S.comments = []; S.commentVocab = new Set(); $('keep-comments').checked = false; $('cm-panel').hidden = true;
     setView('orig');
+    const offer = $('btn-offer-blur'); if (offer) offer.hidden = true;
     show('s-review'); renderGate(); renderTypes(); renderKept(); draw();
     // a picture read at well under its size can have text too small to read, and text not read is not masked: say so
     const sn = $('size-note'), k = canvas.readScale || 1;
@@ -1844,18 +1909,34 @@ customer service staff agent team people everyone nobody someone something nothi
       job = { total: weightOf(READ_PASSES.map(p => p[0])) + weightOf(CHECK_SCALES), done: 0, cur: 0, shown: 0 };
       S.textK = 1;
       const detecting = S.unread.on ? startDetect() : null;   // the text detector runs while the reader reads
-      const words = await readAll(canvas, READ_PASSES, 'Reading text on this device…', true);
+      // Tier 1, quick: the 1.5× passes, then a first masked image on screen within seconds. It can be looked at and
+      // copied straight away; everything after this only adds masks.
+      const quick = await readAll(canvas, QUICK_PASSES, 'Reading text on this device…', false);
+      if (!current()) return;
+      S.textK = textSizeFactor(quick);
+      S.words = notMarks(canvas, quick);
+      S.comments = findComments(S.words);
+      S.masks = buildMasks(S.words);
+      S.gate = 'quick';
+      renderGate(); renderTypes(); renderKept(); draw(); sweep();
+      setStatus('Quick mask ready. Reading small print and running the on-device checks…', true);
+      // Tier 2, deep: the 3× passes for small print, merged after the quick ones (same rule, same result as one reading)
+      const words = await readAll(canvas, DEEP_PASSES, 'Reading small print on this device…', false, S.words);
       if (!current()) return;
       S.words = notMarks(canvas, words);
       S.comments = findComments(S.words);
-      S.masks = buildMasks(S.words);
-      if (S.ctx.on) { renderTypes(); draw(); setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); if (!current()) return; S.masks = allMasks(); }
-      if (S.unread.on) { renderTypes(); draw(); setStatus('Looking for text the reader missed (on-device AI)…', true); await detectRegions(detecting); if (!current()) return; S.masks = allMasks(); }
+      rebuildMasks();
+      renderTypes(); renderKept(); draw();
+      if (S.ctx.on) { setStatus('Looking for names among safe words (on-device AI)…', true); await scoreContext(); if (!current()) return; rebuildMasks(); renderTypes(); draw(); }
+      if (S.unread.on) { setStatus('Looking for text the reader missed (on-device AI)…', true); await detectRegions(detecting); if (!current()) return; rebuildMasks(); renderTypes(); draw(); }
       if (S.comments.length) { $('cm-count').textContent = S.comments.blocks + ' comment' + (S.comments.blocks === 1 ? '' : 's'); $('cm-panel').hidden = false; }
       renderTypes(); renderKept(); draw();
       setStatus(`Read ${S.words.length} words. Masked ${S.masks.length} regions.`, false);
       $('btn-reapply').disabled = false;
       await verify();
+      if (!current()) return;
+      offerChartBlur();
+      autoCopy();
     } catch (err) {
       job = null;
       if (!current()) return;
@@ -1944,8 +2025,9 @@ customer service staff agent team people everyone nobody someone something nothi
   function blurAllCharts() {
     const found = detectCharts().filter(c => !S.blurs.some(b => overlap(b, c) > 0.5));
     found.forEach(c => S.blurs.push(c));
-    if (found.length) { if (S.tool !== 'blur') setTool('blur'); S.gate = 'dirty'; renderGate(); }
-    renderTypes(); draw();
+    // a blur never changes which text is masked, so a passed check still holds: the masked image is checked, then blurred
+    if (found.length && S.tool !== 'blur') setTool('blur');
+    renderGate(); renderTypes(); draw();
     setStatus(found.length ? `Blurred ${found.length} chart${found.length > 1 ? 's' : ''}. Click a blurred area to bring it back, or drag to blur another.`
       : 'No charts found in colour. Choose Blur a chart and drag over one.', false);
     return found.length;
@@ -2295,9 +2377,28 @@ customer service staff agent team people everyone nobody someone something nothi
   };
   // Straight into Teams, Slack, a ticket or a slide: the clipboard gets the same PNG as the download.
   async function copyPng(blobPromise) {
+    if (isDesktop) {   // through the shell: works without a click, and in every webview
+      const blob = await blobPromise;
+      const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+      return window.__TAURI__.core.invoke('copy_png', { dataUrl: url });
+    }
     if (!navigator.clipboard || !window.ClipboardItem) throw new Error('This browser cannot copy images.');
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
   }
+  // The strip's copy and download: the same PNG as the dialog's, without the dialog. The strip beside them says what
+  // state the image is in (quick mask, checked, findings open), so the user decides with that in view.
+  const stripNote = () => S.gate === 'pass' ? '' : S.gate === 'quick' ? ' The deeper checks are still running; copy again once they finish if you want their masks too.' : ' The check has not passed yet: look it over before you share it.';
+  $('btn-strip-copy').onclick = async () => {
+    if (!S.img) return;
+    try { await copyPng(pngOf(maskedImage())); toast('Masked image copied.' + stripNote()); }
+    catch (e) { toast('This browser cannot copy images. Use Download instead.'); }
+  };
+  $('btn-strip-dl').onclick = async () => {
+    if (!S.img) return;
+    saveFile(await pngOf(maskedImage()), maskedName());
+    toast('Masked image saved.' + stripNote());
+  };
+  $('btn-offer-blur').onclick = () => { blurAllCharts(); $('btn-offer-blur').hidden = true; };
   $('btn-copy-masked').onclick = async () => {
     if (!$('pf-ok').checked) return;
     try { await copyPng(pngOf(maskedImage())); dlgNote('Copied. Paste it into a chat, a ticket or a slide; it is exactly the image above.'); }
@@ -2511,6 +2612,21 @@ customer service staff agent team people everyone nobody someone something nothi
   if (isExt && location.hash === '#snip') {
     chrome.runtime.sendMessage({ type: 'dsc-get-snip' }, resp => { if (resp && resp.dataUrl) startCrop(resp.dataUrl); });
   }
+  if (isDesktop) {
+    const T = window.__TAURI__;
+    // the hotkey or the tray: the shell took a screenshot; open the crop screen on it
+    T.event.listen('snip', e => { document.querySelectorAll('dialog[open]').forEach(d => d.close()); reviewSeq++; startOver(); startCrop(e.payload); });
+    T.event.listen('snip-error', e => { show('s-drop'); dropError('The screen could not be captured: ' + e.payload); });
+    // the start screen says how to snip, and offers a button for it
+    const hint = $('desktop-hint'), btn = $('btn-desktop-snip');
+    if (hint) { T.core.invoke('hotkey_label').then(k => { hint.hidden = false; hint.querySelector('kbd').textContent = k; }); }
+    if (btn) { btn.hidden = false; btn.onclick = () => T.core.invoke('snip_now'); }
+  }
+
+  // The second visit is instant and works offline: a service worker (sw.js) keeps this site's own files (the page, the
+  // reader and its language file, the on-device models) in the browser's cache. Same site only; it fetches nothing the
+  // page itself would not. Not in the extension (its files are already local) and not over plain http.
+  if ('serviceWorker' in navigator && !isExt && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 
   // expose for tests
   window.__DSC = S;
